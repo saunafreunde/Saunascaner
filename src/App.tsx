@@ -544,8 +544,12 @@ export default function App() {
               className="space-y-8"
             >
               <header className="text-center space-y-4">
-                <div className="w-full max-w-2xl h-32 md:h-48 mx-auto rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                  <img src={backgroundDataUrl || '/background.jpg'} alt="Schwarzwald" className="w-full h-full object-cover" />
+                <div className="w-full max-w-2xl h-32 md:h-48 mx-auto rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex items-center justify-center bg-forest-950">
+                  {backgroundDataUrl ? (
+                    <img src={backgroundDataUrl} alt="Schwarzwald" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-cream-100/40 font-medium">Lade Hintergrund...</div>
+                  )}
                 </div>
                 <div>
                   <h1 className="text-3xl font-black tracking-tight text-cream-100">Saunafreunde Schwarzwald</h1>
