@@ -1034,13 +1034,19 @@ export default function App() {
                                       onClick={async () => {
                                         if (!qrCardRef.current) return;
                                         try {
-                                          const dataUrl = await toJpeg(qrCardRef.current, { quality: 0.95, pixelRatio: 2 });
+                                          const dataUrl = await toJpeg(qrCardRef.current, { 
+                                            quality: 0.95, 
+                                            pixelRatio: 2,
+                                            useCORS: true,
+                                            cacheBust: true,
+                                          });
                                           const link = document.createElement('a');
                                           link.download = `Saunafreunde-Ausweis-${(editingMember.memberName || 'Mitglied').replace(/\s+/g, '-')}.jpg`;
                                           link.href = dataUrl;
                                           link.click();
                                         } catch (err) {
                                           console.error('Failed to generate image', err);
+                                          alert('Fehler beim Speichern des Bildes. Bitte versuche es erneut.');
                                         }
                                       }}
                                       className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 transition-all"
