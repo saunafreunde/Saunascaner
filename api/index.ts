@@ -27,11 +27,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let member = members[ausweis_nr];
       if (!member) {
         const num = Math.floor(Math.random() * 900) + 100;
+        const { name, memberName } = req.body || {};
         member = {
-          code: ausweis_nr, member_number: `FDS-${num}`, name: 'Neues Mitglied',
-          status: 'aktiv', present: aktion === 'einlass', visits_30_days: 0,
-          visits_365_days: 0, visits_total: 0, warning: '', auto_checkout_info: false,
-          is_admin: false, is_family: false, qualifications: [], feedback_questions: []
+          code: ausweis_nr, 
+          member_number: `FDS-${num}`, 
+          name: name || memberName || 'Neues Mitglied',
+          status: 'aktiv', 
+          present: aktion === 'einlass', 
+          visits_30_days: 0,
+          visits_365_days: 0, 
+          visits_total: 0, 
+          warning: '', 
+          auto_checkout_info: false,
+          is_admin: false, 
+          is_family: false, 
+          qualifications: [], 
+          feedback_questions: scannerConfig.feedbackQuestions || []
         };
         members[ausweis_nr] = member;
         await setMemory('scanner_members', members);
@@ -98,23 +109,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (path === '/api/members/create' && method === 'POST') {
-    const { code, name, qualifications, is_admin, is_family } = req.body || {};
+    const { code, name, memberName, qualifications, is_admin, is_family } = req.body || {};
     let members = await getMemory('scanner_members') || {};
     const num = Math.floor(Math.random() * 900) + 100;
-    members[code] = { code, member_number: `FDS-${num}`, name, status: 'aktiv',
-      present: false, visits_30_days: 0, visits_365_days: 0, visits_total: 0,
-      warning: '', auto_checkout_info: false, is_admin: is_admin || false,
-      is_family: is_family || false, qualifications: qualifications || [], feedback_questions: [] };
+    const memberNameFinal = name || memberName || 'Neues Mitglied';
+    members[code] = { 
+      code, 
+      member_number: `FDS-${num}`, 
+      name: memberNameFinal, 
+      status: 'aktiv',
+      present: false, 
+      visits_30_days: 0,
+      visits_365_days: 0, 
+      visits_total: 0,
+      warning: '', 
+      auto_checkout_info: false, 
+      is_admin: is_admin || false,
+      is_family: is_family || false, 
+      qualifications: qualifications || [], 
+      feedback_questions: [] 
+    };
     await setMemory('scanner_members', members);
     res.json({ success: true, member: members[code] });
     return;
   }
 
   if (path === '/api/members/update' && method === 'POST') {
-    const { code, name, qualifications, is_admin, is_family } = req.body || {};
+    const { code, name, qualifications, is_admin, is_family, memberName } = req.body || {};
     let members = await getMemory('scanner_members') || {};
     if (members[code]) {
-      members[code] = { ...members[code], name, qualifications, is_admin, is_family };
+      members[code] = { 
+        ...members[code], 
+        name: name || memberName || members[code].name, 
+        qualifications: qualifications || members[code].qualifications || [], 
+        is_admin: is_admin !== undefined ? is_admin : members[code].is_admin,
+        is_family: is_family !== undefined ? is_family : members[code].is_family
+      };
       await setMemory('scanner_members', members);
       res.json({ success: true });
     } else { res.status(404).json({ error: 'Member not found' }); }
