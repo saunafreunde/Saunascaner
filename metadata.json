@@ -1,0 +1,5 @@
+{
+  "name": "Saunafreunde Schwarzwald e.V. – Mitglieder-Scanner",
+  "description": "Professioneller QR-Scanner für den Vereinsbetrieb mit Anwesenheitskontrolle und Besuchshistorie.",
+  "requestFramePermissions": ["camera"]
+}

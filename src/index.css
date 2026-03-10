@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-forest-950: #0b0f0c;
+  --color-forest-900: #121713;
+  --color-forest-800: #1b221c;
+  --color-wood-500: #81644b;
+  --color-moss-500: #5e7b57;
+  --color-cream-100: #f3f0e8;
+}
+
+:root {
+  --bg-1: #0b0f0c;
+  --bg-2: #121713;
+  --bg-3: #1b221c;
+  --panel: rgba(20, 27, 22, 0.85);
+  --line: rgba(163, 150, 131, 0.15);
+  --text: #f3f0e8;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background: 
+    radial-gradient(circle at top left, rgba(94, 123, 87, 0.15), transparent 30%),
+    radial-gradient(circle at top right, rgba(129, 100, 75, 0.12), transparent 35%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 45%, var(--bg-3) 100%);
+  background-attachment: fixed;
+}
+
+.glass {
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+}
+
+/* Custom scrollbar for the activity log */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(163, 150, 131, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(163, 150, 131, 0.3);
+}
