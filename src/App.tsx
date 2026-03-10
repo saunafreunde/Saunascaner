@@ -105,7 +105,7 @@ export default function App() {
 
   // Fetch logo as base64 to avoid CORS issues with html-to-image
   useEffect(() => {
-    fetch('https://api.allorigins.win/raw?url=https%3A%2F%2Fsauna-fds.de%2Ffile%2Fi%2Fe387364df45281212.jpg')
+    fetch('/logo.webp')
       .then(res => res.blob())
       .then(blob => {
         const reader = new FileReader();
@@ -543,7 +543,7 @@ export default function App() {
             >
               <header className="text-center space-y-4">
                 <div className="w-full max-w-2xl h-32 md:h-48 mx-auto rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                  <img src="https://sauna-fds.de/file/i/e387364df45281212.jpg" alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src="/logo.webp" alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <h1 className="text-3xl font-black tracking-tight text-cream-100">Saunafreunde Schwarzwald</h1>
@@ -989,7 +989,7 @@ export default function App() {
                                     >
                                       <div className="absolute inset-0">
                                         <img 
-                                          src="https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=800&q=80" 
+                                          src="/background.jpg" 
                                           alt="Schwarzwald" 
                                           className="w-full h-full object-cover opacity-70"
                                           crossOrigin="anonymous"
@@ -1008,7 +1008,7 @@ export default function App() {
                                               />
                                             ) : (
                                               <img 
-                                                src="https://api.allorigins.win/raw?url=https%3A%2F%2Fsauna-fds.de%2Ffile%2Fi%2Fe387364df45281212.jpg" 
+                                                src="/logo.webp" 
                                                 alt="Logo" 
                                                 className="h-10 w-auto rounded-lg mb-3 shadow-lg object-cover" 
                                                 crossOrigin="anonymous" 
