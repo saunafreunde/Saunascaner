@@ -544,12 +544,8 @@ export default function App() {
               className="space-y-8"
             >
               <header className="text-center space-y-4">
-                <div className="w-full max-w-2xl h-32 md:h-48 mx-auto rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex items-center justify-center bg-forest-950">
-                  {backgroundDataUrl ? (
-                    <img src={backgroundDataUrl} alt="Schwarzwald" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-cream-100/40 font-medium">Lade Hintergrund...</div>
-                  )}
+                <div className="w-full max-w-2xl h-32 md:h-48 mx-auto rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+                  <img src="/logo.webp" alt="Logo" className="w-full h-full object-contain bg-forest-950" />
                 </div>
               </header>
 
@@ -991,11 +987,10 @@ export default function App() {
                                     >
                                       <div className="absolute inset-0">
                                         <img 
-                                          src={backgroundDataUrl || '/background.jpg'} 
+                                          src="/background.jpg" 
                                           alt="Schwarzwald" 
-                                          className="w-full h-full object-cover opacity-70"
+                                          className="w-full h-full object-cover"
                                         />
-                                        <div className="absolute inset-0 bg-gradient-to-r from-forest-900/80 via-forest-900/50 to-transparent" />
                                       </div>
                                       
                                       <div className="relative z-10 flex w-full p-6 items-center justify-between">
