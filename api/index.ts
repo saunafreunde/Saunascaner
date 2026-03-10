@@ -112,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { code, name, memberName, qualifications, is_admin, is_family } = req.body || {};
     let members = await getMemory('scanner_members') || {};
     const num = Math.floor(Math.random() * 900) + 100;
-    const memberNameFinal = name || memberName || 'Neues Mitglied';
+    const memberNameFinal = (name && name.trim()) || (memberName && memberName.trim()) || 'Neues Mitglied';
     members[code] = { 
       code, 
       member_number: `FDS-${num}`, 
@@ -140,7 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (members[code]) {
       members[code] = { 
         ...members[code], 
-        name: name || memberName || members[code].name, 
+        name: (name && name.trim()) || (memberName && memberName.trim()) || members[code].name, 
         qualifications: qualifications || members[code].qualifications || [], 
         is_admin: is_admin !== undefined ? is_admin : members[code].is_admin,
         is_family: is_family !== undefined ? is_family : members[code].is_family
