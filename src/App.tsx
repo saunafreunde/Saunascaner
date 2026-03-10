@@ -89,6 +89,7 @@ export default function App() {
   const [editingMember, setEditingMember] = useState<MemberProfile | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [backgroundDataUrl, setBackgroundDataUrl] = useState<string | null>(null);
   const [dailyCodes, setDailyCodes] = useState<Record<string, any>>({});
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [generatedGuestCode, setGeneratedGuestCode] = useState<string | null>(null);
@@ -103,8 +104,9 @@ export default function App() {
   const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Fetch logo as base64 to avoid CORS issues with html-to-image
+  // Fetch logo and background as base64 to avoid CORS issues with html-to-image
   useEffect(() => {
+    // Load logo
     fetch('/logo.webp')
       .then(res => res.blob())
       .then(blob => {
@@ -113,6 +115,16 @@ export default function App() {
         reader.readAsDataURL(blob);
       })
       .catch(err => console.error('Failed to load logo', err));
+    
+    // Load background image
+    fetch('/background.jpg')
+      .then(res => res.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => setBackgroundDataUrl(reader.result as string);
+        reader.readAsDataURL(blob);
+      })
+      .catch(err => console.error('Failed to load background', err));
   }, []);
 
   // Persistence
@@ -990,10 +1002,9 @@ export default function App() {
                                     >
                                       <div className="absolute inset-0">
                                         <img 
-                                          src="/background.jpg" 
+                                          src={backgroundDataUrl || '/background.jpg'} 
                                           alt="Schwarzwald" 
                                           className="w-full h-full object-cover opacity-70"
-                                          crossOrigin="anonymous"
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-r from-forest-900/80 via-forest-900/50 to-transparent" />
                                       </div>
