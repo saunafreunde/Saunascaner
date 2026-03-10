@@ -551,10 +551,6 @@ export default function App() {
                     <div className="text-cream-100/40 font-medium">Lade Hintergrund...</div>
                   )}
                 </div>
-                <div>
-                  <h1 className="text-3xl font-black tracking-tight text-cream-100">Saunafreunde Schwarzwald</h1>
-                  <p className="text-cream-100/40 font-medium">Bitte Ausweis scannen</p>
-                </div>
               </header>
 
               <div className="glass rounded-[40px] p-8 md:p-12 shadow-2xl relative overflow-hidden">
@@ -1005,19 +1001,6 @@ export default function App() {
                                       <div className="relative z-10 flex w-full p-6 items-center justify-between">
                                         <div className="flex flex-col justify-between h-full">
                                           <div>
-                                            {backgroundDataUrl ? (
-                                              <img 
-                                                src={backgroundDataUrl} 
-                                                alt="Schwarzwald" 
-                                                className="h-14 w-auto rounded-lg mb-3 shadow-lg object-cover" 
-                                              />
-                                            ) : (
-                                              <img 
-                                                src="/background.jpg" 
-                                                alt="Schwarzwald" 
-                                                className="h-14 w-auto rounded-lg mb-3 shadow-lg object-cover" 
-                                              />
-                                            )}
                                             <p className="text-[10px] uppercase tracking-widest text-moss-400 font-black drop-shadow-md">Mitgliedsausweis</p>
                                             <h3 className="text-xl font-black text-white mt-1 leading-tight drop-shadow-lg">{editingMember.memberName || 'Neues Mitglied'}</h3>
                                             <p className="text-sm text-moss-300 font-bold mt-1 drop-shadow-md">Saunameister</p>
