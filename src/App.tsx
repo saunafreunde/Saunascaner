@@ -167,6 +167,7 @@ export default function App() {
             warning: m.warning,
             autoCheckoutInfo: !!m.auto_checkout_info,
             isAdmin: !!m.is_admin,
+            isFamily: !!m.is_family,
             qualifications: m.qualifications || [],
             feedbackQuestions: m.feedback_questions || [],
           }));
