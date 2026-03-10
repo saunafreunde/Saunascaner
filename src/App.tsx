@@ -88,7 +88,6 @@ export default function App() {
   const [allMembers, setAllMembers] = useState<MemberProfile[]>([]);
   const [editingMember, setEditingMember] = useState<MemberProfile | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [backgroundDataUrl, setBackgroundDataUrl] = useState<string | null>(null);
   const [dailyCodes, setDailyCodes] = useState<Record<string, any>>({});
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
@@ -104,18 +103,8 @@ export default function App() {
   const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Fetch logo and background as base64 to avoid CORS issues with html-to-image
+  // Fetch background as base64 to avoid CORS issues with html-to-image
   useEffect(() => {
-    // Load logo
-    fetch('/logo.webp')
-      .then(res => res.blob())
-      .then(blob => {
-        const reader = new FileReader();
-        reader.onloadend = () => setLogoDataUrl(reader.result as string);
-        reader.readAsDataURL(blob);
-      })
-      .catch(err => console.error('Failed to load logo', err));
-    
     // Load background image
     fetch('/background.jpg')
       .then(res => res.blob())
@@ -556,7 +545,7 @@ export default function App() {
             >
               <header className="text-center space-y-4">
                 <div className="w-full max-w-2xl h-32 md:h-48 mx-auto rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                  <img src="/logo.webp" alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={backgroundDataUrl || '/background.jpg'} alt="Schwarzwald" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h1 className="text-3xl font-black tracking-tight text-cream-100">Saunafreunde Schwarzwald</h1>
@@ -1012,18 +1001,17 @@ export default function App() {
                                       <div className="relative z-10 flex w-full p-6 items-center justify-between">
                                         <div className="flex flex-col justify-between h-full">
                                           <div>
-                                            {logoDataUrl ? (
+                                            {backgroundDataUrl ? (
                                               <img 
-                                                src={logoDataUrl} 
-                                                alt="Logo" 
-                                                className="h-10 w-auto rounded-lg mb-3 shadow-lg object-cover" 
+                                                src={backgroundDataUrl} 
+                                                alt="Schwarzwald" 
+                                                className="h-14 w-auto rounded-lg mb-3 shadow-lg object-cover" 
                                               />
                                             ) : (
                                               <img 
-                                                src="/logo.webp" 
-                                                alt="Logo" 
-                                                className="h-10 w-auto rounded-lg mb-3 shadow-lg object-cover" 
-                                                crossOrigin="anonymous" 
+                                                src="/background.jpg" 
+                                                alt="Schwarzwald" 
+                                                className="h-14 w-auto rounded-lg mb-3 shadow-lg object-cover" 
                                               />
                                             )}
                                             <p className="text-[10px] uppercase tracking-widest text-moss-400 font-black drop-shadow-md">Mitgliedsausweis</p>
