@@ -106,7 +106,7 @@ export default function App() {
   // Fetch background as base64 to avoid CORS issues with html-to-image
   useEffect(() => {
     // Load background image
-    fetch('/background.jpg')
+    fetch('https://ftp.sauna-fds.de/bilder/saunafreunde-scaner.jpg')
       .then(res => res.blob())
       .then(blob => {
         const reader = new FileReader();
@@ -544,13 +544,14 @@ export default function App() {
               className="space-y-8"
             >
               <header className="text-center space-y-4">
-                <div className="w-full max-w-2xl h-32 md:h-48 mx-auto rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                  <img src="/logo.webp" alt="Logo" className="w-full h-full object-contain bg-forest-950" />
+                <div className="w-full h-24 md:h-32 mb-8 flex justify-start">
+                  <img src="/logo.webp" alt="Logo" className="h-full object-contain" />
                 </div>
               </header>
 
-              <div className="glass rounded-[40px] p-8 md:p-12 shadow-2xl relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-moss-500/5 to-transparent pointer-events-none" />
+              <div className="rounded-[40px] p-8 md:p-12 shadow-2xl relative overflow-hidden" 
+                style={{ backgroundImage: `url(${backgroundDataUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                <div className="absolute inset-0 bg-forest-950/20 backdrop-blur-sm" />
                 
                 <div className="relative space-y-8">
                   <div className={cn(
@@ -985,16 +986,15 @@ export default function App() {
                                       ref={qrCardRef}
                                       className="relative w-full aspect-video rounded-2xl overflow-hidden flex bg-forest-950 border border-white/20 shadow-2xl"
                                     >
-                                      <div className="absolute inset-0">
-                                        <img 
-                                          src="/background.jpg" 
-                                          alt="Schwarzwald" 
-                                          className="w-full h-full object-cover"
-                                        />
-                                      </div>
+                                      <div className="absolute inset-0 bg-forest-950"></div>
                                       
                                       <div className="relative z-10 flex w-full p-6 items-center justify-between">
                                         <div className="flex flex-col justify-between h-full">
+                                          <div className="flex items-start gap-2">
+                                            <div className="bg-white p-1 rounded-lg shadow-sm">
+                                              <img src="/ausweis-logo.jpg" alt="Logo" className="w-12 h-auto" />
+                                            </div>
+                                          </div>
                                           <div>
                                             <p className="text-[10px] uppercase tracking-widest text-moss-400 font-black drop-shadow-md">Mitgliedsausweis</p>
                                             <h3 className="text-xl font-black text-white mt-1 leading-tight drop-shadow-lg">{editingMember.memberName || 'Neues Mitglied'}</h3>
