@@ -954,9 +954,9 @@ export default function App() {
                                 <label className="text-[10px] font-bold text-cream-100/40 ml-1">Name</label>
                                 <input 
                                   type="text" 
-                                  value={editingMember.memberName}
+                                  value={editingMember.memberName || ''}
                                   onChange={(e) => setEditingMember({ ...editingMember, memberName: e.target.value })}
-                                  className="w-full bg-forest-950 border border-white/10 rounded-xl px-4 py-3 text-sm"
+                                  className="w-full bg-forest-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream-100 placeholder:text-cream-100/30"
                                 />
                               </div>
 
@@ -965,9 +965,9 @@ export default function App() {
                                 <div className="flex gap-3">
                                   <input 
                                     type="text" 
-                                    value={editingMember.code}
+                                    value={editingMember.code || ''}
                                     onChange={(e) => setEditingMember({ ...editingMember, code: e.target.value })}
-                                    className="flex-1 bg-forest-950 border border-white/10 rounded-xl px-4 py-3 text-sm"
+                                    className="flex-1 bg-forest-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream-100 placeholder:text-cream-100/30"
                                   />
                                   <button 
                                     onClick={() => {
