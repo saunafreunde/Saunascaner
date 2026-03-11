@@ -986,7 +986,13 @@ export default function App() {
                                       ref={qrCardRef}
                                       className="relative w-full aspect-video rounded-2xl overflow-hidden flex bg-forest-950 border border-white/20 shadow-2xl"
                                     >
-                                      <div className="absolute inset-0 bg-forest-950"></div>
+                                                                            <div className="absolute inset-0">
+                                        <img 
+                                          src="/forest-stream.jpg" 
+                                          alt="Schwarzwald" 
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
                                       
                                       <div className="relative z-10 flex w-full p-6 items-center justify-between">
                                         <div className="flex flex-col justify-between h-full">
