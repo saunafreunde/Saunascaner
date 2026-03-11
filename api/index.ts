@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const supabaseUrl = "https://aiwsriwgznesqiachfyb.supabase.co";
-const supabaseKey = "sb_secret_v3Mm37ZMnc7P9sKJPJIaWA_jwrtsHdY";
+const supabaseUrl = "https://uuxjuqvpfjwqqbtcxoku.supabase.co";
+const supabaseKey = "sb_publishable_VHW1Wv2zuhfJ9dK3vJQ33g_-TJc_ULh";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function getMemory(key: string): Promise<any> {
