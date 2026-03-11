@@ -5,160 +5,245 @@ const supabaseUrl = "https://uuxjuqvpfjwqqbtcxoku.supabase.co";
 const supabaseKey = "sb_publishable_VHW1Wv2zuhfJ9dK3vJQ33g_-TJc_ULh";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function getMemory(key: string): Promise<any> {
-  const { data } = await supabase.from('memory').select('value').eq('key', key).single();
-  return data?.value || null;
-}
-
-async function setMemory(key: string, value: any): Promise<void> {
-  await supabase.from('memory').upsert({ key, value }, { onConflict: 'key' });
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { method, url } = req;
   const path = url?.split('?')[0] || '';
   
+  // SCAN - Einlass/Auslass
   if (path === '/api/scan' && method === 'POST') {
     try {
       const { ausweis_nr, aktion, family_count } = req.body || {};
-      let members = await getMemory('scanner_members') || {};
-      let scannerConfig = await getMemory('scanner_config') || { feedbackQuestions: [] };
       
-      let member = members[ausweis_nr];
+      // Member finden oder anlegen
+      let { data: member } = await supabase
+        .from('mitglieder')
+        .select('*')
+        .eq('code', ausweis_nr)
+        .single();
+      
       if (!member) {
         const num = Math.floor(Math.random() * 900) + 100;
         const { name, memberName } = req.body || {};
-        member = {
-          code: ausweis_nr, 
-          member_number: `FDS-${num}`, 
+        const newMember = {
+          code: ausweis_nr,
+          member_number: `FDS-${num}`,
           name: name || memberName || 'Neues Mitglied',
-          status: 'aktiv', 
-          present: aktion === 'einlass', 
+          status: 'aktiv',
+          present: aktion === 'einlass',
           visits_30_days: 0,
-          visits_365_days: 0, 
-          visits_total: 0, 
-          warning: '', 
+          visits_365_days: 0,
+          visits_total: 0,
+          warning: '',
           auto_checkout_info: false,
-          is_admin: false, 
-          is_family: false, 
-          qualifications: [], 
-          feedback_questions: scannerConfig.feedbackQuestions || []
+          is_admin: false,
+          is_family: false,
+          qualifications: [],
+          feedback_questions: []
         };
-        members[ausweis_nr] = member;
-        await setMemory('scanner_members', members);
+        const { data } = await supabase
+          .from('mitglieder')
+          .insert(newMember)
+          .select()
+          .single();
+        member = data;
       }
 
+      // Familien-Check
       if (member.is_family && !family_count && aktion === 'einlass') {
         res.json({ needs_family_count: true });
         return;
       }
 
+      // Besuche aktualisieren
+      const updates: any = { updated_at: new Date().toISOString() };
       if (aktion === 'einlass') {
-        member.present = true;
-        member.visits_30_days = (member.visits_30_days || 0) + 1;
-        member.visits_365_days = (member.visits_365_days || 0) + 1;
-        member.visits_total = (member.visits_total || 0) + 1;
+        updates.present = true;
+        updates.visits_30_days = (member.visits_30_days || 0) + 1;
+        updates.visits_365_days = (member.visits_365_days || 0) + 1;
+        updates.visits_total = (member.visits_total || 0) + 1;
       } else if (aktion === 'auslass') {
-        member.present = false;
+        updates.present = false;
       }
 
-      members[ausweis_nr] = member;
-      await setMemory('scanner_members', members);
+      await supabase
+        .from('mitglieder')
+        .update(updates)
+        .eq('code', ausweis_nr);
 
       res.json({
-        member_number: member.member_number, name: member.name, status: member.status,
-        present: member.present, visits_30_days: member.visits_30_days,
-        visits_365_days: member.visits_365_days, visits_total: member.visits_total,
-        warning: member.warning, auto_checkout_info: member.auto_checkout_info,
-        is_admin: member.is_admin, is_family: member.is_family,
-        qualifications: member.qualifications, feedback_questions: member.feedback_questions || [],
-        checkoutMessage: !member.present ? `Tschüss, ${member.name}!` : null
+        member_number: member.member_number,
+        name: member.name,
+        status: member.status,
+        present: updates.present,
+        visits_30_days: updates.visits_30_days,
+        visits_365_days: updates.visits_365_days,
+        visits_total: updates.visits_total,
+        warning: member.warning,
+        auto_checkout_info: member.auto_checkout_info,
+        is_admin: member.is_admin,
+        is_family: member.is_family,
+        qualifications: member.qualifications,
+        feedback_questions: member.feedback_questions || [],
+        checkoutMessage: !updates.present ? `Tschüss, ${member.name}!` : null
       });
-    } catch (err) { res.status(500).json({ error: 'Scan failed' }); }
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Scan failed' });
+    }
     return;
   }
 
+  // CONFIG - Geräte-Einstellungen (weiterhin in memory)
   if (path === '/api/config' && method === 'GET') {
-    const config = await getMemory('scanner_config');
-    res.json(config || { deviceName: 'Scanner 1', soundEnabled: true, feedbackQuestions: [] });
+    const { data } = await supabase
+      .from('memory')
+      .select('value')
+      .eq('key', 'scanner_config')
+      .single();
+    const config = data?.value || { deviceName: 'Scanner 1', soundEnabled: true, feedbackQuestions: [] };
+    res.json(config);
     return;
   }
 
   if (path === '/api/config' && method === 'POST') {
     const { apiUrl, deviceName, soundEnabled, feedbackQuestions } = req.body || {};
-    let config = await getMemory('scanner_config') || {};
+    const { data: existing } = await supabase
+      .from('memory')
+      .select('value')
+      .eq('key', 'scanner_config')
+      .single();
+    let config = existing?.value || {};
     if (apiUrl !== undefined) config.apiUrl = apiUrl;
     if (deviceName !== undefined) config.deviceName = deviceName;
     if (soundEnabled !== undefined) config.soundEnabled = soundEnabled;
     if (feedbackQuestions !== undefined) config.feedbackQuestions = feedbackQuestions;
-    await setMemory('scanner_config', config);
+    
+    await supabase
+      .from('memory')
+      .upsert({ key: 'scanner_config', value: config }, { onConflict: 'key' });
     res.json({ success: true });
     return;
   }
 
+  // MEMBERS - Alle Mitglieder
   if (path === '/api/members' && method === 'GET') {
-    const members = await getMemory('scanner_members') || {};
-    res.json(Object.values(members).map((m: any) => ({
-      code: m.code, memberNumber: m.member_number, memberName: m.name,
-      memberStatus: m.status, present: m.present, visits30: m.visits_30_days,
-      visits365: m.visits_365_days, visitsTotal: m.visits_total, warning: m.warning,
-      autoCheckoutInfo: m.auto_checkout_info, isAdmin: m.is_admin, isFamily: m.is_family,
-      qualifications: m.qualifications, feedbackQuestions: m.feedback_questions
-    })));
+    const { data: members } = await supabase
+      .from('mitglieder')
+      .select('*')
+      .order('name');
+    res.json(members?.map((m: any) => ({
+      code: m.code,
+      memberNumber: m.member_number,
+      memberName: m.name,
+      memberStatus: m.status,
+      present: m.present,
+      visits30: m.visits_30_days,
+      visits365: m.visits_365_days,
+      visitsTotal: m.visits_total,
+      warning: m.warning,
+      autoCheckoutInfo: m.auto_checkout_info,
+      isAdmin: m.is_admin,
+      isFamily: m.is_family,
+      qualifications: m.qualifications,
+      feedbackQuestions: m.feedback_questions
+    })) || []);
     return;
   }
 
+  // MEMBERS CREATE - Neues Mitglied
   if (path === '/api/members/create' && method === 'POST') {
     const { code, name, memberName, qualifications, is_admin, is_family } = req.body || {};
-    let members = await getMemory('scanner_members') || {};
     const num = Math.floor(Math.random() * 900) + 100;
     const memberNameFinal = (name && name.trim()) || (memberName && memberName.trim()) || 'Neues Mitglied';
-    members[code] = { 
-      code, 
-      member_number: `FDS-${num}`, 
-      name: memberNameFinal, 
-      status: 'aktiv',
-      present: false, 
-      visits_30_days: 0,
-      visits_365_days: 0, 
-      visits_total: 0,
-      warning: '', 
-      auto_checkout_info: false, 
-      is_admin: is_admin || false,
-      is_family: is_family || false, 
-      qualifications: qualifications || [], 
-      feedback_questions: [] 
-    };
-    await setMemory('scanner_members', members);
-    res.json({ success: true, member: members[code] });
+    
+    const { data, error } = await supabase
+      .from('mitglieder')
+      .insert({
+        code,
+        member_number: `FDS-${num}`,
+        name: memberNameFinal,
+        status: 'aktiv',
+        present: false,
+        visits_30_days: 0,
+        visits_365_days: 0,
+        visits_total: 0,
+        warning: '',
+        auto_checkout_info: false,
+        is_admin: is_admin || false,
+        is_family: is_family || false,
+        qualifications: qualifications || [],
+        feedback_questions: []
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.json({ success: true, member: data });
+    }
     return;
   }
 
+  // MEMBERS UPDATE - Mitglied bearbeiten
   if (path === '/api/members/update' && method === 'POST') {
     const { code, name, qualifications, is_admin, is_family, memberName } = req.body || {};
-    let members = await getMemory('scanner_members') || {};
-    if (members[code]) {
-      members[code] = { 
-        ...members[code], 
-        name: (name && name.trim()) || (memberName && memberName.trim()) || members[code].name, 
-        qualifications: qualifications || members[code].qualifications || [], 
-        is_admin: is_admin !== undefined ? is_admin : members[code].is_admin,
-        is_family: is_family !== undefined ? is_family : members[code].is_family
-      };
-      await setMemory('scanner_members', members);
-      res.json({ success: true });
-    } else { res.status(404).json({ error: 'Member not found' }); }
+    
+    const { data: existing } = await supabase
+      .from('mitglieder')
+      .select('*')
+      .eq('code', code)
+      .single();
+    
+    if (!existing) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (name) updates.name = name.trim();
+    if (memberName) updates.name = memberName.trim();
+    if (qualifications) updates.qualifications = qualifications;
+    if (is_admin !== undefined) updates.is_admin = is_admin;
+    if (is_family !== undefined) updates.is_family = is_family;
+
+    await supabase
+      .from('mitglieder')
+      .update(updates)
+      .eq('code', code);
+
+    res.json({ success: true });
     return;
   }
 
+  // MEMBERS FEEDBACK
+  if (path === '/api/members/feedback' && method === 'POST') {
+    const { code, feedback } = req.body || {};
+    // Feedback speichern (könnte später erweitert werden)
+    res.json({ success: true });
+    return;
+  }
+
+  // DAILY CODES (weiterhin in memory)
   if (path === '/api/daily-codes/generate' && method === 'POST') {
     const { type, ref, validFrom, validUntil } = req.body || {};
-    let dailyCodes = await getMemory('scanner_daily_codes') || {};
+    const { data: existing } = await supabase
+      .from('memory')
+      .select('value')
+      .eq('key', 'scanner_daily_codes')
+      .single();
+    let dailyCodes = existing?.value || {};
+    
     const code = type === 'guest' ? `GAST-${Date.now().toString(36).toUpperCase()}` : `TAGES-${Date.now().toString(36).toUpperCase()}`;
     const now = Date.now();
     const until = validUntil ? new Date(validUntil).getTime() : now + 24 * 60 * 60 * 1000;
+    
     dailyCodes[code] = { code, type, ref, validFrom, validUntil: until, expiresAt: until, createdAt: now };
-    await setMemory('scanner_daily_codes', dailyCodes);
+    
+    await supabase
+      .from('memory')
+      .upsert({ key: 'scanner_daily_codes', value: dailyCodes }, { onConflict: 'key' });
+    
     res.json(dailyCodes[code]);
     return;
   }
