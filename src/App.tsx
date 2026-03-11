@@ -544,8 +544,8 @@ export default function App() {
               className="space-y-8"
             >
               <header className="text-center space-y-4">
-                <div className="w-full h-24 md:h-32 mb-8 flex justify-start">
-                  <img src="/logo.jpg" alt="Logo" className="h-full object-contain" />
+                <div className="w-full h-24 md:h-32 mb-8 flex justify-center">
+                  <img src="/logo.jpg" alt="Logo" className="h-full max-w-[200px] md:max-w-[300px] object-contain" />
                 </div>
               </header>
 
@@ -998,7 +998,7 @@ export default function App() {
                                         <div className="flex flex-col justify-between h-full">
                                           <div className="flex items-start gap-2">
                                             <div className="bg-white p-1 rounded-lg shadow-sm">
-                                              <img src="/logo.jpg" alt="Logo" className="w-12 h-auto" />
+                                              <img src="/logo.jpg" alt="Logo" className="w-24 h-auto" />
                                             </div>
                                           </div>
                                           <div>
