@@ -956,7 +956,7 @@ export default function App() {
                                   type="text" 
                                   value={editingMember.memberName || ''}
                                   onChange={(e) => setEditingMember({ ...editingMember, memberName: e.target.value })}
-                                  className="w-full bg-forest-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream-100 placeholder:text-cream-100/30"
+                                  className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30"
                                 />
                               </div>
 
@@ -967,7 +967,7 @@ export default function App() {
                                     type="text" 
                                     value={editingMember.code || ''}
                                     onChange={(e) => setEditingMember({ ...editingMember, code: e.target.value })}
-                                    className="flex-1 bg-forest-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream-100 placeholder:text-cream-100/30"
+                                    className="flex-1 bg-black border border-white/20 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30"
                                   />
                                   <button 
                                     onClick={() => {
