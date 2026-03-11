@@ -142,8 +142,10 @@ export default function App() {
   }, [view, lastInteraction]);
 
   // Fetch config and members when entering admin view
+  const [membersLoaded, setMembersLoaded] = useState(false);
+  
   useEffect(() => {
-    if (view === 'admin') {
+    if (view === 'admin' && !membersLoaded) {
       // Fetch Config
       fetch('/api/config')
         .then(res => res.json())
@@ -173,6 +175,7 @@ export default function App() {
             feedbackQuestions: m.feedback_questions || [],
           }));
           setAllMembers(normalized);
+          setMembersLoaded(true);
         })
         .catch(err => console.error('Failed to fetch members', err));
 
