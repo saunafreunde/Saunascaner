@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const supabaseUrl = "https://uuxjuqvpfjwqqbtcxoku.supabase.co";
-const supabaseKey = "sb_publishable_VHW1Wv2zuhfJ9dK3vJQ33g_-TJc_ULh";
+const supabaseUrl = process.env.SUPABASE_URL || "https://uuxjuqvpfjwqqbtcxoku.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1eGp1cXZwZmp3cXFidGN4b2t1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzAxMjEwOSwiZXhwIjoyMDg4NTg4MTA5fQ.L3FeqbqvoM3DZQ3DNRlyEGEyBjeso8plm_mWcbg59KU";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
