@@ -425,6 +425,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         if (editingMember.isNew) {
+          // Create new member - use returned data
           const newMember: MemberProfile = {
             code: data.member.code,
             memberNumber: data.member.member_number,
@@ -442,15 +443,41 @@ export default function App() {
             feedbackQuestions: data.member.feedback_questions
           };
           setAllMembers(prev => [...prev, newMember]);
+          setEditingMember(null);
           alert('Mitglied erfolgreich angelegt');
         } else {
-          setAllMembers(prev => prev.map(m => m.code === editingMember.code ? editingMember : m));
-          alert('Mitglied erfolgreich aktualisiert');
+          // Update existing member - reload full list from server to ensure consistency
+          const refreshRes = await fetch('/api/members');
+          if (refreshRes.ok) {
+            const membersData = await refreshRes.json();
+            const normalized = membersData.map((m: any) => ({
+              code: m.code,
+              memberNumber: m.member_number,
+              memberName: m.name,
+              memberStatus: m.status,
+              present: m.present,
+              visits30: m.visits_30_days,
+              visits365: m.visits_365_days,
+              visitsTotal: m.visits_total,
+              warning: m.warning,
+              autoCheckoutInfo: m.auto_checkout_info,
+              isAdmin: m.is_admin,
+              isFamily: m.is_family,
+              qualifications: m.qualifications,
+              feedbackQuestions: m.feedback_questions
+            }));
+            setAllMembers(normalized);
+            setEditingMember(null);
+            alert('Mitglied erfolgreich aktualisiert');
+          }
         }
-        setEditingMember(null);
+      } else {
+        const errorData = await res.json();
+        alert(`Fehler: ${errorData.error || 'Unbekannter Fehler'}`);
       }
     } catch (err) {
       console.error('Update failed', err);
+      alert('Fehler beim Speichern');
     } finally {
       setIsUpdating(false);
     }

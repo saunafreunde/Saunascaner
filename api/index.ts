@@ -8,19 +8,19 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { method, url } = req;
   const path = url?.split('?')[0] || '';
-  
+
   // SCAN - Einlass/Auslass
   if (path === '/api/scan' && method === 'POST') {
     try {
       const { ausweis_nr, aktion, family_count } = req.body || {};
-      
+
       // Member finden oder anlegen
       let { data: member } = await supabase
         .from('mitglieder')
         .select('*')
         .eq('code', ausweis_nr)
         .single();
-      
+
       if (!member) {
         const num = Math.floor(Math.random() * 900) + 100;
         const { name, memberName } = req.body || {};
@@ -117,7 +117,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (deviceName !== undefined) config.deviceName = deviceName;
     if (soundEnabled !== undefined) config.soundEnabled = soundEnabled;
     if (feedbackQuestions !== undefined) config.feedbackQuestions = feedbackQuestions;
-    
     await supabase
       .from('memory')
       .upsert({ key: 'scanner_config', value: config }, { onConflict: 'key' });
@@ -155,7 +154,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { code, name, memberName, qualifications, is_admin, is_family } = req.body || {};
     const num = Math.floor(Math.random() * 900) + 100;
     const memberNameFinal = (name && name.trim()) || (memberName && memberName.trim()) || 'Neues Mitglied';
-    
     const { data, error } = await supabase
       .from('mitglieder')
       .insert({
@@ -176,7 +174,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .select()
       .single();
-    
     if (error) {
       res.status(400).json({ error: error.message });
     } else {
@@ -188,13 +185,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // MEMBERS UPDATE - Mitglied bearbeiten
   if (path === '/api/members/update' && method === 'POST') {
     const { code, name, qualifications, is_admin, is_family, memberName } = req.body || {};
-    
     const { data: existing } = await supabase
       .from('mitglieder')
       .select('*')
       .eq('code', code)
       .single();
-    
+
     if (!existing) {
       res.status(404).json({ error: 'Member not found' });
       return;
@@ -207,12 +203,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (is_admin !== undefined) updates.is_admin = is_admin;
     if (is_family !== undefined) updates.is_family = is_family;
 
-    await supabase
+    // Update und aktualisierte Daten zurückgeben
+    const { data: updated, error: updateError } = await supabase
       .from('mitglieder')
       .update(updates)
-      .eq('code', code);
+      .eq('code', code)
+      .select()
+      .single();
 
-    res.json({ success: true });
+    if (updateError) {
+      console.error('Update error:', updateError);
+      res.status(500).json({ error: updateError.message });
+      return;
+    }
+
+    res.json({ success: true, member: updated });
     return;
   }
 
@@ -233,17 +238,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('key', 'scanner_daily_codes')
       .single();
     let dailyCodes = existing?.value || {};
-    
     const code = type === 'guest' ? `GAST-${Date.now().toString(36).toUpperCase()}` : `TAGES-${Date.now().toString(36).toUpperCase()}`;
     const now = Date.now();
     const until = validUntil ? new Date(validUntil).getTime() : now + 24 * 60 * 60 * 1000;
-    
     dailyCodes[code] = { code, type, ref, validFrom, validUntil: until, expiresAt: until, createdAt: now };
-    
     await supabase
       .from('memory')
       .upsert({ key: 'scanner_daily_codes', value: dailyCodes }, { onConflict: 'key' });
-    
     res.json(dailyCodes[code]);
     return;
   }
