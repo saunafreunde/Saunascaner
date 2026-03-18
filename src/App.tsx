@@ -1054,7 +1054,7 @@ export default function App() {
                                           const dataUrl = await toJpeg(qrCardRef.current, { 
                                             quality: 0.95, 
                                             pixelRatio: 2,
-                                            useCORS: true,
+                                            
                                             cacheBust: true,
                                           });
                                           const link = document.createElement('a');

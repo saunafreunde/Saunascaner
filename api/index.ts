@@ -2,17 +2,19 @@ import { createClient } from "@supabase/supabase-js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL || "https://uuxjuqvpfjwqqbtcxoku.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1eGp1cXZwZmp3cXFidGN4b2t1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzAxMjEwOSwiZXhwIjoyMDg4NTg8MTA5fQ.L3FeqbqvoM3DZQ3DNRlyEGEyBjeso8plm_mWcbg59KU";
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Supabase credentials missing');
+  console.error('❌ Supabase credentials missing - Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE');
+  throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE must be set');
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Types
 interface Member {
+  id?: number;
   code: string;
   member_number: string;
   name: string;
@@ -29,6 +31,25 @@ interface Member {
   feedback_questions: any[];
   feedback_answers?: Record<string, any>;
   last_checkin?: number | null;
+  last_family_count?: number;
+  created_at?: number;
+  updated_at?: number;
+  [key: string]: any;
+}
+
+interface MemberUpdate {
+  present?: boolean;
+  last_checkin?: number | null;
+  visits_total?: number;
+  visits_30_days?: number;
+  visits_365_days?: number;
+  last_family_count?: number;
+  updated_at?: number;
+  name?: string;
+  is_admin?: boolean;
+  is_family?: boolean;
+  qualifications?: string[];
+  feedback_answers?: Record<string, any>;
   [key: string]: any;
 }
 
@@ -98,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // Member finden
-      const member = await supabaseRequest<Member[]>(async () => {
+      const member = await supabaseRequest<Member>(async () => {
         return supabase
           .from('mitglieder')
           .select('*')
@@ -130,19 +151,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json({ needs_family_count: true, ...member });
       }
 
-      const updates: Partial<Member> = {
-        updated_at: new Date().toISOString()
-      };
+      const updates: MemberUpdate = { updated_at: Date.now() };
 
       if (member.present) {
         // CHECKOUT
         const durationMs = Date.now() - (member.last_checkin || Date.now());
         const durationHours = Math.round((durationMs / (1000 * 60 * 60)) * 10) / 10;
-
         updates.present = false;
         updates.last_checkin = null;
 
-        const updated = await supabaseRequest<Member[]>(async () => {
+        const updated = await supabaseRequest<Member>(async () => {
           return supabase
             .from('mitglieder')
             .update(updates)
@@ -177,12 +195,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         updates.visits_total = (member.visits_total || 0) + 1;
         updates.visits_30_days = (member.visits_30_days || 0) + 1;
         updates.visits_365_days = (member.visits_365_days || 0) + 1;
-
         if (family_count !== undefined) {
           updates.last_family_count = family_count;
         }
 
-        const updated = await supabaseRequest<Member[]>(async () => {
+        const updated = await supabaseRequest<Member>(async () => {
           return supabase
             .from('mitglieder')
             .update(updates)
@@ -202,11 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         const result = updated || member;
-        return res.json({
-          ok: true,
-          ...result,
-          feedback_questions: member.feedback_questions || []
-        });
+        return res.json({ ok: true, ...result, feedback_questions: member.feedback_questions || [] });
       }
     }
 
@@ -220,12 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('key', 'scanner_config')
         .single();
 
-      const config = data?.value || {
-        deviceName: 'Scanner 1',
-        soundEnabled: true,
-        feedbackQuestions: []
-      };
-
+      const config = data?.value || { deviceName: 'Scanner 1', soundEnabled: true, feedbackQuestions: [] };
       return res.json(config);
     }
 
@@ -447,7 +455,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // NOT FOUND
     // ─────────────────────────────────────────────────────────────
     return res.status(404).json({ error: 'Not found' });
-
   } catch (err) {
     console.error('Handler error:', err);
     return res.status(500).json({ error: 'Internal server error' });
