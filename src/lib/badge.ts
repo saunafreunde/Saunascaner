@@ -23,8 +23,6 @@ const H = 54;
 // Forest green palette
 const GREEN_DARK  = '#0a1f0d';
 const GREEN_MID   = '#14532d';
-const GREEN_LIGHT = '#bbf7d0';
-const WHITE       = '#ffffff';
 
 async function fetchAsDataURL(url: string): Promise<string | null> {
   try {
