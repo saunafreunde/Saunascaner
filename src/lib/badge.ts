@@ -62,9 +62,10 @@ export async function generateBadgePdf(opts: {
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(qrX - 2, qrY - 2, qrSize + 4, qrSize + 4, 1.5, 1.5, 'F');
 
-  // svg2pdf augments jsPDF.prototype with .svg(). Use the augmented call.
-  // @ts-expect-error svg2pdf adds method at runtime
-  await doc.svg(svgEl, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+  // svg2pdf augments jsPDF.prototype with .svg() at runtime.
+  await (doc as unknown as {
+    svg: (el: SVGElement, opts: { x: number; y: number; width: number; height: number }) => Promise<void>;
+  }).svg(svgEl, { x: qrX, y: qrY, width: qrSize, height: qrSize });
 
   return doc.output('blob');
 }
