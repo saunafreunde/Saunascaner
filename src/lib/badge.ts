@@ -2,7 +2,8 @@ import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import 'svg2pdf.js';
 
-// Credit-card-sized PDF (85.6 × 54 mm) — front + back, modern 3D look
+// Credit-card-sized PDF (85.6 × 54 mm) — front + back
+// Premium dark-luxe design with gold accents
 
 type BadgeOpts = {
   name: string;
@@ -18,6 +19,13 @@ type BadgeOpts = {
 
 const W = 85.6;
 const H = 54;
+
+// Palette
+const BG_TOP: [number, number, number]  = [14, 38, 24];   // deep emerald
+const BG_BOT: [number, number, number]  = [4, 12, 8];     // near-black green
+const GOLD: [number, number, number]    = [212, 175, 55];
+const GOLD_LT: [number, number, number] = [255, 220, 140];
+const TEXT_SOFT: [number, number, number] = [215, 230, 220];
 
 async function fetchAsDataURL(url: string): Promise<string | null> {
   try {
@@ -51,58 +59,66 @@ function prettyRole(r: string): string {
   }
 }
 
-// Simulate a vertical gradient by stacking thin rects (top→bottom).
-function gradient(
+function vGradient(
   doc: jsPDF, x: number, y: number, w: number, h: number,
-  topRGB: [number, number, number], botRGB: [number, number, number],
-  steps = 32,
+  top: [number, number, number], bot: [number, number, number],
+  steps = 40,
 ) {
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
-    const r = Math.round(topRGB[0] + (botRGB[0] - topRGB[0]) * t);
-    const g = Math.round(topRGB[1] + (botRGB[1] - topRGB[1]) * t);
-    const b = Math.round(topRGB[2] + (botRGB[2] - topRGB[2]) * t);
-    doc.setFillColor(r, g, b);
-    doc.rect(x, y + (h * i) / steps, w, h / steps + 0.05, 'F');
+    doc.setFillColor(
+      Math.round(top[0] + (bot[0] - top[0]) * t),
+      Math.round(top[1] + (bot[1] - top[1]) * t),
+      Math.round(top[2] + (bot[2] - top[2]) * t),
+    );
+    doc.rect(x, y + (h * i) / steps, w, h / steps + 0.08, 'F');
   }
 }
 
-// Drop-shadow: stack 3 progressively larger rects with low opacity behind.
 function dropShadow(
   doc: jsPDF, x: number, y: number, w: number, h: number, radius: number,
 ) {
-  for (let i = 3; i >= 1; i--) {
+  for (let i = 4; i >= 1; i--) {
     doc.setFillColor(0, 0, 0);
-    doc.setGState(doc.GState({ opacity: 0.06 * i }));
-    doc.roundedRect(x - i * 0.4, y - i * 0.4 + 0.6, w + i * 0.8, h + i * 0.8, radius, radius, 'F');
+    doc.setGState(doc.GState({ opacity: 0.05 * i }));
+    doc.roundedRect(x - i * 0.3, y - i * 0.3 + 0.7, w + i * 0.6, h + i * 0.6, radius, radius, 'F');
   }
   doc.setGState(doc.GState({ opacity: 1 }));
 }
 
-// Glossy highlight: thin lighter strip at the top of an area.
-function gloss(doc: jsPDF, x: number, y: number, w: number, h: number, radius: number) {
-  doc.setFillColor(255, 255, 255);
-  doc.setGState(doc.GState({ opacity: 0.08 }));
-  doc.roundedRect(x, y, w, h * 0.45, radius, radius, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
+function paintCardBackground(
+  doc: jsPDF, bgUrl: string | null | undefined,
+) {
+  vGradient(doc, 0, 0, W, H, BG_TOP, BG_BOT);
+
+  // Optional subtle photo wash — low opacity, no extra vignette stripes
+  if (bgUrl) {
+    // handled by caller after fetch, kept simple here
+  }
 }
 
-// Embossed text: dark shadow underneath, light highlight on top.
-function emboss(
-  doc: jsPDF, text: string | string[], x: number, y: number,
-  fontSize: number, font: 'helvetica' | 'courier', style: 'bold' | 'normal',
-  light: [number, number, number], align?: 'left' | 'center' | 'right',
-) {
-  doc.setFont(font, style);
-  doc.setFontSize(fontSize);
-  // shadow
-  doc.setTextColor(0, 0, 0);
+async function paintPhotoWash(doc: jsPDF, bgUrl: string | null | undefined) {
+  if (!bgUrl) return;
+  const data = await fetchAsDataURL(bgUrl);
+  if (!data) return;
+  try {
+    doc.setGState(doc.GState({ opacity: 0.18 }));
+    doc.addImage(data, detectFormat(data), 0, 0, W, H, undefined, 'FAST');
+    doc.setGState(doc.GState({ opacity: 1 }));
+  } catch { /* ignore */ }
+}
+
+function paintGoldFrame(doc: jsPDF) {
+  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
   doc.setGState(doc.GState({ opacity: 0.55 }));
-  doc.text(text, x + 0.18, y + 0.22, align ? { align } : undefined);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(0.9, 0.9, W - 1.8, H - 1.8, 2.6, 2.6, 'S');
+  // inner thin highlight
+  doc.setDrawColor(255, 255, 255);
+  doc.setGState(doc.GState({ opacity: 0.06 }));
+  doc.setLineWidth(0.2);
+  doc.roundedRect(1.5, 1.5, W - 3, H - 3, 2.2, 2.2, 'S');
   doc.setGState(doc.GState({ opacity: 1 }));
-  // main
-  doc.setTextColor(light[0], light[1], light[2]);
-  doc.text(text, x, y, align ? { align } : undefined);
 }
 
 export async function generateBadgePdf(opts: BadgeOpts): Promise<Blob> {
@@ -112,215 +128,176 @@ export async function generateBadgePdf(opts: BadgeOpts): Promise<Blob> {
   const memberNum = fmtMemberNumber(opts.memberNumber);
 
   // ─── FRONT ───────────────────────────────────────────────────────────────
-  // Deep forest gradient background
-  gradient(doc, 0, 0, W, H, [10, 36, 22], [3, 14, 10]);
+  paintCardBackground(doc, opts.frontBgUrl);
+  await paintPhotoWash(doc, opts.frontBgUrl);
+  paintGoldFrame(doc);
 
-  // Optional photo background, dimmed heavily for 3D legibility
-  if (opts.frontBgUrl) {
-    const bg = await fetchAsDataURL(opts.frontBgUrl);
-    if (bg) {
-      try {
-        doc.setGState(doc.GState({ opacity: 0.28 }));
-        doc.addImage(bg, detectFormat(bg), 0, 0, W, H, undefined, 'FAST');
-        doc.setGState(doc.GState({ opacity: 1 }));
-      } catch { /* ignore */ }
-    }
-  }
+  // ── QR card on the right (smaller, balanced) ─────────────────────────
+  const qrSize = 26;
+  const qrPad = 2.2;
+  const qcW = qrSize + qrPad * 2;
+  const qcH = qrSize + qrPad * 2;
+  const qcX = W - qcW - 4;
+  const qcY = (H - qcH) / 2;
 
-  // Vignette: dark corners
-  doc.setFillColor(0, 0, 0);
-  doc.setGState(doc.GState({ opacity: 0.35 }));
-  doc.rect(0, H - 14, W, 14, 'F');
-  doc.setGState(doc.GState({ opacity: 0.18 }));
-  doc.rect(0, 0, W, 8, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // Top glossy sheen across the whole card
-  gloss(doc, 0, 0, W, H, 0);
-
-  // Subtle inner border (bevel)
-  doc.setDrawColor(255, 255, 255);
-  doc.setGState(doc.GState({ opacity: 0.12 }));
-  doc.setLineWidth(0.25);
-  doc.roundedRect(0.6, 0.6, W - 1.2, H - 1.2, 2.4, 2.4, 'S');
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // ── QR card (right side, big, elevated) ───────────────────────────────
-  const qrSize = 36;
-  const qrPad = 3;
-  const cardW = qrSize + qrPad * 2;
-  const cardH = qrSize + qrPad * 2;
-  const cardX = W - cardW - 3;
-  const cardY = (H - cardH) / 2;
-
-  dropShadow(doc, cardX, cardY, cardW, cardH, 3);
-
-  // White card with subtle gradient
-  gradient(doc, cardX, cardY, cardW, cardH, [255, 255, 255], [232, 240, 234], 20);
-  // re-clip with rounded corners by drawing rounded white over it
+  dropShadow(doc, qcX, qcY, qcW, qcH, 2.2);
   doc.setFillColor(255, 255, 255);
-  doc.setGState(doc.GState({ opacity: 1 }));
-  // Erase corners outside the rounded path with bg gradient — easier: draw a rounded mask of bg color over corner squares is complex;
-  // Instead overlay a clean rounded white that wins:
-  doc.roundedRect(cardX, cardY, cardW, cardH, 3, 3, 'F');
-  // Add gentle inner gradient (top-light, bottom-shaded) by overlay
-  doc.setFillColor(0, 0, 0);
-  doc.setGState(doc.GState({ opacity: 0.04 }));
-  doc.roundedRect(cardX, cardY + cardH * 0.55, cardW, cardH * 0.45, 3, 3, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
-  // Top gloss highlight on the card
-  doc.setFillColor(255, 255, 255);
-  doc.setGState(doc.GState({ opacity: 0.55 }));
-  doc.roundedRect(cardX + 0.4, cardY + 0.4, cardW - 0.8, cardH * 0.35, 2.6, 2.6, 'F');
+  doc.roundedRect(qcX, qcY, qcW, qcH, 2.2, 2.2, 'F');
+  // gold thin edge
+  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setGState(doc.GState({ opacity: 0.7 }));
+  doc.setLineWidth(0.2);
+  doc.roundedRect(qcX, qcY, qcW, qcH, 2.2, 2.2, 'S');
   doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Card border
-  doc.setDrawColor(180, 200, 188);
-  doc.setLineWidth(0.18);
-  doc.roundedRect(cardX, cardY, cardW, cardH, 3, 3, 'S');
-
-  // QR code (vector SVG, dark forest)
   const svgString = await QRCode.toString(qrPayload, {
-    type: 'svg',
-    errorCorrectionLevel: 'M',
-    margin: 0,
-    color: { dark: '#022c22', light: '#ffffff' },
+    type: 'svg', errorCorrectionLevel: 'M', margin: 0,
+    color: { dark: '#0a1f0d', light: '#ffffff' },
   });
   const svgEl = new DOMParser().parseFromString(svgString, 'image/svg+xml').documentElement as unknown as SVGElement;
   await (doc as unknown as {
     svg: (el: SVGElement, opts: { x: number; y: number; width: number; height: number }) => Promise<void>;
-  }).svg(svgEl, { x: cardX + qrPad, y: cardY + qrPad, width: qrSize, height: qrSize });
+  }).svg(svgEl, { x: qcX + qrPad, y: qcY + qrPad, width: qrSize, height: qrSize });
 
-  // ── Left text column ──────────────────────────────────────────────────
-  const colX = 4;
-
-  // MITGLIEDSAUSWEIS micro-label with green underline accent
-  emboss(doc, 'MITGLIEDSAUSWEIS', colX, 8.5, 6, 'helvetica', 'bold', [180, 230, 195], 'left');
-  doc.setDrawColor(74, 180, 110);
-  doc.setLineWidth(0.6);
-  doc.line(colX, 9.6, colX + 14, 9.6);
-
-  // Member name — large, embossed, wrapped
+  // "Scannen" tiny gold caption under QR
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  const nameLines = doc.splitTextToSize(opts.name, 38);
-  let yName = 17;
-  for (const line of nameLines) {
-    emboss(doc, line, colX, yName, 13, 'helvetica', 'bold', [255, 255, 255], 'left');
-    yName += 5.6;
-  }
+  doc.setFontSize(5.2);
+  doc.text('SCAN', qcX + qcW / 2, qcY + qcH + 3.6, { align: 'center' });
 
-  // Role
-  emboss(doc, prettyRole(opts.role ?? 'saunameister'), colX, yName + 1.2, 8, 'helvetica', 'normal', [167, 230, 190], 'left');
+  // ── Left content column ───────────────────────────────────────────────
+  const colX = 5;
 
-  // FDS chip — glossy 3D pill
-  if (memberNum) {
-    const chipY = H - 10.5;
-    const chipH = 6.8;
-    const chipW = memberNum.length * 2.4 + 5;
-    const chipX = colX;
-
-    // shadow
-    dropShadow(doc, chipX, chipY, chipW, chipH, 1.4);
-    // body gradient (green)
-    gradient(doc, chipX, chipY, chipW, chipH, [40, 130, 80], [12, 60, 35], 14);
-    doc.roundedRect(chipX, chipY, chipW, chipH, 1.4, 1.4, 'S');
-    // gloss top
-    doc.setFillColor(255, 255, 255);
-    doc.setGState(doc.GState({ opacity: 0.22 }));
-    doc.roundedRect(chipX + 0.3, chipY + 0.3, chipW - 0.6, chipH * 0.42, 1.2, 1.2, 'F');
-    doc.setGState(doc.GState({ opacity: 1 }));
-    // border
-    doc.setDrawColor(180, 240, 200);
-    doc.setGState(doc.GState({ opacity: 0.4 }));
-    doc.setLineWidth(0.18);
-    doc.roundedRect(chipX, chipY, chipW, chipH, 1.4, 1.4, 'S');
-    doc.setGState(doc.GState({ opacity: 1 }));
-    // text
-    emboss(doc, memberNum, chipX + chipW / 2, chipY + chipH / 2 + 1.4, 8, 'courier', 'bold', [220, 255, 230], 'center');
-  }
-
-  // ── Logo top-right tiny watermark above QR card (optional) ────────────
+  // Logo block top-left (no white box — let the logo sit cleanly)
+  let logoBottom = 4;
   if (opts.logoUrl) {
     const logoData = await fetchAsDataURL(opts.logoUrl);
     if (logoData) {
       try {
-        doc.setGState(doc.GState({ opacity: 0.85 }));
-        doc.addImage(logoData, detectFormat(logoData), cardX + cardW - 12, 2.5, 12, 4.5, undefined, 'FAST');
-        doc.setGState(doc.GState({ opacity: 1 }));
+        const logoW = 22, logoH = 9;
+        doc.addImage(logoData, detectFormat(logoData), colX, 4, logoW, logoH, undefined, 'FAST');
+        logoBottom = 4 + logoH;
       } catch { /* ignore */ }
     }
+  } else {
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.text('SAUNAFREUNDE', colX, 7.5);
+    doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+    doc.text('SCHWARZWALD', colX, 11);
+    logoBottom = 12;
+  }
+
+  // Pre-title with gold underline
+  const preY = logoBottom + 4;
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.6);
+  doc.text('MITGLIEDSAUSWEIS', colX, preY);
+  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setLineWidth(0.4);
+  doc.line(colX, preY + 0.9, colX + 18, preY + 0.9);
+
+  // Name — auto-fit to single line within left column width
+  const maxNameW = qcX - colX - 3;
+  let nameSize = 14;
+  doc.setFont('helvetica', 'bold');
+  while (nameSize > 9) {
+    doc.setFontSize(nameSize);
+    if (doc.getTextWidth(opts.name) <= maxNameW) break;
+    nameSize -= 0.5;
+  }
+  // shadow for embossed effect
+  doc.setTextColor(0, 0, 0);
+  doc.setGState(doc.GState({ opacity: 0.45 }));
+  doc.setFontSize(nameSize);
+  doc.text(opts.name, colX + 0.18, preY + 7.2);
+  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setTextColor(255, 255, 255);
+  doc.text(opts.name, colX, preY + 7);
+
+  // Role
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(TEXT_SOFT[0], TEXT_SOFT[1], TEXT_SOFT[2]);
+  doc.text(prettyRole(opts.role ?? 'saunameister'), colX, preY + 12.5);
+
+  // FDS chip — gold gradient pill, bottom-left
+  if (memberNum) {
+    const chipH = 6.8;
+    const chipW = memberNum.length * 2.3 + 6;
+    const chipX = colX;
+    const chipY = H - 9.5;
+
+    dropShadow(doc, chipX, chipY, chipW, chipH, 1.6);
+    vGradient(doc, chipX, chipY, chipW, chipH, GOLD_LT, GOLD, 14);
+    doc.roundedRect(chipX, chipY, chipW, chipH, 1.6, 1.6, 'S');
+    // top gloss
+    doc.setFillColor(255, 255, 255);
+    doc.setGState(doc.GState({ opacity: 0.32 }));
+    doc.roundedRect(chipX + 0.3, chipY + 0.3, chipW - 0.6, chipH * 0.4, 1.4, 1.4, 'F');
+    doc.setGState(doc.GState({ opacity: 1 }));
+    // outline
+    doc.setDrawColor(150, 110, 30);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(chipX, chipY, chipW, chipH, 1.6, 1.6, 'S');
+    // text dark green for contrast on gold
+    doc.setTextColor(20, 50, 30);
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(8);
+    doc.text(memberNum, chipX + chipW / 2, chipY + chipH / 2 + 1.4, { align: 'center' });
   }
 
   // ─── BACK ────────────────────────────────────────────────────────────────
   doc.addPage([W, H], 'landscape');
+  paintCardBackground(doc, opts.backBgUrl);
+  await paintPhotoWash(doc, opts.backBgUrl);
+  paintGoldFrame(doc);
 
-  // Same forest gradient background
-  gradient(doc, 0, 0, W, H, [10, 36, 22], [3, 14, 10]);
-
-  if (opts.backBgUrl) {
-    const bg = await fetchAsDataURL(opts.backBgUrl);
-    if (bg) {
-      try {
-        doc.setGState(doc.GState({ opacity: 0.22 }));
-        doc.addImage(bg, detectFormat(bg), 0, 0, W, H, undefined, 'FAST');
-        doc.setGState(doc.GState({ opacity: 1 }));
-      } catch { /* ignore */ }
-    }
-  }
-
-  gloss(doc, 0, 0, W, H, 0);
-  doc.setDrawColor(255, 255, 255);
-  doc.setGState(doc.GState({ opacity: 0.12 }));
-  doc.setLineWidth(0.25);
-  doc.roundedRect(0.6, 0.6, W - 1.2, H - 1.2, 2.4, 2.4, 'S');
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // Header band with gradient + dropshadow
-  const bandH = 14;
-  doc.setFillColor(0, 0, 0);
-  doc.setGState(doc.GState({ opacity: 0.18 }));
-  doc.rect(0, bandH - 0.4, W, 0.8, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
-  gradient(doc, 0, 0, W, bandH, [22, 82, 50], [10, 40, 25], 16);
-  // top gloss
-  doc.setFillColor(255, 255, 255);
-  doc.setGState(doc.GState({ opacity: 0.16 }));
-  doc.rect(0, 0, W, bandH * 0.4, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // Logo in band
+  // Logo centered top
   if (opts.logoUrl) {
     const logoData = await fetchAsDataURL(opts.logoUrl);
     if (logoData) {
       try {
-        doc.addImage(logoData, detectFormat(logoData), 3, 1.8, 22, 10.2, undefined, 'FAST');
+        const lW = 26, lH = 10;
+        doc.addImage(logoData, detectFormat(logoData), (W - lW) / 2, 4, lW, lH, undefined, 'FAST');
       } catch { /* ignore */ }
     }
   }
 
-  // Organization name (right-aligned in band)
-  emboss(
-    doc,
-    opts.organization ?? 'Saunafreunde Schwarzwald',
-    W - 3, 9, 9, 'helvetica', 'bold', [255, 255, 255], 'right',
-  );
+  // Org name centered, gold
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text((opts.organization ?? 'Saunafreunde Schwarzwald').toUpperCase(), W / 2, 18, { align: 'center' });
 
-  // Member name + FDS card in body
-  emboss(doc, opts.name, W / 2, 24, 12, 'helvetica', 'bold', [255, 255, 255], 'center');
-  if (memberNum) {
-    emboss(doc, memberNum, W / 2, 30, 9, 'courier', 'bold', [180, 240, 200], 'center');
-  }
-
-  // Divider
-  doc.setDrawColor(74, 180, 110);
-  doc.setGState(doc.GState({ opacity: 0.55 }));
+  // Gold divider
+  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setGState(doc.GState({ opacity: 0.7 }));
   doc.setLineWidth(0.35);
-  doc.line(10, 33.5, W - 10, 33.5);
+  doc.line(20, 21, W - 20, 21);
   doc.setGState(doc.GState({ opacity: 1 }));
 
+  // Name — embossed
+  doc.setTextColor(0, 0, 0);
+  doc.setGState(doc.GState({ opacity: 0.45 }));
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text(opts.name, W / 2 + 0.2, 28.2, { align: 'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setTextColor(255, 255, 255);
+  doc.text(opts.name, W / 2, 28, { align: 'center' });
+
+  if (memberNum) {
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+    doc.text(memberNum, W / 2, 33.5, { align: 'center' });
+  }
+
   // Info text
-  doc.setTextColor(210, 240, 220);
+  doc.setTextColor(TEXT_SOFT[0], TEXT_SOFT[1], TEXT_SOFT[2]);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.4);
   const infoLines = [
@@ -328,17 +305,19 @@ export async function generateBadgePdf(opts: BadgeOpts): Promise<Blob> {
     'Bei Verlust bitte umgehend einen Super-Admin informieren.',
     'QR-Code auf der Vorderseite zum Ein-/Auschecken scannen.',
   ];
-  let y = 38;
+  let y = 39.5;
   for (const line of infoLines) {
     doc.text(line, W / 2, y, { align: 'center' });
-    y += 3.6;
+    y += 3.4;
   }
 
-  // Bottom validity hint with separator dot
-  doc.setTextColor(150, 200, 160);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.8);
-  doc.text('Gültig bis auf Widerruf', W / 2, H - 3, { align: 'center' });
+  // Footer line
+  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  doc.setGState(doc.GState({ opacity: 0.7 }));
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.4);
+  doc.text('GÜLTIG BIS AUF WIDERRUF', W / 2, H - 3.2, { align: 'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
 
   return doc.output('blob');
 }
