@@ -62,7 +62,7 @@ export default function Dashboard() {
     .filter((u): u is string => Boolean(u));
 
   return (
-    <div className="bg-schwarzwald min-h-full text-slate-100">
+    <div className="bg-schwarzwald min-h-screen flex flex-col text-slate-100">
       <AnimatePresence>
         {evac.data && (
           <EvacuationOverlay
@@ -82,7 +82,7 @@ export default function Dashboard() {
         </button>
       )}
 
-      <header className="flex items-center justify-between px-8 pt-6">
+      <header className="mx-auto w-full max-w-[1920px] flex items-center justify-between px-6 sm:px-10 pt-6">
         <div className="flex items-baseline gap-3">
           <h1 className="text-3xl font-semibold tracking-tight text-forest-100 drop-shadow">
             Saunafreunde Schwarzwald
@@ -101,7 +101,7 @@ export default function Dashboard() {
         <motion.main
           layout
           transition={{ layout: { duration: 0.6, ease: [0.25, 1, 0.5, 1] } }}
-          className="grid h-[calc(100vh-6rem)] gap-5 px-8 py-6"
+          className="mx-auto w-full max-w-[1920px] grid flex-1 gap-5 px-6 sm:px-10 pt-4 pb-6"
           style={{ gridTemplateColumns: columnSpec }}
         >
           <AnimatePresence initial={false} mode="popLayout">

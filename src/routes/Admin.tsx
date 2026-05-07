@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember,
   useTvSettings, useUpdateTvSettings,
+  usePresentMembers,
+  useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
   uploadAsset, deleteAsset, publicAssetUrl,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { downloadBadge } from '@/lib/badge';
+import { downloadStatsPdf } from '@/lib/statsPdf';
+import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'ads';
+type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'ads';
 
 export default function Admin() {
   const { signOut } = useAuth();
@@ -30,8 +34,8 @@ export default function Admin() {
         </div>
       </header>
 
-      <nav className="flex gap-2 px-4 pt-3">
-        {(['saunas', 'members', 'ads'] as Tab[]).map((t) => (
+      <nav className="flex flex-wrap gap-2 px-4 pt-3">
+        {(['saunas', 'members', 'presence', 'stats', 'ads'] as Tab[]).map((t) => (
           <button
             key={t} onClick={() => setTab(t)}
             className={`rounded-lg px-3 py-2 text-sm font-medium ring-1 ${
@@ -40,7 +44,7 @@ export default function Admin() {
                 : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
             }`}
           >
-            {t === 'saunas' ? 'Saunen' : t === 'members' ? 'Mitglieder' : 'Werbung'}
+            {t === 'saunas' ? 'Saunen' : t === 'members' ? 'Mitglieder' : t === 'presence' ? 'Anwesenheit' : t === 'stats' ? 'Statistik' : 'Werbung'}
           </button>
         ))}
       </nav>
@@ -48,6 +52,8 @@ export default function Admin() {
       <div className="mx-auto max-w-5xl p-4">
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}
+        {tab === 'presence' && <PresenceTab />}
+        {tab === 'stats' && <StatsTab />}
         {tab === 'ads' && <AdsTab />}
       </div>
     </div>
@@ -252,6 +258,174 @@ function AdsTab() {
             </div>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function PresenceTab() {
+  const present = usePresentMembers();
+  return (
+    <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-forest-100">Aktuell anwesend</h2>
+          <p className="text-xs text-forest-300/70">Echtzeit aus Scanner-Eincheck.</p>
+        </div>
+        <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-bold text-emerald-200 ring-1 ring-emerald-400/40">
+          {present.data?.length ?? 0}
+        </span>
+      </div>
+      <ul className="mt-3 divide-y divide-forest-800/40">
+        {!present.data?.length && <li className="py-4 text-sm text-forest-300/60">Niemand eingecheckt.</li>}
+        {(present.data ?? []).map((p) => (
+          <li key={p.id} className="flex items-center justify-between py-2.5">
+            <span className="text-sm">{p.name}</span>
+            <span className="text-xs text-forest-300/60 tabular-nums">
+              {p.last_scan_at ? `seit ${fmtClock(p.last_scan_at)}` : '—'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function StatsTab() {
+  const today = new Date();
+  const [year, setYear] = useState<number>(today.getFullYear());
+  const [month, setMonth] = useState<number>(today.getMonth() + 1);
+  const [mode, setMode] = useState<'month' | 'year'>('month');
+
+  const range = useMemo(() => {
+    if (mode === 'year') {
+      return {
+        from: new Date(Date.UTC(year, 0, 1)),
+        to: new Date(Date.UTC(year + 1, 0, 1)),
+        label: `${year}`,
+      };
+    }
+    return {
+      from: new Date(Date.UTC(year, month - 1, 1)),
+      to: new Date(Date.UTC(year, month, 1)),
+      label: `${String(month).padStart(2, '0')}/${year}`,
+    };
+  }, [mode, year, month]);
+
+  const byMeister = useStatsByMeister(range.from, range.to);
+  const byMonth = useStatsByMonth(year);
+  const presence = useStatsPresenceByDay(range.from, range.to);
+
+  function exportPdf() {
+    downloadStatsPdf({
+      title: mode === 'year' ? 'Jahresübersicht' : 'Monatsübersicht',
+      rangeLabel: range.label,
+      byMeister: byMeister.data ?? [],
+      byMonth: mode === 'year' ? byMonth.data ?? [] : undefined,
+      presence: presence.data ?? [],
+    });
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-base font-semibold text-forest-100">Statistik</h2>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg ring-1 ring-forest-800/50 overflow-hidden">
+              {(['month', 'year'] as const).map((m) => (
+                <button key={m} onClick={() => setMode(m)}
+                  className={`px-3 py-1.5 text-xs font-medium ${
+                    mode === m ? 'bg-forest-500 text-forest-950' : 'bg-forest-900/60 text-forest-200 hover:bg-forest-900'
+                  }`}>
+                  {m === 'month' ? 'Monat' : 'Jahr'}
+                </button>
+              ))}
+            </div>
+            {mode === 'month' && (
+              <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
+                className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs ring-1 ring-forest-700/50">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                ))}
+              </select>
+            )}
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))}
+              className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs ring-1 ring-forest-700/50">
+              {Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <button onClick={exportPdf}
+              className="rounded-lg bg-forest-500 px-3 py-1.5 text-xs font-semibold text-forest-950 hover:bg-forest-400">
+              📄 PDF Export
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-forest-300/70">Zeitraum: {range.label}</p>
+      </div>
+
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <h3 className="text-sm font-semibold text-forest-100">Aufgüsse pro Saunameister</h3>
+        <ul className="mt-3 space-y-1.5">
+          {!byMeister.data?.length && <li className="text-xs text-forest-300/60">Keine Aufgüsse im Zeitraum.</li>}
+          {(byMeister.data ?? []).map((r) => {
+            const max = Math.max(...(byMeister.data ?? []).map((x) => Number(x.count)));
+            const pct = max > 0 ? (Number(r.count) / max) * 100 : 0;
+            return (
+              <li key={r.member_id} className="flex items-center gap-3">
+                <span className="w-32 truncate text-sm">{r.name}</span>
+                <div className="relative flex-1 h-5 rounded bg-forest-900/60 overflow-hidden">
+                  <div className="absolute inset-y-0 left-0 bg-forest-500" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="w-10 text-right text-sm tabular-nums">{r.count}</span>
+              </li>
+            );
+          })}
+          {(byMeister.data?.length ?? 0) > 0 && (
+            <li className="mt-2 pt-2 border-t border-forest-800/40 flex justify-between text-sm">
+              <span className="font-semibold">Summe</span>
+              <span className="tabular-nums font-semibold">
+                {(byMeister.data ?? []).reduce((s, r) => s + Number(r.count), 0)}
+              </span>
+            </li>
+          )}
+        </ul>
+      </div>
+
+      {mode === 'year' && (
+        <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+          <h3 className="text-sm font-semibold text-forest-100">Aufgüsse pro Monat</h3>
+          <div className="mt-3 grid grid-cols-12 gap-1 h-40">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+              const row = (byMonth.data ?? []).find((x) => x.month === m);
+              const c = row ? Number(row.count) : 0;
+              const max = Math.max(1, ...(byMonth.data ?? []).map((x) => Number(x.count)));
+              const h = (c / max) * 100;
+              const MN = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+              return (
+                <div key={m} className="flex flex-col items-center justify-end gap-1">
+                  <span className="text-[10px] tabular-nums text-forest-300/70">{c || ''}</span>
+                  <div className="w-full bg-forest-500 rounded-t" style={{ height: `${h}%`, minHeight: c > 0 ? 2 : 0 }} />
+                  <span className="text-[10px] text-forest-300/70">{MN[m-1]}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <h3 className="text-sm font-semibold text-forest-100">Anwesenheit (nächtliche Reset-Zählung)</h3>
+        <ul className="mt-3 space-y-1 text-sm">
+          {!presence.data?.length && <li className="text-xs text-forest-300/60">Keine Daten — Cron-Job noch nicht gelaufen.</li>}
+          {(presence.data ?? []).map((r) => (
+            <li key={r.day} className="flex justify-between">
+              <span className="tabular-nums">{r.day}</span>
+              <span className="tabular-nums">{r.count} Personen</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

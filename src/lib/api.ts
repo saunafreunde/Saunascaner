@@ -295,6 +295,46 @@ export function useEndEvacuation() {
   });
 }
 
+// ─── Stats ────────────────────────────────────────────────────────────────
+export function useStatsByMeister(from: Date, to: Date) {
+  return useQuery({
+    queryKey: ['stats', 'by-meister', from.toISOString(), to.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('stats_infusions_by_meister', {
+        p_from: from.toISOString(),
+        p_to: to.toISOString(),
+      });
+      if (error) throw error;
+      return (data ?? []) as { member_id: string; name: string; count: number }[];
+    },
+  });
+}
+
+export function useStatsByMonth(year: number) {
+  return useQuery({
+    queryKey: ['stats', 'by-month', year],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('stats_infusions_by_month', { p_year: year });
+      if (error) throw error;
+      return (data ?? []) as { month: number; count: number }[];
+    },
+  });
+}
+
+export function useStatsPresenceByDay(from: Date, to: Date) {
+  return useQuery({
+    queryKey: ['stats', 'presence', from.toISOString(), to.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('stats_presence_by_day', {
+        p_from: from.toISOString(),
+        p_to: to.toISOString(),
+      });
+      if (error) throw error;
+      return (data ?? []) as { day: string; count: number }[];
+    },
+  });
+}
+
 // ─── system_config (TV settings) ──────────────────────────────────────────
 export type TvSettings = {
   ads: { image_path: string; href?: string | null }[];

@@ -5,6 +5,8 @@ import Admin from '@/routes/Admin';
 import Scanner from '@/routes/Scanner';
 import Login from '@/routes/Login';
 import Planner from '@/routes/Planner';
+import ForgotPassword from '@/routes/ForgotPassword';
+import ResetPassword from '@/routes/ResetPassword';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
@@ -19,7 +21,9 @@ export default function App() {
       <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
       <Route path="/admin"     element={<RequireRole role="super_admin"><Admin /></RequireRole>} />
       <Route path="/scanner"   element={<RequireAuth><Scanner /></RequireAuth>} />
-      <Route path="/login"     element={<Login />} />
+      <Route path="/login"          element={<Login />} />
+      <Route path="/forgot"         element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/dev"       element={<DevIndex />} />
       <Route path="*"          element={<Navigate to="/" replace />} />
     </Routes>

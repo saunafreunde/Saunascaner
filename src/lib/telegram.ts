@@ -1,8 +1,5 @@
-// Telegram delivery for evacuation list.
-// Phase 1: stub (console + return ok).
-// Phase 4: route through Supabase Edge Function `send-evacuation-list`
-//         (token stays server-side). Direct browser call is a fallback
-//         only — exposes the bot token to anyone who opens DevTools.
+// Sends evacuation list via the server-side /api/send-evacuation function.
+// Bot token never reaches the browser.
 
 export type EvacuationPayload = {
   triggeredBy: string;
@@ -10,33 +7,20 @@ export type EvacuationPayload = {
   presentNames: string[];
 };
 
-export async function sendEvacuationList(p: EvacuationPayload): Promise<{ ok: boolean; via: string; detail?: string }> {
-  const token = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-  const chat  = import.meta.env.VITE_TELEGRAM_CHAT_ID;
-
-  const lines = [
-    '🚨 *EVAKUIERUNG ausgelöst*',
-    `Auslöser: ${p.triggeredBy}`,
-    `Zeit: ${p.triggeredAt.toLocaleString('de-DE')}`,
-    '',
-    `Anwesend (${p.presentNames.length}):`,
-    ...(p.presentNames.length ? p.presentNames.map((n) => `• ${n}`) : ['_keine Personen erfasst_']),
-  ];
-  const text = lines.join('\n');
-
-  if (!token || !chat) {
-    console.info('[telegram-stub] would send:\n' + text);
-    return { ok: true, via: 'stub' };
-  }
-
+export async function sendEvacuationList(p: EvacuationPayload): Promise<{ ok: boolean; via: string; detail?: string; sent?: number; total?: number }> {
   try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const r = await fetch('/api/send-evacuation', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, text, parse_mode: 'Markdown' }),
+      body: JSON.stringify({
+        triggeredBy: p.triggeredBy,
+        triggeredAt: p.triggeredAt.toISOString(),
+        presentNames: p.presentNames,
+      }),
     });
-    if (!r.ok) return { ok: false, via: 'telegram', detail: `HTTP ${r.status}` };
-    return { ok: true, via: 'telegram' };
+    const data = await r.json();
+    if (!r.ok) return { ok: false, via: 'telegram', detail: data?.error ?? `HTTP ${r.status}` };
+    return { ok: true, via: 'telegram', sent: data.sent, total: data.total };
   } catch (e) {
     return { ok: false, via: 'telegram', detail: (e as Error).message };
   }

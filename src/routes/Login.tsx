@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -132,13 +132,20 @@ export default function Login() {
             >
               {busy ? 'Bitte warten…' : mode === 'signin' ? 'Anmelden' : 'Konto anlegen'}
             </button>
-            <button
-              type="button"
-              onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setInfo(null); }}
-              className="w-full text-center text-xs text-forest-300/70 hover:text-forest-200 underline"
-            >
-              {mode === 'signin' ? 'Noch kein Konto? Hier anlegen' : 'Schon ein Konto? Anmelden'}
-            </button>
+            <div className="flex flex-col gap-2 text-center">
+              <button
+                type="button"
+                onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setInfo(null); }}
+                className="text-xs text-forest-300/70 hover:text-forest-200 underline"
+              >
+                {mode === 'signin' ? 'Noch kein Konto? Hier anlegen' : 'Schon ein Konto? Anmelden'}
+              </button>
+              {mode === 'signin' && (
+                <Link to="/forgot" className="text-xs text-forest-300/60 hover:text-forest-200 underline">
+                  Passwort vergessen?
+                </Link>
+              )}
+            </div>
           </>
         )}
 
