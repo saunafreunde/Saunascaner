@@ -505,16 +505,54 @@ export function publicAssetUrl(path: string | null | undefined): string | null {
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
 
+// Skip recompression for vector/animated formats
+const SKIP_COMPRESS = new Set(['image/svg+xml', 'image/gif']);
+
+async function compressImage(
+  file: File,
+  opts: { maxEdge?: number; quality?: number; maxBytes?: number } = {},
+): Promise<File> {
+  const { maxEdge = 1920, quality = 0.82, maxBytes = 500_000 } = opts;
+  if (SKIP_COMPRESS.has(file.type)) return file;
+  // Already small enough → don't re-encode
+  if (file.size <= maxBytes) return file;
+
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) return file;
+
+  const ratio = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * ratio);
+  const h = Math.round(bitmap.height * ratio);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) { bitmap.close?.(); return file; }
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close?.();
+
+  // PNG with transparency → keep PNG; otherwise JPEG (much smaller for photos)
+  const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+  const blob: Blob | null = await new Promise(res => canvas.toBlob(res, outType, quality));
+  if (!blob || blob.size >= file.size) return file;
+
+  const baseName = file.name.replace(/\.[^.]+$/, '');
+  const newExt = outType === 'image/png' ? 'png' : 'jpg';
+  return new File([blob], `${baseName}.${newExt}`, { type: outType });
+}
+
 export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     throw new Error(`Ungültiger Dateityp: ${file.type}. Erlaubt: JPEG, PNG, WebP, GIF, SVG.`);
   }
-  const ext = file.name.split('.').pop() ?? 'bin';
+  const compressed = await compressImage(file);
+  const ext = compressed.name.split('.').pop() ?? 'bin';
   const path = `${folder}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await need().storage.from('assets').upload(path, file, {
+  const { error } = await need().storage.from('assets').upload(path, compressed, {
     cacheControl: '3600',
     upsert: false,
-    contentType: file.type,
+    contentType: compressed.type,
   });
   if (error) throw error;
   return path;
