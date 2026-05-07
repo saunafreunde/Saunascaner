@@ -140,6 +140,7 @@ export type Member = {
   email: string | null;
   name: string;
   member_code: string;
+  member_number: number | null;
   role: 'saunameister' | 'manager' | 'super_admin' | 'guest_staff';
   approved: boolean;
   is_present: boolean;

@@ -193,12 +193,14 @@ function MembersTab() {
                   {m.is_present && <span className="ml-2 rounded-full bg-emerald-500/20 px-2 text-[10px] font-bold text-emerald-200">anwesend</span>}
                   {m.revoked_at && <span className="ml-2 rounded-full bg-rose-500/20 px-2 text-[10px] font-bold text-rose-200">gesperrt</span>}
                 </div>
-                <div className="font-mono text-[10px] text-forest-300/50">{m.member_code}</div>
+                <div className="font-mono text-[10px] text-forest-300/50">
+                  {m.member_number ? `FDS-${String(m.member_number).padStart(3, '0')}` : m.member_code.slice(0, 8)}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => downloadBadge({
-                  name: m.name, memberCode: m.member_code, role: m.role,
-                  organization: 'Saunafreunde Schwarzwald',
+                  name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
+                  role: m.role, organization: 'Saunafreunde Schwarzwald',
                   frontBgUrl, backBgUrl, logoUrl,
                 })}
                   className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
