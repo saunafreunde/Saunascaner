@@ -3,16 +3,19 @@ import { addMinutes, isBefore, isSameDay, differenceInMinutes } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { useNow } from '@/hooks/useNow';
 import { fmtClock, TZ } from '@/lib/time';
-import { useMockStore } from '@/mocks/store';
-import { ATTR_BY_ID } from '@/lib/attributes';
+import { useSaunas, useInfusions, useMeisterDirectory } from '@/lib/api';
+import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 
 const IMMINENT_MIN = 10;
 
 export default function Guest() {
   const now = useNow(30_000);
-  const saunas = useMockStore((s) => s.saunas);
-  const infusions = useMockStore((s) => s.infusions);
-  const meisters = useMockStore((s) => s.meisters);
+  const saunasQ = useSaunas();
+  const infusionsQ = useInfusions();
+  const membersQ = useMeisterDirectory();
+
+  const saunas = saunasQ.data ?? [];
+  const infusions = infusionsQ.data ?? [];
 
   const visibleToday = useMemo(() => {
     const cutoff = addMinutes(now, -5);
@@ -28,7 +31,7 @@ export default function Guest() {
 
   const sauna = (id: string) => saunas.find((s) => s.id === id);
   const meister = (id: string | null) =>
-    (id && meisters.find((m) => m.id === id)?.name) || 'Saunameister:in';
+    (id && membersQ.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
 
   return (
     <div className="bg-schwarzwald-soft min-h-full text-slate-100">
@@ -57,13 +60,9 @@ export default function Guest() {
               className={`relative overflow-hidden rounded-xl bg-forest-950/65 ring-1 backdrop-blur ${
                 imminent ? 'ring-2 animate-pulse' : 'ring-forest-800/40'
               }`}
-              style={imminent ? { ['--tw-ring-color' as string]: s.accent_color } : undefined}
+              style={imminent ? { boxShadow: `inset 0 0 0 2px ${s.accent_color}` } : undefined}
             >
-              <span
-                aria-hidden
-                className="absolute inset-y-0 left-0 w-1.5"
-                style={{ backgroundColor: s.accent_color }}
-              />
+              <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ backgroundColor: s.accent_color }} />
               <div className="flex gap-4 px-4 py-4 pl-5">
                 <div className="w-20 shrink-0">
                   <div className="text-3xl font-semibold tabular-nums" style={{ color: s.accent_color }}>
@@ -75,10 +74,7 @@ export default function Guest() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="rounded-full px-2.5 py-0.5 text-xs font-bold text-forest-950"
-                      style={{ backgroundColor: s.accent_color }}
-                    >
+                    <span className="rounded-full px-2.5 py-0.5 text-xs font-bold text-forest-950" style={{ backgroundColor: s.accent_color }}>
                       {s.name} · {s.temperature_label}
                     </span>
                     {imminent && (
@@ -93,16 +89,12 @@ export default function Guest() {
                     )}
                   </div>
                   <h2 className="mt-1.5 text-base font-medium text-slate-100">{i.title}</h2>
-                  {i.description && (
-                    <p className="text-sm text-slate-300/80">{i.description}</p>
-                  )}
+                  {i.description && <p className="text-sm text-slate-300/80">{i.description}</p>}
                   {i.attributes.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
-                      {i.attributes.map((a) => {
+                      {(i.attributes as InfusionAttribute[]).map((a) => {
                         const m = ATTR_BY_ID[a];
-                        return m ? (
-                          <span key={a} title={m.label} className="text-base">{m.emoji}</span>
-                        ) : null;
+                        return m ? <span key={a} title={m.label} className="text-base">{m.emoji}</span> : null;
                       })}
                     </div>
                   )}

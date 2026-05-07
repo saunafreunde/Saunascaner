@@ -9,44 +9,34 @@ import { WeatherWidget } from '@/components/WeatherWidget';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { fmtClock } from '@/lib/time';
-import { useMockStore } from '@/mocks/store';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { subscribeEvac, unlockAudio } from '@/lib/evacuation';
+import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl } from '@/lib/api';
+import { unlockAudio } from '@/lib/evacuation';
 
 const HIDE_AFTER_END_MIN = 5;
 
 export default function Dashboard() {
   useWakeLock(true);
-  const now = useNow(20_000); // 20s tick keeps imminent state fresh
-  const saunas = useMockStore((s) => s.saunas);
-  const infusions = useMockStore((s) => s.infusions);
-  const meisters = useMockStore((s) => s.meisters);
-  const evacuation = useMockStore((s) => s.evacuation);
-  const setEvacuation = useMockStore((s) => s.setEvacuation);
+  const now = useNow(20_000);
+  const saunas = useSaunas();
+  const infusions = useInfusions();
+  const members = useMeisterDirectory();
+  const evac = useActiveEvacuation();
+  const tv = useTvSettings();
+
   const [audioReady, setAudioReady] = useState(false);
 
-  // Sync evacuation state across tabs
-  useEffect(() => {
-    return subscribeEvac((msg) => {
-      if (msg.type === 'start') {
-        setEvacuation({ active: true, triggeredBy: msg.triggeredBy, triggeredAt: msg.triggeredAt });
-      } else {
-        setEvacuation({ active: false, triggeredBy: null, triggeredAt: null });
-      }
-    });
-  }, [setEvacuation]);
+  const activeSaunas = useMemo(
+    () => (saunas.data ?? []).filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
+    [saunas.data]
+  );
 
   const meisterName = (id: string | null) =>
-    (id && meisters.find((m) => m.id === id)?.name) || 'Saunameister:in';
-
-  const activeSaunas = useMemo(
-    () => saunas.filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
-    [saunas]
-  );
+    (id && members.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
 
   const infusionsBySauna = useMemo(() => {
     const cutoff = addMinutes(now, -HIDE_AFTER_END_MIN);
-    const visible = infusions
+    const visible = (infusions.data ?? [])
       .filter((i) => isBefore(cutoff, new Date(i.end_time)))
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
     const map = new Map<string, typeof visible>();
@@ -56,7 +46,10 @@ export default function Dashboard() {
       map.set(i.sauna_id, arr);
     }
     return map;
-  }, [now, infusions]);
+  }, [now, infusions.data]);
+
+  // Auto-recover audio if browser suspended
+  useEffect(() => { if (audioReady) unlockAudio(); }, [audioReady]);
 
   const showAds = activeSaunas.length <= 2;
   const columnSpec =
@@ -64,15 +57,22 @@ export default function Dashboard() {
     : activeSaunas.length === 2 ? '1fr 1.4fr 1fr'
     : '1fr 1.4fr 1fr 1fr';
 
+  const adImageUrls = (tv.data?.ads ?? [])
+    .map((a) => publicAssetUrl(a.image_path))
+    .filter((u): u is string => Boolean(u));
+
   return (
     <div className="bg-schwarzwald min-h-full text-slate-100">
       <AnimatePresence>
-        {evacuation.active && (
-          <EvacuationOverlay triggeredBy={evacuation.triggeredBy} withSiren={audioReady} />
+        {evac.data && (
+          <EvacuationOverlay
+            triggeredBy={members.data?.find((m) => m.id === evac.data!.triggered_by)?.name ?? null}
+            withSiren={audioReady}
+          />
         )}
       </AnimatePresence>
 
-      {!audioReady && !evacuation.active && (
+      {!audioReady && !evac.data && (
         <button
           onClick={() => { if (unlockAudio()) setAudioReady(true); }}
           className="fixed bottom-4 right-4 z-50 rounded-full bg-forest-900/80 px-4 py-2 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
@@ -87,7 +87,7 @@ export default function Dashboard() {
           <h1 className="text-3xl font-semibold tracking-tight text-forest-100 drop-shadow">
             Saunafreunde Schwarzwald
           </h1>
-          <ConnectionIndicator online={isSupabaseConfigured} />
+          <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
         </div>
         <div className="flex items-center gap-4">
           <WeatherWidget />
@@ -106,49 +106,34 @@ export default function Dashboard() {
         >
           <AnimatePresence initial={false} mode="popLayout">
             {activeSaunas.length === 0 && (
-              <motion.div
-                key="closed"
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="col-span-full flex items-center justify-center text-3xl text-forest-300/70"
-              >
+              <motion.div key="closed" layout
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="col-span-full flex items-center justify-center text-3xl text-forest-300/70">
                 Heute keine Saunen aktiv.
               </motion.div>
             )}
 
-            {activeSaunas.length >= 1 && activeSaunas[0] && (
-              <SaunaColumn
-                key={activeSaunas[0].id}
+            {activeSaunas[0] && (
+              <SaunaColumn key={activeSaunas[0].id}
                 sauna={activeSaunas[0]}
                 infusions={infusionsBySauna.get(activeSaunas[0].id) ?? []}
                 meisterName={meisterName}
-                now={now}
-              />
+                now={now} />
             )}
 
             {showAds && activeSaunas.length > 0 && (
-              <motion.div
-                key="ads"
-                layout
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.5 }}
-              >
-                <AdGrid images={[]} />
+              <motion.div key="ads" layout
+                initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.5 }}>
+                <AdGrid images={adImageUrls} />
               </motion.div>
             )}
 
             {activeSaunas.slice(1).map((s) => (
-              <SaunaColumn
-                key={s.id}
-                sauna={s}
+              <SaunaColumn key={s.id} sauna={s}
                 infusions={infusionsBySauna.get(s.id) ?? []}
                 meisterName={meisterName}
-                now={now}
-              />
+                now={now} />
             ))}
           </AnimatePresence>
         </motion.main>
