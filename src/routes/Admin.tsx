@@ -7,15 +7,16 @@ import {
   useTvSettings, useUpdateTvSettings,
   usePresentMembers,
   useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
+  useAllPolls, useCreatePoll, useTogglePoll, fetchPollResults,
   uploadAsset, deleteAsset, publicAssetUrl,
-  type TvSettings,
+  type TvSettings, type PollAnswerType,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'branding';
+type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'branding' | 'polls';
 
 export default function Admin() {
   const { signOut } = useAuth();
@@ -37,7 +38,7 @@ export default function Admin() {
       </header>
 
       <nav className="flex flex-wrap gap-2 px-4 pt-3">
-        {(['saunas', 'members', 'presence', 'stats', 'branding'] as Tab[]).map((t) => (
+        {(['saunas', 'members', 'presence', 'stats', 'branding', 'polls'] as Tab[]).map((t) => (
           <button
             key={t} onClick={() => setTab(t)}
             className={`rounded-lg px-3 py-2 text-sm font-medium ring-1 ${
@@ -46,7 +47,7 @@ export default function Admin() {
                 : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
             }`}
           >
-            {t === 'saunas' ? 'Saunen' : t === 'members' ? 'Mitglieder' : t === 'presence' ? 'Anwesenheit' : t === 'stats' ? 'Statistik' : 'Branding'}
+            {t === 'saunas' ? 'Saunen' : t === 'members' ? 'Mitglieder' : t === 'presence' ? 'Anwesenheit' : t === 'stats' ? 'Statistik' : t === 'branding' ? 'Branding' : '📋 Abfragen'}
           </button>
         ))}
       </nav>
@@ -57,6 +58,7 @@ export default function Admin() {
         {tab === 'presence' && <PresenceTab />}
         {tab === 'stats' && <StatsTab />}
         {tab === 'branding' && <BrandingTab />}
+        {tab === 'polls' && <PollsTab />}
       </div>
     </div>
   );
@@ -222,6 +224,236 @@ function MembersTab() {
         </ul>
       </div>
     </section>
+  );
+}
+
+function PollsTab() {
+  const pollsQ = useAllPolls();
+  const createPoll = useCreatePoll();
+  const togglePoll = useTogglePoll();
+  const allMembers = useAllMembers();
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [answerType, setAnswerType] = useState<PollAnswerType>('text');
+  const [choices, setChoices] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [selectedPollId, setSelectedPollId] = useState<string | null>(null);
+  const [results, setResults] = useState<{ member_name: string; member_number: number | null; answer: string; answered_at: string }[]>([]);
+  const [loadingResults, setLoadingResults] = useState(false);
+  const [sendingTelegram, setSendingTelegram] = useState(false);
+  const [telegramMsg, setTelegramMsg] = useState<string | null>(null);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setBusy(true);
+    try {
+      const choicesArr = answerType === 'choice'
+        ? choices.split('\n').map((c) => c.trim()).filter(Boolean)
+        : null;
+      await createPoll.mutateAsync({
+        title: title.trim(),
+        description: description.trim() || null,
+        answer_type: answerType,
+        choices: choicesArr,
+        deadline: deadline || null,
+        created_by: '',
+      });
+      setTitle(''); setDescription(''); setChoices(''); setDeadline('');
+    } catch (e) { alert((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function loadResults(pollId: string) {
+    setSelectedPollId(pollId);
+    setLoadingResults(true);
+    setResults([]);
+    setTelegramMsg(null);
+    try {
+      const data = await fetchPollResults(pollId);
+      setResults(data);
+    } catch (e) { alert((e as Error).message); }
+    finally { setLoadingResults(false); }
+  }
+
+  async function sendToTelegram() {
+    const poll = (pollsQ.data ?? []).find((p) => p.id === selectedPollId);
+    if (!poll) return;
+    setSendingTelegram(true);
+    setTelegramMsg(null);
+    try {
+      const r = await fetch('/api/send-poll-results', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          pollTitle: poll.title,
+          pollDescription: poll.description,
+          answerType: poll.answer_type,
+          results,
+          totalMembers: allMembers.data?.length ?? 0,
+        }),
+      });
+      const data = await r.json();
+      setTelegramMsg(data.sent > 0
+        ? `✅ An ${data.sent} Telegram-Chat(s) gesendet.`
+        : `ℹ️ ${data.note ?? 'Keine Chats konfiguriert.'}`);
+    } catch (e) { setTelegramMsg(`Fehler: ${(e as Error).message}`); }
+    finally { setSendingTelegram(false); }
+  }
+
+  const selectedPoll = (pollsQ.data ?? []).find((p) => p.id === selectedPollId);
+
+  return (
+    <div className="space-y-6">
+      {/* Neue Abfrage erstellen */}
+      <section className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50">
+        <h2 className="text-base font-semibold text-forest-100 mb-4">Neue Abfrage erstellen</h2>
+        <form onSubmit={handleCreate} className="space-y-3">
+          <input
+            value={title} onChange={(e) => setTitle(e.target.value)}
+            placeholder="Frage / Titel *"
+            required
+            className="w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+          />
+          <textarea
+            value={description} onChange={(e) => setDescription(e.target.value)}
+            placeholder="Beschreibung / Details (optional)"
+            rows={2}
+            className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-forest-300/70 mb-1 block">Antworttyp</label>
+              <select
+                value={answerType} onChange={(e) => setAnswerType(e.target.value as PollAnswerType)}
+                className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+              >
+                <option value="text">Freitext</option>
+                <option value="yesno">Ja / Nein</option>
+                <option value="choice">Auswahl</option>
+                <option value="number">Zahl</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-forest-300/70 mb-1 block">Deadline (optional)</label>
+              <input
+                type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)}
+                className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+              />
+            </div>
+          </div>
+          {answerType === 'choice' && (
+            <div>
+              <label className="text-xs text-forest-300/70 mb-1 block">Auswahloptionen (eine pro Zeile)</label>
+              <textarea
+                value={choices} onChange={(e) => setChoices(e.target.value)}
+                placeholder={"Saunatuch 15€\nBademantel 35€\nNichts"}
+                rows={3}
+                className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+              />
+            </div>
+          )}
+          <button type="submit" disabled={busy || !title.trim()}
+            className="rounded-xl bg-forest-500 px-5 py-2.5 text-sm font-semibold text-forest-950 hover:bg-forest-400 disabled:opacity-60">
+            {busy ? 'Erstelle…' : 'Abfrage erstellen & aktivieren'}
+          </button>
+        </form>
+      </section>
+
+      {/* Bestehende Abfragen */}
+      <section className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50">
+        <h2 className="text-base font-semibold text-forest-100 mb-4">Alle Abfragen</h2>
+        {(pollsQ.data ?? []).length === 0 && (
+          <p className="text-sm text-forest-300/60">Noch keine Abfragen angelegt.</p>
+        )}
+        <ul className="space-y-3">
+          {(pollsQ.data ?? []).map((poll) => (
+            <li key={poll.id} className="rounded-xl bg-forest-900/60 p-3 ring-1 ring-forest-800/40">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${poll.active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-forest-800 text-forest-400'}`}>
+                      {poll.active ? 'aktiv' : 'inaktiv'}
+                    </span>
+                    <span className="text-xs text-forest-300/50">{poll.answer_type}</span>
+                  </div>
+                  <p className="text-sm font-semibold text-forest-100 mt-1">{poll.title}</p>
+                  {poll.description && <p className="text-xs text-forest-300/60">{poll.description}</p>}
+                  {poll.deadline && <p className="text-xs text-amber-400/70">Bis: {new Date(poll.deadline).toLocaleDateString('de-DE')}</p>}
+                </div>
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button
+                    onClick={() => togglePoll.mutate({ id: poll.id, active: !poll.active })}
+                    className="rounded-lg bg-forest-800 px-3 py-1 text-xs text-forest-200 hover:bg-forest-700 ring-1 ring-forest-700/50">
+                    {poll.active ? 'Deaktivieren' : 'Aktivieren'}
+                  </button>
+                  <button
+                    onClick={() => loadResults(poll.id)}
+                    className="rounded-lg bg-forest-600 px-3 py-1 text-xs text-white hover:bg-forest-500">
+                    Ergebnisse
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Ergebnisse einer Abfrage */}
+      {selectedPollId && (
+        <section className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-forest-100">Ergebnisse</h2>
+              {selectedPoll && <p className="text-xs text-forest-300/60">{selectedPoll.title}</p>}
+            </div>
+            <button
+              onClick={sendToTelegram}
+              disabled={sendingTelegram || results.length === 0}
+              className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60 flex items-center gap-2"
+            >
+              {sendingTelegram ? 'Sende…' : '📨 An Telegram senden'}
+            </button>
+          </div>
+          {telegramMsg && (
+            <p className="mb-3 text-sm text-forest-200 bg-forest-900/60 rounded-lg px-3 py-2">{telegramMsg}</p>
+          )}
+          {loadingResults && <p className="text-sm text-forest-300/60">Lade Ergebnisse…</p>}
+          {!loadingResults && results.length === 0 && (
+            <p className="text-sm text-forest-300/60">Noch keine Antworten.</p>
+          )}
+          {results.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-forest-300/60 border-b border-forest-800/50">
+                    <th className="pb-2 pr-4">Nr.</th>
+                    <th className="pb-2 pr-4">Mitglied</th>
+                    <th className="pb-2 pr-4">Antwort</th>
+                    <th className="pb-2">Uhrzeit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-forest-800/30">
+                  {results.map((r, i) => (
+                    <tr key={i}>
+                      <td className="py-2 pr-4 text-xs text-forest-300/50">
+                        {r.member_number ? `FDS-${String(r.member_number).padStart(3, '0')}` : '—'}
+                      </td>
+                      <td className="py-2 pr-4 font-medium">{r.member_name}</td>
+                      <td className="py-2 pr-4 text-forest-200">{r.answer}</td>
+                      <td className="py-2 text-xs text-forest-300/50">{fmtClock(r.answered_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-forest-300/50">{results.length} von {allMembers.data?.filter(m => m.approved).length ?? '?'} Mitgliedern haben geantwortet</p>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
   );
 }
 

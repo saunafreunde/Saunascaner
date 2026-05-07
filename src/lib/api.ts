@@ -407,6 +407,93 @@ export function useUpdateTvSettings() {
   });
 }
 
+// ─── Polls ────────────────────────────────────────────────────────────────
+export type PollAnswerType = 'text' | 'yesno' | 'choice' | 'number';
+
+export type Poll = {
+  id: string;
+  title: string;
+  description: string | null;
+  answer_type: PollAnswerType;
+  choices: string[] | null;
+  deadline: string | null;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type MyPoll = Poll & { my_answer: string | null };
+
+export type PollResult = {
+  member_name: string;
+  member_number: number | null;
+  answer: string;
+  answered_at: string;
+};
+
+export function useMyPolls() {
+  return useQuery({
+    queryKey: ['my-polls'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('my_open_polls');
+      if (error) throw error;
+      return (data ?? []) as MyPoll[];
+    },
+  });
+}
+
+export function useAllPolls() {
+  return useQuery({
+    queryKey: ['polls'],
+    queryFn: async () => {
+      const { data, error } = await need().from('polls').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Poll[];
+    },
+  });
+}
+
+export function useCreatePoll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: Omit<Poll, 'id' | 'created_at' | 'active' | 'created_by'> & { created_by: string }) => {
+      const { error } = await need().from('polls').insert({ ...p, active: true });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['polls'] }),
+  });
+}
+
+export function useTogglePoll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const { error } = await need().from('polls').update({ active }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['polls'] }),
+  });
+}
+
+export function useSubmitPollResponse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ pollId, memberId, answer }: { pollId: string; memberId: string; answer: string }) => {
+      const { error } = await need()
+        .from('poll_responses')
+        .upsert({ poll_id: pollId, member_id: memberId, answer }, { onConflict: 'poll_id,member_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-polls'] }),
+  });
+}
+
+export async function fetchPollResults(pollId: string): Promise<PollResult[]> {
+  const { data, error } = await need().rpc('poll_results', { p_poll_id: pollId });
+  if (error) throw error;
+  return (data ?? []) as PollResult[];
+}
+
 // ─── Storage helpers ──────────────────────────────────────────────────────
 export function publicAssetUrl(path: string | null | undefined): string | null {
   if (!path) return null;

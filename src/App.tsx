@@ -5,6 +5,7 @@ import Admin from '@/routes/Admin';
 import Scanner from '@/routes/Scanner';
 import Login from '@/routes/Login';
 import Planner from '@/routes/Planner';
+import Me from '@/routes/Me';
 import ForgotPassword from '@/routes/ForgotPassword';
 import ResetPassword from '@/routes/ResetPassword';
 import MagicEntry from '@/routes/MagicEntry';
@@ -26,6 +27,7 @@ export default function App() {
       <Route path="/login"          element={<Login />} />
       <Route path="/forgot"         element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/me"             element={<RequireAuth><Me /></RequireAuth>} />
       <Route path="/m/:code"        element={<MagicEntry />} />
       <Route path="/dev"       element={<RequireRole role="super_admin"><DevIndex /></RequireRole>} />
       <Route path="*"          element={<Navigate to="/" replace />} />
@@ -97,6 +99,7 @@ function DevIndex() {
   const links = [
     ['/', 'Gäste-App'],
     ['/dashboard', 'TV-Dashboard'],
+    ['/me', 'Mein Bereich (Mitglieder)'],
     ['/planner', 'Aufguss-Planung (Saunameister)'],
     ['/admin', 'Admin (Super-Admin)'],
     ['/scanner', 'Scanner'],

@@ -49,7 +49,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin =
     (req.headers['origin'] as string) ??
     `https://${req.headers['x-forwarded-host'] ?? req.headers['host']}`;
-  const redirectTo = `${origin}/planner`;
+  // Saunameister/Manager/Admin → /planner, alle anderen → /me
+  const redirectPath = ['super_admin', 'manager', 'saunameister'].includes(m.role) ? '/me' : '/me';
+  const redirectTo = `${origin}${redirectPath}`;
 
   const { data, error } = await admin.auth.admin.generateLink({
     type: 'magiclink',
