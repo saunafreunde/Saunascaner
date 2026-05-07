@@ -101,8 +101,9 @@ export function useTemplates(memberId: string | null) {
     enabled: true,
     queryFn: async () => {
       const q = need().from('infusion_templates').select('*');
-      const { data, error } = memberId
-        ? await q.or(`member_id.eq.${memberId},member_id.is.null`).order('title')
+      const safeId = memberId && /^[0-9a-f-]{36}$/i.test(memberId) ? memberId : null;
+      const { data, error } = safeId
+        ? await q.or(`member_id.eq.${safeId},member_id.is.null`).order('title')
         : await q.is('member_id', null).order('title');
       if (error) throw error;
       return data as Template[];
@@ -414,12 +415,18 @@ export function publicAssetUrl(path: string | null | undefined): string | null {
   return data.publicUrl;
 }
 
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
+
 export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    throw new Error(`Ungültiger Dateityp: ${file.type}. Erlaubt: JPEG, PNG, WebP, GIF, SVG.`);
+  }
   const ext = file.name.split('.').pop() ?? 'bin';
   const path = `${folder}/${crypto.randomUUID()}.${ext}`;
   const { error } = await need().storage.from('assets').upload(path, file, {
     cacheControl: '3600',
     upsert: false,
+    contentType: file.type,
   });
   if (error) throw error;
   return path;

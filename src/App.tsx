@@ -27,7 +27,7 @@ export default function App() {
       <Route path="/forgot"         element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/m/:code"        element={<MagicEntry />} />
-      <Route path="/dev"       element={<DevIndex />} />
+      <Route path="/dev"       element={<RequireRole role="super_admin"><DevIndex /></RequireRole>} />
       <Route path="*"          element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -39,7 +39,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const loc = useLocation();
   if (!isSupabaseConfigured) return <NotConfigured />;
   if (!ready || (user && member.isLoading)) return <Splash />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   if (member.data && !member.data.approved) return <PendingApproval />;
   return <>{children}</>;
 }
@@ -50,7 +50,7 @@ function RequireRole({ children, role }: { children: React.ReactNode; role: 'sup
   const loc = useLocation();
   if (!isSupabaseConfigured) return <NotConfigured />;
   if (!ready || member.isLoading) return <Splash />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   const r = member.data?.role;
   const ok = role === 'super_admin' ? r === 'super_admin' : r === 'super_admin' || r === 'manager';
   if (!ok) return <NoAccess />;

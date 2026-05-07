@@ -6,5 +6,11 @@
       "source": "/assets/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     }
-  ]
+  ],
+  "env": {
+    "VITE_SUPABASE_URL": "Required — Supabase project URL",
+    "VITE_SUPABASE_ANON_KEY": "Required — Supabase anon/public key",
+    "SUPABASE_SERVICE_ROLE_KEY": "Required — Supabase service role key (for api/qr-signin)",
+    "TELEGRAM_BOT_TOKEN": "Required — Telegram bot token (for api/send-evacuation)"
+  }
 }

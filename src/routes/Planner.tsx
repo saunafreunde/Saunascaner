@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fmtClock, dayLabel } from '@/lib/time';
@@ -56,8 +56,9 @@ export default function Planner() {
   const [error, setError] = useState<string | null>(null);
   const [evacToast, setEvacToast] = useState<string | null>(null);
 
-  // Default sauna once loaded
-  if (!saunaId && saunas[0]) setSaunaId(saunas[0].id);
+  useEffect(() => {
+    if (!saunaId && saunas[0]) setSaunaId(saunas[0].id);
+  }, [saunaId, saunas]);
 
   const occupiedKeys = useMemo(() => {
     const keys = new Set<string>();

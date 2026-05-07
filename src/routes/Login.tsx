@@ -11,7 +11,8 @@ export default function Login() {
   const member = useCurrentMember();
   const loc = useLocation();
   const nav = useNavigate();
-  const next = new URLSearchParams(loc.search).get('next') ?? '/planner';
+  const rawNext = new URLSearchParams(loc.search).get('next') ?? '/planner';
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/planner';
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');

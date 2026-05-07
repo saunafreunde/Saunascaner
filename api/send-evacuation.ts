@@ -33,13 +33,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, via: 'telegram', sent: 0, note: 'no chats subscribed' });
   }
 
+  const esc = (s: string) => s.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
   const text = [
     '🚨 *EVAKUIERUNG ausgelöst*',
-    `Auslöser: ${p.triggeredBy}`,
+    `Auslöser: ${esc(p.triggeredBy)}`,
     `Zeit: ${new Date(p.triggeredAt).toLocaleString('de-DE')}`,
     '',
-    `Anwesend (${p.presentNames.length}):`,
-    ...(p.presentNames.length ? p.presentNames.map((n) => `• ${n}`) : ['_keine Personen erfasst_']),
+    `Anwesend \\(${p.presentNames.length}\\):`,
+    ...(p.presentNames.length ? p.presentNames.map((n) => `• ${esc(n)}`) : ['_keine Personen erfasst_']),
   ].join('\n');
 
   const results = await Promise.allSettled(
@@ -47,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id, text, parse_mode: 'Markdown' }),
+        body: JSON.stringify({ chat_id, text, parse_mode: 'MarkdownV2' }),
       }).then(async (r) => ({ chat_id, ok: r.ok, status: r.status, body: r.ok ? null : await r.text() }))
     )
   );
