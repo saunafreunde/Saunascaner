@@ -8,7 +8,7 @@ import { AdGrid } from '@/components/AdGrid';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { fmtClock } from '@/lib/time';
-import { mockSaunas, mockInfusions } from '@/mocks/data';
+import { useMockStore } from '@/mocks/store';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
 const HIDE_AFTER_END_MIN = 5;
@@ -16,15 +16,17 @@ const HIDE_AFTER_END_MIN = 5;
 export default function Dashboard() {
   useWakeLock(true);
   const now = useNow(15_000);
+  const saunas = useMockStore((s) => s.saunas);
+  const infusions = useMockStore((s) => s.infusions);
 
   const activeSaunas = useMemo(
-    () => mockSaunas.filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
-    []
+    () => saunas.filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
+    [saunas]
   );
 
   const infusionsBySauna = useMemo(() => {
     const cutoff = addMinutes(now, -HIDE_AFTER_END_MIN);
-    const visible = mockInfusions
+    const visible = infusions
       .filter((i) => isBefore(cutoff, new Date(i.end_time)))
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
     const map = new Map<string, typeof visible>();
@@ -34,10 +36,8 @@ export default function Dashboard() {
       map.set(i.sauna_id, arr);
     }
     return map;
-  }, [now]);
+  }, [now, infusions]);
 
-  // Declarative layout: middle ad grid stays only when 0–2 saunas are active.
-  // 3 active → ads make room for the third column.
   const showAds = activeSaunas.length <= 2;
   const columnSpec =
     activeSaunas.length === 1 ? '1fr 2fr'
@@ -45,15 +45,17 @@ export default function Dashboard() {
     : '1fr 1.4fr 1fr 1fr';
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 text-slate-100">
+    <div className="bg-schwarzwald min-h-full text-slate-100">
       <header className="flex items-center justify-between px-8 pt-6">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">Saunafreunde Schwarzwald</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-forest-100 drop-shadow">
+            Saunafreunde Schwarzwald
+          </h1>
           <ConnectionIndicator online={isSupabaseConfigured} />
         </div>
         <div className="flex items-center gap-4">
           <WeatherWidget />
-          <span className="rounded-xl bg-slate-900/60 px-4 py-2 text-2xl font-semibold tabular-nums ring-1 ring-slate-800/60">
+          <span className="rounded-xl bg-forest-950/70 px-4 py-2 text-2xl font-semibold tabular-nums ring-1 ring-forest-800/60">
             {fmtClock(now)}
           </span>
         </div>
@@ -74,7 +76,7 @@ export default function Dashboard() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="col-span-full flex items-center justify-center text-3xl text-slate-500"
+                className="col-span-full flex items-center justify-center text-3xl text-forest-300/70"
               >
                 Heute keine Saunen aktiv.
               </motion.div>

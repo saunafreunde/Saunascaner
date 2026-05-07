@@ -35,7 +35,7 @@ export function WeatherWidget() {
   const temp = data ? Math.round(data.current.temperature_2m) : null;
 
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-slate-900/60 px-4 py-2 ring-1 ring-slate-800/60">
+    <div className="flex items-center gap-3 rounded-xl bg-forest-950/70 px-4 py-2 ring-1 ring-forest-800/50 backdrop-blur">
       <span className="text-3xl leading-none">{icon}</span>
       <div className="flex flex-col leading-tight">
         <span className="text-xl font-semibold tabular-nums">

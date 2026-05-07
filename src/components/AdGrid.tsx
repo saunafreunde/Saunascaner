@@ -11,12 +11,12 @@ export function AdGrid({ images }: { images: string[] }) {
       {slots.map((src, i) => (
         <div
           key={i}
-          className="overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-slate-800/60 flex items-center justify-center"
+          className="overflow-hidden rounded-2xl bg-forest-950/70 ring-1 ring-forest-800/50 flex items-center justify-center backdrop-blur"
         >
           {src ? (
             <img src={src} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="text-slate-600 text-sm">Werbeplatz {i + 1}</span>
+            <span className="text-forest-300/40 text-sm">Werbeplatz {i + 1}</span>
           )}
         </div>
       ))}

@@ -4,6 +4,7 @@ import Guest from '@/routes/Guest';
 import Admin from '@/routes/Admin';
 import Scanner from '@/routes/Scanner';
 import Login from '@/routes/Login';
+import Planner from '@/routes/Planner';
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/admin" element={<Admin />} />
       <Route path="/scanner" element={<Scanner />} />
+      <Route path="/planner" element={<Planner />} />
       <Route path="/login" element={<Login />} />
       <Route path="/dev" element={<DevIndex />} />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -23,18 +25,19 @@ function DevIndex() {
   const links = [
     ['/', 'Gäste-App'],
     ['/dashboard', 'TV-Dashboard'],
+    ['/planner', 'Aufguss-Planung (Saunameister)'],
     ['/admin', 'Admin'],
     ['/scanner', 'Scanner'],
     ['/login', 'Login'],
   ] as const;
   return (
-    <div className="min-h-full p-8">
-      <h1 className="text-2xl font-semibold mb-4">Saunafreunde — Dev Index</h1>
+    <div className="bg-schwarzwald-soft min-h-full p-8 text-slate-100">
+      <h1 className="text-2xl font-semibold mb-4 text-forest-100">Saunafreunde — Dev Index</h1>
       <ul className="space-y-2">
         {links.map(([to, label]) => (
           <li key={to}>
-            <Link to={to} className="text-heat-400 hover:text-heat-500 underline">
-              {label} <span className="text-slate-500">({to})</span>
+            <Link to={to} className="text-forest-300 hover:text-forest-100 underline">
+              {label} <span className="text-forest-500">({to})</span>
             </Link>
           </li>
         ))}

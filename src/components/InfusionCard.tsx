@@ -13,10 +13,10 @@ export function InfusionCard({ infusion, now }: { infusion: Infusion; now: Date 
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="rounded-xl border border-slate-800/60 bg-slate-900/60 p-5 backdrop-blur"
+      className="rounded-xl border border-forest-800/40 bg-forest-950/55 p-5 backdrop-blur"
     >
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-5xl font-semibold tracking-tight text-heat-400 tabular-nums">
+        <span className="text-5xl font-semibold tracking-tight text-forest-300 tabular-nums">
           {fmtClock(infusion.start_time)}
         </span>
         <span className="text-base text-slate-400">{suffix}</span>

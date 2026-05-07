@@ -15,11 +15,11 @@ export function SaunaColumn({
     <motion.section
       layout
       transition={{ layout: { duration: 0.6, ease: [0.25, 1, 0.5, 1] } }}
-      className="flex h-full flex-col rounded-2xl bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-6 shadow-2xl ring-1 ring-slate-800/60"
+      className="flex h-full flex-col rounded-2xl bg-gradient-to-b from-forest-950/85 to-slate-950/85 p-6 shadow-2xl ring-1 ring-forest-800/50 backdrop-blur"
     >
       <header className="mb-6 flex items-baseline justify-between">
         <h2 className="text-3xl font-semibold tracking-tight">{sauna.name}</h2>
-        <span className="rounded-full bg-heat-600/20 px-3 py-1 text-xl font-semibold text-heat-400 tabular-nums">
+        <span className="rounded-full bg-heat-600/25 px-3 py-1 text-xl font-semibold text-heat-400 tabular-nums ring-1 ring-heat-500/30">
           {sauna.temperature_label}
         </span>
       </header>

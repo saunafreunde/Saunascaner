@@ -5,6 +5,29 @@
 html, body, #root { height: 100%; }
 body { font-family: 'Inter', system-ui, sans-serif; }
 
+/* Schwarzwald-Backdrop: drop your own jpgs into public/bg/ as forest-1.jpg / forest-2.jpg.
+   Falls back to a layered green gradient that suggests forest depth + ground fog. */
+.bg-schwarzwald {
+  background-color: #052e16;
+  background-image:
+    linear-gradient(180deg, rgba(2,6,23,0.88) 0%, rgba(5,46,22,0.78) 55%, rgba(2,6,23,0.92) 100%),
+    radial-gradient(1200px 600px at 20% 20%, rgba(34,197,94,0.18), transparent 70%),
+    radial-gradient(900px 500px at 80% 70%, rgba(16,185,129,0.14), transparent 70%),
+    url('/bg/forest-1.jpg');
+  background-size: cover, cover, cover, cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.bg-schwarzwald-soft {
+  background-color: #052e16;
+  background-image:
+    linear-gradient(180deg, rgba(2,6,23,0.92) 0%, rgba(5,46,22,0.85) 100%),
+    url('/bg/forest-2.jpg');
+  background-size: cover, cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 @media print {
   .no-print { display: none !important; }
   body { background: white !important; color: black !important; }
