@@ -6,7 +6,7 @@ import {
   useActiveEvacuation, useMyPolls, useSubmitPollResponse,
   togglePresenceByCode, type MyPoll,
 } from '@/lib/api';
-import { fmtClock, dayLabel } from '@/lib/time';
+import { fmtClock } from '@/lib/time';
 import { PageBackground } from '@/components/PageBackground';
 
 function fmtMemberNumber(n: number | null | undefined): string {
