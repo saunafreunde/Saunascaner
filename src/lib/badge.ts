@@ -3,12 +3,15 @@ import QRCode from 'qrcode';
 import 'svg2pdf.js';
 
 // Generate a credit-card-sized PDF (85.6 × 54 mm) badge with vector QR.
-// QR payload = the member_code (UUID) — accepted by /scanner.
+// QR payload = full URL https://<host>/m/<member_code>
+//   - Phone camera opens it as a deep link → instant magic-link login
+//   - The /scanner extracts the UUID from the URL too (extractCode)
 export async function generateBadgePdf(opts: {
   name: string;
   memberCode: string;
   organization?: string;
   role?: string;
+  baseUrl?: string;          // e.g. https://saunascaner.vercel.app
 }): Promise<Blob> {
   const W = 85.6, H = 54;
   const doc = new jsPDF({ unit: 'mm', format: [W, H], orientation: 'landscape' });
@@ -45,8 +48,10 @@ export async function generateBadgePdf(opts: {
   doc.setTextColor(134, 239, 172);
   doc.text(opts.memberCode, 8, H - 4);
 
-  // Vector QR code on the right
-  const svgString = await QRCode.toString(opts.memberCode, {
+  // Vector QR code on the right — encodes the full deep-link URL
+  const base = opts.baseUrl ?? (typeof window !== 'undefined' ? window.location.origin : 'https://saunascaner.vercel.app');
+  const qrPayload = `${base}/m/${opts.memberCode}`;
+  const svgString = await QRCode.toString(qrPayload, {
     type: 'svg',
     errorCorrectionLevel: 'M',
     margin: 0,

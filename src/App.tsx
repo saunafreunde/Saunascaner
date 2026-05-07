@@ -7,6 +7,7 @@ import Login from '@/routes/Login';
 import Planner from '@/routes/Planner';
 import ForgotPassword from '@/routes/ForgotPassword';
 import ResetPassword from '@/routes/ResetPassword';
+import MagicEntry from '@/routes/MagicEntry';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="/login"          element={<Login />} />
       <Route path="/forgot"         element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/m/:code"        element={<MagicEntry />} />
       <Route path="/dev"       element={<DevIndex />} />
       <Route path="*"          element={<Navigate to="/" replace />} />
     </Routes>
