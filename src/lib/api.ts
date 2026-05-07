@@ -140,6 +140,7 @@ export type Member = {
   name: string;
   member_code: string;
   role: 'saunameister' | 'manager' | 'super_admin' | 'guest_staff';
+  approved: boolean;
   is_present: boolean;
   last_scan_at: string | null;
   revoked_at: string | null;
@@ -190,6 +191,31 @@ export function useAddMember() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+  });
+}
+
+export function usePendingMembers() {
+  return useQuery({
+    queryKey: ['members', 'pending'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_pending_members');
+      if (error) throw error;
+      return (data ?? []) as { id: string; email: string | null; name: string; created_at: string }[];
+    },
+  });
+}
+
+export function useApproveMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { id: string; role?: Member['role'] }) => {
+      const { error } = await need().rpc('approve_member', { p_member_id: p.id, p_role: p.role ?? null });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+    },
   });
 }
 
@@ -338,8 +364,17 @@ export function useStatsPresenceByDay(from: Date, to: Date) {
 // ─── system_config (TV settings) ──────────────────────────────────────────
 export type TvSettings = {
   ads: { image_path: string; href?: string | null }[];
-  background_path: string | null;
+  background_path?: string | null;       // legacy / dashboard
   logo_path: string | null;
+  backgrounds?: {
+    dashboard?: string | null;
+    guest?: string | null;
+    planner?: string | null;
+  };
+  badge?: {
+    front_bg?: string | null;
+    back_bg?: string | null;
+  };
 };
 
 export function useTvSettings() {

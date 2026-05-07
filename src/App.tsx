@@ -8,6 +8,7 @@ import Planner from '@/routes/Planner';
 import ForgotPassword from '@/routes/ForgotPassword';
 import ResetPassword from '@/routes/ResetPassword';
 import MagicEntry from '@/routes/MagicEntry';
+import PendingApproval from '@/routes/PendingApproval';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
@@ -34,10 +35,12 @@ export default function App() {
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { ready, user } = useAuth();
+  const member = useCurrentMember();
   const loc = useLocation();
   if (!isSupabaseConfigured) return <NotConfigured />;
-  if (!ready) return <Splash />;
+  if (!ready || (user && member.isLoading)) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  if (member.data && !member.data.approved) return <PendingApproval />;
   return <>{children}</>;
 }
 

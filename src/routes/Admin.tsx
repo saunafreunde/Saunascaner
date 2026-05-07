@@ -3,17 +3,19 @@ import { Link } from 'react-router-dom';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember,
+  usePendingMembers, useApproveMember,
   useTvSettings, useUpdateTvSettings,
   usePresentMembers,
   useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
   uploadAsset, deleteAsset, publicAssetUrl,
+  type TvSettings,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'ads';
+type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'branding';
 
 export default function Admin() {
   const { signOut } = useAuth();
@@ -35,7 +37,7 @@ export default function Admin() {
       </header>
 
       <nav className="flex flex-wrap gap-2 px-4 pt-3">
-        {(['saunas', 'members', 'presence', 'stats', 'ads'] as Tab[]).map((t) => (
+        {(['saunas', 'members', 'presence', 'stats', 'branding'] as Tab[]).map((t) => (
           <button
             key={t} onClick={() => setTab(t)}
             className={`rounded-lg px-3 py-2 text-sm font-medium ring-1 ${
@@ -44,7 +46,7 @@ export default function Admin() {
                 : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
             }`}
           >
-            {t === 'saunas' ? 'Saunen' : t === 'members' ? 'Mitglieder' : t === 'presence' ? 'Anwesenheit' : t === 'stats' ? 'Statistik' : 'Werbung'}
+            {t === 'saunas' ? 'Saunen' : t === 'members' ? 'Mitglieder' : t === 'presence' ? 'Anwesenheit' : t === 'stats' ? 'Statistik' : 'Branding'}
           </button>
         ))}
       </nav>
@@ -54,7 +56,7 @@ export default function Admin() {
         {tab === 'members' && <MembersTab />}
         {tab === 'presence' && <PresenceTab />}
         {tab === 'stats' && <StatsTab />}
-        {tab === 'ads' && <AdsTab />}
+        {tab === 'branding' && <BrandingTab />}
       </div>
     </div>
   );
@@ -96,8 +98,14 @@ function SaunasTab() {
 
 function MembersTab() {
   const membersQ = useAllMembers();
+  const pendingQ = usePendingMembers();
   const add = useAddMember();
   const update = useUpdateMember();
+  const approve = useApproveMember();
+  const tvQ = useTvSettings();
+  const frontBgUrl = publicAssetUrl(tvQ.data?.badge?.front_bg);
+  const backBgUrl  = publicAssetUrl(tvQ.data?.badge?.back_bg);
+  const logoUrl    = publicAssetUrl(tvQ.data?.logo_path);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -116,8 +124,36 @@ function MembersTab() {
 
   return (
     <section className="space-y-4">
+      {(pendingQ.data?.length ?? 0) > 0 && (
+        <div className="rounded-2xl border-2 border-amber-500/50 bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur">
+          <h2 className="text-base font-bold text-amber-100">⏳ Wartet auf Freigabe ({pendingQ.data?.length})</h2>
+          <p className="mt-1 text-xs text-amber-200/80">Diese User haben sich registriert und warten auf Aktivierung.</p>
+          <ul className="mt-3 divide-y divide-amber-500/20">
+            {(pendingQ.data ?? []).map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-amber-50">{m.name}</div>
+                  <div className="text-xs text-amber-200/80">{m.email}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'saunameister' })}
+                    className="rounded-lg bg-forest-500 px-3 py-1.5 text-xs font-semibold text-forest-950 hover:bg-forest-400">
+                    Als Saunameister freigeben
+                  </button>
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'manager' })}
+                    className="rounded-lg bg-forest-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-600">
+                    Als Manager freigeben
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-3">
-        <h2 className="text-base font-semibold text-forest-100">Mitglied anlegen</h2>
+        <h2 className="text-base font-semibold text-forest-100">Mitglied vorab anlegen (optional)</h2>
+        <p className="text-xs text-forest-300/70">Normalerweise reicht: User registriert sich selbst → hier oben freigeben.</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name"
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
@@ -160,7 +196,11 @@ function MembersTab() {
                 <div className="font-mono text-[10px] text-forest-300/50">{m.member_code}</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => downloadBadge(m.name, m.member_code, m.role)}
+                <button onClick={() => downloadBadge({
+                  name: m.name, memberCode: m.member_code, role: m.role,
+                  organization: 'Saunafreunde Schwarzwald',
+                  frontBgUrl, backBgUrl, logoUrl,
+                })}
                   className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
                   Ausweis-PDF
                 </button>
@@ -183,83 +223,190 @@ function MembersTab() {
   );
 }
 
-function AdsTab() {
+function BrandingTab() {
   const tvQ = useTvSettings();
   const update = useUpdateTvSettings();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const ads = tvQ.data?.ads ?? [];
+  const tv: TvSettings = tvQ.data ?? { ads: [], logo_path: null };
 
-  async function onUpload(file: File, slot: number) {
+  async function setSetting(updater: (cur: TvSettings) => TvSettings) {
     setBusy(true); setErr(null);
-    try {
-      const path = await uploadAsset(file, 'ads');
-      const next = [...ads];
-      // Replace at slot, keep others
-      next[slot] = { image_path: path };
-      // Remove old asset if was set
-      const old = ads[slot]?.image_path;
-      if (old) await deleteAsset(old).catch(() => {});
-      await update.mutateAsync({
-        ads: next,
-        background_path: tvQ.data?.background_path ?? null,
-        logo_path: tvQ.data?.logo_path ?? null,
-      });
-    } catch (e) { setErr((e as Error).message); }
+    try { await update.mutateAsync(updater(tv)); }
+    catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
 
-  async function onClear(slot: number) {
+  async function uploadField(file: File, getPath: () => string | null | undefined, setPath: (path: string) => TvSettings, folder: string) {
     setBusy(true); setErr(null);
     try {
-      const old = ads[slot]?.image_path;
-      const next = ads.filter((_, i) => i !== slot);
-      await update.mutateAsync({
-        ads: next,
-        background_path: tvQ.data?.background_path ?? null,
-        logo_path: tvQ.data?.logo_path ?? null,
-      });
-      if (old) await deleteAsset(old).catch(() => {});
+      const oldPath = getPath();
+      const path = await uploadAsset(file, folder);
+      await update.mutateAsync(setPath(path));
+      if (oldPath) await deleteAsset(oldPath).catch(() => {});
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
 
   return (
-    <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-      <h2 className="text-base font-semibold text-forest-100">Werbung auf der Tafel</h2>
-      <p className="mt-1 text-xs text-forest-300/70">
-        Bis zu 4 Bilder werden im Mittelblock gezeigt (sichtbar wenn ≤ 2 Saunen aktiv sind).
-      </p>
-      {err && <div className="mt-2 rounded-md bg-rose-500/15 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-500/30">{err}</div>}
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[0, 1, 2, 3].map((slot) => {
-          const url = publicAssetUrl(ads[slot]?.image_path);
-          return (
-            <div key={slot} className="space-y-2">
-              <div className="aspect-video overflow-hidden rounded-xl bg-forest-900/60 ring-1 ring-forest-800/40 grid place-items-center">
-                {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <span className="text-xs text-forest-300/50">Slot {slot + 1}</span>}
-              </div>
-              <div className="flex gap-2">
-                <label className="flex-1 cursor-pointer rounded-lg bg-forest-600 px-3 py-1.5 text-center text-xs font-semibold text-white hover:bg-forest-500">
-                  {url ? 'Ersetzen' : 'Hochladen'}
-                  <input
-                    type="file" accept="image/*" hidden disabled={busy}
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f, slot); e.target.value = ''; }}
-                  />
-                </label>
-                {url && (
-                  <button onClick={() => onClear(slot)} disabled={busy}
-                    className="rounded-lg bg-rose-500/20 px-2 py-1.5 text-xs text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/30">
-                    ✕
-                  </button>
+    <section className="space-y-4">
+      {err && <div className="rounded-md bg-rose-500/15 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-500/30">{err}</div>}
+
+      {/* Logo */}
+      <ImageSlot
+        title="Logo"
+        hint="Erscheint auf Ausweis, Tafel-Header, Gäste-App."
+        url={publicAssetUrl(tv.logo_path)}
+        busy={busy}
+        onUpload={(f) => uploadField(f, () => tv.logo_path, (p) => ({ ...tv, logo_path: p }), 'logo')}
+        onClear={() => setSetting((c) => ({ ...c, logo_path: null }))}
+      />
+
+      {/* Page backgrounds */}
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <h2 className="text-base font-semibold text-forest-100">Hintergründe pro Seite</h2>
+        <p className="mt-1 text-xs text-forest-300/70">Schwarzwald-Foto pro Ansicht. Leerlassen = Wald-Verlauf-Fallback.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {(['dashboard', 'guest', 'planner'] as const).map((page) => {
+            const path = tv.backgrounds?.[page] ?? null;
+            const url = publicAssetUrl(path);
+            return (
+              <SubSlot key={page} title={pageLabel(page)} url={url} busy={busy}
+                onUpload={(f) => uploadField(
+                  f,
+                  () => tv.backgrounds?.[page],
+                  (p) => ({ ...tv, backgrounds: { ...(tv.backgrounds ?? {}), [page]: p } }),
+                  `bg/${page}`,
                 )}
-              </div>
-            </div>
-          );
-        })}
+                onClear={() => setSetting((c) => ({ ...c, backgrounds: { ...(c.backgrounds ?? {}), [page]: null } }))}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Badge backgrounds */}
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <h2 className="text-base font-semibold text-forest-100">Mitgliedsausweis</h2>
+        <p className="mt-1 text-xs text-forest-300/70">Hintergrund Vorderseite und Rückseite. Optional — ohne Bild greift ein Fallback.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {([['front_bg','Vorderseite'],['back_bg','Rückseite']] as const).map(([key, label]) => {
+            const path = tv.badge?.[key] ?? null;
+            const url = publicAssetUrl(path);
+            return (
+              <SubSlot key={key} title={label} url={url} busy={busy}
+                onUpload={(f) => uploadField(
+                  f,
+                  () => tv.badge?.[key],
+                  (p) => ({ ...tv, badge: { ...(tv.badge ?? {}), [key]: p } }),
+                  `badge/${key}`,
+                )}
+                onClear={() => setSetting((c) => ({ ...c, badge: { ...(c.badge ?? {}), [key]: null } }))}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Ads */}
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <h2 className="text-base font-semibold text-forest-100">Werbung auf der Tafel</h2>
+        <p className="mt-1 text-xs text-forest-300/70">Bis zu 4 Bilder im Mittelblock (sichtbar wenn ≤ 2 Saunen aktiv).</p>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((slot) => {
+            const url = publicAssetUrl(tv.ads?.[slot]?.image_path);
+            return (
+              <SubSlot key={slot} title={`Slot ${slot + 1}`} url={url} busy={busy}
+                onUpload={async (f) => {
+                  setBusy(true); setErr(null);
+                  try {
+                    const path = await uploadAsset(f, 'ads');
+                    const next = [...(tv.ads ?? [])];
+                    const old = next[slot]?.image_path;
+                    next[slot] = { image_path: path };
+                    await update.mutateAsync({ ...tv, ads: next });
+                    if (old) await deleteAsset(old).catch(() => {});
+                  } catch (e) { setErr((e as Error).message); }
+                  finally { setBusy(false); }
+                }}
+                onClear={async () => {
+                  setBusy(true); setErr(null);
+                  try {
+                    const old = tv.ads?.[slot]?.image_path;
+                    const next = (tv.ads ?? []).filter((_, i) => i !== slot);
+                    await update.mutateAsync({ ...tv, ads: next });
+                    if (old) await deleteAsset(old).catch(() => {});
+                  } catch (e) { setErr((e as Error).message); }
+                  finally { setBusy(false); }
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
     </section>
+  );
+}
+
+function pageLabel(p: 'dashboard' | 'guest' | 'planner') {
+  return p === 'dashboard' ? 'Tafel (TV)' : p === 'guest' ? 'Gäste-App' : 'Planner';
+}
+
+function ImageSlot({ title, hint, url, busy, onUpload, onClear }: {
+  title: string; hint?: string; url: string | null; busy: boolean;
+  onUpload: (f: File) => void | Promise<void>; onClear: () => void | Promise<void>;
+}) {
+  return (
+    <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+      <h2 className="text-base font-semibold text-forest-100">{title}</h2>
+      {hint && <p className="mt-1 text-xs text-forest-300/70">{hint}</p>}
+      <div className="mt-3 flex gap-3">
+        <div className="aspect-video w-48 overflow-hidden rounded-xl bg-forest-900/60 ring-1 ring-forest-800/40 grid place-items-center">
+          {url ? <img src={url} alt="" className="h-full w-full object-contain" /> : <span className="text-xs text-forest-300/50">Kein Bild</span>}
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="cursor-pointer rounded-lg bg-forest-600 px-3 py-1.5 text-center text-xs font-semibold text-white hover:bg-forest-500">
+            {url ? 'Ersetzen' : 'Hochladen'}
+            <input type="file" accept="image/*" hidden disabled={busy}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }} />
+          </label>
+          {url && (
+            <button onClick={() => onClear()} disabled={busy}
+              className="rounded-lg bg-rose-500/20 px-3 py-1.5 text-xs text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/30">
+              Entfernen
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubSlot({ title, url, busy, onUpload, onClear }: {
+  title: string; url: string | null; busy: boolean;
+  onUpload: (f: File) => void | Promise<void>; onClear: () => void | Promise<void>;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-forest-200/85">{title}</div>
+      <div className="aspect-video overflow-hidden rounded-xl bg-forest-900/60 ring-1 ring-forest-800/40 grid place-items-center">
+        {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <span className="text-xs text-forest-300/50">—</span>}
+      </div>
+      <div className="flex gap-2">
+        <label className="flex-1 cursor-pointer rounded-lg bg-forest-600 px-3 py-1 text-center text-xs font-semibold text-white hover:bg-forest-500">
+          {url ? 'Ersetzen' : 'Hochladen'}
+          <input type="file" accept="image/*" hidden disabled={busy}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }} />
+        </label>
+        {url && (
+          <button onClick={() => onClear()} disabled={busy}
+            className="rounded-lg bg-rose-500/20 px-2 py-1 text-xs text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/30">
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

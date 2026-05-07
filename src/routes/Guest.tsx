@@ -5,6 +5,7 @@ import { useNow } from '@/hooks/useNow';
 import { fmtClock, TZ } from '@/lib/time';
 import { useSaunas, useInfusions, useMeisterDirectory } from '@/lib/api';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
+import { PageBackground } from '@/components/PageBackground';
 
 const IMMINENT_MIN = 10;
 
@@ -34,7 +35,7 @@ export default function Guest() {
     (id && membersQ.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
 
   return (
-    <div className="bg-schwarzwald-soft min-h-full text-slate-100">
+    <PageBackground page="guest">
       <header className="sticky top-0 z-10 border-b border-forest-800/40 bg-forest-950/85 backdrop-blur px-5 py-4">
         <h1 className="text-xl font-semibold text-forest-100">Aufgüsse heute</h1>
         <p className="text-sm text-forest-300/80">Saunafreunde Schwarzwald · Freudenstadt</p>
@@ -105,6 +106,6 @@ export default function Guest() {
           );
         })}
       </ul>
-    </div>
+    </PageBackground>
   );
 }

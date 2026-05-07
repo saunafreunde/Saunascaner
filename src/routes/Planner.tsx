@@ -5,6 +5,7 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList } from '@/lib/telegram';
+import { PageBackground } from '@/components/PageBackground';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useSaunas, useInfusions, useTemplates,
@@ -181,7 +182,7 @@ export default function Planner() {
   const evacuation = evacQ.data;
 
   return (
-    <div className="bg-schwarzwald-soft min-h-full text-slate-100">
+    <PageBackground page="planner">
       <header className="border-b border-forest-800/40 bg-forest-950/85 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-lg sm:text-2xl font-semibold text-forest-100 truncate">Aufguss-Planung</h1>
@@ -448,6 +449,6 @@ export default function Planner() {
           </div>
         </form>
       </div>
-    </div>
+    </PageBackground>
   );
 }

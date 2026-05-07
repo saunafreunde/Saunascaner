@@ -7,6 +7,7 @@ import { SaunaColumn } from '@/components/SaunaColumn';
 import { AdGrid } from '@/components/AdGrid';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
+import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { fmtClock } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -62,7 +63,7 @@ export default function Dashboard() {
     .filter((u): u is string => Boolean(u));
 
   return (
-    <div className="bg-schwarzwald min-h-screen flex flex-col text-slate-100">
+    <PageBackground page="dashboard" variant="strong" className="min-h-screen flex flex-col">
       <AnimatePresence>
         {evac.data && (
           <EvacuationOverlay
@@ -138,6 +139,6 @@ export default function Dashboard() {
           </AnimatePresence>
         </motion.main>
       </LayoutGroup>
-    </div>
+    </PageBackground>
   );
 }
