@@ -1,11 +1,12 @@
 // Placeholder — regenerate via:
 //   npx supabase gen types typescript --project-id <id> > src/types/database.ts
-// Hand-written shapes mirror migration 0001_init.sql for Phase 1.
+import type { InfusionAttribute } from '@/lib/attributes';
 
 export type Sauna = {
   id: string;
   name: string;
   temperature_label: string;
+  accent_color: string;          // hex, used as visual identity on TV + planner
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -19,6 +20,7 @@ export type Infusion = {
   saunameister_id: string | null;
   title: string;
   description: string | null;
+  attributes: InfusionAttribute[];
   image_path: string | null;
   start_time: string;
   duration_minutes: number;
@@ -30,7 +32,8 @@ export type InfusionTemplate = {
   id: string;
   title: string;
   description: string | null;
-  tags: string[];
+  duration_minutes: number;
+  attributes: InfusionAttribute[];
   image_path: string | null;
   created_at: string;
 };

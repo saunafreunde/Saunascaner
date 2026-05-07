@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { addMinutes, isBefore } from 'date-fns';
 import { useNow } from '@/hooks/useNow';
@@ -7,17 +7,37 @@ import { SaunaColumn } from '@/components/SaunaColumn';
 import { AdGrid } from '@/components/AdGrid';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
+import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { fmtClock } from '@/lib/time';
 import { useMockStore } from '@/mocks/store';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { subscribeEvac, unlockAudio } from '@/lib/evacuation';
 
 const HIDE_AFTER_END_MIN = 5;
 
 export default function Dashboard() {
   useWakeLock(true);
-  const now = useNow(15_000);
+  const now = useNow(20_000); // 20s tick keeps imminent state fresh
   const saunas = useMockStore((s) => s.saunas);
   const infusions = useMockStore((s) => s.infusions);
+  const meisters = useMockStore((s) => s.meisters);
+  const evacuation = useMockStore((s) => s.evacuation);
+  const setEvacuation = useMockStore((s) => s.setEvacuation);
+  const [audioReady, setAudioReady] = useState(false);
+
+  // Sync evacuation state across tabs
+  useEffect(() => {
+    return subscribeEvac((msg) => {
+      if (msg.type === 'start') {
+        setEvacuation({ active: true, triggeredBy: msg.triggeredBy, triggeredAt: msg.triggeredAt });
+      } else {
+        setEvacuation({ active: false, triggeredBy: null, triggeredAt: null });
+      }
+    });
+  }, [setEvacuation]);
+
+  const meisterName = (id: string | null) =>
+    (id && meisters.find((m) => m.id === id)?.name) || 'Saunameister:in';
 
   const activeSaunas = useMemo(
     () => saunas.filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
@@ -46,6 +66,22 @@ export default function Dashboard() {
 
   return (
     <div className="bg-schwarzwald min-h-full text-slate-100">
+      <AnimatePresence>
+        {evacuation.active && (
+          <EvacuationOverlay triggeredBy={evacuation.triggeredBy} withSiren={audioReady} />
+        )}
+      </AnimatePresence>
+
+      {!audioReady && !evacuation.active && (
+        <button
+          onClick={() => { if (unlockAudio()) setAudioReady(true); }}
+          className="fixed bottom-4 right-4 z-50 rounded-full bg-forest-900/80 px-4 py-2 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
+          title="Einmal klicken um Sirene-Sound zu aktivieren (Browser-Schutz)"
+        >
+          🔊 Ton aktivieren
+        </button>
+      )}
+
       <header className="flex items-center justify-between px-8 pt-6">
         <div className="flex items-baseline gap-3">
           <h1 className="text-3xl font-semibold tracking-tight text-forest-100 drop-shadow">
@@ -87,6 +123,7 @@ export default function Dashboard() {
                 key={activeSaunas[0].id}
                 sauna={activeSaunas[0]}
                 infusions={infusionsBySauna.get(activeSaunas[0].id) ?? []}
+                meisterName={meisterName}
                 now={now}
               />
             )}
@@ -109,6 +146,7 @@ export default function Dashboard() {
                 key={s.id}
                 sauna={s}
                 infusions={infusionsBySauna.get(s.id) ?? []}
+                meisterName={meisterName}
                 now={now}
               />
             ))}
