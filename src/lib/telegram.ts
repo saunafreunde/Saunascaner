@@ -1,4 +1,4 @@
-// Sends evacuation list via the server-side /api/send-evacuation function.
+// Sends evacuation notifications via the server-side /api/send-evacuation function.
 // Bot token never reaches the browser.
 
 export type EvacuationPayload = {
@@ -7,8 +7,29 @@ export type EvacuationPayload = {
   presentNames: string[];
 };
 
-export async function sendEvacuationList(p: EvacuationPayload): Promise<{ ok: boolean; via: string; detail?: string; sent?: number; total?: number }> {
+export type EvacuationWithPhotoPayload = EvacuationPayload & {
+  photoBlob?: Blob;
+};
+
+export async function sendEvacuationList(
+  p: EvacuationPayload
+): Promise<{ ok: boolean; via: string; detail?: string; sent?: number; total?: number }> {
+  return sendEvacuationWithPhoto(p);
+}
+
+export async function sendEvacuationWithPhoto(
+  p: EvacuationWithPhotoPayload
+): Promise<{ ok: boolean; via: string; detail?: string; sent?: number; total?: number }> {
   try {
+    let photoBase64: string | undefined;
+    if (p.photoBlob) {
+      const arrayBuffer = await p.photoBlob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      bytes.forEach((b) => (binary += String.fromCharCode(b)));
+      photoBase64 = `data:image/jpeg;base64,${btoa(binary)}`;
+    }
+
     const r = await fetch('/api/send-evacuation', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -16,6 +37,7 @@ export async function sendEvacuationList(p: EvacuationPayload): Promise<{ ok: bo
         triggeredBy: p.triggeredBy,
         triggeredAt: p.triggeredAt.toISOString(),
         presentNames: p.presentNames,
+        photoBase64,
       }),
     });
     const data = await r.json();

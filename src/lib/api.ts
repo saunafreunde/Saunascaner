@@ -249,12 +249,12 @@ export function usePresentMembers() {
     queryFn: async () => {
       const { data, error } = await need()
         .from('members')
-        .select('id,name,last_scan_at')
+        .select('id,name,last_scan_at,is_aufgieser')
         .eq('is_present', true)
         .is('revoked_at', null)
         .order('name');
       if (error) throw error;
-      return data as { id: string; name: string; last_scan_at: string | null }[];
+      return data as { id: string; name: string; last_scan_at: string | null; is_aufgieser: boolean }[];
     },
   });
 }

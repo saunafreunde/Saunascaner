@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QrScanner from 'qr-scanner';
-import { togglePresenceByCode, togglePresenceByEntryCode, usePresentMembers } from '@/lib/api';
+import { togglePresenceByCode, togglePresenceByEntryCode, usePresentMembers, useCurrentMember } from '@/lib/api';
 import { fmtClock } from '@/lib/time';
 
 type Toast = { kind: 'ok' | 'err' | 'info'; text: string };
@@ -31,6 +31,8 @@ function fmtCountdown(ms: number): string {
 
 export default function Scanner() {
   const present = usePresentMembers();
+  const currentMember = useCurrentMember();
+  const isAdmin = currentMember.data?.role === 'admin';
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
@@ -129,7 +131,12 @@ export default function Scanner() {
       const s = new QrScanner(
         videoRef.current,
         (r) => handleQrCode(r.data),
-        { highlightScanRegion: true, highlightCodeOutline: true, returnDetailedScanResult: true }
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          returnDetailedScanResult: true,
+          preferredCamera: 'environment',
+        }
       );
       await s.start();
       scannerRef.current = s;
@@ -208,8 +215,8 @@ export default function Scanner() {
         {/* QR-Scan-Modus */}
         {mode === 'scan' && (
           <div className="space-y-3">
-            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-black">
-              <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+            <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
+              <video ref={videoRef} className="h-full w-full object-cover" style={{ transform: 'none' }} muted playsInline />
             </div>
             <button
               onClick={() => setMode('idle')}
@@ -267,8 +274,8 @@ export default function Scanner() {
           </div>
         )}
 
-        {/* Anwesendenliste */}
-        <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur mt-auto">
+        {/* Anwesendenliste — nur für Admins */}
+        {isAdmin && <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur mt-auto">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="text-sm font-semibold text-forest-100">
               Anwesend ({present.data?.length ?? 0})
@@ -290,7 +297,7 @@ export default function Scanner() {
               </li>
             ))}
           </ul>
-        </section>
+        </section>}
       </div>
 
       {/* Druckansicht */}

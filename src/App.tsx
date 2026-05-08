@@ -5,7 +5,6 @@ import Admin from '@/routes/Admin';
 import Scanner from '@/routes/Scanner';
 import Login from '@/routes/Login';
 import Planner from '@/routes/Planner';
-import Me from '@/routes/Me';
 import OilRoom from '@/routes/OilRoom';
 import ForgotPassword from '@/routes/ForgotPassword';
 import ResetPassword from '@/routes/ResetPassword';
@@ -23,13 +22,13 @@ export default function App() {
       <Route path="/" element={<Guest />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/scanner"   element={<Scanner />} />
-      <Route path="/planner"   element={<RequireAufgieser><Planner /></RequireAufgieser>} />
+      <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
       <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
-      <Route path="/oil-room"  element={<RequireAufgieser><OilRoom /></RequireAufgieser>} />
+      <Route path="/oil-room"  element={<OilRoom />} />
       <Route path="/login"          element={<Login />} />
       <Route path="/forgot"         element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/me"             element={<RequireAuth><Me /></RequireAuth>} />
+      <Route path="/me"             element={<Navigate to="/planner" replace />} />
       <Route path="/m/:code"        element={<MagicEntry />} />
       <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />
       <Route path="*"          element={<Navigate to="/" replace />} />
@@ -60,17 +59,6 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function RequireAufgieser({ children }: { children: React.ReactNode }) {
-  const { ready, user } = useAuth();
-  const member = useCurrentMember();
-  const loc = useLocation();
-  if (!isSupabaseConfigured) return <NotConfigured />;
-  if (!ready || member.isLoading) return <Splash />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
-  if (!member.data?.approved) return <PendingApproval />;
-  if (!member.data?.is_aufgieser && member.data?.role !== 'admin') return <NoAccess />;
-  return <>{children}</>;
-}
 
 function Splash() {
   return (

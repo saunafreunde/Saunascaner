@@ -26,6 +26,7 @@ const inf = (
   title, description, attributes, image_path: null,
   start_time: start, duration_minutes: duration,
   end_time: addMinutes(new Date(start), duration).toISOString(),
+  team_infusion: false,
   created_at: '',
 });
 
