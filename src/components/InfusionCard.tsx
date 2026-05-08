@@ -3,6 +3,8 @@ import { differenceInMinutes } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
+import BadgeChip from '@/components/BadgeChip';
+import type { BadgeDefinition } from '@/lib/badges';
 
 const IMMINENT_MIN = 10;
 
@@ -10,6 +12,7 @@ export function InfusionCard({
   infusion,
   sauna,
   meisterName,
+  meisterBadges,
   coNames,
   now,
   compact = false,
@@ -17,6 +20,7 @@ export function InfusionCard({
   infusion: Infusion;
   sauna: Sauna;
   meisterName?: string;
+  meisterBadges?: BadgeDefinition[];
   coNames?: string[];
   now: Date;
   compact?: boolean;
@@ -112,17 +116,26 @@ export function InfusionCard({
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between pl-2 text-xs text-forest-300/70">
-        <span>
-          {meisterName ? `Aufguss: ${meisterName}` : '—'}
-          {coNames && coNames.length > 0 && (
-            <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
-          )}
-          {infusion.team_infusion && (!coNames || coNames.length === 0) && (
-            <span className="ml-1 text-amber-400/60">👥</span>
-          )}
-        </span>
-        <span>{infusion.duration_minutes} Min</span>
+      <div className="mt-3 pl-2">
+        <div className="flex items-center justify-between text-xs text-forest-300/70">
+          <span>
+            {meisterName ? `Aufguss: ${meisterName}` : '—'}
+            {coNames && coNames.length > 0 && (
+              <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
+            )}
+            {infusion.team_infusion && (!coNames || coNames.length === 0) && (
+              <span className="ml-1 text-amber-400/60">👥</span>
+            )}
+          </span>
+          <span>{infusion.duration_minutes} Min</span>
+        </div>
+        {meisterBadges && meisterBadges.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {meisterBadges.slice(0, 3).map((b) => (
+              <BadgeChip key={b.id} badge={b} size="sm" />
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );

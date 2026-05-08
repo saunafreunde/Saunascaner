@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { differenceInDays } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
-import { sendEvacuationList, sendNotification } from '@/lib/telegram';
+import { sendEvacuationList, sendNotification, sendBadgeAnnouncement } from '@/lib/telegram';
+import { checkAndAwardBadges } from '@/lib/checkBadges';
+import type { BadgeDefinition } from '@/lib/badges';
 import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
+import BadgeShowcase from '@/components/BadgeShowcase';
+import AchievementToast from '@/components/AchievementToast';
+import MonthlyLeaderboard from '@/components/MonthlyLeaderboard';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useSaunas, useInfusions, useTemplates,
@@ -101,6 +106,19 @@ export default function Planner() {
   const customAttrs = customAttrsQ.data ?? [];
   const [showAttrCreator, setShowAttrCreator] = useState(false);
   const [customAttrIds, setCustomAttrIds] = useState<string[]>([]);
+
+  // ─── Achievement Toast ───────────────────────────────────────────────────
+  const [newBadges, setNewBadges] = useState<BadgeDefinition[]>([]);
+  const [toastIndex, setToastIndex] = useState(0);
+
+  const handleToastClose = useCallback(() => {
+    if (toastIndex < newBadges.length - 1) {
+      setToastIndex((i) => i + 1);
+    } else {
+      setNewBadges([]);
+      setToastIndex(0);
+    }
+  }, [toastIndex, newBadges.length]);
 
   function toggleCustomAttr(id: string) {
     setCustomAttrIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -306,6 +324,16 @@ export default function Planner() {
         team_infusion: teamInfusion,
       });
       clearForm();
+      // Badge-Check nach erfolgreichem Aufguss
+      const displayName = m.sauna_name ?? m.name;
+      const earned = await checkAndAwardBadges(m.id);
+      if (earned.length > 0) {
+        setNewBadges(earned);
+        setToastIndex(0);
+        for (const badge of earned) {
+          sendBadgeAnnouncement(displayName, badge).catch(() => {});
+        }
+      }
     } catch (e) { setFormError((e as Error).message); }
   }
 
@@ -366,6 +394,10 @@ export default function Planner() {
     <PageBackground page="planner">
       {showAttrCreator && m && (
         <CustomAttrCreator memberId={m.id} onClose={() => { setShowAttrCreator(false); customAttrsQ.refetch(); }} />
+      )}
+
+      {newBadges.length > 0 && (
+        <AchievementToast badges={newBadges} currentIndex={toastIndex} onClose={handleToastClose} />
       )}
 
       {/* Evakuierungs-Alarm-Overlay */}
@@ -515,6 +547,11 @@ export default function Planner() {
                   ))}
                 </ul>
               )}
+            </Card>
+
+            {/* Monatliches Ranking */}
+            <Card title="Ranking diesen Monat">
+              <MonthlyLeaderboard />
             </Card>
 
             {/* Einlass-Code */}
@@ -672,6 +709,13 @@ export default function Planner() {
                   ) : (
                     <p className="text-xs text-forest-400/60">Maximum erreicht. Nur Admin kann Buttons löschen.</p>
                   )}
+                </Card>
+              )}
+
+              {/* Meine Auszeichnungen */}
+              {m && (
+                <Card title="Meine Auszeichnungen">
+                  <BadgeShowcase memberId={m.id} />
                 </Card>
               )}
 

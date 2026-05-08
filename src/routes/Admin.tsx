@@ -10,8 +10,11 @@ import {
   useAllPolls, useCreatePoll, useTogglePoll, fetchPollResults,
   uploadAsset, deleteAsset, publicAssetUrl,
   useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
+  useMyBadges,
   type TvSettings, type PollAnswerType,
 } from '@/lib/api';
+import { ALL_BADGES } from '@/lib/badges';
+import BadgeChip from '@/components/BadgeChip';
 import { useAuth } from '@/hooks/useAuth';
 import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
@@ -143,6 +146,20 @@ function MemberCustomAttrsRow({ memberId }: { memberId: string; memberName?: str
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function MemberBadgesRow({ memberId }: { memberId: string }) {
+  const badgesQ = useMyBadges(memberId);
+  const achievements = badgesQ.data ?? [];
+  if (!achievements.length) return null;
+  const earnedBadges = ALL_BADGES.filter((b) => achievements.some((a) => a.badge_id === b.id));
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {earnedBadges.map((badge) => (
+        <BadgeChip key={badge.id} badge={badge} size="sm" earnedAt={achievements.find((a) => a.badge_id === badge.id)?.earned_at} />
+      ))}
     </div>
   );
 }
@@ -293,6 +310,7 @@ function MembersTab() {
                 </div>
               </div>
               {m.is_aufgieser && <MemberCustomAttrsRow memberId={m.id} memberName={m.name} />}
+              {m.is_aufgieser && <MemberBadgesRow memberId={m.id} />}
             </li>
           ))}
         </ul>

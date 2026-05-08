@@ -11,7 +11,9 @@ import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { fmtClock } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl, useCoAufgieser } from '@/lib/api';
+import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl, useCoAufgieser, useAllMembersBadges } from '@/lib/api';
+import { ALL_BADGES } from '@/lib/badges';
+import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
 
 const HIDE_AFTER_END_MIN = 5;
@@ -24,6 +26,7 @@ export default function Dashboard() {
   const members = useMeisterDirectory();
   const evac = useActiveEvacuation();
   const tv = useTvSettings();
+  const allBadgesQ = useAllMembersBadges();
 
   const [audioReady, setAudioReady] = useState(false);
 
@@ -45,6 +48,20 @@ export default function Dashboard() {
 
   const meisterName = (id: string | null) =>
     (id && members.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
+
+  // Tier-Priorität für die Sortierung: höchstes zuerst
+  const tierOrder: Record<string, number> = { platinum: 4, gold: 3, silver: 2, bronze: 1, special: 0 };
+
+  const meisterBadges = (id: string | null): BadgeDefinition[] => {
+    if (!id || !allBadgesQ.data) return [];
+    const earned = new Set(
+      allBadgesQ.data.filter((a) => a.member_id === id).map((a) => a.badge_id)
+    );
+    return ALL_BADGES
+      .filter((b) => earned.has(b.id))
+      .sort((a, b) => (tierOrder[b.tier] ?? 0) - (tierOrder[a.tier] ?? 0))
+      .slice(0, 3);
+  };
 
   const infusionsBySauna = useMemo(() => {
     const cutoff = addMinutes(now, -HIDE_AFTER_END_MIN);
@@ -130,6 +147,7 @@ export default function Dashboard() {
                 sauna={activeSaunas[0]}
                 infusions={infusionsBySauna.get(activeSaunas[0].id) ?? []}
                 meisterName={meisterName}
+                meisterBadges={meisterBadges}
                 coNames={coNamesForInfusion}
                 now={now} />
             )}
@@ -146,6 +164,7 @@ export default function Dashboard() {
               <SaunaColumn key={s.id} sauna={s}
                 infusions={infusionsBySauna.get(s.id) ?? []}
                 meisterName={meisterName}
+                meisterBadges={meisterBadges}
                 coNames={coNamesForInfusion}
                 now={now} />
             ))}

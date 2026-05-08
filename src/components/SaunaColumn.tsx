@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Sauna, Infusion } from '@/types/database';
 import { InfusionCard } from './InfusionCard';
+import type { BadgeDefinition } from '@/lib/badges';
 
 const MAX_VISIBLE = 4;
 
@@ -8,12 +9,14 @@ export function SaunaColumn({
   sauna,
   infusions,
   meisterName,
+  meisterBadges,
   coNames,
   now,
 }: {
   sauna: Sauna;
   infusions: Infusion[];
   meisterName: (id: string | null) => string;
+  meisterBadges?: (id: string | null) => BadgeDefinition[];
   coNames?: (id: string) => string[];
   now: Date;
 }) {
@@ -63,6 +66,7 @@ export function SaunaColumn({
                 infusion={i}
                 sauna={sauna}
                 meisterName={meisterName(i.saunameister_id)}
+                meisterBadges={meisterBadges ? meisterBadges(i.saunameister_id) : undefined}
                 coNames={coNames ? coNames(i.id) : undefined}
                 now={now}
               />

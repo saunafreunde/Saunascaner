@@ -27,6 +27,14 @@ export async function sendNotification(text: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
+export async function sendBadgeAnnouncement(
+  displayName: string,
+  badge: { emoji: string; label: string; description: string }
+): Promise<void> {
+  const text = `🏅 <b>${displayName}</b> hat gerade <b>${badge.label}</b> freigeschaltet! ${badge.emoji}\n<i>${badge.description}</i>`;
+  await sendNotification(text);
+}
+
 export async function sendEvacuationWithPhoto(
   p: EvacuationWithPhotoPayload
 ): Promise<{ ok: boolean; via: string; detail?: string; sent?: number; total?: number }> {

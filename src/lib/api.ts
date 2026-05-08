@@ -649,6 +649,105 @@ export function useToggleCustomAttrsEnabled() {
   });
 }
 
+// ─── Achievements & Stats ────────────────────────────────────────────────────
+
+export type MemberStats = {
+  total_infusions: number;
+  team_infusions: number;
+  monthly_infusions: number;
+  saunas_used: number;
+  total_saunas: number;
+  max_per_day: number;
+  has_early_bird: boolean;
+  has_night_owl: boolean;
+};
+
+export type MemberAchievement = {
+  id: string;
+  member_id: string;
+  badge_id: string;
+  earned_at: string;
+  metadata: Record<string, unknown>;
+};
+
+export type LeaderboardEntry = {
+  member_id: string;
+  name: string;
+  sauna_name: string | null;
+  count: number;
+};
+
+export function useMemberStats(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['member-stats', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_member_stats', { p_member_id: memberId! });
+      if (error) throw error;
+      return data as MemberStats;
+    },
+  });
+}
+
+export function useMyBadges(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['achievements', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('member_achievements')
+        .select('*')
+        .eq('member_id', memberId!)
+        .order('earned_at');
+      if (error) throw error;
+      return data as MemberAchievement[];
+    },
+  });
+}
+
+export function useAllMembersBadges() {
+  return useQuery({
+    queryKey: ['achievements', 'all'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('member_achievements')
+        .select('*');
+      if (error) throw error;
+      return data as MemberAchievement[];
+    },
+  });
+}
+
+export function useMonthlyLeaderboard() {
+  return useQuery({
+    queryKey: ['leaderboard', 'monthly'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_monthly_leaderboard');
+      if (error) throw error;
+      return (data ?? []) as LeaderboardEntry[];
+    },
+  });
+}
+
+export function useAwardBadge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ memberId, badgeId, metadata = {} }: { memberId: string; badgeId: string; metadata?: Record<string, unknown> }) => {
+      const { data, error } = await need().rpc('award_badge', {
+        p_member_id: memberId,
+        p_badge_id: badgeId,
+        p_metadata: metadata,
+      });
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['achievements', vars.memberId] });
+      qc.invalidateQueries({ queryKey: ['achievements', 'all'] });
+    },
+  });
+}
+
 // ─── Storage helpers ──────────────────────────────────────────────────────
 export function publicAssetUrl(path: string | null | undefined): string | null {
   if (!path) return null;
