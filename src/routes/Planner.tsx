@@ -13,6 +13,8 @@ import {
   useAddTemplate, useDeleteTemplate,
   useCurrentMember, usePresentMembers,
   useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
+  useCoAufgieser, useJoinTeamInfusion, useLeaveTeamInfusion,
+  useMeisterDirectory,
 } from '@/lib/api';
 
 const HOURLY_SLOTS: string[] = Array.from({ length: 15 }, (_, i) =>
@@ -41,6 +43,15 @@ export default function Planner() {
   const delTpl = useDeleteTemplate();
   const trigEvac = useTriggerEvacuation();
   const endEvac = useEndEvacuation();
+  const meisterDir = useMeisterDirectory();
+
+  const teamInfusionIds = useMemo(
+    () => infusionsQ.data?.filter((i) => i.team_infusion).map((i) => i.id) ?? [],
+    [infusionsQ.data]
+  );
+  const coAufgieserQ = useCoAufgieser(teamInfusionIds);
+  const joinTeam = useJoinTeamInfusion();
+  const leaveTeam = useLeaveTeamInfusion();
 
   const saunas = saunasQ.data ?? [];
   const infusions = infusionsQ.data ?? [];
@@ -53,6 +64,7 @@ export default function Planner() {
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState<number>(15);
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
+  const [teamInfusion, setTeamInfusion] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [evacToast, setEvacToast] = useState<string | null>(null);
 
@@ -104,6 +116,7 @@ export default function Planner() {
     setDescription('');
     setAttrs([]);
     setDuration(15);
+    setTeamInfusion(false);
   }
 
   async function submit(e: React.FormEvent) {
@@ -129,6 +142,7 @@ export default function Planner() {
         attributes: attrs,
         start_time: start.toISOString(),
         duration_minutes: duration,
+        team_infusion: teamInfusion,
       });
       clearForm();
     } catch (e) { setError((e as Error).message); }
@@ -177,6 +191,30 @@ export default function Planner() {
         .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time)),
     [infusions, member.data?.id]
   );
+
+  // Team-Aufgüsse von anderen Aufgiesern wo man beitreten kann
+  const joinableTeamInfusions = useMemo(
+    () =>
+      infusions
+        .filter((i) => i.team_infusion && i.saunameister_id !== member.data?.id)
+        .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time)),
+    [infusions, member.data?.id]
+  );
+
+  function getCoNames(infusionId: string): string[] {
+    return (coAufgieserQ.data ?? [])
+      .filter((c) => c.infusion_id === infusionId)
+      .map((c) => c.member_name ?? '?');
+  }
+
+  function isJoined(infusionId: string): boolean {
+    return (coAufgieserQ.data ?? []).some(
+      (c) => c.infusion_id === infusionId && c.member_id === member.data?.id
+    );
+  }
+
+  const meisterName = (id: string | null) =>
+    (id && meisterDir.data?.find((m) => m.id === id)?.name) || '—';
 
   const saunaName = (id: string) => saunas.find((s) => s.id === id)?.name ?? '';
   const saunaColor = (id: string) => saunas.find((s) => s.id === id)?.accent_color ?? '#22c55e';
@@ -287,34 +325,90 @@ export default function Planner() {
             <h2 className="text-base font-semibold text-forest-100">Meine Aufgüsse</h2>
             <ul className="mt-2 space-y-2">
               {myInfusions.length === 0 && <li className="text-xs text-forest-300/60">Noch keine geplant.</li>}
-              {myInfusions.map((i) => (
-                <li
-                  key={i.id}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40"
-                  style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{i.title}</div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-forest-300/70">
-                      <span>{dayLabel(i.start_time)} · {fmtClock(i.start_time)}</span>
-                      <span>·</span>
-                      <span style={{ color: saunaColor(i.sauna_id) }} className="font-semibold">{saunaName(i.sauna_id)}</span>
-                      <span>· {i.duration_minutes} Min</span>
-                      {(i.attributes as InfusionAttribute[]).map((a) => (
-                        <span key={a} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => delInf.mutate(i.id)}
-                    className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10"
+              {myInfusions.map((i) => {
+                const coNames = getCoNames(i.id);
+                return (
+                  <li
+                    key={i.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40"
+                    style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}
                   >
-                    Löschen
-                  </button>
-                </li>
-              ))}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {i.title}
+                        {i.team_infusion && <span className="ml-1.5 text-xs text-amber-300">👥 Team</span>}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-forest-300/70">
+                        <span>{dayLabel(i.start_time)} · {fmtClock(i.start_time)}</span>
+                        <span>·</span>
+                        <span style={{ color: saunaColor(i.sauna_id) }} className="font-semibold">{saunaName(i.sauna_id)}</span>
+                        <span>· {i.duration_minutes} Min</span>
+                        {(i.attributes as InfusionAttribute[]).map((a) => (
+                          <span key={a} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
+                        ))}
+                      </div>
+                      {coNames.length > 0 && (
+                        <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => delInf.mutate(i.id)}
+                      className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10"
+                    >
+                      Löschen
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
+
+          {/* Team-Aufgüsse anderer Aufgieser */}
+          {joinableTeamInfusions.length > 0 && (
+            <div className="rounded-2xl bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur">
+              <h2 className="text-base font-semibold text-amber-100">Team-Aufgüsse 👥</h2>
+              <p className="text-xs text-amber-200/60 mt-0.5 mb-2">Du kannst diesen Aufgüssen beitreten.</p>
+              <ul className="space-y-2">
+                {joinableTeamInfusions.map((i) => {
+                  const joined = isJoined(i.id);
+                  const coNames = getCoNames(i.id);
+                  return (
+                    <li
+                      key={i.id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-amber-900/30 px-3 py-2 ring-1 ring-amber-800/40"
+                      style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate text-amber-50">{i.title}</div>
+                        <div className="mt-0.5 text-xs text-amber-200/70">
+                          {dayLabel(i.start_time)} · {fmtClock(i.start_time)} · {saunaName(i.sauna_id)}
+                        </div>
+                        <div className="text-xs text-amber-200/50 mt-0.5">
+                          {meisterName(i.saunameister_id)}
+                          {coNames.length > 0 && ` + ${coNames.join(', ')}`}
+                        </div>
+                      </div>
+                      {joined ? (
+                        <button
+                          onClick={() => member.data && leaveTeam.mutate({ infusion_id: i.id, member_id: member.data.id })}
+                          className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap"
+                        >
+                          Verlassen
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => member.data && joinTeam.mutate({ infusion_id: i.id, member_id: member.data.id })}
+                          className="rounded-md bg-amber-600 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-500 whitespace-nowrap"
+                        >
+                          Beitreten
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </section>
 
         {/* Rechte Spalte: Eingabemaske */}
@@ -428,6 +522,20 @@ export default function Planner() {
               })}
             </div>
           </div>
+
+          {/* Team-Aufguss Toggle */}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              onClick={() => setTeamInfusion((v) => !v)}
+              className={`relative w-10 h-6 rounded-full transition ${teamInfusion ? 'bg-amber-500' : 'bg-forest-800'}`}
+            >
+              <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${teamInfusion ? 'translate-x-4' : ''}`} />
+            </div>
+            <span className="text-sm text-forest-200">
+              Team-Aufguss{' '}
+              <span className="text-xs text-forest-300/60">— andere Aufgieser können mitmachen</span>
+            </span>
+          </label>
 
           {error && (
             <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{error}</div>

@@ -6,6 +6,7 @@ import Scanner from '@/routes/Scanner';
 import Login from '@/routes/Login';
 import Planner from '@/routes/Planner';
 import Me from '@/routes/Me';
+import OilRoom from '@/routes/OilRoom';
 import ForgotPassword from '@/routes/ForgotPassword';
 import ResetPassword from '@/routes/ResetPassword';
 import MagicEntry from '@/routes/MagicEntry';
@@ -21,15 +22,16 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Guest />} />
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
-      <Route path="/admin"     element={<RequireRole role="super_admin"><Admin /></RequireRole>} />
-      <Route path="/scanner"   element={<RequireAuth><Scanner /></RequireAuth>} />
+      <Route path="/scanner"   element={<Scanner />} />
+      <Route path="/planner"   element={<RequireAufgieser><Planner /></RequireAufgieser>} />
+      <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
+      <Route path="/oil-room"  element={<RequireAufgieser><OilRoom /></RequireAufgieser>} />
       <Route path="/login"          element={<Login />} />
       <Route path="/forgot"         element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/me"             element={<RequireAuth><Me /></RequireAuth>} />
       <Route path="/m/:code"        element={<MagicEntry />} />
-      <Route path="/dev"       element={<RequireRole role="super_admin"><DevIndex /></RequireRole>} />
+      <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />
       <Route path="*"          element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -46,16 +48,27 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function RequireRole({ children, role }: { children: React.ReactNode; role: 'super_admin' | 'manager' }) {
+function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { ready, user } = useAuth();
   const member = useCurrentMember();
   const loc = useLocation();
   if (!isSupabaseConfigured) return <NotConfigured />;
   if (!ready || member.isLoading) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
-  const r = member.data?.role;
-  const ok = role === 'super_admin' ? r === 'super_admin' : r === 'super_admin' || r === 'manager';
-  if (!ok) return <NoAccess />;
+  if (!member.data?.approved) return <PendingApproval />;
+  if (member.data?.role !== 'admin') return <NoAccess />;
+  return <>{children}</>;
+}
+
+function RequireAufgieser({ children }: { children: React.ReactNode }) {
+  const { ready, user } = useAuth();
+  const member = useCurrentMember();
+  const loc = useLocation();
+  if (!isSupabaseConfigured) return <NotConfigured />;
+  if (!ready || member.isLoading) return <Splash />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
+  if (!member.data?.approved) return <PendingApproval />;
+  if (!member.data?.is_aufgieser && member.data?.role !== 'admin') return <NoAccess />;
   return <>{children}</>;
 }
 
@@ -73,9 +86,9 @@ function NoAccess() {
       <div className="rounded-2xl bg-forest-950/70 p-6 ring-1 ring-forest-800/50">
         <h1 className="text-xl font-semibold text-forest-100">Kein Zugriff</h1>
         <p className="mt-2 text-sm text-forest-300/80">
-          Diese Seite ist nur für Admins. Wende dich an einen Super-Admin.
+          Diese Seite ist nur für Aufgieser oder Admins.
         </p>
-        <Link to="/" className="mt-4 inline-block text-sm text-forest-300 underline">Zurück zur Startseite</Link>
+        <Link to="/me" className="mt-4 inline-block text-sm text-forest-300 underline">Zurück zu Mein Bereich</Link>
       </div>
     </div>
   );
@@ -100,9 +113,10 @@ function DevIndex() {
     ['/', 'Gäste-App'],
     ['/dashboard', 'TV-Dashboard'],
     ['/me', 'Mein Bereich (Mitglieder)'],
-    ['/planner', 'Aufguss-Planung (Saunameister)'],
-    ['/admin', 'Admin (Super-Admin)'],
-    ['/scanner', 'Scanner'],
+    ['/planner', 'Aufguss-Planung (Aufgieser)'],
+    ['/oil-room', 'Öl-Raum-Tablet (Aufgieser)'],
+    ['/admin', 'Admin'],
+    ['/scanner', 'Scanner (Eingang)'],
     ['/login', 'Login'],
   ] as const;
   return (

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useCurrentMember, usePresentMembers, useInfusions, useSaunas,
   useActiveEvacuation, useMyPolls, useSubmitPollResponse,
+  useUpdateEntryCode,
   togglePresenceByCode, type MyPoll,
 } from '@/lib/api';
 import { fmtClock } from '@/lib/time';
@@ -14,6 +15,14 @@ function fmtMemberNumber(n: number | null | undefined): string {
   return `FDS-${String(n).padStart(3, '0')}`;
 }
 
+function fmtDuration(ms: number): string {
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
+
 export default function Me() {
   const { signOut } = useAuth();
   const member = useCurrentMember();
@@ -22,15 +31,37 @@ export default function Me() {
   const saunas = useSaunas();
   const evacQ = useActiveEvacuation();
   const pollsQ = useMyPolls();
+  const updateEntryCode = useUpdateEntryCode();
 
   const [checkBusy, setCheckBusy] = useState(false);
   const [checkMsg, setCheckMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [confirmCheckout, setConfirmCheckout] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  // Entry-Code-Bearbeitung
+  const [editingCode, setEditingCode] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [codeSaved, setCodeSaved] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const m = member.data;
-  const isPresent = !!present.data?.find((p) => p.id === m?.id);
+  const myPresence = present.data?.find((p) => p.id === m?.id);
+  const isPresent = !!myPresence;
+  const checkedInAt = myPresence?.last_scan_at ? new Date(myPresence.last_scan_at).getTime() : null;
+  const presenceDuration = isPresent && checkedInAt ? now - checkedInAt : null;
 
   async function toggleCheckin() {
     if (!m) return;
+    if (isPresent && !confirmCheckout) {
+      setConfirmCheckout(true);
+      return;
+    }
+    setConfirmCheckout(false);
     setCheckBusy(true);
     setCheckMsg(null);
     try {
@@ -44,10 +75,29 @@ export default function Me() {
     }
   }
 
+  async function saveEntryCode() {
+    setCodeError(null);
+    if (!m) return;
+    const trimmed = codeInput.trim();
+    if (trimmed.length > 0 && (trimmed.length < 4 || trimmed.length > 8)) {
+      setCodeError('Code muss 4–8 Zeichen lang sein.');
+      return;
+    }
+    try {
+      await updateEntryCode.mutateAsync({ id: m.id, entry_code: trimmed || null });
+      setEditingCode(false);
+      setCodeInput('');
+      setCodeSaved(true);
+      setTimeout(() => setCodeSaved(false), 3000);
+    } catch (e) {
+      setCodeError((e as Error).message);
+    }
+  }
+
   const todayInfusions = (infusions.data ?? []).filter((i) => {
     const d = new Date(i.start_time);
-    const now = new Date();
-    return d.toDateString() === now.toDateString();
+    const n = new Date();
+    return d.toDateString() === n.toDateString();
   });
 
   const saunaName = (id: string) => saunas.data?.find((s) => s.id === id)?.name ?? '';
@@ -60,7 +110,7 @@ export default function Me() {
 
   return (
     <PageBackground page="dashboard">
-      {/* Evakuierungsalarm — Vollbild-Overlay */}
+      {/* Evakuierungsalarm */}
       {evacuation && (
         <div className="fixed inset-0 z-50 bg-rose-950/95 flex flex-col items-center justify-center p-6 text-center">
           <div className="text-6xl mb-4">🚨</div>
@@ -83,14 +133,13 @@ export default function Me() {
           </h1>
           {m && (
             <p className="text-xs text-forest-300/70">
-              {fmtMemberNumber(m.member_number)} · {m.role === 'super_admin' ? 'Super-Admin' : m.role === 'manager' ? 'Manager' : 'Saunameister'}
+              {fmtMemberNumber(m.member_number)}
+              {m.is_aufgieser && <span className="ml-1.5 text-amber-300">· Aufgieser</span>}
+              {m.role === 'admin' && <span className="ml-1.5 text-forest-300">· Admin</span>}
             </p>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {(m?.role === 'super_admin' || m?.role === 'manager') && (
-            <Link to="/planner" className="text-xs text-forest-300 hover:text-forest-100 underline">Planner</Link>
-          )}
           <button onClick={() => signOut()} className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900">
             Abmelden
           </button>
@@ -99,23 +148,78 @@ export default function Me() {
 
       <div className="mx-auto max-w-lg p-4 space-y-4">
 
-        {/* Check-in / Check-out */}
+        {/* Schnellzugriff für Admin & Aufgieser */}
+        {(m?.role === 'admin' || m?.is_aufgieser) && (
+          <section className="flex gap-2">
+            {m?.is_aufgieser && (
+              <Link
+                to="/planner"
+                className="flex-1 rounded-xl bg-amber-600/20 ring-1 ring-amber-500/40 px-4 py-3 text-center text-sm font-semibold text-amber-200 hover:bg-amber-600/30 transition"
+              >
+                Aufguss planen
+              </Link>
+            )}
+            {m?.role === 'admin' && (
+              <Link
+                to="/admin"
+                className="flex-1 rounded-xl bg-forest-700/30 ring-1 ring-forest-600/40 px-4 py-3 text-center text-sm font-semibold text-forest-100 hover:bg-forest-700/50 transition"
+              >
+                Admin-Bereich
+              </Link>
+            )}
+          </section>
+        )}
+
+        {/* Check-in / Check-out mit Timer */}
         <section className="rounded-2xl bg-forest-950/80 p-5 ring-1 ring-forest-800/50 backdrop-blur text-center">
-          <p className="text-sm text-forest-300/70 mb-1">Dein Status</p>
-          <div className={`text-lg font-bold mb-4 ${isPresent ? 'text-emerald-300' : 'text-forest-300/60'}`}>
-            {isPresent ? '✅ Anwesend' : '⬜ Nicht eingecheckt'}
-          </div>
-          <button
-            onClick={toggleCheckin}
-            disabled={checkBusy || !m}
-            className={`w-full rounded-xl px-5 py-4 text-base font-bold transition disabled:opacity-60 ${
-              isPresent
-                ? 'bg-rose-600 hover:bg-rose-500 text-white'
-                : 'bg-forest-500 hover:bg-forest-400 text-forest-950'
-            }`}
-          >
-            {checkBusy ? 'Bitte warten…' : isPresent ? 'Auschecken' : 'Einchecken'}
-          </button>
+          {isPresent && presenceDuration !== null ? (
+            <>
+              <p className="text-xs text-emerald-400/80 mb-1 uppercase tracking-wider font-semibold">Anwesend seit</p>
+              <p className="text-4xl font-black text-emerald-300 tabular-nums mb-4">
+                {fmtDuration(presenceDuration)}
+              </p>
+              {confirmCheckout ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-forest-200 mb-2">Wirklich auschecken?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={toggleCheckin}
+                      disabled={checkBusy}
+                      className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white px-5 py-3 text-sm font-bold transition disabled:opacity-60"
+                    >
+                      Ja, auschecken
+                    </button>
+                    <button
+                      onClick={() => setConfirmCheckout(false)}
+                      className="flex-1 rounded-xl bg-forest-900/80 px-5 py-3 text-sm font-medium text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={toggleCheckin}
+                  disabled={checkBusy || !m}
+                  className="w-full rounded-xl bg-rose-600/20 ring-1 ring-rose-500/40 px-5 py-3 text-sm font-semibold text-rose-200 hover:bg-rose-600/30 transition disabled:opacity-60"
+                >
+                  {checkBusy ? 'Bitte warten…' : 'Auschecken'}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-forest-300/70 mb-1">Dein Status</p>
+              <div className="text-lg font-bold mb-4 text-forest-300/60">⬜ Nicht eingecheckt</div>
+              <button
+                onClick={toggleCheckin}
+                disabled={checkBusy || !m}
+                className="w-full rounded-xl bg-forest-500 hover:bg-forest-400 text-forest-950 px-5 py-4 text-base font-bold transition disabled:opacity-60"
+              >
+                {checkBusy ? 'Bitte warten…' : 'Einchecken'}
+              </button>
+            </>
+          )}
           {checkMsg && (
             <p className={`mt-3 text-sm font-medium ${checkMsg.ok ? 'text-emerald-300' : 'text-rose-300'}`}>
               {checkMsg.text}
@@ -123,7 +227,7 @@ export default function Me() {
           )}
         </section>
 
-        {/* Offene Abfragen — nach Check-in hervorgehoben */}
+        {/* Offene Abfragen */}
         {openPolls.length > 0 && (
           <section className="rounded-2xl bg-amber-950/40 ring-2 ring-amber-500/40 p-4 backdrop-blur">
             <h2 className="text-sm font-bold text-amber-200 mb-3">
@@ -148,7 +252,10 @@ export default function Me() {
                 <li key={i.id} className="flex items-center gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40"
                   style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium truncate">{i.title}</div>
+                    <div className="text-sm font-medium truncate">
+                      {i.title}
+                      {i.team_infusion && <span className="ml-1.5 text-xs text-amber-300">👥</span>}
+                    </div>
                     <div className="text-xs text-forest-300/70 mt-0.5">
                       {fmtClock(i.start_time)} · {saunaName(i.sauna_id)} · {i.duration_minutes} Min
                     </div>
@@ -176,6 +283,70 @@ export default function Me() {
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+
+        {/* Persönlicher Einlass-Code */}
+        <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+          <h2 className="text-base font-semibold text-forest-100 mb-1">Mein Einlass-Code</h2>
+          <p className="text-xs text-forest-300/60 mb-3">
+            Verwende diesen Code am Eingangs-Tablet statt QR-Scan.
+          </p>
+          {codeSaved && (
+            <p className="text-sm text-emerald-300 mb-2">✅ Code gespeichert.</p>
+          )}
+          {!editingCode ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-forest-200">
+                {m?.entry_code ? '●●●●●●' : <span className="text-forest-300/50">Nicht gesetzt</span>}
+              </span>
+              <button
+                onClick={() => { setEditingCode(true); setCodeInput(''); setCodeError(null); }}
+                className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800"
+              >
+                {m?.entry_code ? 'Ändern' : 'Code setzen'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={codeInput}
+                onChange={(e) => setCodeInput(e.target.value)}
+                placeholder="4–8 Zeichen, z.B. sonne7"
+                maxLength={8}
+                autoFocus
+                className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+              />
+              {codeError && <p className="text-xs text-rose-300">{codeError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={saveEntryCode}
+                  disabled={updateEntryCode.isPending}
+                  className="flex-1 rounded-lg bg-forest-500 px-3 py-2 text-sm font-semibold text-forest-950 hover:bg-forest-400 disabled:opacity-60"
+                >
+                  {updateEntryCode.isPending ? 'Speichere…' : 'Speichern'}
+                </button>
+                {m?.entry_code && (
+                  <button
+                    onClick={async () => {
+                      if (!m) return;
+                      await updateEntryCode.mutateAsync({ id: m.id, entry_code: null });
+                      setEditingCode(false);
+                    }}
+                    className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/30 hover:bg-rose-500/25"
+                  >
+                    Löschen
+                  </button>
+                )}
+                <button
+                  onClick={() => { setEditingCode(false); setCodeError(null); }}
+                  className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-300 ring-1 ring-forest-700/50 hover:bg-forest-900"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
           )}
         </section>
 

@@ -11,7 +11,7 @@ import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { fmtClock } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl } from '@/lib/api';
+import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl, useCoAufgieser } from '@/lib/api';
 import { unlockAudio } from '@/lib/evacuation';
 
 const HIDE_AFTER_END_MIN = 5;
@@ -26,6 +26,17 @@ export default function Dashboard() {
   const tv = useTvSettings();
 
   const [audioReady, setAudioReady] = useState(false);
+
+  const teamInfusionIds = useMemo(
+    () => (infusions.data ?? []).filter((i) => i.team_infusion).map((i) => i.id),
+    [infusions.data]
+  );
+  const coAufgieserQ = useCoAufgieser(teamInfusionIds);
+
+  const coNamesForInfusion = (infusionId: string): string[] =>
+    (coAufgieserQ.data ?? [])
+      .filter((c) => c.infusion_id === infusionId)
+      .map((c) => c.member_name ?? '?');
 
   const activeSaunas = useMemo(
     () => (saunas.data ?? []).filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
@@ -119,6 +130,7 @@ export default function Dashboard() {
                 sauna={activeSaunas[0]}
                 infusions={infusionsBySauna.get(activeSaunas[0].id) ?? []}
                 meisterName={meisterName}
+                coNames={coNamesForInfusion}
                 now={now} />
             )}
 
@@ -134,6 +146,7 @@ export default function Dashboard() {
               <SaunaColumn key={s.id} sauna={s}
                 infusions={infusionsBySauna.get(s.id) ?? []}
                 meisterName={meisterName}
+                coNames={coNamesForInfusion}
                 now={now} />
             ))}
           </AnimatePresence>

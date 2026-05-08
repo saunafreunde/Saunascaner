@@ -25,7 +25,15 @@ export type Infusion = {
   start_time: string;
   duration_minutes: number;
   end_time: string;
+  team_infusion: boolean;
   created_at: string;
+};
+
+export type CoAufgieser = {
+  id: string;
+  infusion_id: string;
+  member_id: string;
+  joined_at: string;
 };
 
 export type InfusionTemplate = {

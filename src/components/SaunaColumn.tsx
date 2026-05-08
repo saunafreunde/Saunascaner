@@ -8,11 +8,13 @@ export function SaunaColumn({
   sauna,
   infusions,
   meisterName,
+  coNames,
   now,
 }: {
   sauna: Sauna;
   infusions: Infusion[];
   meisterName: (id: string | null) => string;
+  coNames?: (id: string) => string[];
   now: Date;
 }) {
   const visible = infusions.slice(0, MAX_VISIBLE);
@@ -61,6 +63,7 @@ export function SaunaColumn({
                 infusion={i}
                 sauna={sauna}
                 meisterName={meisterName(i.saunameister_id)}
+                coNames={coNames ? coNames(i.id) : undefined}
                 now={now}
               />
             ))

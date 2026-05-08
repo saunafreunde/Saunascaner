@@ -61,6 +61,7 @@ export type NewInfusion = {
   attributes: InfusionAttribute[];
   start_time: string;
   duration_minutes: number;
+  team_infusion?: boolean;
 };
 
 export function useAddInfusion() {
@@ -141,7 +142,9 @@ export type Member = {
   name: string;
   member_code: string;
   member_number: number | null;
-  role: 'saunameister' | 'manager' | 'super_admin' | 'guest_staff';
+  role: 'member' | 'admin';
+  is_aufgieser: boolean;
+  entry_code: string | null;
   approved: boolean;
   is_present: boolean;
   last_scan_at: string | null;
@@ -210,8 +213,12 @@ export function usePendingMembers() {
 export function useApproveMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { id: string; role?: Member['role'] }) => {
-      const { error } = await need().rpc('approve_member', { p_member_id: p.id, p_role: p.role ?? null });
+    mutationFn: async (p: { id: string; role?: Member['role']; is_aufgieser?: boolean }) => {
+      const { error } = await need().rpc('approve_member', {
+        p_member_id: p.id,
+        p_role: p.role ?? 'member',
+        p_is_aufgieser: p.is_aufgieser ?? false,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -252,12 +259,88 @@ export function usePresentMembers() {
   });
 }
 
-// ─── Scanner RPC ──────────────────────────────────────────────────────────
+// ─── Scanner RPCs ─────────────────────────────────────────────────────────
 export async function togglePresenceByCode(code: string) {
   const { data, error } = await need().rpc('toggle_presence', { p_member_code: code });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   return row as { member_id: string; name: string; is_present: boolean };
+}
+
+export async function togglePresenceByEntryCode(code: string) {
+  const { data, error } = await need().rpc('toggle_presence_by_entry_code', { p_code: code });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row as { member_id: string; name: string; is_present: boolean };
+}
+
+export function useUpdateEntryCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, entry_code }: { id: string; entry_code: string | null }) => {
+      const { error } = await need().from('members').update({ entry_code }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['current-member'] }),
+  });
+}
+
+// ─── Team-Aufgüsse (Co-Aufgieser) ────────────────────────────────────────
+export type CoAufgieserEntry = {
+  id: string;
+  infusion_id: string;
+  member_id: string;
+  joined_at: string;
+  member_name?: string;
+};
+
+export function useCoAufgieser(infusionIds: string[]) {
+  return useQuery({
+    queryKey: ['co-aufgieser', ...infusionIds.sort()],
+    enabled: infusionIds.length > 0,
+    queryFn: async () => {
+      if (!infusionIds.length) return [] as CoAufgieserEntry[];
+      const { data, error } = await need()
+        .from('infusion_co_aufgieser')
+        .select('*, members(name)')
+        .in('infusion_id', infusionIds);
+      if (error) throw error;
+      type RawRow = { id: string; infusion_id: string; member_id: string; joined_at: string; members: { name: string } | null };
+      return (data as RawRow[] ?? []).map((row) => ({
+        id: row.id,
+        infusion_id: row.infusion_id,
+        member_id: row.member_id,
+        joined_at: row.joined_at,
+        member_name: row.members?.name,
+      })) as CoAufgieserEntry[];
+    },
+  });
+}
+
+export function useJoinTeamInfusion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ infusion_id, member_id }: { infusion_id: string; member_id: string }) => {
+      const { error } = await need().from('infusion_co_aufgieser').insert({ infusion_id, member_id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['co-aufgieser'] }),
+  });
+}
+
+export function useLeaveTeamInfusion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ infusion_id, member_id }: { infusion_id: string; member_id: string }) => {
+      const { error } = await need()
+        .from('infusion_co_aufgieser')
+        .delete()
+        .eq('infusion_id', infusion_id)
+        .eq('member_id', member_id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['co-aufgieser'] }),
+  });
 }
 
 // ─── Evacuation ───────────────────────────────────────────────────────────

@@ -10,12 +10,14 @@ export function InfusionCard({
   infusion,
   sauna,
   meisterName,
+  coNames,
   now,
   compact = false,
 }: {
   infusion: Infusion;
   sauna: Sauna;
   meisterName?: string;
+  coNames?: string[];
   now: Date;
   compact?: boolean;
 }) {
@@ -111,7 +113,15 @@ export function InfusionCard({
       )}
 
       <div className="mt-3 flex items-center justify-between pl-2 text-xs text-forest-300/70">
-        <span>{meisterName ? `Aufguss: ${meisterName}` : '—'}</span>
+        <span>
+          {meisterName ? `Aufguss: ${meisterName}` : '—'}
+          {coNames && coNames.length > 0 && (
+            <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
+          )}
+          {infusion.team_infusion && (!coNames || coNames.length === 0) && (
+            <span className="ml-1 text-amber-400/60">👥</span>
+          )}
+        </span>
         <span>{infusion.duration_minutes} Min</span>
       </div>
     </motion.div>

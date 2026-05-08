@@ -111,7 +111,7 @@ function MembersTab() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'saunameister' | 'manager' | 'super_admin' | 'guest_staff'>('saunameister');
+  const [newRole, setNewRole] = useState<'member' | 'admin'>('member');
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -119,8 +119,8 @@ function MembersTab() {
     setError(null);
     if (!name.trim()) return setError('Name fehlt.');
     try {
-      await add.mutateAsync({ name: name.trim(), email: email.trim() || null, role });
-      setName(''); setEmail(''); setRole('saunameister');
+      await add.mutateAsync({ name: name.trim(), email: email.trim() || null, role: newRole });
+      setName(''); setEmail(''); setNewRole('member');
     } catch (e) { setError((e as Error).message); }
   }
 
@@ -138,13 +138,17 @@ function MembersTab() {
                   <div className="text-xs text-amber-200/80">{m.email}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => approve.mutate({ id: m.id, role: 'saunameister' })}
-                    className="rounded-lg bg-forest-500 px-3 py-1.5 text-xs font-semibold text-forest-950 hover:bg-forest-400">
-                    Als Saunameister freigeben
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'member', is_aufgieser: false })}
+                    className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs font-semibold text-forest-100 hover:bg-forest-700 ring-1 ring-forest-600/40">
+                    Als Mitglied freigeben
                   </button>
-                  <button onClick={() => approve.mutate({ id: m.id, role: 'manager' })}
-                    className="rounded-lg bg-forest-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-600">
-                    Als Manager freigeben
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'member', is_aufgieser: true })}
+                    className="rounded-lg bg-amber-600/20 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-600/30 ring-1 ring-amber-500/40">
+                    Als Aufgieser freigeben
+                  </button>
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'admin', is_aufgieser: false })}
+                    className="rounded-lg bg-forest-500 px-3 py-1.5 text-xs font-semibold text-forest-950 hover:bg-forest-400">
+                    Als Admin freigeben
                   </button>
                 </div>
               </li>
@@ -161,12 +165,10 @@ function MembersTab() {
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-Mail (optional)"
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
-          <select value={role} onChange={(e) => setRole(e.target.value as 'saunameister' | 'manager' | 'super_admin' | 'guest_staff')}
+          <select value={newRole} onChange={(e) => setNewRole(e.target.value as 'member' | 'admin')}
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
-            <option value="saunameister">Saunameister</option>
-            <option value="manager">Manager</option>
-            <option value="super_admin">Super-Admin</option>
-            <option value="guest_staff">Service-Personal</option>
+            <option value="member">Mitglied</option>
+            <option value="admin">Admin</option>
           </select>
         </div>
         {error && <div className="rounded-md bg-rose-500/15 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-500/30">{error}</div>}
@@ -188,10 +190,17 @@ function MembersTab() {
           {(membersQ.data ?? []).map((m) => (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
               <div className="min-w-0">
-                <div className="text-sm font-semibold">{m.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{m.name}</span>
+                  {m.role === 'admin' && (
+                    <span className="rounded-full bg-forest-500/20 px-2 text-[10px] font-bold text-forest-200">Admin</span>
+                  )}
+                  {m.is_aufgieser && (
+                    <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">Aufgieser</span>
+                  )}
+                </div>
                 <div className="text-xs text-forest-300/70">
-                  {m.role}
-                  {m.email && <> · {m.email}</>}
+                  {m.email}
                   {m.is_present && <span className="ml-2 rounded-full bg-emerald-500/20 px-2 text-[10px] font-bold text-emerald-200">anwesend</span>}
                   {m.revoked_at && <span className="ml-2 rounded-full bg-rose-500/20 px-2 text-[10px] font-bold text-rose-200">gesperrt</span>}
                 </div>
@@ -200,6 +209,18 @@ function MembersTab() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {/* Aufgieser-Toggle */}
+                <button
+                  onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
+                  title={m.is_aufgieser ? 'Aufgieser-Status entfernen' : 'Als Aufgieser markieren'}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
+                    m.is_aufgieser
+                      ? 'bg-amber-500/20 text-amber-200 ring-amber-500/30 hover:bg-amber-500/30'
+                      : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
+                  }`}
+                >
+                  {m.is_aufgieser ? '🔥 Aufgieser' : '+ Aufgieser'}
+                </button>
                 <button onClick={() => downloadBadge({
                   name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
                   role: m.role, organization: 'Saunafreunde Schwarzwald',
