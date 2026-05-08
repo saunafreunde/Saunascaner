@@ -9,6 +9,7 @@ import {
   useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
   useAllPolls, useCreatePoll, useTogglePoll, fetchPollResults,
   uploadAsset, deleteAsset, publicAssetUrl,
+  useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
   type TvSettings, type PollAnswerType,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -95,6 +96,54 @@ function SaunasTab() {
         ))}
       </ul>
     </section>
+  );
+}
+
+function MemberCustomAttrsRow({ memberId }: { memberId: string; memberName?: string }) {
+  const attrsQ = useMyCustomAttrs(memberId);
+  const deleteAttr = useAdminDeleteCustomAttr();
+  const toggleEnabled = useToggleCustomAttrsEnabled();
+  const membersQ = useAllMembers();
+  const member = membersQ.data?.find((m) => m.id === memberId);
+  const enabled = member?.custom_attrs_enabled !== false;
+  const attrs = attrsQ.data ?? [];
+
+  if (!member?.is_aufgieser) return null;
+
+  return (
+    <div className="mt-2 pt-2 border-t border-forest-800/30">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-[10px] text-forest-400/70 uppercase tracking-wider">Eigene Buttons</span>
+        <button
+          onClick={() => toggleEnabled.mutate({ id: memberId, enabled: !enabled })}
+          className={`rounded px-2 py-0.5 text-[10px] font-semibold ring-1 transition ${
+            enabled ? 'bg-forest-700/40 text-forest-200 ring-forest-600/30 hover:bg-forest-700/60' : 'bg-rose-500/20 text-rose-300 ring-rose-500/30 hover:bg-rose-500/30'
+          }`}
+        >
+          {enabled ? 'Erlaubt' : 'Gesperrt'}
+        </button>
+      </div>
+      {attrs.length === 0 ? (
+        <p className="text-[10px] text-forest-400/50">Keine eigenen Buttons.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {attrs.map((a) => (
+            <div key={a.id} className="inline-flex items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-[11px] font-semibold ring-1 ring-white/10"
+              style={{ background: a.color, color: '#0b1f10' }}>
+              <span>{a.emoji}</span>
+              <span>{a.label}</span>
+              <button
+                onClick={() => deleteAttr.mutate({ id: a.id, member_id: memberId })}
+                title="Löschen"
+                className="ml-0.5 rounded-full bg-black/20 px-1 hover:bg-black/40 text-[10px] font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -188,58 +237,62 @@ function MembersTab() {
         </h2>
         <ul className="mt-3 divide-y divide-forest-800/40">
           {(membersQ.data ?? []).map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{m.name}</span>
-                  {m.role === 'admin' && (
-                    <span className="rounded-full bg-forest-500/20 px-2 text-[10px] font-bold text-forest-200">Admin</span>
-                  )}
-                  {m.is_aufgieser && (
-                    <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">Aufgieser</span>
-                  )}
+            <li key={m.id} className="py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">{m.name}</span>
+                    {m.sauna_name && <span className="text-xs text-forest-300/60">({m.sauna_name})</span>}
+                    {m.role === 'admin' && (
+                      <span className="rounded-full bg-forest-500/20 px-2 text-[10px] font-bold text-forest-200">Admin</span>
+                    )}
+                    {m.is_aufgieser && (
+                      <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">Aufgieser</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-forest-300/70">
+                    {m.email}
+                    {m.is_present && <span className="ml-2 rounded-full bg-emerald-500/20 px-2 text-[10px] font-bold text-emerald-200">anwesend</span>}
+                    {m.revoked_at && <span className="ml-2 rounded-full bg-rose-500/20 px-2 text-[10px] font-bold text-rose-200">gesperrt</span>}
+                  </div>
+                  <div className="font-mono text-[10px] text-forest-300/50">
+                    {m.member_number ? `FDS-${String(m.member_number).padStart(3, '0')}` : m.member_code.slice(0, 8)}
+                  </div>
                 </div>
-                <div className="text-xs text-forest-300/70">
-                  {m.email}
-                  {m.is_present && <span className="ml-2 rounded-full bg-emerald-500/20 px-2 text-[10px] font-bold text-emerald-200">anwesend</span>}
-                  {m.revoked_at && <span className="ml-2 rounded-full bg-rose-500/20 px-2 text-[10px] font-bold text-rose-200">gesperrt</span>}
-                </div>
-                <div className="font-mono text-[10px] text-forest-300/50">
-                  {m.member_number ? `FDS-${String(m.member_number).padStart(3, '0')}` : m.member_code.slice(0, 8)}
+                <div className="flex flex-wrap gap-2">
+                  {/* Aufgieser-Toggle */}
+                  <button
+                    onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
+                    title={m.is_aufgieser ? 'Aufgieser-Status entfernen' : 'Als Aufgieser markieren'}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
+                      m.is_aufgieser
+                        ? 'bg-amber-500/20 text-amber-200 ring-amber-500/30 hover:bg-amber-500/30'
+                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
+                    }`}
+                  >
+                    {m.is_aufgieser ? '🔥 Aufgieser' : '+ Aufgieser'}
+                  </button>
+                  <button onClick={() => downloadBadge({
+                    name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
+                    role: m.role, organization: 'Saunafreunde Schwarzwald',
+                    frontBgUrl, backBgUrl, logoUrl,
+                  })}
+                    className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
+                    Ausweis-PDF
+                  </button>
+                  <button
+                    onClick={() => update.mutate({ id: m.id, revoked_at: m.revoked_at ? null : new Date().toISOString() })}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
+                      m.revoked_at
+                        ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-500/30 hover:bg-emerald-500/30'
+                        : 'bg-rose-500/20 text-rose-200 ring-rose-500/30 hover:bg-rose-500/30'
+                    }`}
+                  >
+                    {m.revoked_at ? 'Entsperren' : 'Sperren'}
+                  </button>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {/* Aufgieser-Toggle */}
-                <button
-                  onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
-                  title={m.is_aufgieser ? 'Aufgieser-Status entfernen' : 'Als Aufgieser markieren'}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
-                    m.is_aufgieser
-                      ? 'bg-amber-500/20 text-amber-200 ring-amber-500/30 hover:bg-amber-500/30'
-                      : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
-                  }`}
-                >
-                  {m.is_aufgieser ? '🔥 Aufgieser' : '+ Aufgieser'}
-                </button>
-                <button onClick={() => downloadBadge({
-                  name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
-                  role: m.role, organization: 'Saunafreunde Schwarzwald',
-                  frontBgUrl, backBgUrl, logoUrl,
-                })}
-                  className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
-                  Ausweis-PDF
-                </button>
-                <button
-                  onClick={() => update.mutate({ id: m.id, revoked_at: m.revoked_at ? null : new Date().toISOString() })}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
-                    m.revoked_at
-                      ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-500/30 hover:bg-emerald-500/30'
-                      : 'bg-rose-500/20 text-rose-200 ring-rose-500/30 hover:bg-rose-500/30'
-                  }`}
-                >
-                  {m.revoked_at ? 'Entsperren' : 'Sperren'}
-                </button>
-              </div>
+              {m.is_aufgieser && <MemberCustomAttrsRow memberId={m.id} memberName={m.name} />}
             </li>
           ))}
         </ul>

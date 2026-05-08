@@ -1,4 +1,4 @@
-// Sends evacuation notifications via the server-side /api/send-evacuation function.
+// Sends notifications via server-side API functions.
 // Bot token never reaches the browser.
 
 export type EvacuationPayload = {
@@ -15,6 +15,16 @@ export async function sendEvacuationList(
   p: EvacuationPayload
 ): Promise<{ ok: boolean; via: string; detail?: string; sent?: number; total?: number }> {
   return sendEvacuationWithPhoto(p);
+}
+
+export async function sendNotification(text: string): Promise<void> {
+  try {
+    await fetch('/api/send-notification', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+  } catch { /* ignore */ }
 }
 
 export async function sendEvacuationWithPhoto(

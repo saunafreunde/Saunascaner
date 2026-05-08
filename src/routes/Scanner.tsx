@@ -42,11 +42,9 @@ export default function Scanner() {
   const [codeInput, setCodeInput] = useState('');
   const [now, setNow] = useState(Date.now());
 
-  // Rate-limiting state (in-memory, resets on page reload)
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
-  // Countdown timer
   useEffect(() => {
     if (!lockedUntil) return;
     const id = setInterval(() => {
@@ -135,7 +133,7 @@ export default function Scanner() {
           highlightScanRegion: true,
           highlightCodeOutline: true,
           returnDetailedScanResult: true,
-          preferredCamera: 'environment',
+          preferredCamera: 'user',
         }
       );
       await s.start();
@@ -183,55 +181,90 @@ export default function Scanner() {
         </div>
       )}
 
-      <header className="no-print border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-4 text-center">
-        <h1 className="text-xl font-bold text-forest-100">Saunafreunde — Check-in</h1>
-        <p className="text-xs text-forest-300/70 mt-0.5">QR-Karte scannen oder persönlichen Code eingeben</p>
-      </header>
-
-      <div className="no-print flex flex-col flex-1 max-w-xl mx-auto w-full p-4 gap-4">
-
-        {/* Modus-Auswahl */}
-        {mode === 'idle' && (
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <button
-              onClick={() => setMode('scan')}
-              className="rounded-2xl bg-forest-600/20 ring-2 ring-forest-500/40 p-6 text-center hover:bg-forest-600/30 transition"
-            >
-              <div className="text-5xl mb-3">📷</div>
-              <div className="text-lg font-bold text-forest-100">QR scannen</div>
-              <div className="text-xs text-forest-300/70 mt-1">Mitgliedsausweis vor Kamera halten</div>
-            </button>
-            <button
-              onClick={() => { setMode('code'); setCodeInput(''); }}
-              className="rounded-2xl bg-forest-600/20 ring-2 ring-forest-500/40 p-6 text-center hover:bg-forest-600/30 transition"
-            >
-              <div className="text-5xl mb-3">🔑</div>
-              <div className="text-lg font-bold text-forest-100">Code eingeben</div>
-              <div className="text-xs text-forest-300/70 mt-1">Persönlichen Einlass-Code tippen</div>
-            </button>
-          </div>
-        )}
-
-        {/* QR-Scan-Modus */}
-        {mode === 'scan' && (
-          <div className="space-y-3">
-            <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
-              <video ref={videoRef} className="h-full w-full object-cover" style={{ transform: 'none' }} muted playsInline />
+      {/* ── Idle: 2 riesige Buttons im Querformat ── */}
+      {mode === 'idle' && (
+        <div className="flex h-screen w-screen gap-4 p-4">
+          <button
+            onClick={() => setMode('scan')}
+            className="flex-1 rounded-3xl bg-forest-600/25 ring-2 ring-forest-500/50 flex flex-col items-center justify-center gap-4 hover:bg-forest-600/35 transition active:scale-[0.98]"
+          >
+            <div className="text-7xl sm:text-8xl">📷</div>
+            <div className="text-3xl sm:text-4xl font-black text-forest-100 text-center leading-tight">
+              QR-Code<br />scannen
             </div>
+            <div className="text-sm sm:text-base text-forest-300/70 text-center px-4">
+              Mitgliedsausweis vor Kamera halten
+            </div>
+          </button>
+
+          <button
+            onClick={() => { setMode('code'); setCodeInput(''); }}
+            className="flex-1 rounded-3xl bg-forest-600/25 ring-2 ring-forest-500/50 flex flex-col items-center justify-center gap-4 hover:bg-forest-600/35 transition active:scale-[0.98]"
+          >
+            <div className="text-7xl sm:text-8xl">🔑</div>
+            <div className="text-3xl sm:text-4xl font-black text-forest-100 text-center leading-tight">
+              Code<br />eingeben
+            </div>
+            <div className="text-sm sm:text-base text-forest-300/70 text-center px-4">
+              Persönlichen Einlass-Code tippen
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* ── Scan-Modus: Landscape — Kamera links, Status rechts ── */}
+      {mode === 'scan' && (
+        <div className="flex h-screen w-screen">
+          {/* Linke Hälfte: Kamera */}
+          <div className="w-1/2 relative bg-black overflow-hidden">
+            {/* Frontkamera spiegeln damit Karte richtig erscheint */}
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              style={{ transform: 'scaleX(-1)' }}
+              muted
+              playsInline
+            />
+          </div>
+
+          {/* Rechte Hälfte: Status & Steuerung */}
+          <div className="w-1/2 flex flex-col items-center justify-center p-8 gap-6">
+            <div className="text-center">
+              <div className="text-5xl mb-3">📱</div>
+              <h2 className="text-xl font-bold text-forest-100 mb-2">QR-Karte scannen</h2>
+              <p className="text-sm text-forest-300/70">Halte die Karte links in die Kamera</p>
+            </div>
+
+            {toast && (
+              <div className={`w-full rounded-2xl px-5 py-4 text-base font-semibold text-center ring-1 ${
+                toast.kind === 'ok'  ? 'bg-emerald-500/20 text-emerald-100 ring-emerald-400/40' :
+                toast.kind === 'err' ? 'bg-rose-500/20 text-rose-100 ring-rose-400/40' :
+                                       'bg-forest-900/70 text-forest-200 ring-forest-700/50'
+              }`}>
+                {toast.text}
+              </div>
+            )}
+
             <button
               onClick={() => setMode('idle')}
-              className="w-full rounded-xl bg-forest-900/80 px-4 py-3 text-sm font-medium text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
+              className="w-full rounded-2xl bg-forest-900/80 px-6 py-4 text-base font-medium text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900 transition"
             >
               ← Zurück
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Code-Modus */}
-        {mode === 'code' && (
-          <div className="space-y-4 mt-4">
+      {/* ── Code-Modus ── */}
+      {mode === 'code' && (
+        <div className="flex h-screen w-screen items-center justify-center p-8">
+          <div className="w-full max-w-md space-y-4">
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-3">🔑</div>
+              <h2 className="text-2xl font-bold text-forest-100">Einlass-Code eingeben</h2>
+            </div>
+
             <form onSubmit={handleEntryCode} className="rounded-2xl bg-forest-950/70 p-6 ring-1 ring-forest-800/50 space-y-4">
-              <h2 className="text-base font-semibold text-forest-100 text-center">Einlass-Code eingeben</h2>
               <input
                 type="text"
                 value={codeInput}
@@ -239,7 +272,7 @@ export default function Scanner() {
                 placeholder="Dein persönlicher Code…"
                 autoFocus
                 autoComplete="off"
-                className="w-full rounded-xl bg-forest-900/80 px-4 py-4 text-xl text-center font-mono ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                className="w-full rounded-xl bg-forest-900/80 px-4 py-4 text-2xl text-center font-mono ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
               />
               {attempts > 0 && (
                 <p className="text-xs text-rose-300 text-center">
@@ -249,56 +282,58 @@ export default function Scanner() {
               <button
                 type="submit"
                 disabled={!codeInput.trim()}
-                className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-bold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60"
+                className="w-full rounded-xl bg-forest-500 px-5 py-4 text-xl font-bold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60"
               >
                 Anmelden
               </button>
             </form>
+
+            {toast && (
+              <div className={`rounded-xl px-4 py-4 text-base font-semibold text-center ring-1 ${
+                toast.kind === 'ok'  ? 'bg-emerald-500/20 text-emerald-100 ring-emerald-400/40' :
+                toast.kind === 'err' ? 'bg-rose-500/20 text-rose-100 ring-rose-400/40' :
+                                       'bg-forest-900/70 text-forest-200 ring-forest-700/50'
+              }`}>
+                {toast.text}
+              </div>
+            )}
+
             <button
               onClick={() => { setMode('idle'); setCodeInput(''); setAttempts(0); }}
-              className="w-full rounded-xl bg-forest-900/80 px-4 py-3 text-sm font-medium text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
+              className="w-full rounded-xl bg-forest-900/80 px-4 py-3 text-base font-medium text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
             >
               ← Zurück
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Toast */}
-        {toast && (
-          <div className={`rounded-xl px-4 py-4 text-base font-semibold text-center ring-1 ${
-            toast.kind === 'ok'  ? 'bg-emerald-500/20 text-emerald-100 ring-emerald-400/40' :
-            toast.kind === 'err' ? 'bg-rose-500/20 text-rose-100 ring-rose-400/40' :
-                                   'bg-forest-900/70 text-forest-200 ring-forest-700/50'
-          }`}>
-            {toast.text}
-          </div>
-        )}
-
-        {/* Anwesendenliste — nur für Admins */}
-        {isAdmin && <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur mt-auto">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <h2 className="text-sm font-semibold text-forest-100">
-              Anwesend ({present.data?.length ?? 0})
-            </h2>
-            <button onClick={printList} className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900">
-              Liste drucken
-            </button>
-          </div>
-          <ul className="max-h-48 overflow-y-auto space-y-1.5">
-            {!present.data?.length && (
-              <li className="text-xs text-forest-300/60">Noch niemand eingecheckt.</li>
-            )}
-            {(present.data ?? []).map((p) => (
-              <li key={p.id} className="flex items-center justify-between rounded-lg bg-forest-900/60 px-3 py-1.5 ring-1 ring-forest-800/40">
-                <span className="text-sm">{p.name}</span>
-                <span className="text-[10px] text-forest-300/60 tabular-nums">
-                  {p.last_scan_at ? fmtClock(p.last_scan_at) : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>}
-      </div>
+      {/* Anwesendenliste — nur für Admins, als Overlay unten rechts im Idle-Modus */}
+      {mode === 'idle' && isAdmin && (
+        <div className="fixed bottom-4 right-4 z-10 no-print">
+          <details className="rounded-2xl bg-forest-950/90 ring-1 ring-forest-800/50 backdrop-blur overflow-hidden">
+            <summary className="px-4 py-2 text-xs font-semibold text-forest-200 cursor-pointer select-none list-none">
+              👥 Anwesend ({present.data?.length ?? 0})
+              <button onClick={(e) => { e.preventDefault(); printList(); }} className="ml-3 text-forest-400 hover:text-forest-200 underline text-[10px]">
+                Drucken
+              </button>
+            </summary>
+            <ul className="max-h-48 overflow-y-auto px-4 pb-3 space-y-1.5 border-t border-forest-800/40 pt-2 mt-1">
+              {!present.data?.length && (
+                <li className="text-xs text-forest-300/60">Noch niemand eingecheckt.</li>
+              )}
+              {(present.data ?? []).map((p) => (
+                <li key={p.id} className="flex items-center justify-between rounded-lg bg-forest-900/60 px-3 py-1.5 ring-1 ring-forest-800/40">
+                  <span className="text-sm">{p.name}</span>
+                  <span className="text-[10px] text-forest-300/60 tabular-nums ml-3">
+                    {p.last_scan_at ? fmtClock(p.last_scan_at) : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      )}
 
       {/* Druckansicht */}
       <div className="hidden print:block p-8 text-black">

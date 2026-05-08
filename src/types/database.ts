@@ -46,6 +46,16 @@ export type InfusionTemplate = {
   created_at: string;
 };
 
+export type MemberCustomAttr = {
+  id: string;
+  member_id: string;
+  emoji: string;
+  color: string;
+  label: string;
+  sort_order: number;
+  created_at: string;
+};
+
 export type TvSettings = {
   ads: { image_path: string; href?: string | null }[];
   background_path: string | null;

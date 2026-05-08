@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
-import type { Sauna, Infusion } from '@/types/database';
+import type { Sauna, Infusion, MemberCustomAttr } from '@/types/database';
 import type { InfusionAttribute } from './attributes';
 
 function need() {
@@ -145,6 +145,9 @@ export type Member = {
   role: 'member' | 'admin';
   is_aufgieser: boolean;
   entry_code: string | null;
+  sauna_name: string | null;
+  sauna_name_changed_at: string | null;
+  custom_attrs_enabled: boolean;
   approved: boolean;
   is_present: boolean;
   last_scan_at: string | null;
@@ -575,6 +578,75 @@ export async function fetchPollResults(pollId: string): Promise<PollResult[]> {
   const { data, error } = await need().rpc('poll_results', { p_poll_id: pollId });
   if (error) throw error;
   return (data ?? []) as PollResult[];
+}
+
+// ─── Sauna-Name ───────────────────────────────────────────────────────────────
+export function useSetSaunaName() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p_name: string) => {
+      const { error } = await need().rpc('set_sauna_name', { p_name });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['meister-directory'] });
+    },
+  });
+}
+
+// ─── Custom Attribute Buttons ─────────────────────────────────────────────────
+export { type MemberCustomAttr };
+
+export function useMyCustomAttrs(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['custom-attrs', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('member_custom_attrs')
+        .select('*')
+        .eq('member_id', memberId!)
+        .order('sort_order')
+        .order('created_at');
+      if (error) throw error;
+      return data as MemberCustomAttr[];
+    },
+  });
+}
+
+export function useCreateCustomAttr() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (attr: Pick<MemberCustomAttr, 'member_id' | 'emoji' | 'color' | 'label'>) => {
+      const { error } = await need().from('member_custom_attrs').insert(attr);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['custom-attrs', vars.member_id] }),
+  });
+}
+
+export function useAdminDeleteCustomAttr() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, member_id }: { id: string; member_id: string }) => {
+      const { error } = await need().from('member_custom_attrs').delete().eq('id', id);
+      if (error) throw error;
+      return member_id;
+    },
+    onSuccess: (member_id) => qc.invalidateQueries({ queryKey: ['custom-attrs', member_id] }),
+  });
+}
+
+export function useToggleCustomAttrsEnabled() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const { error } = await need().from('members').update({ custom_attrs_enabled: enabled }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+  });
 }
 
 // ─── Storage helpers ──────────────────────────────────────────────────────

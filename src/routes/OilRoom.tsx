@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
@@ -7,15 +7,93 @@ import { sendEvacuationWithPhoto } from '@/lib/telegram';
 import {
   useSaunas, useInfusions, useAddInfusion, useDeleteInfusion,
   usePresentMembers, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
+  useMyCustomAttrs,
 } from '@/lib/api';
+
+// ─── PIN-Sperre ───────────────────────────────────────────────────────────────
+
+const LOCK_PIN = '1234';
+const INACTIVITY_MS = 3 * 60 * 1000;
+
+function PinScreen({ onUnlock }: { onUnlock: () => void }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState(false);
+
+  function press(digit: string) {
+    if (pin.length >= 4) return;
+    const next = pin + digit;
+    setPin(next);
+    setError(false);
+    if (next.length === 4) {
+      if (next === LOCK_PIN) {
+        onUnlock();
+      } else {
+        setError(true);
+        setTimeout(() => { setPin(''); setError(false); }, 700);
+      }
+    }
+  }
+
+  function backspace() {
+    setPin((p) => p.slice(0, -1));
+    setError(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-8 gap-8">
+      <div className="text-6xl">🔒</div>
+      <h1 className="text-2xl font-bold text-forest-100">Öl-Raum</h1>
+
+      {/* PIN-Anzeige */}
+      <div className="flex gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className={`w-5 h-5 rounded-full transition ${
+              i < pin.length
+                ? error ? 'bg-rose-400' : 'bg-forest-400'
+                : 'bg-forest-800'
+            }`}
+          />
+        ))}
+      </div>
+
+      {error && <p className="text-sm text-rose-300">Falscher Code</p>}
+
+      {/* Numpad */}
+      <div className="grid grid-cols-3 gap-3 w-64">
+        {['1','2','3','4','5','6','7','8','9'].map((d) => (
+          <button
+            key={d}
+            onClick={() => press(d)}
+            className="h-16 rounded-2xl bg-forest-900/80 text-2xl font-bold text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-800 active:scale-95 transition"
+          >
+            {d}
+          </button>
+        ))}
+        <div /> {/* spacer */}
+        <button
+          onClick={() => press('0')}
+          className="h-16 rounded-2xl bg-forest-900/80 text-2xl font-bold text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-800 active:scale-95 transition"
+        >
+          0
+        </button>
+        <button
+          onClick={backspace}
+          className="h-16 rounded-2xl bg-forest-900/60 text-xl text-forest-300 ring-1 ring-forest-800/50 hover:bg-forest-900 active:scale-95 transition"
+        >
+          ⌫
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getAvailableSlots(forDate: Date): string[] {
-  if (forDate.getDay() === 1) return []; // Montag
-  return Array.from({ length: 10 }, (_, i) =>
-    `${String(11 + i).padStart(2, '0')}:00`
-  ); // 11:00–20:00
+  if (forDate.getDay() === 1) return [];
+  return Array.from({ length: 10 }, (_, i) => `${String(11 + i).padStart(2, '0')}:00`);
 }
 
 function slotToDate(day: 'today' | 'tomorrow', hhmm: string): Date {
@@ -34,7 +112,7 @@ async function capturePhoto(): Promise<Blob | null> {
     video.muted = true;
     video.playsInline = true;
     await video.play();
-    await new Promise((r) => setTimeout(r, 600)); // Kamera aufwärmen
+    await new Promise((r) => setTimeout(r, 600));
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
@@ -51,6 +129,36 @@ const DURATIONS = [10, 15, 20, 25, 30] as const;
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function OilRoom() {
+  // ─── PIN / Inaktivitäts-Sperre ─────────────────────────────────────────────
+  const [locked, setLocked] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (locked) return;
+    const reset = () => {
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setLocked(true), INACTIVITY_MS);
+    };
+    reset();
+    window.addEventListener('touchstart', reset);
+    window.addEventListener('mousedown', reset);
+    window.addEventListener('keydown', reset);
+    return () => {
+      clearTimeout(timerRef.current);
+      window.removeEventListener('touchstart', reset);
+      window.removeEventListener('mousedown', reset);
+      window.removeEventListener('keydown', reset);
+    };
+  }, [locked]);
+
+  if (locked) return <PinScreen onUnlock={() => setLocked(false)} />;
+
+  return <OilRoomContent />;
+}
+
+// ─── OilRoom-Inhalt (nach PIN-Entsperrung) ────────────────────────────────────
+
+function OilRoomContent() {
   const saunasQ = useSaunas();
   const infusionsQ = useInfusions();
   const presentQ = usePresentMembers();
@@ -63,21 +171,23 @@ export default function OilRoom() {
   const saunas = saunasQ.data ?? [];
   const infusions = infusionsQ.data ?? [];
 
-  // Nur anwesende Aufgieser zur Auswahl anbieten
   const presentAufgieser = useMemo(
     () => (presentQ.data ?? []).filter((p) => p.is_aufgieser),
     [presentQ.data]
   );
 
-  // ─── Wer bist du? ────────────────────────────────────────────────────────
+  // ─── Mitglieds-Auswahl ───────────────────────────────────────────────────
   const [selectedMember, setSelectedMember] = useState<{ id: string; name: string } | null>(null);
 
-  // Wenn nur ein Aufgieser anwesend, auto-auswählen
   useEffect(() => {
     if (presentAufgieser.length === 1 && !selectedMember) {
       setSelectedMember({ id: presentAufgieser[0].id, name: presentAufgieser[0].name });
     }
   }, [presentAufgieser, selectedMember]);
+
+  // Custom attrs für den ausgewählten Aufgieser
+  const customAttrsQ = useMyCustomAttrs(selectedMember?.id);
+  const customAttrs = customAttrsQ.data ?? [];
 
   // ─── Aufguss-Formular ───────────────────────────────────────────────────
   const [day, setDay] = useState<'today' | 'tomorrow'>('today');
@@ -86,6 +196,7 @@ export default function OilRoom() {
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState<number>(15);
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
+  const [customAttrIds, setCustomAttrIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [evacToast, setEvacToast] = useState<string | null>(null);
@@ -127,9 +238,14 @@ export default function OilRoom() {
     setAttrs((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
   }
 
+  function toggleCustomAttr(id: string) {
+    setCustomAttrIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
   function clearForm() {
     setTitle('');
     setAttrs([]);
+    setCustomAttrIds([]);
     setDuration(15);
   }
 
@@ -176,13 +292,10 @@ export default function OilRoom() {
 
     const triggeredByName = selectedMember?.name ?? 'Öl-Raum-Tablet';
     const presentNames = (presentQ.data ?? []).map((p) => p.name);
-
-    // Foto aufnehmen
     const photoBlob = await capturePhoto();
 
     try {
       const triggeredById = selectedMember?.id ?? '';
-      // Evakuierung in DB eintragen
       let triggeredAt = new Date().toISOString();
       try {
         const ev = await trigEvac.mutateAsync({ triggered_by: triggeredById || undefined as any, present_names: presentNames });
@@ -191,7 +304,6 @@ export default function OilRoom() {
 
       broadcastEvac({ type: 'start', triggeredBy: triggeredByName, triggeredAt: Date.parse(triggeredAt) });
 
-      // Telegram-Nachricht + Foto
       const r = await sendEvacuationWithPhoto({
         triggeredBy: triggeredByName,
         triggeredAt: new Date(triggeredAt),
@@ -281,7 +393,6 @@ export default function OilRoom() {
             </div>
           )}
 
-          {/* Evakuierungs-Button auch auf Auswahl-Screen */}
           <div className="mt-12 w-full max-w-md">
             <button
               type="button"
@@ -339,7 +450,6 @@ export default function OilRoom() {
         <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
           <h2 className="text-base font-semibold text-forest-100">Neuen Aufguss eintragen</h2>
 
-          {/* Heute / Morgen */}
           <div className="grid grid-cols-2 gap-2">
             {(['today', 'tomorrow'] as const).map((d) => (
               <button key={d} type="button" onClick={() => setDay(d)}
@@ -415,7 +525,7 @@ export default function OilRoom() {
                 </div>
               </div>
 
-              {/* Eigenschaften */}
+              {/* Standard-Eigenschaften */}
               <div>
                 <label className="text-sm text-forest-300">Eigenschaften</label>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -432,6 +542,27 @@ export default function OilRoom() {
                   })}
                 </div>
               </div>
+
+              {/* Eigene Buttons (falls vorhanden) */}
+              {customAttrs.length > 0 && (
+                <div>
+                  <label className="text-sm text-forest-300">Meine Buttons</label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {customAttrs.map((a) => {
+                      const active = customAttrIds.includes(a.id);
+                      return (
+                        <button key={a.id} type="button" onClick={() => toggleCustomAttr(a.id)}
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm ring-1 transition"
+                          style={active
+                            ? { background: a.color, color: '#0b1f10', boxShadow: `0 0 0 2px ${a.color}66` }
+                            : { background: 'rgba(20, 83, 45, 0.55)', color: '#d1fae5' }}>
+                          <span aria-hidden>{a.emoji}</span><span>{a.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {error && <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{error}</div>}
               {success && <div className="rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-200 ring-1 ring-emerald-500/30">✅ Aufguss eingetragen!</div>}
