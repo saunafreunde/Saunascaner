@@ -141,11 +141,9 @@ export function InfusionCard({
             return (
               <span
                 key={`${i}-${oilId}`}
-                title={o.note ? `Runde ${i + 1} · #${o.number} ${o.name} (${o.note})` : `Runde ${i + 1} · #${o.number} ${o.name}`}
+                title={o.name}
                 className="inline-flex items-center gap-1 rounded-full bg-amber-900/40 px-2 py-0.5 text-xs ring-1 ring-amber-400/30"
               >
-                <span className="text-amber-300/80 font-bold tabular-nums">{i + 1}.</span>
-                <span className="rounded bg-amber-950/60 px-1 text-[10px] tabular-nums text-amber-200/80">#{o.number}</span>
                 <span aria-hidden>{o.emoji}</span>
                 <span className="text-amber-100/90">{o.name}</span>
               </span>
