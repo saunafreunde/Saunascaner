@@ -25,7 +25,7 @@ export default function CustomAttrCreator({ memberId, onClose }: Props) {
     setError(null);
     const trimmed = label.trim();
     if (!trimmed) return setError('Beschriftung fehlt.');
-    if (trimmed.length > 7) return setError('Max. 7 Zeichen.');
+    if (trimmed.length > 14) return setError('Max. 14 Zeichen.');
     try {
       await createAttr.mutateAsync({ member_id: memberId, emoji, color, label: trimmed });
       onClose();
@@ -93,16 +93,16 @@ export default function CustomAttrCreator({ memberId, onClose }: Props) {
 
           {/* Label */}
           <div>
-            <label className="text-xs text-forest-300 mb-1.5 block">Beschriftung (max. 7 Zeichen)</label>
+            <label className="text-xs text-forest-300 mb-1.5 block">Beschriftung (max. 14 Zeichen)</label>
             <input
               type="text"
               value={label}
-              maxLength={7}
+              maxLength={14}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="z.B. Würzig"
+              placeholder="z.B. Vulkanaufguss"
               className="w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
             />
-            <p className="text-[10px] text-forest-400/60 mt-1">{label.length}/7</p>
+            <p className="text-[10px] text-forest-400/60 mt-1">{label.length}/14</p>
           </div>
 
           {error && <p className="text-xs text-rose-300">{error}</p>}

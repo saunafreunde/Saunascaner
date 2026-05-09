@@ -560,7 +560,13 @@ export function useUpdateEntryCode() {
   return useMutation({
     mutationFn: async ({ id, entry_code }: { id: string; entry_code: string | null }) => {
       const { error } = await need().from('members').update({ entry_code }).eq('id', id);
-      if (error) throw error;
+      if (error) {
+        // Eindeutigkeits-Verletzung: PIN ist bereits an ein anderes Mitglied vergeben
+        if ((error as { code?: string }).code === '23505') {
+          throw new Error('Dieser PIN ist schon vergeben — bitte einen anderen wählen.');
+        }
+        throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['current-member'] }),
   });
