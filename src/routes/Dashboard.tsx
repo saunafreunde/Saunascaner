@@ -29,6 +29,27 @@ import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { CuckooDoor, type ZwergMood } from '@/components/CuckooDoor';
 import { onDemo } from '@/lib/demoChannel';
 
+// ── Werbe-Sidebar: 3× 16:9 Tafeln ────────────────────────────────────────────
+function AdSidebar({ urls }: { urls: string[] }) {
+  const items = urls.length > 0 ? urls.slice(0, 3) : [null, null, null];
+  return (
+    <aside className="w-[300px] flex-shrink-0 flex flex-col gap-3 justify-start">
+      {items.map((url, i) => (
+        <div
+          key={i}
+          className="aspect-video w-full rounded-2xl overflow-hidden bg-forest-950/60 ring-1 ring-forest-800/40 flex items-center justify-center"
+        >
+          {url ? (
+            <img src={url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-forest-500/40 text-xs uppercase tracking-widest">Werbefläche</span>
+          )}
+        </div>
+      ))}
+    </aside>
+  );
+}
+
 export default function Dashboard() {
   useWakeLock(true);
   const now = useNow(20_000);
@@ -136,8 +157,60 @@ export default function Dashboard() {
     .map((a) => publicAssetUrl(a.image_path))
     .filter((u): u is string => Boolean(u));
 
-  const adsToShow = adImageUrls.slice(0, 3);
   const allInfusions = infusions.data ?? [];
+
+  // ── Layout je nach Sauna-Anzahl ──────────────────────────────────────
+  const renderMain = () => {
+    if (activeSaunas.length === 0) {
+      return (
+        <div className="flex flex-1 items-center justify-center text-3xl text-forest-300/70">
+          Heute keine Saunen aktiv.
+        </div>
+      );
+    }
+
+    const column = (idx: number) => (
+      <SaunaTileColumn
+        key={activeSaunas[idx].id}
+        sauna={activeSaunas[idx]}
+        infusions={allInfusions}
+        meisterName={meisterName}
+        meisterBadges={meisterBadges}
+        coNames={coNamesForInfusion}
+        now={now}
+      />
+    );
+
+    if (activeSaunas.length === 1) {
+      // 1 Sauna: [Werbung] [Sauna mittig] [Werbung]
+      return (
+        <>
+          <AdSidebar urls={adImageUrls} />
+          {column(0)}
+          <AdSidebar urls={adImageUrls} />
+        </>
+      );
+    }
+
+    if (activeSaunas.length === 2) {
+      // 2 Saunen: [Sauna 1] [Werbung Mitte] [Sauna 2]
+      return (
+        <>
+          {column(0)}
+          <AdSidebar urls={adImageUrls} />
+          {column(1)}
+        </>
+      );
+    }
+
+    // 3+ Saunen: alle Saunen + Werbung rechts
+    return (
+      <>
+        {activeSaunas.map((_, i) => column(i))}
+        <AdSidebar urls={adImageUrls} />
+      </>
+    );
+  };
 
   return (
     <PageBackground page="dashboard" variant="strong" className="h-screen overflow-hidden flex flex-col">
@@ -161,14 +234,24 @@ export default function Dashboard() {
         </button>
       )}
 
-      <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] flex items-center justify-between px-8 pt-5 pb-3">
-        <div className="flex items-baseline gap-3">
+      {/* Header — 3 Bereiche: links Schriftzug, mittig Logo, rechts Wetter + Uhr */}
+      <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-5 pb-3">
+        <div className="flex items-baseline gap-3 justify-self-start">
           <h1 className="text-3xl font-semibold tracking-tight text-forest-100 drop-shadow">
             Saunafreunde Schwarzwald
           </h1>
           <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
         </div>
-        <div className="flex items-center gap-4">
+
+        <div className="justify-self-center">
+          <img
+            src="/icons/icon-512.png"
+            alt="Saunafreunde Logo"
+            className="h-14 w-14 rounded-xl ring-1 ring-forest-700/40 shadow-lg"
+          />
+        </div>
+
+        <div className="flex items-center gap-4 justify-self-end">
           <WeatherWidget />
           <span className="rounded-xl bg-forest-950/70 px-4 py-2 text-2xl font-semibold tabular-nums ring-1 ring-forest-800/60">
             {fmtClock(now)}
@@ -179,40 +262,7 @@ export default function Dashboard() {
       <BirthdayBanner />
 
       <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-6 pb-6 flex gap-4">
-        {activeSaunas.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center text-3xl text-forest-300/70">
-            Heute keine Saunen aktiv.
-          </div>
-        ) : (
-          <>
-            {activeSaunas.map((sauna) => (
-              <SaunaTileColumn
-                key={sauna.id}
-                sauna={sauna}
-                infusions={allInfusions}
-                meisterName={meisterName}
-                meisterBadges={meisterBadges}
-                coNames={coNamesForInfusion}
-                now={now}
-              />
-            ))}
-            {/* Werbe-Sidebar: 3× 16:9, falls keine Bilder hochgeladen → Platzhalter */}
-            <aside className="w-[300px] flex-shrink-0 flex flex-col gap-3 justify-start">
-              {(adsToShow.length > 0 ? adsToShow : [null, null, null]).map((url, i) => (
-                <div
-                  key={i}
-                  className="aspect-video w-full rounded-2xl overflow-hidden bg-forest-950/60 ring-1 ring-forest-800/40 flex items-center justify-center"
-                >
-                  {url ? (
-                    <img src={url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-forest-500/40 text-xs uppercase tracking-widest">Werbefläche</span>
-                  )}
-                </div>
-              ))}
-            </aside>
-          </>
-        )}
+        {renderMain()}
       </main>
 
       {/* Sauna-Zwerg / Kuckuckstür — schwebt unten rechts */}
