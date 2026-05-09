@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { addDays, format, setHours, setMinutes, isBefore, formatDistanceToNow } from 'date-fns';
-import { de } from 'date-fns/locale';
-import { differenceInDays } from 'date-fns';
+import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { fmtClock, dayLabel } from '@/lib/time';
-import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
+import { ATTRIBUTES, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
-import { sendEvacuationList, sendNotification, sendBadgeAnnouncement } from '@/lib/telegram';
+import { sendEvacuationList, sendBadgeAnnouncement } from '@/lib/telegram';
 import { checkAndAwardBadges } from '@/lib/checkBadges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
-import BadgeShowcase from '@/components/BadgeShowcase';
 import AchievementToast from '@/components/AchievementToast';
-import MonthlyLeaderboard from '@/components/MonthlyLeaderboard';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { HubZone } from '@/components/HubZone';
+import { TodayLiveBento } from '@/components/TodayLiveBento';
+import { AtelierTabs } from '@/components/AtelierTabs';
+import { IdentityCard } from '@/components/IdentityCard';
+import { TrophyWall } from '@/components/TrophyWall';
+import { fireBadgeUnlock, fireFirstInfusionOfDay } from '@/lib/confetti';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useSaunas, useInfusions, useTemplates,
@@ -27,7 +28,7 @@ import {
   useCoAufgieser, useJoinTeamInfusion, useLeaveTeamInfusion,
   useMeisterDirectory,
   useMyPolls, useSubmitPollResponse, useUpdateEntryCode,
-  useSetSaunaName, useMyCustomAttrs,
+  useMyCustomAttrs,
   useRatableInfusions, type RatableInfusion,
   togglePresenceByCode, type MyPoll,
 } from '@/lib/api';
@@ -98,7 +99,6 @@ export default function Planner() {
   const pollsQ = useMyPolls();
   const updateEntryCode = useUpdateEntryCode();
   const meisterDir = useMeisterDirectory();
-  const setSaunaName = useSetSaunaName();
 
   const addInf = useAddInfusion();
   const delInf = useDeleteInfusion();
@@ -121,6 +121,7 @@ export default function Planner() {
 
   const [ratingFormInfusion, setRatingFormInfusion] = useState<RatableInfusion | null>(null);
   const [ratingToast, setRatingToast] = useState<string | null>(null);
+  const [activePoll, setActivePoll] = useState<MyPoll | null>(null);
 
   const customAttrsQ = useMyCustomAttrs(isAufgieser ? m?.id : undefined);
   const ratableQ = useRatableInfusions(m?.is_present ? m?.id : undefined);
@@ -203,42 +204,6 @@ export default function Planner() {
       setCodeSaved(true);
       setTimeout(() => setCodeSaved(false), 3000);
     } catch (e) { setCodeError((e as Error).message); }
-  }
-
-  // ─── Sauna-Name ─────────────────────────────────────────────────────────
-  const [editingSaunaName, setEditingSaunaName] = useState(false);
-  const [saunaNameInput, setSaunaNameInput] = useState('');
-  const [saunaNameError, setSaunaNameError] = useState<string | null>(null);
-  const [saunaNameSaved, setSaunaNameSaved] = useState(false);
-
-  const canChangeSaunaName = useMemo(() => {
-    if (!m?.sauna_name_changed_at) return true;
-    return differenceInDays(new Date(), new Date(m.sauna_name_changed_at)) >= 30;
-  }, [m?.sauna_name_changed_at]);
-
-  const daysUntilNextChange = useMemo(() => {
-    if (!m?.sauna_name_changed_at) return 0;
-    const diff = differenceInDays(new Date(), new Date(m.sauna_name_changed_at));
-    return Math.max(0, 30 - diff);
-  }, [m?.sauna_name_changed_at]);
-
-  async function saveSaunaName() {
-    setSaunaNameError(null);
-    const trimmed = saunaNameInput.trim();
-    try {
-      await setSaunaName.mutateAsync(trimmed);
-      const oldName = m?.sauna_name || m?.name || '';
-      const newName = trimmed || m?.name || '';
-      await sendNotification(`🎭 <b>${m?.name}</b> hat seinen Aufguss-Namen geändert: ${oldName} → ${newName}`);
-      setEditingSaunaName(false);
-      setSaunaNameInput('');
-      setSaunaNameSaved(true);
-      setTimeout(() => setSaunaNameSaved(false), 3000);
-    } catch (e) {
-      const msg = (e as Error).message;
-      if (msg.includes('cooldown')) setSaunaNameError(`Noch ${daysUntilNextChange} Tage bis zur nächsten Änderung.`);
-      else setSaunaNameError(msg);
-    }
   }
 
   // ─── Aufguss-Formular ───────────────────────────────────────────────────
@@ -345,12 +310,15 @@ export default function Planner() {
         team_infusion: teamInfusion,
       });
       clearForm();
+      // 🎉 Konfetti beim ersten eigenen Aufguss des Tages
+      fireFirstInfusionOfDay(m.id).catch(() => {});
       // Badge-Check nach erfolgreichem Aufguss
       const displayName = m.sauna_name ?? m.name;
       const earned = await checkAndAwardBadges(m.id);
       if (earned.length > 0) {
         setNewBadges(earned);
         setToastIndex(0);
+        fireBadgeUnlock().catch(() => {});
         for (const badge of earned) {
           sendBadgeAnnouncement(displayName, badge).catch(() => {});
         }
@@ -391,11 +359,6 @@ export default function Planner() {
     [infusions, m?.id]
   );
 
-  const todayInfusions = useMemo(
-    () => infusions.filter((i) => new Date(i.start_time).toDateString() === new Date().toDateString()),
-    [infusions]
-  );
-
   function getCoNames(infusionId: string): string[] {
     return (coAufgieserQ.data ?? []).filter((c) => c.infusion_id === infusionId).map((c) => c.member_name ?? '?');
   }
@@ -405,11 +368,8 @@ export default function Planner() {
   }
 
   const meisterName = (id: string | null) => (id && meisterDir.data?.find((x) => x.id === id)?.name) || '—';
-  const saunaName = (id: string) => saunas.find((s) => s.id === id)?.name ?? '';
-  const saunaColor = (id: string) => saunas.find((s) => s.id === id)?.accent_color ?? '#22c55e';
   const evacuation = evacQ.data;
   const openPolls = (pollsQ.data ?? []).filter((p) => !p.my_answer);
-  const answeredPolls = (pollsQ.data ?? []).filter((p) => !!p.my_answer);
 
   return (
     <PageBackground page="planner">
@@ -419,6 +379,21 @@ export default function Planner() {
 
       {newBadges.length > 0 && (
         <AchievementToast badges={newBadges} currentIndex={toastIndex} onClose={handleToastClose} />
+      )}
+
+      {activePoll && m && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={(e) => e.target === e.currentTarget && setActivePoll(null)}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-forest-950 ring-1 ring-amber-700/50 p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">📋 Abfrage</span>
+              <button onClick={() => setActivePoll(null)} className="text-forest-400 hover:text-slate-200 text-xl leading-none">✕</button>
+            </div>
+            <PollCard poll={activePoll} memberId={m.id} onAnswered={() => { pollsQ.refetch(); setActivePoll(null); }} />
+          </div>
+        </div>
       )}
 
       {ratingFormInfusion && m && (
@@ -434,7 +409,11 @@ export default function Planner() {
             setTimeout(() => setRatingToast(null), 4000);
             if (m) {
               const badges = await checkAndAwardBadges(m.id);
-              if (badges.length > 0) { setNewBadges(badges); setToastIndex(0); }
+              if (badges.length > 0) {
+                setNewBadges(badges);
+                setToastIndex(0);
+                fireBadgeUnlock().catch(() => {});
+              }
             }
           }}
         />
@@ -725,370 +704,116 @@ export default function Planner() {
           </form>
         )}
 
-        {/* ══ 2-SPALTEN-GRID: weitere Karten ═══════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ══ ZONE 1: Heute Live ══════════════════════════════════════════ */}
+        <HubZone icon="🔥" title="Heute Live" subtitle="Was heute passiert" accent="#f59e0b">
+          <TodayLiveBento
+            memberId={m?.id ?? ""}
+            isPresent={isPresent}
+            isAdmin={isAdmin}
+            infusions={infusions}
+            saunas={saunas}
+            meisterName={meisterName}
+            now={new Date(nowTick)}
+            presentMembers={(presentQ.data ?? []).map((p) => ({ id: p.id, name: p.name, is_aufgieser: p.is_aufgieser }))}
+            openPolls={openPolls}
+            onOpenPoll={(poll) => setActivePoll(poll)}
+            onRate={(inf) => setRatingFormInfusion(inf)}
+          />
+        </HubZone>
 
-          {/* ══ LINKE SPALTE: Persönlicher Bereich ══════════════════════════ */}
-          <div className="space-y-4">
+        {/* ══ ZONE 2: Mein Aufguss-Atelier (nur Aufgieser) ═════════════════ */}
+        {isAufgieser && (
+          <HubZone icon="🧖" title="Mein Atelier" subtitle="Werkbank für Aufgüsse" accent="#22c55e">
+            <AtelierTabs
+              myInfusions={myInfusions}
+              joinableTeamInfusions={joinableTeamInfusions}
+              templates={myTemplates}
+              saunas={saunas}
+              meisterName={meisterName}
+              getCoNames={getCoNames}
+              isJoined={isJoined}
+              onDeleteInfusion={(id) => delInf.mutate(id)}
+              onJoinTeam={(id) => m && joinTeam.mutate({ infusion_id: id, member_id: m.id })}
+              onLeaveTeam={(id) => m && leaveTeam.mutate({ infusion_id: id, member_id: m.id })}
+              onApplyTemplate={(t) => applyTemplate(t)}
+              onDeleteTemplate={(id) => delTpl.mutate(id)}
+            />
+          </HubZone>
+        )}
 
-            {/* Offene Polls */}
-            {openPolls.length > 0 && (
-              <div className="rounded-2xl bg-amber-950/40 ring-2 ring-amber-500/40 p-4 backdrop-blur">
-                <h2 className="text-xs font-bold text-amber-200 mb-3 uppercase tracking-wider">
-                  📋 {openPolls.length} offene Abfrage{openPolls.length > 1 ? 'n' : ''}
-                </h2>
-                <div className="space-y-3">
-                  {openPolls.map((poll) => (
-                    <PollCard key={poll.id} poll={poll} memberId={m?.id ?? ''} onAnswered={() => pollsQ.refetch()} />
-                  ))}
+        {/* ══ ZONE 3: Mein Profil & Erfolge ═════════════════════════════════ */}
+        {m && (
+          <HubZone icon="🏆" title="Mein Profil & Erfolge" subtitle="Identität · Bewertungen · Trophäen" accent="#a78bfa">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-800/30 p-4">
+                  <IdentityCard
+                    member={m}
+                    customAttrs={customAttrs}
+                    onOpenAttrCreator={() => setShowAttrCreator(true)}
+                  />
+                </div>
+                <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-800/30 p-4">
+                  <h3 className="flex items-center gap-2 text-[11px] font-bold text-violet-300/80 uppercase tracking-[0.12em] mb-2">
+                    <span className="text-sm">📡</span><span>Meine Bewertungen</span>
+                  </h3>
+                  <MeisterRadarWidget memberId={m.id} size="lg" />
                 </div>
               </div>
-            )}
 
-            {/* Heutiger Aufgussplan */}
-            <Card title="Heutiger Aufgussplan">
-              {todayInfusions.length === 0 ? (
-                <p className="text-sm text-forest-300/60">Heute noch keine Aufgüsse geplant.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {todayInfusions.map((i) => (
-                    <li key={i.id} className="flex items-center gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40"
-                      style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">
-                          {i.title}{i.team_infusion && <span className="ml-1.5 text-xs text-amber-300">👥</span>}
-                        </div>
-                        <div className="text-xs text-forest-300/70 mt-0.5">
-                          {fmtClock(i.start_time)} · {saunaName(i.sauna_id)} · {i.duration_minutes} Min
-                          · {meisterName(i.saunameister_id)}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            {/* Jetzt bewerten */}
-            {isPresent && m && (() => {
-              const ratable = ratableQ.data ?? [];
-              if (ratable.length === 0) return null;
-              return (
-                <div className="rounded-2xl bg-amber-950/30 ring-2 ring-amber-500/30 p-4 backdrop-blur">
-                  <h2 className="text-xs font-bold text-amber-200 mb-3 uppercase tracking-wider">
-                    ⏱️ Jetzt bewerten
-                  </h2>
-                  <div className="space-y-2">
-                    {ratable.map((inf) => {
-                      const windowClose = new Date(new Date(inf.end_time).getTime() + 3 * 60 * 60 * 1000);
-                      const timeLeft = formatDistanceToNow(windowClose, { locale: de, addSuffix: false });
-                      return (
-                        <div key={inf.id} className="flex items-center justify-between gap-3 rounded-xl bg-amber-950/40 px-3 py-2.5 ring-1 ring-amber-700/30">
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-amber-100 truncate">
-                              {inf.title}
-                            </div>
-                            <div className="text-xs text-amber-300/70 mt-0.5">
-                              {meisterName(inf.saunameister_id)} · noch {timeLeft}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setRatingFormInfusion(inf)}
-                            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                              inf.already_rated
-                                ? 'bg-emerald-900/60 text-emerald-300 ring-1 ring-emerald-700/40 hover:bg-emerald-900'
-                                : 'bg-amber-500 text-amber-950 hover:bg-amber-400'
-                            }`}
-                          >
-                            {inf.already_rated ? '✓ Bearbeiten' : 'Bewerten'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+              <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-800/30 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs">🔑</span>
+                  <h3 className="text-[11px] font-bold text-violet-300/80 uppercase tracking-[0.12em]">Einlass-Code</h3>
                 </div>
-              );
-            })()}
-
-            {/* Monatliches Ranking */}
-            <Card title="Ranking diesen Monat">
-              <MonthlyLeaderboard />
-            </Card>
-
-            {/* Einlass-Code */}
-            <Card title="Mein Einlass-Code">
-              <p className="text-xs text-forest-300/60 mb-3">Verwende diesen Code am Eingangs-Tablet statt QR-Scan.</p>
-              {codeSaved && <p className="text-sm text-emerald-300 mb-2">✅ Code gespeichert.</p>}
-              {!editingCode ? (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-forest-200">
-                    {m?.entry_code ? '●●●●●●' : <span className="text-forest-300/50">Nicht gesetzt</span>}
-                  </span>
-                  <button onClick={() => { setEditingCode(true); setCodeInput(''); setCodeError(null); }}
-                    className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800">
-                    {m?.entry_code ? 'Ändern' : 'Code setzen'}
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <input type="text" value={codeInput} onChange={(e) => setCodeInput(e.target.value)}
-                    placeholder="4–8 Zeichen, z.B. sonne7" maxLength={8} autoFocus
-                    className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
-                  {codeError && <p className="text-xs text-rose-300">{codeError}</p>}
-                  <div className="flex gap-2">
-                    <button onClick={saveEntryCode} disabled={updateEntryCode.isPending}
-                      className="flex-1 rounded-lg bg-forest-500 px-3 py-2 text-sm font-semibold text-forest-950 hover:bg-forest-400 disabled:opacity-60">
-                      {updateEntryCode.isPending ? 'Speichere…' : 'Speichern'}
-                    </button>
-                    {m?.entry_code && (
-                      <button onClick={async () => { if (!m) return; await updateEntryCode.mutateAsync({ id: m.id, entry_code: null }); setEditingCode(false); }}
-                        className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/30 hover:bg-rose-500/25">
-                        Löschen
-                      </button>
-                    )}
-                    <button onClick={() => { setEditingCode(false); setCodeError(null); }}
-                      className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-300 ring-1 ring-forest-700/50 hover:bg-forest-900">
-                      Abbrechen
-                    </button>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {/* Bereits beantwortete Polls */}
-            {answeredPolls.length > 0 && (
-              <Card title="Bereits beantwortet">
-                <ul className="space-y-2">
-                  {answeredPolls.map((poll) => (
-                    <li key={poll.id} className="rounded-lg bg-forest-900/50 px-3 py-2 ring-1 ring-forest-800/30">
-                      <div className="text-sm font-medium text-forest-200">{poll.title}</div>
-                      <div className="text-xs text-emerald-300 mt-0.5">✓ {poll.my_answer}</div>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-
-            {/* Anwesende Mitglieder (nur Admin) */}
-            {isAdmin && (
-              <Card title={`Aktuell anwesend (${presentQ.data?.length ?? 0})`}>
-                {(presentQ.data ?? []).length === 0 ? (
-                  <p className="text-sm text-forest-300/60">Niemand eingecheckt.</p>
-                ) : (
-                  <ul className="flex flex-wrap gap-2">
-                    {(presentQ.data ?? []).map((p) => (
-                      <li key={p.id} className={`rounded-full px-3 py-1 text-sm ring-1 ${
-                        p.id === m?.id ? 'bg-forest-500 text-forest-950 ring-forest-400 font-semibold' : 'bg-forest-900/60 text-forest-200 ring-forest-800/40'
-                      }`}>
-                        {p.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            )}
-          </div>
-
-          {/* ══ RECHTE SPALTE: Aufguss-Planung (nur Aufgieser/Admin) ════════ */}
-          {isAufgieser && (
-            <div className="space-y-4">
-
-              {/* Meine Aufgüsse */}
-              <Card title="Meine Aufgüsse">
-                <ul className="space-y-2">
-                  {myInfusions.length === 0 && <li className="text-xs text-forest-300/60">Noch keine geplant.</li>}
-                  {myInfusions.map((i) => {
-                    const coNames = getCoNames(i.id);
-                    return (
-                      <li key={i.id}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40"
-                        style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {i.title}{i.team_infusion && <span className="ml-1.5 text-xs text-amber-300">👥 Team</span>}
-                          </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-forest-300/70">
-                            <span>{dayLabel(i.start_time)} · {fmtClock(i.start_time)}</span>
-                            <span>·</span>
-                            <span style={{ color: saunaColor(i.sauna_id) }} className="font-semibold">{saunaName(i.sauna_id)}</span>
-                            <span>· {i.duration_minutes} Min</span>
-                            {(i.attributes as InfusionAttribute[]).map((a) => (
-                              <span key={a} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
-                            ))}
-                          </div>
-                          {coNames.length > 0 && <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>}
-                        </div>
-                        <button onClick={() => delInf.mutate(i.id)}
-                          className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 flex-shrink-0">Löschen</button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </Card>
-
-              {/* Team-Aufgüsse anderer */}
-              {joinableTeamInfusions.length > 0 && (
-                <div className="rounded-2xl bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur">
-                  <h2 className="text-xs font-semibold text-amber-200 uppercase tracking-wider mb-1">Team-Aufgüsse 👥</h2>
-                  <p className="text-xs text-amber-200/60 mb-3">Du kannst diesen Aufgüssen beitreten.</p>
-                  <ul className="space-y-2">
-                    {joinableTeamInfusions.map((i) => {
-                      const joined = isJoined(i.id);
-                      const coNames = getCoNames(i.id);
-                      return (
-                        <li key={i.id}
-                          className="flex items-center justify-between gap-3 rounded-lg bg-amber-900/30 px-3 py-2 ring-1 ring-amber-800/40"
-                          style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate text-amber-50">{i.title}</div>
-                            <div className="mt-0.5 text-xs text-amber-200/70">
-                              {dayLabel(i.start_time)} · {fmtClock(i.start_time)} · {saunaName(i.sauna_id)}
-                            </div>
-                            <div className="text-xs text-amber-200/50 mt-0.5">
-                              {meisterName(i.saunameister_id)}{coNames.length > 0 && ` + ${coNames.join(', ')}`}
-                            </div>
-                          </div>
-                          {joined ? (
-                            <button onClick={() => m && leaveTeam.mutate({ infusion_id: i.id, member_id: m.id })}
-                              className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap flex-shrink-0">
-                              Verlassen
-                            </button>
-                          ) : (
-                            <button onClick={() => m && joinTeam.mutate({ infusion_id: i.id, member_id: m.id })}
-                              className="rounded-md bg-amber-600 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-500 whitespace-nowrap flex-shrink-0">
-                              Beitreten
-                            </button>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-
-              {/* Vorlagen */}
-              <Card title="Meine Vorlagen">
-                <ul className="space-y-2">
-                  {myTemplates.length === 0 && (
-                    <li className="text-xs text-forest-300/60">„Als Vorlage" speichert die aktuelle Eingabe.</li>
-                  )}
-                  {myTemplates.map((t) => (
-                    <li key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40">
-                      <button type="button" onClick={() => applyTemplate(t)} className="min-w-0 flex-1 text-left">
-                        <div className="truncate text-sm font-medium">{t.title}</div>
-                        <div className="mt-0.5 flex items-center gap-1 text-xs text-forest-300/70">
-                          <span>{t.duration_minutes} Min</span>
-                          {(t.attributes as InfusionAttribute[]).map((a) => (
-                            <span key={a} title={ATTR_BY_ID[a]?.label} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
-                          ))}
-                        </div>
-                      </button>
-                      <button onClick={() => delTpl.mutate(t.id)}
-                        className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">✕</button>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-
-              {/* Aufguss-Künstlername */}
-              <Card title="Mein Aufguss-Name">
-                <p className="text-xs text-forest-300/60 mb-3">Wird auf der Tafel angezeigt. Alle 30 Tage änderbar.</p>
-                {saunaNameSaved && <p className="text-sm text-emerald-300 mb-2">✅ Name gespeichert.</p>}
-                {!editingSaunaName ? (
+                <p className="text-xs text-forest-400 mb-2">Verwende diesen Code am Eingangs-Tablet statt QR-Scan.</p>
+                {codeSaved && <p className="text-sm text-emerald-300 mb-2">✅ Code gespeichert.</p>}
+                {!editingCode ? (
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <span className="text-base font-semibold text-forest-100">
-                        {m?.sauna_name || <span className="text-forest-300/50 font-normal text-sm">Kein Aufguss-Name gesetzt</span>}
-                      </span>
-                      {!canChangeSaunaName && (
-                        <p className="text-xs text-forest-400/60 mt-0.5">Noch {daysUntilNextChange} Tage bis zur nächsten Änderung</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => { setEditingSaunaName(true); setSaunaNameInput(m?.sauna_name ?? ''); setSaunaNameError(null); }}
-                      disabled={!canChangeSaunaName}
-                      className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {m?.sauna_name ? 'Ändern' : 'Name setzen'}
+                    <span className="text-sm text-forest-200 tabular-nums">
+                      {m.entry_code ? '●●●●●●' : <span className="text-forest-300/50 italic">Nicht gesetzt</span>}
+                    </span>
+                    <button onClick={() => { setEditingCode(true); setCodeInput(''); setCodeError(null); }}
+                      className="rounded-lg bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 ring-1 ring-violet-500/30 hover:bg-violet-500/25">
+                      {m.entry_code ? '✏️ Ändern' : '+ Code setzen'}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={saunaNameInput}
-                      onChange={(e) => setSaunaNameInput(e.target.value)}
-                      placeholder="z.B. Der Feuermeister"
-                      maxLength={40}
-                      autoFocus
-                      className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
-                    />
-                    {saunaNameError && <p className="text-xs text-rose-300">{saunaNameError}</p>}
+                    <input type="text" value={codeInput} onChange={(e) => setCodeInput(e.target.value)}
+                      placeholder="4–8 Zeichen, z.B. sonne7" maxLength={8} autoFocus
+                      className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                    {codeError && <p className="text-xs text-rose-300">{codeError}</p>}
                     <div className="flex gap-2">
-                      <button onClick={saveSaunaName} disabled={setSaunaName.isPending}
-                        className="flex-1 rounded-lg bg-forest-500 px-3 py-2 text-sm font-semibold text-forest-950 hover:bg-forest-400 disabled:opacity-60">
-                        {setSaunaName.isPending ? 'Speichere…' : 'Speichern'}
+                      <button onClick={saveEntryCode} disabled={updateEntryCode.isPending}
+                        className="flex-1 rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-60">
+                        {updateEntryCode.isPending ? 'Speichere…' : 'Speichern'}
                       </button>
-                      <button onClick={() => { setEditingSaunaName(false); setSaunaNameError(null); }}
+                      {m.entry_code && (
+                        <button onClick={async () => { if (!m) return; await updateEntryCode.mutateAsync({ id: m.id, entry_code: null }); setEditingCode(false); }}
+                          className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/30 hover:bg-rose-500/25">
+                          Löschen
+                        </button>
+                      )}
+                      <button onClick={() => { setEditingCode(false); setCodeError(null); }}
                         className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-300 ring-1 ring-forest-700/50 hover:bg-forest-900">
                         Abbrechen
                       </button>
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
-              {/* Eigene Buttons */}
-              {m?.custom_attrs_enabled !== false && (
-                <Card title={`Meine Buttons (${customAttrs.length}/8)`}>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {customAttrs.map((a) => (
-                      <div
-                        key={a.id}
-                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-white/10"
-                        style={{ background: a.color, color: '#0b1f10' }}
-                      >
-                        <span>{a.emoji}</span>
-                        <span>{a.label}</span>
-                      </div>
-                    ))}
-                    {customAttrs.length === 0 && (
-                      <p className="text-xs text-forest-300/60">Noch keine eigenen Buttons erstellt.</p>
-                    )}
-                  </div>
-                  {customAttrs.length < 8 ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAttrCreator(true)}
-                      className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800"
-                    >
-                      + Button erstellen
-                    </button>
-                  ) : (
-                    <p className="text-xs text-forest-400/60">Maximum erreicht. Nur Admin kann Buttons löschen.</p>
-                  )}
-                </Card>
-              )}
-
-              {/* Meine Auszeichnungen */}
-              {m && (
-                <Card title="Meine Auszeichnungen">
-                  <BadgeShowcase memberId={m.id} />
-                </Card>
-              )}
-
-              {/* Meine Bewertungen */}
-              {m && (
-                <Card title="Meine Bewertungen">
-                  <MeisterRadarWidget memberId={m.id} />
-                </Card>
-              )}
-
-
-
+              <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-800/30 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs">🏅</span>
+                  <h3 className="text-[11px] font-bold text-violet-300/80 uppercase tracking-[0.12em]">Auszeichnungen</h3>
+                </div>
+                <TrophyWall memberId={m.id} />
+              </div>
             </div>
-          )}
-        </div>
+          </HubZone>
+        )}
       </div>
     </PageBackground>
   );

@@ -3,33 +3,34 @@ import { RATING_CATEGORIES } from '@/lib/ratingCategories';
 
 interface MeisterRadarWidgetProps {
   memberId: string;
+  size?: 'md' | 'lg';
 }
 
-const SIZE = 160;
-const CENTER = SIZE / 2;
-const R_MAX = 60;
 const N = RATING_CATEGORIES.length;
 
-function polarToXY(angle: number, r: number) {
+function polarToXY(angle: number, r: number, center: number) {
   const rad = (angle - 90) * (Math.PI / 180);
   return {
-    x: CENTER + r * Math.cos(rad),
-    y: CENTER + r * Math.sin(rad),
+    x: center + r * Math.cos(rad),
+    y: center + r * Math.sin(rad),
   };
 }
 
-function toPoints(values: number[]) {
+function toPoints(values: number[], rMax: number, center: number) {
   return values
     .map((v, i) => {
       const angle = (360 / N) * i;
-      const r = (v / 5) * R_MAX;
-      const { x, y } = polarToXY(angle, r);
+      const r = (v / 5) * rMax;
+      const { x, y } = polarToXY(angle, r, center);
       return `${x},${y}`;
     })
     .join(' ');
 }
 
-export function MeisterRadarWidget({ memberId }: MeisterRadarWidgetProps) {
+export function MeisterRadarWidget({ memberId, size = 'md' }: MeisterRadarWidgetProps) {
+  const SIZE = size === 'lg' ? 240 : 160;
+  const CENTER = SIZE / 2;
+  const R_MAX = size === 'lg' ? 92 : 60;
   const { data, isLoading } = useMeisterRatingAvg(memberId);
 
   if (isLoading) {
@@ -57,8 +58,8 @@ export function MeisterRadarWidget({ memberId }: MeisterRadarWidgetProps) {
     data.duftentwicklung ?? 0,
   ];
 
-  const maxPoints = toPoints(Array(N).fill(5));
-  const dataPoints = toPoints(vals);
+  const maxPoints = toPoints(Array(N).fill(5), R_MAX, CENTER);
+  const dataPoints = toPoints(vals, R_MAX, CENTER);
 
   const overall = vals.reduce((a, b) => a + b, 0) / vals.length;
 
@@ -71,7 +72,7 @@ export function MeisterRadarWidget({ memberId }: MeisterRadarWidgetProps) {
             const pts = Array.from({ length: N }, (_, i) => {
               const angle = (360 / N) * i;
               const r = (ring / 5) * R_MAX;
-              const { x, y } = polarToXY(angle, r);
+              const { x, y } = polarToXY(angle, r, CENTER);
               return `${x},${y}`;
             }).join(' ');
             return (
@@ -88,7 +89,7 @@ export function MeisterRadarWidget({ memberId }: MeisterRadarWidgetProps) {
           {/* Axis lines */}
           {Array.from({ length: N }, (_, i) => {
             const angle = (360 / N) * i;
-            const { x, y } = polarToXY(angle, R_MAX);
+            const { x, y } = polarToXY(angle, R_MAX, CENTER);
             return (
               <line
                 key={i}
@@ -121,7 +122,7 @@ export function MeisterRadarWidget({ memberId }: MeisterRadarWidgetProps) {
           {/* Category labels */}
           {RATING_CATEGORIES.map((cat, i) => {
             const angle = (360 / N) * i;
-            const { x, y } = polarToXY(angle, R_MAX + 14);
+            const { x, y } = polarToXY(angle, R_MAX + 14, CENTER);
             return (
               <text
                 key={cat.id}
@@ -129,13 +130,29 @@ export function MeisterRadarWidget({ memberId }: MeisterRadarWidgetProps) {
                 y={y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fontSize="10"
+                fontSize={size === 'lg' ? 14 : 10}
                 fill="#86efac"
               >
                 {cat.emoji}
               </text>
             );
           })}
+
+          {/* Big center score for lg variant */}
+          {size === 'lg' && (
+            <text
+              x={CENTER}
+              y={CENTER}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="32"
+              fontWeight="900"
+              fill="#86efac"
+              style={{ filter: 'drop-shadow(0 0 6px #4ade8060)' }}
+            >
+              {overall.toFixed(1)}
+            </text>
+          )}
         </svg>
       </div>
 
