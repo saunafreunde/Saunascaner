@@ -17,6 +17,7 @@ import { TodayLiveBento } from '@/components/TodayLiveBento';
 import { AtelierTabs } from '@/components/AtelierTabs';
 import { IdentityCard } from '@/components/IdentityCard';
 import { TrophyWall } from '@/components/TrophyWall';
+import { WmStandMini } from '@/components/WmStandMini';
 import { fireBadgeUnlock, fireFirstInfusionOfDay } from '@/lib/confetti';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -765,6 +766,9 @@ export default function Planner() {
                   <MeisterRadarWidget memberId={m.id} size="lg" />
                 </div>
               </div>
+
+              {/* WM-Tipspiel Mini-Widget */}
+              <WmStandMini memberId={m.id} />
 
               <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-800/30 p-4">
                 <div className="flex items-center gap-2 mb-2">
