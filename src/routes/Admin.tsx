@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { AdminQuickNav } from '@/components/AdminQuickNav';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember,
@@ -22,41 +22,70 @@ import { fmtClock } from '@/lib/time';
 
 type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'branding' | 'polls';
 
+const TAB_META: Record<Tab, { label: string; icon: string }> = {
+  saunas:   { label: 'Saunen',      icon: '🔥' },
+  members:  { label: 'Mitglieder',  icon: '👥' },
+  presence: { label: 'Anwesenheit', icon: '🟢' },
+  stats:    { label: 'Statistik',   icon: '📊' },
+  branding: { label: 'Branding',    icon: '🎨' },
+  polls:    { label: 'Abfragen',    icon: '📋' },
+};
+
 export default function Admin() {
   const { signOut } = useAuth();
   const [tab, setTab] = useState<Tab>('saunas');
 
   return (
     <div className="bg-schwarzwald-soft min-h-full text-slate-100">
-      <header className="border-b border-forest-800/40 bg-forest-950/85 backdrop-blur px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg sm:text-2xl font-semibold text-forest-100">Admin</h1>
-          <p className="text-xs text-forest-300/80">Super-Admin · Stammdaten & Steuerung</p>
+      {/* Sticky modern header */}
+      <header className="sticky top-0 z-30 border-b border-forest-800/40 bg-forest-950/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-forest-500 to-forest-700 text-base shadow-lg shadow-forest-900/50">
+              ⚙️
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-semibold text-forest-100 leading-tight">Admin</h1>
+              <p className="text-[10px] sm:text-xs text-forest-400 truncate">Stammdaten · Steuerung · Branding</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <AdminQuickNav variant="icons" />
+            <button
+              onClick={() => signOut()}
+              className="rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900 transition"
+            >
+              Abmelden
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/dashboard" className="text-xs text-forest-300 hover:text-forest-100 underline">Tafel</Link>
-          <button onClick={() => signOut()} className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900">
-            Abmelden
-          </button>
+
+        {/* Modern segmented tab bar */}
+        <div className="mx-auto max-w-6xl px-4 pb-2 -mt-1">
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
+            {(Object.keys(TAB_META) as Tab[]).map((t) => {
+              const active = tab === t;
+              const meta = TAB_META[t];
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap transition ${
+                    active
+                      ? 'bg-forest-500 text-forest-950 shadow-md ring-1 ring-forest-400'
+                      : 'text-forest-300 hover:bg-forest-900/60 hover:text-forest-100'
+                  }`}
+                >
+                  <span>{meta.icon}</span>
+                  <span>{meta.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
-      <nav className="flex flex-wrap gap-2 px-4 pt-3">
-        {(['saunas', 'members', 'presence', 'stats', 'branding', 'polls'] as Tab[]).map((t) => (
-          <button
-            key={t} onClick={() => setTab(t)}
-            className={`rounded-lg px-3 py-2 text-sm font-medium ring-1 ${
-              tab === t
-                ? 'bg-forest-500 text-forest-950 ring-forest-400'
-                : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
-            }`}
-          >
-            {t === 'saunas' ? 'Saunen' : t === 'members' ? 'Mitglieder' : t === 'presence' ? 'Anwesenheit' : t === 'stats' ? 'Statistik' : t === 'branding' ? 'Branding' : '📋 Abfragen'}
-          </button>
-        ))}
-      </nav>
-
-      <div className="mx-auto max-w-5xl p-4">
+      <div className="mx-auto max-w-6xl p-4 sm:p-6">
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}
         {tab === 'presence' && <PresenceTab />}

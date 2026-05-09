@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore, formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { differenceInDays } from 'date-fns';
@@ -16,6 +16,7 @@ import AchievementToast from '@/components/AchievementToast';
 import MonthlyLeaderboard from '@/components/MonthlyLeaderboard';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
+import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useSaunas, useInfusions, useTemplates,
@@ -61,11 +62,23 @@ function slotToDate(day: 'today' | 'tomorrow', hhmm: string): Date {
 
 const DURATIONS = [10, 15, 20, 25, 30] as const;
 
-function Card({ title, children, className = '' }: { title?: string; children: React.ReactNode; className?: string }) {
+function Card({ title, icon, children, className = '', accent }: {
+  title?: string;
+  icon?: string;
+  children: React.ReactNode;
+  className?: string;
+  accent?: string;
+}) {
   return (
-    <div className={`rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur ${className}`}>
+    <div
+      className={`relative overflow-hidden rounded-2xl bg-gradient-to-b from-forest-950/80 to-forest-950/60 p-4 ring-1 ring-forest-800/50 backdrop-blur-md shadow-lg shadow-black/20 ${className}`}
+      style={accent ? { boxShadow: `inset 0 1px 0 ${accent}33, 0 8px 24px rgba(0,0,0,0.25)` } : undefined}
+    >
       {title && (
-        <h2 className="text-xs font-semibold text-forest-400 uppercase tracking-wider mb-3">{title}</h2>
+        <h2 className="flex items-center gap-2 text-[11px] font-semibold text-forest-300/80 uppercase tracking-[0.12em] mb-3">
+          {icon && <span className="text-sm">{icon}</span>}
+          <span>{title}</span>
+        </h2>
       )}
       {children}
     </div>
@@ -453,39 +466,42 @@ export default function Planner() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="border-b border-forest-800/40 bg-forest-950/85 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg sm:text-xl font-semibold text-forest-100 truncate">
-            {m ? `Hallo, ${m.name.split(' ')[0]}` : 'Interner Bereich'}
-          </h1>
-          {m && (
-            <p className="text-xs text-forest-300/70 truncate">
-              {fmtMemberNumber(m.member_number)}
-              {m.is_aufgieser && <span className="ml-1.5 text-amber-300">· Aufgieser</span>}
-              {isAdmin && <span className="ml-1.5 text-forest-300">· Admin</span>}
-              {m.sauna_name && <span className="ml-1.5 text-forest-200">· {m.sauna_name}</span>}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Link to="/dashboard" className="hidden sm:inline text-xs text-forest-300 hover:text-forest-100 underline">
-            Tafel
-          </Link>
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="rounded-lg bg-forest-700/50 px-3 py-1.5 text-xs font-semibold text-forest-100 ring-1 ring-forest-600/40 hover:bg-forest-700"
+      {/* Modern sticky glassmorphism header */}
+      <header className="sticky top-0 z-30 border-b border-forest-800/40 bg-forest-950/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 py-2.5 sm:py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-forest-400 via-forest-500 to-forest-700 text-base font-bold text-forest-950 shadow-lg shadow-forest-900/50">
+              {m?.name?.charAt(0).toUpperCase() ?? '?'}
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-base font-semibold text-forest-100 leading-tight truncate">
+                {m ? `Hallo, ${m.name.split(' ')[0]}` : 'Interner Bereich'}
+              </h1>
+              {m && (
+                <p className="text-[10px] sm:text-xs text-forest-400 truncate flex flex-wrap items-center gap-x-1.5">
+                  <span>{fmtMemberNumber(m.member_number)}</span>
+                  {m.is_aufgieser && <span className="text-amber-300">· Aufgieser</span>}
+                  {isAdmin && <span className="text-violet-300">· Admin</span>}
+                  {m.sauna_name && <span className="text-forest-200">· {m.sauna_name}</span>}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isAdmin ? (
+              <AdminQuickNav variant="icons" />
+            ) : (
+              <Link to="/dashboard" className="hidden sm:flex h-9 w-9 items-center justify-center rounded-lg text-base bg-forest-900/60 text-forest-300 ring-1 ring-forest-800/50 hover:bg-forest-800 transition" title="Tafel">
+                📺
+              </Link>
+            )}
+            <button
+              onClick={() => signOut()}
+              className="rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900 transition"
             >
-              Admin-Bereich
-            </Link>
-          )}
-          <button
-            onClick={() => signOut()}
-            className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
-          >
-            Abmelden
-          </button>
+              Abmelden
+            </button>
+          </div>
         </div>
       </header>
 
@@ -493,13 +509,11 @@ export default function Planner() {
         <div className="border-b border-forest-800/40 bg-forest-950/70 px-4 py-2 text-xs text-forest-200">{evacToast}</div>
       )}
 
-      {/* 2-Spalten-Layout (Desktop) */}
-      <div className="mx-auto max-w-7xl p-3 sm:p-4 lg:p-6">
+      {/* Modern Layout */}
+      <div className="mx-auto max-w-7xl p-3 sm:p-4 lg:p-6 space-y-4">
+
+        {/* ══ HERO-ROW: Anwesenheit + Notfall ═══════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          {/* ══ LINKE SPALTE: Persönlicher Bereich ══════════════════════════ */}
-          <div className="space-y-4">
-
             {/* Check-in/out */}
             <Card>
               <div className="text-center">
@@ -543,6 +557,179 @@ export default function Planner() {
                 )}
               </div>
             </Card>
+
+          {isAufgieser && (
+            <div className="rounded-2xl border-2 border-rose-600/60 bg-rose-950/40 p-4 ring-1 ring-rose-500/30 backdrop-blur">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-rose-200">🚨 Notfall</h2>
+                  <p className="mt-0.5 text-xs text-rose-200/80">Vollbild-Alarm + Telegram</p>
+                </div>
+                <button type="button" disabled={trigEvac.isPending || !!evacuation} onClick={triggerEvacuation}
+                  className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold uppercase tracking-wider text-white hover:bg-rose-500 transition disabled:opacity-60 whitespace-nowrap">
+                  {evacuation ? 'Alarm läuft …' : trigEvac.isPending ? 'Sendet …' : 'Evakuierung'}
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-rose-200/60">Anwesend: {presentQ.data?.length ?? 0} Personen</p>
+            </div>
+          )}
+        </div>
+
+        {/* ══ AUFGUSS-FORMULAR: Volle Breite ═══════════════════════ */}
+        {isAufgieser && (
+          <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
+            <h2 className="text-sm font-semibold text-forest-100 uppercase tracking-wider">Neuen Aufguss eintragen</h2>
+
+            <div className="grid grid-cols-2 gap-2">
+              {(['today', 'tomorrow'] as const).map((d) => (
+                <button key={d} type="button" onClick={() => setDay(d)}
+                  className={`rounded-xl px-4 py-3 text-sm font-medium ring-1 transition ${
+                    day === d ? 'bg-forest-600 text-white ring-forest-500' : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
+                  }`}>
+                  {d === 'today' ? 'Heute' : 'Morgen'}
+                </button>
+              ))}
+            </div>
+
+            {isMondaySelected ? (
+              <div className="rounded-xl bg-forest-900/60 px-4 py-6 text-center text-forest-300/70 ring-1 ring-forest-800/40">
+                Montag keine Aufgüsse
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs text-forest-300">Sauna</label>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {saunas.map((s) => (
+                      <button key={s.id} type="button" onClick={() => setSaunaId(s.id)}
+                        className="rounded-xl px-2 py-3 text-sm ring-1 transition"
+                        style={saunaId === s.id
+                          ? { background: s.accent_color, color: '#0b1f10', boxShadow: `0 0 0 2px ${s.accent_color}66` }
+                          : { background: 'rgba(20, 83, 45, 0.55)' }}>
+                        <div className="font-semibold truncate">{s.name}</div>
+                        <div className="text-xs opacity-80">{s.temperature_label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-forest-300">Uhrzeit (11–20 Uhr)</label>
+                  <div className="mt-2 grid grid-cols-5 gap-1.5">
+                    {availableSlots.map((s) => {
+                      const taken = isSlotTaken(s);
+                      const past = day === 'today' && isBefore(slotToDate('today', s), new Date());
+                      const disabled = taken || past;
+                      return (
+                        <button key={s} type="button" disabled={disabled} onClick={() => setSlot(s)}
+                          className={`rounded-md px-1 py-2.5 text-xs font-mono tabular-nums ring-1 transition ${
+                            slot === s && !disabled
+                              ? 'bg-forest-500 text-forest-950 ring-forest-400 font-bold'
+                              : disabled
+                                ? 'bg-forest-950/40 text-forest-300/30 ring-forest-900/40 cursor-not-allowed line-through'
+                                : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
+                          }`}>
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                  <div>
+                    <label className="text-xs text-forest-300">Titel</label>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)}
+                      placeholder="z.B. Eukalyptus klassisch"
+                      className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-forest-300">Dauer</label>
+                    <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}
+                      className="mt-1.5 rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
+                      {DURATIONS.map((d) => <option key={d} value={d}>{d} Min</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-forest-300">Beschreibung (optional)</label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+                    rows={2} placeholder="z.B. Klärend & frisch"
+                    className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
+                </div>
+
+                <div>
+                  <label className="text-xs text-forest-300">Eigenschaften</label>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {ATTRIBUTES.map((a) => {
+                      const active = attrs.includes(a.id);
+                      return (
+                        <button key={a.id} type="button" onClick={() => toggleAttr(a.id)}
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${
+                            active ? 'bg-forest-500 text-forest-950 ring-forest-400' : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
+                          }`}>
+                          <span aria-hidden>{a.emoji}</span><span>{a.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Eigene Buttons im Formular */}
+                {customAttrs.length > 0 && (
+                  <div>
+                    <label className="text-xs text-forest-300">Meine Buttons</label>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {customAttrs.map((a) => {
+                        const active = customAttrIds.includes(a.id);
+                        return (
+                          <button key={a.id} type="button" onClick={() => toggleCustomAttr(a.id)}
+                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs ring-1 transition"
+                            style={active
+                              ? { background: a.color, color: '#0b1f10', boxShadow: `0 0 0 2px ${a.color}66` }
+                              : { background: 'rgba(20, 83, 45, 0.55)', color: '#d1fae5' }}>
+                            <span aria-hidden>{a.emoji}</span><span>{a.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setTeamInfusion((v) => !v)}>
+                  <div className={`relative w-10 h-6 rounded-full transition flex-shrink-0 ${teamInfusion ? 'bg-amber-500' : 'bg-forest-800'}`}>
+                    <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${teamInfusion ? 'translate-x-4' : ''}`} />
+                  </div>
+                  <span className="text-xs text-forest-200">
+                    Team-Aufguss <span className="text-forest-300/60">— andere Aufgieser können mitmachen</span>
+                  </span>
+                </div>
+
+                {formError && (
+                  <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{formError}</div>
+                )}
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
+                  <button type="submit" disabled={addInf.isPending}
+                    className="flex-1 rounded-xl bg-forest-500 px-4 py-3 text-sm font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60">
+                    {addInf.isPending ? 'Speichere …' : 'Aufguss eintragen'}
+                  </button>
+                  <button type="button" onClick={saveAsTemplate} disabled={addTpl.isPending}
+                    className="rounded-xl bg-forest-900/70 px-3 py-2.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-60">
+                    Als Vorlage
+                  </button>
+                </div>
+              </>
+            )}
+          </form>
+        )}
+
+        {/* ══ 2-SPALTEN-GRID: weitere Karten ═══════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          {/* ══ LINKE SPALTE: Persönlicher Bereich ══════════════════════════ */}
+          <div className="space-y-4">
 
             {/* Offene Polls */}
             {openPolls.length > 0 && (
@@ -706,153 +893,6 @@ export default function Planner() {
           {isAufgieser && (
             <div className="space-y-4">
 
-              {/* Aufguss-Formular */}
-              <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
-                <h2 className="text-sm font-semibold text-forest-100 uppercase tracking-wider">Neuen Aufguss eintragen</h2>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {(['today', 'tomorrow'] as const).map((d) => (
-                    <button key={d} type="button" onClick={() => setDay(d)}
-                      className={`rounded-xl px-4 py-3 text-sm font-medium ring-1 transition ${
-                        day === d ? 'bg-forest-600 text-white ring-forest-500' : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
-                      }`}>
-                      {d === 'today' ? 'Heute' : 'Morgen'}
-                    </button>
-                  ))}
-                </div>
-
-                {isMondaySelected ? (
-                  <div className="rounded-xl bg-forest-900/60 px-4 py-6 text-center text-forest-300/70 ring-1 ring-forest-800/40">
-                    Montag keine Aufgüsse
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label className="text-xs text-forest-300">Sauna</label>
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        {saunas.map((s) => (
-                          <button key={s.id} type="button" onClick={() => setSaunaId(s.id)}
-                            className="rounded-xl px-2 py-3 text-sm ring-1 transition"
-                            style={saunaId === s.id
-                              ? { background: s.accent_color, color: '#0b1f10', boxShadow: `0 0 0 2px ${s.accent_color}66` }
-                              : { background: 'rgba(20, 83, 45, 0.55)' }}>
-                            <div className="font-semibold truncate">{s.name}</div>
-                            <div className="text-xs opacity-80">{s.temperature_label}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-forest-300">Uhrzeit (11–20 Uhr)</label>
-                      <div className="mt-2 grid grid-cols-5 gap-1.5">
-                        {availableSlots.map((s) => {
-                          const taken = isSlotTaken(s);
-                          const past = day === 'today' && isBefore(slotToDate('today', s), new Date());
-                          const disabled = taken || past;
-                          return (
-                            <button key={s} type="button" disabled={disabled} onClick={() => setSlot(s)}
-                              className={`rounded-md px-1 py-2.5 text-xs font-mono tabular-nums ring-1 transition ${
-                                slot === s && !disabled
-                                  ? 'bg-forest-500 text-forest-950 ring-forest-400 font-bold'
-                                  : disabled
-                                    ? 'bg-forest-950/40 text-forest-300/30 ring-forest-900/40 cursor-not-allowed line-through'
-                                    : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
-                              }`}>
-                              {s}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-[1fr_auto] gap-2">
-                      <div>
-                        <label className="text-xs text-forest-300">Titel</label>
-                        <input value={title} onChange={(e) => setTitle(e.target.value)}
-                          placeholder="z.B. Eukalyptus klassisch"
-                          className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-forest-300">Dauer</label>
-                        <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}
-                          className="mt-1.5 rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
-                          {DURATIONS.map((d) => <option key={d} value={d}>{d} Min</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-forest-300">Beschreibung (optional)</label>
-                      <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-                        rows={2} placeholder="z.B. Klärend & frisch"
-                        className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-forest-300">Eigenschaften</label>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        {ATTRIBUTES.map((a) => {
-                          const active = attrs.includes(a.id);
-                          return (
-                            <button key={a.id} type="button" onClick={() => toggleAttr(a.id)}
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${
-                                active ? 'bg-forest-500 text-forest-950 ring-forest-400' : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
-                              }`}>
-                              <span aria-hidden>{a.emoji}</span><span>{a.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Eigene Buttons im Formular */}
-                    {customAttrs.length > 0 && (
-                      <div>
-                        <label className="text-xs text-forest-300">Meine Buttons</label>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {customAttrs.map((a) => {
-                            const active = customAttrIds.includes(a.id);
-                            return (
-                              <button key={a.id} type="button" onClick={() => toggleCustomAttr(a.id)}
-                                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs ring-1 transition"
-                                style={active
-                                  ? { background: a.color, color: '#0b1f10', boxShadow: `0 0 0 2px ${a.color}66` }
-                                  : { background: 'rgba(20, 83, 45, 0.55)', color: '#d1fae5' }}>
-                                <span aria-hidden>{a.emoji}</span><span>{a.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => setTeamInfusion((v) => !v)}>
-                      <div className={`relative w-10 h-6 rounded-full transition flex-shrink-0 ${teamInfusion ? 'bg-amber-500' : 'bg-forest-800'}`}>
-                        <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${teamInfusion ? 'translate-x-4' : ''}`} />
-                      </div>
-                      <span className="text-xs text-forest-200">
-                        Team-Aufguss <span className="text-forest-300/60">— andere Aufgieser können mitmachen</span>
-                      </span>
-                    </div>
-
-                    {formError && (
-                      <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{formError}</div>
-                    )}
-
-                    <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
-                      <button type="submit" disabled={addInf.isPending}
-                        className="flex-1 rounded-xl bg-forest-500 px-4 py-3 text-sm font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60">
-                        {addInf.isPending ? 'Speichere …' : 'Aufguss eintragen'}
-                      </button>
-                      <button type="button" onClick={saveAsTemplate} disabled={addTpl.isPending}
-                        className="rounded-xl bg-forest-900/70 px-3 py-2.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-60">
-                        Als Vorlage
-                      </button>
-                    </div>
-                  </>
-                )}
-              </form>
               {/* Meine Aufgüsse */}
               <Card title="Meine Aufgüsse">
                 <ul className="space-y-2">
@@ -1044,20 +1084,7 @@ export default function Planner() {
                 </Card>
               )}
 
-              {/* Notfall */}
-              <div className="rounded-2xl border-2 border-rose-600/60 bg-rose-950/40 p-4 ring-1 ring-rose-500/30 backdrop-blur">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-rose-200">🚨 Notfall</h2>
-                    <p className="mt-0.5 text-xs text-rose-200/80">Vollbild-Alarm + Telegram</p>
-                  </div>
-                  <button type="button" disabled={trigEvac.isPending || !!evacuation} onClick={triggerEvacuation}
-                    className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold uppercase tracking-wider text-white hover:bg-rose-500 transition disabled:opacity-60 whitespace-nowrap">
-                    {evacuation ? 'Alarm läuft …' : trigEvac.isPending ? 'Sendet …' : 'Evakuierung'}
-                  </button>
-                </div>
-                <p className="mt-2 text-[11px] text-rose-200/60">Anwesend: {presentQ.data?.length ?? 0} Personen</p>
-              </div>
+
 
             </div>
           )}
