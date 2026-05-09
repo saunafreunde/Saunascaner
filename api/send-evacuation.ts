@@ -58,8 +58,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Mit Foto senden via sendPhoto
         const fd = new FormData();
         fd.append('chat_id', String(chat_id));
-        const photoBytes = Uint8Array.from(photoBuffer);
-        fd.append('photo', new Blob([photoBytes], { type: 'image/jpeg' }), 'evac.jpg');
+        // Buffer → frischer ArrayBuffer (nicht SharedArrayBuffer) für TS-strict Blob-Kompatibilität
+        const ab = photoBuffer.buffer.slice(
+          photoBuffer.byteOffset,
+          photoBuffer.byteOffset + photoBuffer.byteLength
+        ) as ArrayBuffer;
+        fd.append('photo', new Blob([ab], { type: 'image/jpeg' }), 'evac.jpg');
         fd.append('caption', caption);
         fd.append('parse_mode', 'MarkdownV2');
         const r = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
