@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { format, parse } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -12,7 +13,9 @@ import { PWAInstallButton } from '@/components/PWAInstallButton';
 import {
   useCurrentMember, useMember, useMemberStats,
   useAttendanceStreak, useWmLeaderboard,
+  useFavoriteOils, useSignatureInfusion, useSetMotto,
 } from '@/lib/api';
+import { OIL_BY_ID } from '@/lib/oils';
 
 export default function Profile() {
   const { memberId } = useParams<{ memberId: string }>();
@@ -26,6 +29,24 @@ export default function Profile() {
   const m = memberQ.data;
   const isAdmin = me.data?.role === 'admin';
   const isMyself = me.data?.id === memberId;
+  const favOilsQ = useFavoriteOils(memberId);
+  const sigInfQ = useSignatureInfusion(memberId);
+  const setMotto = useSetMotto();
+  const [editingMotto, setEditingMotto] = useState(false);
+  const [mottoDraft, setMottoDraft] = useState('');
+  const [mottoError, setMottoError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editingMotto) setMottoDraft(m?.motto ?? '');
+  }, [m?.motto, editingMotto]);
+
+  async function saveMotto() {
+    setMottoError(null);
+    try {
+      await setMotto.mutateAsync(mottoDraft);
+      setEditingMotto(false);
+    } catch (e) { setMottoError((e as Error).message); }
+  }
 
   const wmEntry = (lbQ.data ?? []).find((e) => e.member_id === memberId);
   const wmRank = wmEntry ? (lbQ.data ?? []).findIndex((e) => e.member_id === memberId) + 1 : null;
@@ -100,6 +121,64 @@ export default function Profile() {
               </div>
             </div>
           </div>
+
+          {/* Motto */}
+          <div className="mt-4 border-t border-forest-800/40 pt-4">
+            {!isMyself ? (
+              m.motto ? (
+                <p className="text-sm sm:text-base italic text-forest-200/90 leading-relaxed">
+                  „{m.motto}"
+                </p>
+              ) : null
+            ) : editingMotto ? (
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-forest-400/80">Mein Motto</label>
+                <textarea
+                  value={mottoDraft}
+                  onChange={(e) => setMottoDraft(e.target.value.slice(0, 200))}
+                  rows={2}
+                  maxLength={200}
+                  placeholder="z.B. Hitze ist Heimat. — Ein Spruch, der dich als Aufgieser ausmacht."
+                  className="mt-1 w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-forest-500 tabular-nums">{mottoDraft.length}/200</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setEditingMotto(false); setMottoError(null); }}
+                      className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900 transition"
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      onClick={saveMotto}
+                      disabled={setMotto.isPending}
+                      className="rounded-lg bg-forest-500 px-3 py-1.5 text-xs font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60"
+                    >
+                      {setMotto.isPending ? 'Speichere…' : 'Speichern'}
+                    </button>
+                  </div>
+                </div>
+                {mottoError && <p className="mt-1 text-xs text-rose-300">{mottoError}</p>}
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditingMotto(true)}
+                className="group w-full text-left"
+              >
+                {m.motto ? (
+                  <p className="text-sm sm:text-base italic text-forest-200/90 leading-relaxed group-hover:text-forest-100 transition">
+                    „{m.motto}"
+                    <span className="ml-2 text-[10px] text-forest-500 group-hover:text-forest-300">✏️ bearbeiten</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-forest-400/70 italic group-hover:text-forest-300 transition">
+                    + Motto hinzufügen — was macht dich als Saunafreund aus?
+                  </p>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Stats Bento */}
@@ -109,6 +188,64 @@ export default function Profile() {
             <StatTile label="Team-Aufgüsse" value={statsQ.data.team_infusions} icon="🤝" />
             <StatTile label="Diesen Monat" value={statsQ.data.monthly_infusions} icon="📅" />
             <StatTile label="Streak (Wochen)" value={streakQ.data ?? 0} icon="🔥" highlight={(streakQ.data ?? 0) >= 4} />
+          </div>
+        )}
+
+        {/* Aufgieser-Identität: Signatur-Aufguss + Lieblings-Öle (nur für Aufgieser) */}
+        {m.is_aufgieser && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-forest-950/60 ring-1 ring-amber-700/30 p-5">
+              <h3 className="text-[11px] font-bold text-amber-300/80 uppercase tracking-[0.12em] mb-2 flex items-center gap-2">
+                <span>🔥</span><span>Signatur-Aufguss</span>
+              </h3>
+              {sigInfQ.isLoading ? (
+                <p className="text-sm text-forest-400/60">Lade…</p>
+              ) : sigInfQ.data ? (
+                <div>
+                  <p className="text-lg font-semibold text-forest-100">{sigInfQ.data.title}</p>
+                  <p className="text-xs text-forest-400 mt-0.5">{sigInfQ.data.count}× gemeistert</p>
+                </div>
+              ) : (
+                <p className="text-sm text-forest-400/60 italic">
+                  Noch kein Stammgast-Aufguss — wird sichtbar ab 2× gleicher Titel.
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-forest-950/60 ring-1 ring-amber-700/30 p-5">
+              <h3 className="text-[11px] font-bold text-amber-300/80 uppercase tracking-[0.12em] mb-2 flex items-center gap-2">
+                <span>🌿</span><span>Lieblings-Öle</span>
+              </h3>
+              {favOilsQ.isLoading ? (
+                <p className="text-sm text-forest-400/60">Lade…</p>
+              ) : (favOilsQ.data ?? []).length > 0 ? (
+                <ul className="space-y-1.5">
+                  {favOilsQ.data!.map((row, i) => {
+                    const o = OIL_BY_ID[row.oil_id];
+                    return (
+                      <li key={row.oil_id} className="flex items-center gap-2 text-sm">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/20 text-[11px] font-bold text-amber-200 ring-1 ring-amber-400/30 tabular-nums shrink-0">
+                          {i + 1}
+                        </span>
+                        {o ? (
+                          <>
+                            <span aria-hidden className="text-base">{o.emoji}</span>
+                            <span className="text-forest-100 flex-1 truncate">{o.name}</span>
+                            <span className="text-xs text-forest-400 tabular-nums">×{row.usage_count}</span>
+                          </>
+                        ) : (
+                          <span className="text-forest-400 italic">{row.oil_id}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-sm text-forest-400/60 italic">
+                  Noch keine Öle in Aufgüssen vermerkt.
+                </p>
+              )}
+            </div>
           </div>
         )}
 

@@ -178,6 +178,12 @@ function MemberCard({ m, todayMD }: { m: MemberDirectoryEntry; todayMD: string }
         </div>
       </div>
 
+      {m.motto && (
+        <p className="mt-3 text-xs italic text-forest-300/80 line-clamp-2 leading-snug">
+          „{m.motto}"
+        </p>
+      )}
+
       <div className="mt-3 flex items-center justify-between text-[10px] text-forest-500">
         <span>Profil ansehen</span>
         <span className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition">→</span>

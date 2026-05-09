@@ -163,13 +163,10 @@ export function useMember(memberId: string | null | undefined) {
     queryKey: ['member', memberId ?? 'none'],
     enabled: !!memberId,
     queryFn: async () => {
-      const { data, error } = await need()
-        .from('members')
-        .select('id, name, sauna_name, member_number, is_aufgieser, role, birthday')
-        .eq('id', memberId!)
-        .maybeSingle();
+      const { data, error } = await need().rpc('get_member_public', { p_member_id: memberId! });
       if (error) throw error;
-      return (data ?? null) as null | { id: string; name: string; sauna_name: string | null; member_number: number | null; is_aufgieser: boolean; role: string; birthday: string | null };
+      const row = (data ?? [])[0] as undefined | { id: string; name: string; sauna_name: string | null; member_number: number | null; is_aufgieser: boolean; role: string; birthday: string | null; motto: string | null; created_at: string };
+      return row ?? null;
     },
   });
 }
@@ -186,6 +183,49 @@ export function useSetBirthday() {
       qc.invalidateQueries({ queryKey: ['current-member'] });
       qc.invalidateQueries({ queryKey: ['member'] });
       qc.invalidateQueries({ queryKey: ['birthdays-today'] });
+    },
+  });
+}
+
+export function useSetMotto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (motto: string) => {
+      const { data, error } = await need().rpc('set_my_motto', { p_motto: motto });
+      if (error) throw error;
+      if (data === 'too_long') throw new Error('Motto darf max. 200 Zeichen lang sein.');
+      if (data === 'not_authorized') throw new Error('Nicht berechtigt.');
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
+      qc.invalidateQueries({ queryKey: ['members-directory'] });
+    },
+  });
+}
+
+export function useFavoriteOils(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['favorite-oils', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_member_favorite_oils', { p_member_id: memberId! });
+      if (error) throw error;
+      return (data ?? []) as { oil_id: string; usage_count: number }[];
+    },
+  });
+}
+
+export function useSignatureInfusion(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['signature-infusion', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_member_signature_infusion', { p_member_id: memberId! });
+      if (error) throw error;
+      const row = (data ?? [])[0] as { title: string; count: number } | undefined;
+      return row ?? null;
     },
   });
 }
@@ -296,6 +336,7 @@ export type MemberDirectoryEntry = {
   is_aufgieser: boolean;
   is_present: boolean;
   birthday: string | null;
+  motto: string | null;
   created_at: string;
 };
 
