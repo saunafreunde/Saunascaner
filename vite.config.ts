@@ -18,6 +18,8 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'any',
         start_url: '/',
+        scope: '/',
+        id: '/',
         icons: [
           { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
