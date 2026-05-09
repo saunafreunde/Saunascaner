@@ -1,8 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    { "path": "/api/birthday-cron", "schedule": "0 7 * * *" },
-    { "path": "/api/push-reminder-cron", "schedule": "*/30 * * * *" }
+    { "path": "/api/birthday-cron", "schedule": "0 7 * * *" }
   ],
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
