@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { addMinutes, isBefore } from 'date-fns';
+import { addMinutes, isBefore, differenceInMinutes } from 'date-fns';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { SaunaColumn } from '@/components/SaunaColumn';
@@ -12,10 +12,14 @@ import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { BirthdayBanner } from '@/components/BirthdayBanner';
 import { fmtClock } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl, useCoAufgieser, useAllMembersBadges } from '@/lib/api';
+import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl, useCoAufgieser, useAllMembersBadges, useBirthdaysToday } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
+import { ParticleCanvas } from '@/components/ParticleCanvas';
+import { DayProgramStrip } from '@/components/DayProgramStrip';
+import type { ZwergMood } from '@/components/CuckooDoor';
+import { onDemo } from '@/lib/demoChannel';
 
 const HIDE_AFTER_END_MIN = 5;
 
@@ -30,6 +34,10 @@ export default function Dashboard() {
   const allBadgesQ = useAllMembersBadges();
 
   const [audioReady, setAudioReady] = useState(false);
+  const [doorOpen, setDoorOpen] = useState(false);
+  const [zwergMood, setZwergMood] = useState<ZwergMood>('idle');
+  const forceExitMode = useRef<'flames' | 'zwerg' | null>(null);
+  const birthdays = useBirthdaysToday();
 
   const teamInfusionIds = useMemo(
     () => (infusions.data ?? []).filter((i) => i.team_infusion).map((i) => i.id),
@@ -78,6 +86,70 @@ export default function Dashboard() {
     return map;
   }, [now, infusions.data]);
 
+  // ── Kuckuckstür-Logik ──────────────────────────────────────────────────
+  const nextInfusion = useMemo(() =>
+    (infusions.data ?? [])
+      .filter((i) => new Date(i.start_time) > now)
+      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
+      .at(0) ?? null,
+    [infusions.data, now]
+  );
+
+  const minutesUntilNext = nextInfusion
+    ? differenceInMinutes(new Date(nextInfusion.start_time), now)
+    : 999;
+
+  const isRunning = useMemo(() =>
+    (infusions.data ?? []).some((i) => {
+      const s = new Date(i.start_time);
+      const e = new Date(i.end_time);
+      return now >= s && now <= e;
+    }),
+    [infusions.data, now]
+  );
+
+  const hasBirthday = (birthdays.data ?? []).length > 0;
+
+  useEffect(() => {
+    if (evac.data) { setZwergMood('fleeing'); setDoorOpen(true); return; }
+    setZwergMood(hasBirthday ? 'birthday' : 'waving');
+    setDoorOpen(!isRunning && minutesUntilNext > 20);
+  }, [isRunning, minutesUntilNext, evac.data, hasBirthday]);
+
+  const handleZwergDrag = () => {
+    setDoorOpen(true);
+    setZwergMood('dragging');
+    setTimeout(() => setZwergMood('waving'), 2_600);
+  };
+
+  const handleDoorToggle = () => setDoorOpen((prev) => !prev);
+
+  // ── Demo-Channel Listener ──────────────────────────────────────────────
+  useEffect(() => {
+    return onDemo(async (e) => {
+      switch (e.type) {
+        case 'door_open':  setDoorOpen(true);  break;
+        case 'door_close': setDoorOpen(false); break;
+        case 'mood':
+          setZwergMood(e.mood);
+          setDoorOpen(true);
+          break;
+        case 'force_exit':
+          forceExitMode.current = e.mode;
+          break;
+        case 'confetti': {
+          const { fireBadgeUnlock } = await import('@/lib/confetti');
+          fireBadgeUnlock();
+          break;
+        }
+        case 'reset':
+          setZwergMood('waving');
+          forceExitMode.current = null;
+          break;
+      }
+    });
+  }, []);
+
   // Auto-recover audio if browser suspended
   useEffect(() => { if (audioReady) unlockAudio(); }, [audioReady]);
 
@@ -93,6 +165,7 @@ export default function Dashboard() {
 
   return (
     <PageBackground page="dashboard" variant="strong" className="min-h-screen flex flex-col">
+      <ParticleCanvas activeSaunaCount={activeSaunas.length} />
       <AnimatePresence>
         {evac.data && (
           <EvacuationOverlay
@@ -174,6 +247,19 @@ export default function Dashboard() {
           </AnimatePresence>
         </motion.main>
       </LayoutGroup>
+
+      <DayProgramStrip
+        infusions={infusions.data ?? []}
+        saunas={saunas.data ?? []}
+        meisterName={meisterName}
+        doorOpen={doorOpen}
+        zwergMood={zwergMood}
+        minutesUntilNext={minutesUntilNext}
+        nextTitle={nextInfusion?.title ?? ''}
+        forceExitMode={forceExitMode}
+        onZwergDrag={handleZwergDrag}
+        onDoorToggle={handleDoorToggle}
+      />
     </PageBackground>
   );
 }
