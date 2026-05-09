@@ -1,9 +1,17 @@
 // POST /api/push-send — sendet Push-Notifications an Mitglieder.
 // Body: { member_ids?: string[], title: string, body: string, url?: string, tag?: string }
-// Wenn member_ids leer/missing: an alle Subscriptions
+// Wenn member_ids leer/missing: an alle Subscriptions (nur Admin/Aufgieser/Cron).
+//
+// Authentifizierung:
+//  - Bearer <JWT>: Eingeloggtes Mitglied
+//      • Self-Test: member_ids === [eigene_id]
+//      • Broadcast (kein/leer member_ids): nur Admin oder is_aufgieser (z.B. Evakuierung)
+//      • Beliebige andere Empfänger: nur Admin
+//  - Cron-Aufruf (Server→Server): Header `x-cron-secret: <CRON_SECRET>` → unbeschränkt
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import { authenticate } from './_auth';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -17,8 +25,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'env missing (Supabase/VAPID)' });
   }
 
-  webpush.setVapidDetails(vapidSub, vapidPub, vapidPriv);
-
   const { member_ids, title, body, url, tag, requireInteraction } = req.body as {
     member_ids?: string[];
     title: string;
@@ -29,7 +35,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
   if (!title || !body) return res.status(400).json({ error: 'title + body required' });
 
-  const sb = createClient(supaUrl, serviceKey);
+  // Authorization
+  const cronSecret = process.env.CRON_SECRET;
+  const cronHeader = req.headers['x-cron-secret'];
+  const isCron = !!cronSecret && cronHeader === cronSecret;
+
+  let sb;
+  if (!isCron) {
+    const auth = await authenticate(req);
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+
+    const isAdmin = auth.member.role === 'admin';
+    const isAufgieser = !!auth.member.is_aufgieser;
+    const targets = Array.isArray(member_ids) ? member_ids : [];
+    const isBroadcast = targets.length === 0;
+    const isSelfOnly = targets.length === 1 && targets[0] === auth.member.id;
+
+    if (isBroadcast) {
+      if (!isAdmin && !isAufgieser) return res.status(403).json({ error: 'broadcast not allowed' });
+    } else if (!isAdmin && !isSelfOnly) {
+      return res.status(403).json({ error: 'cannot push to other members' });
+    }
+    sb = auth.service;
+  } else {
+    sb = createClient(supaUrl, serviceKey);
+  }
+
+  webpush.setVapidDetails(vapidSub, vapidPub, vapidPriv);
+
   let q = sb.from('push_subscriptions').select('id, endpoint, p256dh_key, auth_key, member_id');
   if (Array.isArray(member_ids) && member_ids.length > 0) {
     q = q.in('member_id', member_ids);

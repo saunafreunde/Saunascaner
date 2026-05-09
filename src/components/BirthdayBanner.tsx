@@ -33,7 +33,8 @@ export function BirthdayBanner() {
   }, [list.length, confettiFired]);
 
   if (list.length === 0) return null;
-  const person = list[idx];
+  const safeIdx = idx % list.length;
+  const person = list[safeIdx];
 
   return (
     <div className="mx-auto w-full max-w-[1920px] px-6 sm:px-10 pt-2">
@@ -65,7 +66,7 @@ export function BirthdayBanner() {
             </div>
             {list.length > 1 && (
               <div className="ml-auto text-xs text-pink-300 shrink-0">
-                {idx + 1} / {list.length}
+                {safeIdx + 1} / {list.length}
               </div>
             )}
           </div>

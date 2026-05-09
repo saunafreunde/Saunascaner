@@ -207,23 +207,33 @@ export async function fetchVapidPublicKey(): Promise<string> {
   return data.publicKey as string;
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const sb = need();
+  const { data } = await sb.auth.getSession();
+  const token = data.session?.access_token;
+  return token
+    ? { 'content-type': 'application/json', Authorization: `Bearer ${token}` }
+    : { 'content-type': 'application/json' };
+}
+
 export async function subscribePush(memberId: string, subscription: PushSubscription) {
   const json = subscription.toJSON();
-  await fetch('/api/push-subscribe', {
+  const r = await fetch('/api/push-subscribe', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await authHeaders(),
     body: JSON.stringify({
       member_id: memberId,
       subscription: { endpoint: json.endpoint, keys: json.keys },
       user_agent: navigator.userAgent,
     }),
   });
+  if (!r.ok) throw new Error(`push-subscribe failed: ${r.status}`);
 }
 
 export async function sendTestPush(memberId: string) {
-  await fetch('/api/push-send', {
+  const r = await fetch('/api/push-send', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await authHeaders(),
     body: JSON.stringify({
       member_ids: [memberId],
       title: '🧖 Saunafreunde — Test',
@@ -231,6 +241,22 @@ export async function sendTestPush(memberId: string) {
       url: '/planner',
     }),
   });
+  if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
+}
+
+export async function sendBroadcastPush(payload: {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  requireInteraction?: boolean;
+}) {
+  const r = await fetch('/api/push-send', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
 }
 
 export function useAttendanceStreak(memberId: string | null | undefined) {

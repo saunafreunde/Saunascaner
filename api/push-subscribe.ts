@@ -1,6 +1,7 @@
 // POST /api/push-subscribe — speichert eine Browser-Push-Subscription.
+// Erfordert gültiges Supabase-JWT. member_id muss der eingeloggte User sein.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+import { authenticate } from './_auth';
 
 interface PushSubBody {
   member_id: string;
@@ -11,18 +12,21 @@ interface PushSubBody {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supaUrl || !serviceKey) return res.status(500).json({ error: 'env missing' });
+  const auth = await authenticate(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
 
   const body = req.body as PushSubBody;
   if (!body?.member_id || !body?.subscription?.endpoint) {
     return res.status(400).json({ error: 'member_id and subscription required' });
   }
 
-  const sb = createClient(supaUrl, serviceKey);
-  const { error } = await sb.from('push_subscriptions').upsert({
-    member_id: body.member_id,
+  // member_id muss zur authentifizierten Person passen
+  if (body.member_id !== auth.member.id) {
+    return res.status(403).json({ error: 'member_id mismatch' });
+  }
+
+  const { error } = await auth.service.from('push_subscriptions').upsert({
+    member_id: auth.member.id,
     endpoint: body.subscription.endpoint,
     p256dh_key: body.subscription.keys.p256dh,
     auth_key: body.subscription.keys.auth,

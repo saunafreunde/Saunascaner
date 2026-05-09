@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data: subsRaw } = await sb
       .from('push_subscriptions')
       .select('endpoint, p256dh_key, auth_key, member_id')
-      .not('member_id', 'in', `(${birthdayMemberIds.map((id) => `'${id}'`).join(',') || "'00000000-0000-0000-0000-000000000000'"})`);
+      .not('member_id', 'in', `(${birthdayMemberIds.join(',') || '00000000-0000-0000-0000-000000000000'})`);
 
     type Sub = { endpoint: string; p256dh_key: string; auth_key: string; member_id: string };
     const subs = (subsRaw ?? []) as Sub[];
