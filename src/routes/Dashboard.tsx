@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { differenceInMinutes } from 'date-fns';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -18,12 +19,14 @@ import {
   publicAssetUrl,
   useCoAufgieser,
   useAllMembersBadges,
+  useBirthdaysToday,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
+import { CuckooDoor, type ZwergMood } from '@/components/CuckooDoor';
 import { onDemo } from '@/lib/demoChannel';
 
 export default function Dashboard() {
@@ -35,8 +38,11 @@ export default function Dashboard() {
   const evac = useActiveEvacuation();
   const tv = useTvSettings();
   const allBadgesQ = useAllMembersBadges();
+  const birthdays = useBirthdaysToday();
 
   const [audioReady, setAudioReady] = useState(false);
+  const [doorOpen, setDoorOpen] = useState(false);
+  const [zwergMood, setZwergMood] = useState<ZwergMood>('idle');
 
   const teamInfusionIds = useMemo(
     () => (infusions.data ?? []).filter((i) => i.team_infusion).map((i) => i.id),
@@ -70,12 +76,56 @@ export default function Dashboard() {
       .slice(0, 3);
   };
 
-  // ── Demo-Channel Listener (nur Confetti aktiv, Rest no-op) ─────────────
+  // ── Kuckuckstür-Logik ──────────────────────────────────────────────────
+  const nextInfusion = useMemo(() =>
+    (infusions.data ?? [])
+      .filter((i) => new Date(i.start_time) > now)
+      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
+      .at(0) ?? null,
+    [infusions.data, now]
+  );
+
+  const minutesUntilNext = nextInfusion
+    ? differenceInMinutes(new Date(nextInfusion.start_time), now)
+    : 999;
+
+  const isRunning = useMemo(() =>
+    (infusions.data ?? []).some((i) => {
+      const s = new Date(i.start_time);
+      const e = new Date(i.end_time);
+      return now >= s && now <= e;
+    }),
+    [infusions.data, now]
+  );
+
+  const hasBirthday = (birthdays.data ?? []).length > 0;
+
+  useEffect(() => {
+    if (evac.data) { setZwergMood('fleeing'); setDoorOpen(true); return; }
+    setZwergMood(hasBirthday ? 'birthday' : 'waving');
+    setDoorOpen(!isRunning && minutesUntilNext > 20);
+  }, [isRunning, minutesUntilNext, evac.data, hasBirthday]);
+
+  const handleDoorToggle = () => setDoorOpen((prev) => !prev);
+
+  // ── Demo-Channel Listener ──────────────────────────────────────────────
   useEffect(() => {
     return onDemo(async (e) => {
-      if (e.type === 'confetti') {
-        const { fireBadgeUnlock } = await import('@/lib/confetti');
-        fireBadgeUnlock();
+      switch (e.type) {
+        case 'door_open':  setDoorOpen(true);  break;
+        case 'door_close': setDoorOpen(false); break;
+        case 'mood':
+          setZwergMood(e.mood);
+          setDoorOpen(true);
+          break;
+        case 'confetti': {
+          const { fireBadgeUnlock } = await import('@/lib/confetti');
+          fireBadgeUnlock();
+          break;
+        }
+        case 'reset':
+          setZwergMood('waving');
+          break;
       }
     });
   }, []);
@@ -86,6 +136,7 @@ export default function Dashboard() {
     .map((a) => publicAssetUrl(a.image_path))
     .filter((u): u is string => Boolean(u));
 
+  const adsToShow = adImageUrls.slice(0, 3);
   const allInfusions = infusions.data ?? [];
 
   return (
@@ -103,7 +154,7 @@ export default function Dashboard() {
       {!audioReady && !evac.data && (
         <button
           onClick={() => { if (unlockAudio()) setAudioReady(true); }}
-          className="fixed bottom-4 right-4 z-50 rounded-full bg-forest-900/80 px-4 py-2 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
+          className="fixed bottom-4 left-4 z-50 rounded-full bg-forest-900/80 px-4 py-2 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
           title="Einmal klicken um Sirene-Sound zu aktivieren (Browser-Schutz)"
         >
           🔊 Ton aktivieren
@@ -145,21 +196,37 @@ export default function Dashboard() {
                 now={now}
               />
             ))}
-            {adImageUrls.length > 0 && (
-              <aside className="w-44 flex-shrink-0 flex flex-col gap-3">
-                {adImageUrls.slice(0, 2).map((url, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 min-h-0 rounded-2xl overflow-hidden bg-forest-950/60 ring-1 ring-forest-800/40"
-                  >
+            {/* Werbe-Sidebar: 3× 16:9, falls keine Bilder hochgeladen → Platzhalter */}
+            <aside className="w-[300px] flex-shrink-0 flex flex-col gap-3 justify-start">
+              {(adsToShow.length > 0 ? adsToShow : [null, null, null]).map((url, i) => (
+                <div
+                  key={i}
+                  className="aspect-video w-full rounded-2xl overflow-hidden bg-forest-950/60 ring-1 ring-forest-800/40 flex items-center justify-center"
+                >
+                  {url ? (
                     <img src={url} alt="" className="w-full h-full object-cover" />
-                  </div>
-                ))}
-              </aside>
-            )}
+                  ) : (
+                    <span className="text-forest-500/40 text-xs uppercase tracking-widest">Werbefläche</span>
+                  )}
+                </div>
+              ))}
+            </aside>
           </>
         )}
       </main>
+
+      {/* Sauna-Zwerg / Kuckuckstür — schwebt unten rechts */}
+      <div className="fixed bottom-4 right-4 z-30 pointer-events-none">
+        <div className="pointer-events-auto">
+          <CuckooDoor
+            isOpen={doorOpen}
+            mood={zwergMood}
+            minutesUntilNext={minutesUntilNext}
+            nextTitle={nextInfusion?.title ?? ''}
+            onClick={handleDoorToggle}
+          />
+        </div>
+      </div>
     </PageBackground>
   );
 }

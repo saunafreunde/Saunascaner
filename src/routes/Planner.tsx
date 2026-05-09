@@ -56,10 +56,18 @@ function fmtDuration(ms: number): string {
 }
 
 function getAvailableSlots(forDate: Date): string[] {
-  if (forDate.getDay() === 1) return [];
-  // 09:00 bis 22:00 = 14 Slots
-  return Array.from({ length: 14 }, (_, i) =>
-    `${String(9 + i).padStart(2, '0')}:00`
+  const day = forDate.getDay(); // 0=So, 1=Mo, ..., 6=Sa
+  // Mo: keine Aufgüsse (Ruhetag)
+  if (day === 1) return [];
+  // Di/Mi/Do: 14:00–20:00 (7 Slots)
+  if (day === 2 || day === 3 || day === 4) {
+    return Array.from({ length: 7 }, (_, i) =>
+      `${String(14 + i).padStart(2, '0')}:00`
+    );
+  }
+  // Fr/Sa/So: 11:00–20:00 (10 Slots)
+  return Array.from({ length: 10 }, (_, i) =>
+    `${String(11 + i).padStart(2, '0')}:00`
   );
 }
 
