@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Tafel',     icon: '📺' },
   { path: '/planner',   label: 'Mitglied',  icon: '🧖' },
+  { path: '/members',   label: 'Galerie',   icon: '👥' },
   { path: '/admin',     label: 'Admin',     icon: '⚙️' },
   { path: '/wm',        label: 'WM',        icon: '🏆' },
   { path: '/scanner',   label: 'Scanner',   icon: '📷' },

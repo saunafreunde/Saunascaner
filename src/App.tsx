@@ -19,6 +19,7 @@ const Admin           = lazy(() => import('@/routes/Admin'));
 const OilRoom         = lazy(() => import('@/routes/OilRoom'));
 const Wm              = lazy(() => import('@/routes/Wm'));
 const Profile         = lazy(() => import('@/routes/Profile'));
+const Members         = lazy(() => import('@/routes/Members'));
 const ForgotPassword  = lazy(() => import('@/routes/ForgotPassword'));
 const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
 const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/oil-room"  element={<OilRoom />} />
         <Route path="/wm"        element={<RequireAuth><Wm /></RequireAuth>} />
         <Route path="/profile/:memberId" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route path="/members"           element={<RequireAuth><Members /></RequireAuth>} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

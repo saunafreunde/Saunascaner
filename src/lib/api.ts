@@ -286,6 +286,30 @@ export function useCurrentMember() {
   });
 }
 
+// Mitglieder-Verzeichnis für die Galerie-Seite (RPC umgeht RLS, gibt nur sichere Felder)
+export type MemberDirectoryEntry = {
+  id: string;
+  name: string;
+  sauna_name: string | null;
+  member_number: number | null;
+  role: 'member' | 'admin';
+  is_aufgieser: boolean;
+  is_present: boolean;
+  birthday: string | null;
+  created_at: string;
+};
+
+export function useMembersDirectory() {
+  return useQuery({
+    queryKey: ['members-directory'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_members_directory');
+      if (error) throw error;
+      return (data ?? []) as MemberDirectoryEntry[];
+    },
+  });
+}
+
 // Public directory of staff names for the TV/guest UI (callable as anon).
 export function useMeisterDirectory() {
   return useQuery({
