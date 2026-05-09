@@ -5,6 +5,8 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
 import BadgeChip from '@/components/BadgeChip';
 import type { BadgeDefinition } from '@/lib/badges';
+import { useMeisterRatingAvg } from '@/lib/api';
+import { RatingStars } from './RatingStars';
 
 const IMMINENT_MIN = 10;
 
@@ -29,6 +31,19 @@ export function InfusionCard({
   const minsToStart = differenceInMinutes(start, now);
   const imminent = minsToStart >= 0 && minsToStart <= IMMINENT_MIN;
   const running = now >= start && now < new Date(infusion.end_time);
+
+  const ratingAvg = useMeisterRatingAvg(infusion.saunameister_id ?? undefined);
+  const avgTotal = ratingAvg.data?.total_ratings ?? 0;
+  const avgScore = avgTotal >= 3
+    ? (
+        ((ratingAvg.data?.chemie ?? 0) +
+         (ratingAvg.data?.luftbewegung ?? 0) +
+         (ratingAvg.data?.wedeltechnik ?? 0) +
+         (ratingAvg.data?.hitzeniveau ?? 0) +
+         (ratingAvg.data?.musik ?? 0) +
+         (ratingAvg.data?.duftentwicklung ?? 0)) / 6
+      )
+    : null;
 
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
@@ -134,6 +149,12 @@ export function InfusionCard({
             {meisterBadges.slice(0, 3).map((b) => (
               <BadgeChip key={b.id} badge={b} size="sm" />
             ))}
+          </div>
+        )}
+        {avgScore !== null && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <RatingStars value={avgScore} readOnly size="sm" />
+            <span className="text-xs text-forest-400 tabular-nums">{avgScore.toFixed(1)}</span>
           </div>
         )}
       </div>

@@ -173,6 +173,14 @@ export const SPECIAL_BADGES: BadgeDefinition[] = [
     tier: 'special',
     category: 'special',
   },
+  {
+    id: 'feedback_giver',
+    emoji: '💬',
+    label: 'Feedback-Geber',
+    description: '10 Bewertungen abgegeben — du hilfst anderen besser zu werden.',
+    tier: 'special',
+    category: 'special',
+  },
 ];
 
 export const ALL_BADGES: BadgeDefinition[] = [...MILESTONE_BADGES, ...SPECIAL_BADGES];

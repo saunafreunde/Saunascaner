@@ -47,6 +47,12 @@ export async function checkAndAwardBadges(memberId: string): Promise<BadgeDefini
   }
 
   // ─── Spezial-Badges
+  let ratingCount = 0;
+  try {
+    const { data } = await need().rpc('count_member_ratings', { p_member_id: memberId });
+    ratingCount = (data as number) ?? 0;
+  } catch { /* ignore */ }
+
   const specialChecks: { badge: BadgeDefinition; condition: boolean }[] = [
     {
       badge: SPECIAL_BADGES.find((b) => b.id === 'early_bird')!,
@@ -63,6 +69,10 @@ export async function checkAndAwardBadges(memberId: string): Promise<BadgeDefini
     {
       badge: SPECIAL_BADGES.find((b) => b.id === 'marathon')!,
       condition: stats.max_per_day >= 3,
+    },
+    {
+      badge: SPECIAL_BADGES.find((b) => b.id === 'feedback_giver')!,
+      condition: ratingCount >= 10,
     },
   ];
 

@@ -748,6 +748,155 @@ export function useAwardBadge() {
   });
 }
 
+// ─── Ratings ─────────────────────────────────────────────────────────────────
+
+export type InfusionRating = {
+  id: string;
+  infusion_id: string;
+  member_id: string;
+  chemie: number | null;
+  luftbewegung: number | null;
+  wedeltechnik: number | null;
+  hitzeniveau: number | null;
+  musik: number | null;
+  duftentwicklung: number | null;
+  comment: string | null;
+  created_at: string;
+};
+
+export type RatingAvg = {
+  chemie: number | null;
+  luftbewegung: number | null;
+  wedeltechnik: number | null;
+  hitzeniveau: number | null;
+  musik: number | null;
+  duftentwicklung: number | null;
+  total_ratings: number;
+};
+
+export type RatableInfusion = {
+  id: string;
+  title: string;
+  sauna_id: string;
+  saunameister_id: string;
+  start_time: string;
+  end_time: string;
+  already_rated: boolean;
+};
+
+export type SubmitRatingResult =
+  | 'ok'
+  | 'self_rating_not_allowed'
+  | 'infusion_not_finished'
+  | 'rating_window_expired'
+  | 'not_present';
+
+export function useRatableInfusions(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['ratable-infusions', memberId ?? 'none'],
+    enabled: !!memberId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_ratable_infusions', { p_member_id: memberId! });
+      if (error) throw error;
+      return (data ?? []) as RatableInfusion[];
+    },
+  });
+}
+
+export function useInfusionRatings(infusionId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['ratings', infusionId ?? 'none'],
+    enabled: !!infusionId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('infusion_ratings')
+        .select('*')
+        .eq('infusion_id', infusionId!);
+      if (error) throw error;
+      return data as InfusionRating[];
+    },
+  });
+}
+
+export function useMyRatingForInfusion(infusionId: string | null | undefined, memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['my-rating', infusionId ?? 'none', memberId ?? 'none'],
+    enabled: !!infusionId && !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('infusion_ratings')
+        .select('*')
+        .eq('infusion_id', infusionId!)
+        .eq('member_id', memberId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as InfusionRating | null;
+    },
+  });
+}
+
+export function useMeisterRatingAvg(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['rating-avg', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_meister_rating_avg', { p_member_id: memberId! });
+      if (error) throw error;
+      return (data ?? null) as RatingAvg | null;
+    },
+  });
+}
+
+export function useSubmitRating() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      infusion_id: string;
+      member_id: string;
+      chemie: number;
+      luftbewegung: number;
+      wedeltechnik: number;
+      hitzeniveau: number;
+      musik: number;
+      duftentwicklung: number;
+      comment?: string | null;
+    }): Promise<SubmitRatingResult> => {
+      const { data, error } = await need().rpc('submit_rating', {
+        p_infusion_id: p.infusion_id,
+        p_member_id: p.member_id,
+        p_chemie: p.chemie,
+        p_luftbewegung: p.luftbewegung,
+        p_wedeltechnik: p.wedeltechnik,
+        p_hitzeniveau: p.hitzeniveau,
+        p_musik: p.musik,
+        p_duftentwicklung: p.duftentwicklung,
+        p_comment: p.comment ?? null,
+      });
+      if (error) throw error;
+      return (data as SubmitRatingResult) ?? 'ok';
+    },
+    onSuccess: (_result, vars) => {
+      qc.invalidateQueries({ queryKey: ['ratable-infusions'] });
+      qc.invalidateQueries({ queryKey: ['ratings', vars.infusion_id] });
+      qc.invalidateQueries({ queryKey: ['my-rating', vars.infusion_id] });
+      qc.invalidateQueries({ queryKey: ['rating-avg', vars.member_id] });
+    },
+  });
+}
+
+export function useCountMemberRatings(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['rating-count', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('count_member_ratings', { p_member_id: memberId! });
+      if (error) throw error;
+      return (data ?? 0) as number;
+    },
+  });
+}
+
 // ─── Storage helpers ──────────────────────────────────────────────────────
 export function publicAssetUrl(path: string | null | undefined): string | null {
   if (!path) return null;

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
+﻿import { useEffect, useMemo, useState, useCallback } from 'react';
+import { addDays, format, setHours, setMinutes, isBefore, formatDistanceToNow } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { differenceInDays } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fmtClock, dayLabel } from '@/lib/time';
@@ -13,6 +14,8 @@ import CustomAttrCreator from '@/components/CustomAttrCreator';
 import BadgeShowcase from '@/components/BadgeShowcase';
 import AchievementToast from '@/components/AchievementToast';
 import MonthlyLeaderboard from '@/components/MonthlyLeaderboard';
+import { RatingForm } from '@/components/RatingForm';
+import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useSaunas, useInfusions, useTemplates,
@@ -24,6 +27,7 @@ import {
   useMeisterDirectory,
   useMyPolls, useSubmitPollResponse, useUpdateEntryCode,
   useSetSaunaName, useMyCustomAttrs,
+  useRatableInfusions, type RatableInfusion,
   togglePresenceByCode, type MyPoll,
 } from '@/lib/api';
 
@@ -102,7 +106,11 @@ export default function Planner() {
   const isAufgieser = !!(m?.is_aufgieser || m?.role === 'admin');
   const isAdmin = m?.role === 'admin';
 
+  const [ratingFormInfusion, setRatingFormInfusion] = useState<RatableInfusion | null>(null);
+  const [ratingToast, setRatingToast] = useState<string | null>(null);
+
   const customAttrsQ = useMyCustomAttrs(isAufgieser ? m?.id : undefined);
+  const ratableQ = useRatableInfusions(m?.is_present ? m?.id : undefined);
   const customAttrs = customAttrsQ.data ?? [];
   const [showAttrCreator, setShowAttrCreator] = useState(false);
   const [customAttrIds, setCustomAttrIds] = useState<string[]>([]);
@@ -400,6 +408,31 @@ export default function Planner() {
         <AchievementToast badges={newBadges} currentIndex={toastIndex} onClose={handleToastClose} />
       )}
 
+      {ratingFormInfusion && m && (
+        <RatingForm
+          infusion={ratingFormInfusion}
+          meisterName={meisterName(ratingFormInfusion.saunameister_id)}
+          memberId={m.id}
+          onClose={() => setRatingFormInfusion(null)}
+          onSuccess={async () => {
+            setRatingFormInfusion(null);
+            setRatingToast('Danke für dein Feedback! 🙏');
+            ratableQ.refetch();
+            setTimeout(() => setRatingToast(null), 4000);
+            if (m) {
+              const badges = await checkAndAwardBadges(m.id);
+              if (badges.length > 0) { setNewBadges(badges); setToastIndex(0); }
+            }
+          }}
+        />
+      )}
+
+      {ratingToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-emerald-100 shadow-lg ring-1 ring-emerald-500/50">
+          {ratingToast}
+        </div>
+      )}
+
       {/* Evakuierungs-Alarm-Overlay */}
       {evacuation && (
         <div className="fixed inset-0 z-50 bg-rose-950/95 flex flex-col items-center justify-center p-6 text-center">
@@ -549,6 +582,47 @@ export default function Planner() {
               )}
             </Card>
 
+            {/* Jetzt bewerten */}
+            {isPresent && m && (() => {
+              const ratable = ratableQ.data ?? [];
+              if (ratable.length === 0) return null;
+              return (
+                <div className="rounded-2xl bg-amber-950/30 ring-2 ring-amber-500/30 p-4 backdrop-blur">
+                  <h2 className="text-xs font-bold text-amber-200 mb-3 uppercase tracking-wider">
+                    ⏱️ Jetzt bewerten
+                  </h2>
+                  <div className="space-y-2">
+                    {ratable.map((inf) => {
+                      const windowClose = new Date(new Date(inf.end_time).getTime() + 3 * 60 * 60 * 1000);
+                      const timeLeft = formatDistanceToNow(windowClose, { locale: de, addSuffix: false });
+                      return (
+                        <div key={inf.id} className="flex items-center justify-between gap-3 rounded-xl bg-amber-950/40 px-3 py-2.5 ring-1 ring-amber-700/30">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-amber-100 truncate">
+                              {inf.title}
+                            </div>
+                            <div className="text-xs text-amber-300/70 mt-0.5">
+                              {meisterName(inf.saunameister_id)} · noch {timeLeft}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setRatingFormInfusion(inf)}
+                            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                              inf.already_rated
+                                ? 'bg-emerald-900/60 text-emerald-300 ring-1 ring-emerald-700/40 hover:bg-emerald-900'
+                                : 'bg-amber-500 text-amber-950 hover:bg-amber-400'
+                            }`}
+                          >
+                            {inf.already_rated ? '✓ Bearbeiten' : 'Bewerten'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Monatliches Ranking */}
             <Card title="Ranking diesen Monat">
               <MonthlyLeaderboard />
@@ -631,205 +705,6 @@ export default function Planner() {
           {/* ══ RECHTE SPALTE: Aufguss-Planung (nur Aufgieser/Admin) ════════ */}
           {isAufgieser && (
             <div className="space-y-4">
-
-              {/* Aufguss-Künstlername */}
-              <Card title="Mein Aufguss-Name">
-                <p className="text-xs text-forest-300/60 mb-3">Wird auf der Tafel angezeigt. Alle 30 Tage änderbar.</p>
-                {saunaNameSaved && <p className="text-sm text-emerald-300 mb-2">✅ Name gespeichert.</p>}
-                {!editingSaunaName ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <span className="text-base font-semibold text-forest-100">
-                        {m?.sauna_name || <span className="text-forest-300/50 font-normal text-sm">Kein Aufguss-Name gesetzt</span>}
-                      </span>
-                      {!canChangeSaunaName && (
-                        <p className="text-xs text-forest-400/60 mt-0.5">Noch {daysUntilNextChange} Tage bis zur nächsten Änderung</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => { setEditingSaunaName(true); setSaunaNameInput(m?.sauna_name ?? ''); setSaunaNameError(null); }}
-                      disabled={!canChangeSaunaName}
-                      className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {m?.sauna_name ? 'Ändern' : 'Name setzen'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={saunaNameInput}
-                      onChange={(e) => setSaunaNameInput(e.target.value)}
-                      placeholder="z.B. Der Feuermeister"
-                      maxLength={40}
-                      autoFocus
-                      className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
-                    />
-                    {saunaNameError && <p className="text-xs text-rose-300">{saunaNameError}</p>}
-                    <div className="flex gap-2">
-                      <button onClick={saveSaunaName} disabled={setSaunaName.isPending}
-                        className="flex-1 rounded-lg bg-forest-500 px-3 py-2 text-sm font-semibold text-forest-950 hover:bg-forest-400 disabled:opacity-60">
-                        {setSaunaName.isPending ? 'Speichere…' : 'Speichern'}
-                      </button>
-                      <button onClick={() => { setEditingSaunaName(false); setSaunaNameError(null); }}
-                        className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-300 ring-1 ring-forest-700/50 hover:bg-forest-900">
-                        Abbrechen
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </Card>
-
-              {/* Eigene Buttons */}
-              {m?.custom_attrs_enabled !== false && (
-                <Card title={`Meine Buttons (${customAttrs.length}/8)`}>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {customAttrs.map((a) => (
-                      <div
-                        key={a.id}
-                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-white/10"
-                        style={{ background: a.color, color: '#0b1f10' }}
-                      >
-                        <span>{a.emoji}</span>
-                        <span>{a.label}</span>
-                      </div>
-                    ))}
-                    {customAttrs.length === 0 && (
-                      <p className="text-xs text-forest-300/60">Noch keine eigenen Buttons erstellt.</p>
-                    )}
-                  </div>
-                  {customAttrs.length < 8 ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAttrCreator(true)}
-                      className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800"
-                    >
-                      + Button erstellen
-                    </button>
-                  ) : (
-                    <p className="text-xs text-forest-400/60">Maximum erreicht. Nur Admin kann Buttons löschen.</p>
-                  )}
-                </Card>
-              )}
-
-              {/* Meine Auszeichnungen */}
-              {m && (
-                <Card title="Meine Auszeichnungen">
-                  <BadgeShowcase memberId={m.id} />
-                </Card>
-              )}
-
-              {/* Notfall */}
-              <div className="rounded-2xl border-2 border-rose-600/60 bg-rose-950/40 p-4 ring-1 ring-rose-500/30 backdrop-blur">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-rose-200">🚨 Notfall</h2>
-                    <p className="mt-0.5 text-xs text-rose-200/80">Vollbild-Alarm + Telegram</p>
-                  </div>
-                  <button type="button" disabled={trigEvac.isPending || !!evacuation} onClick={triggerEvacuation}
-                    className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold uppercase tracking-wider text-white hover:bg-rose-500 transition disabled:opacity-60 whitespace-nowrap">
-                    {evacuation ? 'Alarm läuft …' : trigEvac.isPending ? 'Sendet …' : 'Evakuierung'}
-                  </button>
-                </div>
-                <p className="mt-2 text-[11px] text-rose-200/60">Anwesend: {presentQ.data?.length ?? 0} Personen</p>
-              </div>
-
-              {/* Vorlagen */}
-              <Card title="Meine Vorlagen">
-                <ul className="space-y-2">
-                  {myTemplates.length === 0 && (
-                    <li className="text-xs text-forest-300/60">„Als Vorlage" speichert die aktuelle Eingabe.</li>
-                  )}
-                  {myTemplates.map((t) => (
-                    <li key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40">
-                      <button type="button" onClick={() => applyTemplate(t)} className="min-w-0 flex-1 text-left">
-                        <div className="truncate text-sm font-medium">{t.title}</div>
-                        <div className="mt-0.5 flex items-center gap-1 text-xs text-forest-300/70">
-                          <span>{t.duration_minutes} Min</span>
-                          {(t.attributes as InfusionAttribute[]).map((a) => (
-                            <span key={a} title={ATTR_BY_ID[a]?.label} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
-                          ))}
-                        </div>
-                      </button>
-                      <button onClick={() => delTpl.mutate(t.id)}
-                        className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">✕</button>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-
-              {/* Meine Aufgüsse */}
-              <Card title="Meine Aufgüsse">
-                <ul className="space-y-2">
-                  {myInfusions.length === 0 && <li className="text-xs text-forest-300/60">Noch keine geplant.</li>}
-                  {myInfusions.map((i) => {
-                    const coNames = getCoNames(i.id);
-                    return (
-                      <li key={i.id}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40"
-                        style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {i.title}{i.team_infusion && <span className="ml-1.5 text-xs text-amber-300">👥 Team</span>}
-                          </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-forest-300/70">
-                            <span>{dayLabel(i.start_time)} · {fmtClock(i.start_time)}</span>
-                            <span>·</span>
-                            <span style={{ color: saunaColor(i.sauna_id) }} className="font-semibold">{saunaName(i.sauna_id)}</span>
-                            <span>· {i.duration_minutes} Min</span>
-                            {(i.attributes as InfusionAttribute[]).map((a) => (
-                              <span key={a} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
-                            ))}
-                          </div>
-                          {coNames.length > 0 && <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>}
-                        </div>
-                        <button onClick={() => delInf.mutate(i.id)}
-                          className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 flex-shrink-0">Löschen</button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </Card>
-
-              {/* Team-Aufgüsse anderer */}
-              {joinableTeamInfusions.length > 0 && (
-                <div className="rounded-2xl bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur">
-                  <h2 className="text-xs font-semibold text-amber-200 uppercase tracking-wider mb-1">Team-Aufgüsse 👥</h2>
-                  <p className="text-xs text-amber-200/60 mb-3">Du kannst diesen Aufgüssen beitreten.</p>
-                  <ul className="space-y-2">
-                    {joinableTeamInfusions.map((i) => {
-                      const joined = isJoined(i.id);
-                      const coNames = getCoNames(i.id);
-                      return (
-                        <li key={i.id}
-                          className="flex items-center justify-between gap-3 rounded-lg bg-amber-900/30 px-3 py-2 ring-1 ring-amber-800/40"
-                          style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate text-amber-50">{i.title}</div>
-                            <div className="mt-0.5 text-xs text-amber-200/70">
-                              {dayLabel(i.start_time)} · {fmtClock(i.start_time)} · {saunaName(i.sauna_id)}
-                            </div>
-                            <div className="text-xs text-amber-200/50 mt-0.5">
-                              {meisterName(i.saunameister_id)}{coNames.length > 0 && ` + ${coNames.join(', ')}`}
-                            </div>
-                          </div>
-                          {joined ? (
-                            <button onClick={() => m && leaveTeam.mutate({ infusion_id: i.id, member_id: m.id })}
-                              className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap flex-shrink-0">
-                              Verlassen
-                            </button>
-                          ) : (
-                            <button onClick={() => m && joinTeam.mutate({ infusion_id: i.id, member_id: m.id })}
-                              className="rounded-md bg-amber-600 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-500 whitespace-nowrap flex-shrink-0">
-                              Beitreten
-                            </button>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
 
               {/* Aufguss-Formular */}
               <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
@@ -978,6 +853,212 @@ export default function Planner() {
                   </>
                 )}
               </form>
+              {/* Meine Aufgüsse */}
+              <Card title="Meine Aufgüsse">
+                <ul className="space-y-2">
+                  {myInfusions.length === 0 && <li className="text-xs text-forest-300/60">Noch keine geplant.</li>}
+                  {myInfusions.map((i) => {
+                    const coNames = getCoNames(i.id);
+                    return (
+                      <li key={i.id}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40"
+                        style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {i.title}{i.team_infusion && <span className="ml-1.5 text-xs text-amber-300">👥 Team</span>}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-forest-300/70">
+                            <span>{dayLabel(i.start_time)} · {fmtClock(i.start_time)}</span>
+                            <span>·</span>
+                            <span style={{ color: saunaColor(i.sauna_id) }} className="font-semibold">{saunaName(i.sauna_id)}</span>
+                            <span>· {i.duration_minutes} Min</span>
+                            {(i.attributes as InfusionAttribute[]).map((a) => (
+                              <span key={a} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
+                            ))}
+                          </div>
+                          {coNames.length > 0 && <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>}
+                        </div>
+                        <button onClick={() => delInf.mutate(i.id)}
+                          className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 flex-shrink-0">Löschen</button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+
+              {/* Team-Aufgüsse anderer */}
+              {joinableTeamInfusions.length > 0 && (
+                <div className="rounded-2xl bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur">
+                  <h2 className="text-xs font-semibold text-amber-200 uppercase tracking-wider mb-1">Team-Aufgüsse 👥</h2>
+                  <p className="text-xs text-amber-200/60 mb-3">Du kannst diesen Aufgüssen beitreten.</p>
+                  <ul className="space-y-2">
+                    {joinableTeamInfusions.map((i) => {
+                      const joined = isJoined(i.id);
+                      const coNames = getCoNames(i.id);
+                      return (
+                        <li key={i.id}
+                          className="flex items-center justify-between gap-3 rounded-lg bg-amber-900/30 px-3 py-2 ring-1 ring-amber-800/40"
+                          style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate text-amber-50">{i.title}</div>
+                            <div className="mt-0.5 text-xs text-amber-200/70">
+                              {dayLabel(i.start_time)} · {fmtClock(i.start_time)} · {saunaName(i.sauna_id)}
+                            </div>
+                            <div className="text-xs text-amber-200/50 mt-0.5">
+                              {meisterName(i.saunameister_id)}{coNames.length > 0 && ` + ${coNames.join(', ')}`}
+                            </div>
+                          </div>
+                          {joined ? (
+                            <button onClick={() => m && leaveTeam.mutate({ infusion_id: i.id, member_id: m.id })}
+                              className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap flex-shrink-0">
+                              Verlassen
+                            </button>
+                          ) : (
+                            <button onClick={() => m && joinTeam.mutate({ infusion_id: i.id, member_id: m.id })}
+                              className="rounded-md bg-amber-600 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-500 whitespace-nowrap flex-shrink-0">
+                              Beitreten
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Vorlagen */}
+              <Card title="Meine Vorlagen">
+                <ul className="space-y-2">
+                  {myTemplates.length === 0 && (
+                    <li className="text-xs text-forest-300/60">„Als Vorlage" speichert die aktuelle Eingabe.</li>
+                  )}
+                  {myTemplates.map((t) => (
+                    <li key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40">
+                      <button type="button" onClick={() => applyTemplate(t)} className="min-w-0 flex-1 text-left">
+                        <div className="truncate text-sm font-medium">{t.title}</div>
+                        <div className="mt-0.5 flex items-center gap-1 text-xs text-forest-300/70">
+                          <span>{t.duration_minutes} Min</span>
+                          {(t.attributes as InfusionAttribute[]).map((a) => (
+                            <span key={a} title={ATTR_BY_ID[a]?.label} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
+                          ))}
+                        </div>
+                      </button>
+                      <button onClick={() => delTpl.mutate(t.id)}
+                        className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">✕</button>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+
+              {/* Aufguss-Künstlername */}
+              <Card title="Mein Aufguss-Name">
+                <p className="text-xs text-forest-300/60 mb-3">Wird auf der Tafel angezeigt. Alle 30 Tage änderbar.</p>
+                {saunaNameSaved && <p className="text-sm text-emerald-300 mb-2">✅ Name gespeichert.</p>}
+                {!editingSaunaName ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-base font-semibold text-forest-100">
+                        {m?.sauna_name || <span className="text-forest-300/50 font-normal text-sm">Kein Aufguss-Name gesetzt</span>}
+                      </span>
+                      {!canChangeSaunaName && (
+                        <p className="text-xs text-forest-400/60 mt-0.5">Noch {daysUntilNextChange} Tage bis zur nächsten Änderung</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { setEditingSaunaName(true); setSaunaNameInput(m?.sauna_name ?? ''); setSaunaNameError(null); }}
+                      disabled={!canChangeSaunaName}
+                      className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {m?.sauna_name ? 'Ändern' : 'Name setzen'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={saunaNameInput}
+                      onChange={(e) => setSaunaNameInput(e.target.value)}
+                      placeholder="z.B. Der Feuermeister"
+                      maxLength={40}
+                      autoFocus
+                      className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                    />
+                    {saunaNameError && <p className="text-xs text-rose-300">{saunaNameError}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={saveSaunaName} disabled={setSaunaName.isPending}
+                        className="flex-1 rounded-lg bg-forest-500 px-3 py-2 text-sm font-semibold text-forest-950 hover:bg-forest-400 disabled:opacity-60">
+                        {setSaunaName.isPending ? 'Speichere…' : 'Speichern'}
+                      </button>
+                      <button onClick={() => { setEditingSaunaName(false); setSaunaNameError(null); }}
+                        className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-300 ring-1 ring-forest-700/50 hover:bg-forest-900">
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Eigene Buttons */}
+              {m?.custom_attrs_enabled !== false && (
+                <Card title={`Meine Buttons (${customAttrs.length}/8)`}>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {customAttrs.map((a) => (
+                      <div
+                        key={a.id}
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-white/10"
+                        style={{ background: a.color, color: '#0b1f10' }}
+                      >
+                        <span>{a.emoji}</span>
+                        <span>{a.label}</span>
+                      </div>
+                    ))}
+                    {customAttrs.length === 0 && (
+                      <p className="text-xs text-forest-300/60">Noch keine eigenen Buttons erstellt.</p>
+                    )}
+                  </div>
+                  {customAttrs.length < 8 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAttrCreator(true)}
+                      className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800"
+                    >
+                      + Button erstellen
+                    </button>
+                  ) : (
+                    <p className="text-xs text-forest-400/60">Maximum erreicht. Nur Admin kann Buttons löschen.</p>
+                  )}
+                </Card>
+              )}
+
+              {/* Meine Auszeichnungen */}
+              {m && (
+                <Card title="Meine Auszeichnungen">
+                  <BadgeShowcase memberId={m.id} />
+                </Card>
+              )}
+
+              {/* Meine Bewertungen */}
+              {m && (
+                <Card title="Meine Bewertungen">
+                  <MeisterRadarWidget memberId={m.id} />
+                </Card>
+              )}
+
+              {/* Notfall */}
+              <div className="rounded-2xl border-2 border-rose-600/60 bg-rose-950/40 p-4 ring-1 ring-rose-500/30 backdrop-blur">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-rose-200">🚨 Notfall</h2>
+                    <p className="mt-0.5 text-xs text-rose-200/80">Vollbild-Alarm + Telegram</p>
+                  </div>
+                  <button type="button" disabled={trigEvac.isPending || !!evacuation} onClick={triggerEvacuation}
+                    className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold uppercase tracking-wider text-white hover:bg-rose-500 transition disabled:opacity-60 whitespace-nowrap">
+                    {evacuation ? 'Alarm läuft …' : trigEvac.isPending ? 'Sendet …' : 'Evakuierung'}
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] text-rose-200/60">Anwesend: {presentQ.data?.length ?? 0} Personen</p>
+              </div>
+
             </div>
           )}
         </div>
