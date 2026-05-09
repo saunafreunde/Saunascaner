@@ -8,6 +8,8 @@ import { checkAndAwardBadges } from '@/lib/checkBadges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
+import OilPicker from '@/components/OilPicker';
+import { OIL_BY_ID, normalizeOilSlots } from '@/lib/oils';
 import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
@@ -225,6 +227,8 @@ export default function Planner() {
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState<number>(15);
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
+  const [oils, setOils] = useState<(string | null)[]>([null, null, null]);
+  const [showOilPicker, setShowOilPicker] = useState(false);
   const [teamInfusion, setTeamInfusion] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [evacToast, setEvacToast] = useState<string | null>(null);
@@ -265,11 +269,12 @@ export default function Planner() {
     setAttrs((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
   }
 
-  function applyTemplate(t: { title: string; description: string | null; duration_minutes: number; attributes: string[] }) {
+  function applyTemplate(t: { title: string; description: string | null; duration_minutes: number; attributes: string[]; oils?: (string | null)[] | null }) {
     setTitle(t.title);
     setDescription(t.description ?? '');
     setDuration(t.duration_minutes);
     setAttrs(t.attributes as InfusionAttribute[]);
+    setOils(normalizeOilSlots(t.oils));
   }
 
   async function saveAsTemplate() {
@@ -283,6 +288,7 @@ export default function Planner() {
         description: description.trim() || null,
         duration_minutes: duration,
         attributes: attrs,
+        oils: oils.some(Boolean) ? oils : null,
       });
     } catch (e) { setFormError((e as Error).message); }
   }
@@ -292,6 +298,7 @@ export default function Planner() {
     setDescription('');
     setAttrs([]);
     setCustomAttrIds([]);
+    setOils([null, null, null]);
     setDuration(15);
     setTeamInfusion(false);
   }
@@ -316,6 +323,7 @@ export default function Planner() {
         title: title.trim(),
         description: description.trim() || null,
         attributes: attrs,
+        oils: oils.some(Boolean) ? oils : null,
         start_time: start.toISOString(),
         duration_minutes: duration,
         team_infusion: teamInfusion,
@@ -394,6 +402,10 @@ export default function Planner() {
     <PageBackground page="planner">
       {showAttrCreator && m && (
         <CustomAttrCreator memberId={m.id} onClose={() => { setShowAttrCreator(false); customAttrsQ.refetch(); }} />
+      )}
+
+      {showOilPicker && (
+        <OilPicker selected={oils} onChange={setOils} onClose={() => setShowOilPicker(false)} />
       )}
 
       {newBadges.length > 0 && (
@@ -703,6 +715,38 @@ export default function Planner() {
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <label className="text-xs text-forest-300">Ätherische Öle <span className="text-forest-400/60">— eines pro Runde (max. 3)</span></label>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    {oils.map((id, i) => {
+                      const o = id ? OIL_BY_ID[id] : null;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setShowOilPicker(true)}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${
+                            o
+                              ? 'bg-amber-900/40 ring-amber-400/40 text-amber-100 hover:bg-amber-900/60'
+                              : 'bg-forest-900/60 ring-forest-800/50 text-forest-300 hover:bg-forest-900 border border-dashed border-forest-700/60'
+                          }`}
+                        >
+                          <span className="font-bold tabular-nums opacity-80">{i + 1}.</span>
+                          {o ? (
+                            <>
+                              <span className="rounded bg-amber-950/60 px-1 text-[10px] tabular-nums">#{o.number}</span>
+                              <span aria-hidden>{o.emoji}</span>
+                              <span>{o.name}</span>
+                            </>
+                          ) : (
+                            <span>+ Öl wählen</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => setTeamInfusion((v) => !v)}>
                   <div className={`relative w-10 h-6 rounded-full transition flex-shrink-0 ${teamInfusion ? 'bg-amber-500' : 'bg-forest-800'}`}>

@@ -9,6 +9,8 @@ import {
   usePresentMembers, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
   useMyCustomAttrs,
 } from '@/lib/api';
+import OilPicker from '@/components/OilPicker';
+import { OIL_BY_ID } from '@/lib/oils';
 
 // ─── PIN-Sperre ───────────────────────────────────────────────────────────────
 
@@ -197,6 +199,8 @@ function OilRoomContent() {
   const [duration, setDuration] = useState<number>(15);
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
   const [customAttrIds, setCustomAttrIds] = useState<string[]>([]);
+  const [oils, setOils] = useState<(string | null)[]>([null, null, null]);
+  const [showOilPicker, setShowOilPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [evacToast, setEvacToast] = useState<string | null>(null);
@@ -246,6 +250,7 @@ function OilRoomContent() {
     setTitle('');
     setAttrs([]);
     setCustomAttrIds([]);
+    setOils([null, null, null]);
     setDuration(15);
   }
 
@@ -270,6 +275,7 @@ function OilRoomContent() {
         title: title.trim(),
         description: null,
         attributes: attrs,
+        oils: oils.some(Boolean) ? oils : null,
         start_time: start.toISOString(),
         duration_minutes: duration,
         team_infusion: false,
@@ -412,6 +418,9 @@ function OilRoomContent() {
   // ─── Aufguss-Planer ───────────────────────────────────────────────────────
   return (
     <div className="bg-schwarzwald-soft min-h-screen text-slate-100">
+      {showOilPicker && (
+        <OilPicker selected={oils} onChange={setOils} onClose={() => setShowOilPicker(false)} />
+      )}
       <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-3 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-forest-100">Öl-Raum · Aufguss planen</h1>
@@ -563,6 +572,39 @@ function OilRoomContent() {
                   </div>
                 </div>
               )}
+
+              {/* Ätherische Öle */}
+              <div>
+                <label className="text-sm text-forest-300">Ätherische Öle <span className="text-forest-400/60">— eines pro Runde</span></label>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {oils.map((id, i) => {
+                    const o = id ? OIL_BY_ID[id] : null;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setShowOilPicker(true)}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm ring-1 transition ${
+                          o
+                            ? 'bg-amber-900/40 ring-amber-400/40 text-amber-100 hover:bg-amber-900/60'
+                            : 'bg-forest-900/60 ring-forest-800/50 text-forest-300 hover:bg-forest-900 border border-dashed border-forest-700/60'
+                        }`}
+                      >
+                        <span className="font-bold tabular-nums opacity-80">{i + 1}.</span>
+                        {o ? (
+                          <>
+                            <span className="rounded bg-amber-950/60 px-1 text-[11px] tabular-nums">#{o.number}</span>
+                            <span aria-hidden>{o.emoji}</span>
+                            <span>{o.name}</span>
+                          </>
+                        ) : (
+                          <span>+ Öl wählen</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {error && <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{error}</div>}
               {success && <div className="rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-200 ring-1 ring-emerald-500/30">✅ Aufguss eingetragen!</div>}

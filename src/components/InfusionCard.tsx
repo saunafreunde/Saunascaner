@@ -3,6 +3,7 @@ import { differenceInMinutes } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
+import { OIL_BY_ID } from '@/lib/oils';
 import BadgeChip from '@/components/BadgeChip';
 import type { BadgeDefinition } from '@/lib/badges';
 import { useMeisterRatingAvg } from '@/lib/api';
@@ -125,6 +126,28 @@ export function InfusionCard({
               >
                 <span aria-hidden>{meta.emoji}</span>
                 <span className="text-forest-100/85">{meta.label}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {infusion.oils && infusion.oils.some(Boolean) && (
+        <div className="mt-2 flex flex-wrap gap-1.5 pl-2">
+          {infusion.oils.map((oilId, i) => {
+            if (!oilId) return null;
+            const o = OIL_BY_ID[oilId];
+            if (!o) return null;
+            return (
+              <span
+                key={`${i}-${oilId}`}
+                title={o.note ? `Runde ${i + 1} · #${o.number} ${o.name} (${o.note})` : `Runde ${i + 1} · #${o.number} ${o.name}`}
+                className="inline-flex items-center gap-1 rounded-full bg-amber-900/40 px-2 py-0.5 text-xs ring-1 ring-amber-400/30"
+              >
+                <span className="text-amber-300/80 font-bold tabular-nums">{i + 1}.</span>
+                <span className="rounded bg-amber-950/60 px-1 text-[10px] tabular-nums text-amber-200/80">#{o.number}</span>
+                <span aria-hidden>{o.emoji}</span>
+                <span className="text-amber-100/90">{o.name}</span>
               </span>
             );
           })}

@@ -23,7 +23,7 @@ const inf = (
   duration = 15
 ): Infusion => ({
   id, sauna_id, template_id: null, saunameister_id,
-  title, description, attributes, image_path: null,
+  title, description, attributes, oils: null, image_path: null,
   start_time: start, duration_minutes: duration,
   end_time: addMinutes(new Date(start), duration).toISOString(),
   team_infusion: false,

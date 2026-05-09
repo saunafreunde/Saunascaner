@@ -21,6 +21,7 @@ export type Infusion = {
   title: string;
   description: string | null;
   attributes: InfusionAttribute[];
+  oils: (string | null)[] | null;
   image_path: string | null;
   start_time: string;
   duration_minutes: number;
@@ -42,6 +43,7 @@ export type InfusionTemplate = {
   description: string | null;
   duration_minutes: number;
   attributes: InfusionAttribute[];
+  oils: (string | null)[] | null;
   image_path: string | null;
   created_at: string;
 };

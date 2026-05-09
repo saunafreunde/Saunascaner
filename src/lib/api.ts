@@ -59,6 +59,7 @@ export type NewInfusion = {
   title: string;
   description: string | null;
   attributes: InfusionAttribute[];
+  oils?: (string | null)[] | null;
   start_time: string;
   duration_minutes: number;
   team_infusion?: boolean;
@@ -94,6 +95,7 @@ export type Template = {
   description: string | null;
   duration_minutes: number;
   attributes: InfusionAttribute[];
+  oils: (string | null)[] | null;
 };
 
 export function useTemplates(memberId: string | null) {
