@@ -57,8 +57,9 @@ function fmtDuration(ms: number): string {
 
 function getAvailableSlots(forDate: Date): string[] {
   if (forDate.getDay() === 1) return [];
-  return Array.from({ length: 10 }, (_, i) =>
-    `${String(11 + i).padStart(2, '0')}:00`
+  // 09:00 bis 22:00 = 14 Slots
+  return Array.from({ length: 14 }, (_, i) =>
+    `${String(9 + i).padStart(2, '0')}:00`
   );
 }
 

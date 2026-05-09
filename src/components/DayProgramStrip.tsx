@@ -260,7 +260,8 @@ export function DayProgramStrip({
       const cutoff = addMinutes(now, -HIDE_AFTER_END_MIN);
       return new Date(i.end_time) > cutoff;
     })
-    .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
+    .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
+    .slice(0, 5);
 
   const handleDismiss = (id: string) => {
     setDismissedIds((prev) => new Set([...prev, id]));

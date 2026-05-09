@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { addMinutes, isBefore, differenceInMinutes } from 'date-fns';
+import { AnimatePresence } from 'framer-motion';
+import { differenceInMinutes } from 'date-fns';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
-import { SaunaColumn } from '@/components/SaunaColumn';
-import { AdGrid } from '@/components/AdGrid';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { PageBackground } from '@/components/PageBackground';
@@ -17,11 +15,10 @@ import { ALL_BADGES } from '@/lib/badges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
+import { FocusArea } from '@/components/FocusArea';
 import { DayProgramStrip } from '@/components/DayProgramStrip';
 import type { ZwergMood } from '@/components/CuckooDoor';
 import { onDemo } from '@/lib/demoChannel';
-
-const HIDE_AFTER_END_MIN = 5;
 
 export default function Dashboard() {
   useWakeLock(true);
@@ -50,15 +47,14 @@ export default function Dashboard() {
       .filter((c) => c.infusion_id === infusionId)
       .map((c) => c.member_name ?? '?');
 
-  const activeSaunas = useMemo(
-    () => (saunas.data ?? []).filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
+  const activeSaunaCount = useMemo(
+    () => (saunas.data ?? []).filter((s) => s.is_active).length,
     [saunas.data]
   );
 
   const meisterName = (id: string | null) =>
     (id && members.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
 
-  // Tier-Priorität für die Sortierung: höchstes zuerst
   const tierOrder: Record<string, number> = { platinum: 4, gold: 3, silver: 2, bronze: 1, special: 0 };
 
   const meisterBadges = (id: string | null): BadgeDefinition[] => {
@@ -71,20 +67,6 @@ export default function Dashboard() {
       .sort((a, b) => (tierOrder[b.tier] ?? 0) - (tierOrder[a.tier] ?? 0))
       .slice(0, 3);
   };
-
-  const infusionsBySauna = useMemo(() => {
-    const cutoff = addMinutes(now, -HIDE_AFTER_END_MIN);
-    const visible = (infusions.data ?? [])
-      .filter((i) => isBefore(cutoff, new Date(i.end_time)))
-      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
-    const map = new Map<string, typeof visible>();
-    for (const i of visible) {
-      const arr = map.get(i.sauna_id) ?? [];
-      arr.push(i);
-      map.set(i.sauna_id, arr);
-    }
-    return map;
-  }, [now, infusions.data]);
 
   // ── Kuckuckstür-Logik ──────────────────────────────────────────────────
   const nextInfusion = useMemo(() =>
@@ -150,22 +132,15 @@ export default function Dashboard() {
     });
   }, []);
 
-  // Auto-recover audio if browser suspended
   useEffect(() => { if (audioReady) unlockAudio(); }, [audioReady]);
-
-  const showAds = activeSaunas.length <= 2;
-  const columnSpec =
-    activeSaunas.length === 1 ? '1fr 2fr'
-    : activeSaunas.length === 2 ? '1fr 1.4fr 1fr'
-    : '1fr 1.4fr 1fr 1fr';
 
   const adImageUrls = (tv.data?.ads ?? [])
     .map((a) => publicAssetUrl(a.image_path))
     .filter((u): u is string => Boolean(u));
 
   return (
-    <PageBackground page="dashboard" variant="strong" className="min-h-screen flex flex-col">
-      <ParticleCanvas activeSaunaCount={activeSaunas.length} />
+    <PageBackground page="dashboard" variant="strong" className="h-screen overflow-hidden flex flex-col">
+      <ParticleCanvas activeSaunaCount={activeSaunaCount} />
       <AnimatePresence>
         {evac.data && (
           <EvacuationOverlay
@@ -185,7 +160,7 @@ export default function Dashboard() {
         </button>
       )}
 
-      <header className="mx-auto w-full max-w-[1920px] flex items-center justify-between px-6 sm:px-10 pt-6">
+      <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] flex items-center justify-between px-8 pt-5 pb-3">
         <div className="flex items-baseline gap-3">
           <h1 className="text-3xl font-semibold tracking-tight text-forest-100 drop-shadow">
             Saunafreunde Schwarzwald
@@ -202,51 +177,23 @@ export default function Dashboard() {
 
       <BirthdayBanner />
 
-      <LayoutGroup>
-        <motion.main
-          layout
-          transition={{ layout: { duration: 0.6, ease: [0.25, 1, 0.5, 1] } }}
-          className="mx-auto w-full max-w-[1920px] grid flex-1 gap-5 px-6 sm:px-10 pt-4 pb-6"
-          style={{ gridTemplateColumns: columnSpec }}
-        >
-          <AnimatePresence initial={false} mode="popLayout">
-            {activeSaunas.length === 0 && (
-              <motion.div key="closed" layout
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="col-span-full flex items-center justify-center text-3xl text-forest-300/70">
-                Heute keine Saunen aktiv.
-              </motion.div>
-            )}
-
-            {activeSaunas[0] && (
-              <SaunaColumn key={activeSaunas[0].id}
-                sauna={activeSaunas[0]}
-                infusions={infusionsBySauna.get(activeSaunas[0].id) ?? []}
-                meisterName={meisterName}
-                meisterBadges={meisterBadges}
-                coNames={coNamesForInfusion}
-                now={now} />
-            )}
-
-            {showAds && activeSaunas.length > 0 && (
-              <motion.div key="ads" layout
-                initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.5 }}>
-                <AdGrid images={adImageUrls} />
-              </motion.div>
-            )}
-
-            {activeSaunas.slice(1).map((s) => (
-              <SaunaColumn key={s.id} sauna={s}
-                infusions={infusionsBySauna.get(s.id) ?? []}
-                meisterName={meisterName}
-                meisterBadges={meisterBadges}
-                coNames={coNamesForInfusion}
-                now={now} />
-            ))}
-          </AnimatePresence>
-        </motion.main>
-      </LayoutGroup>
+      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-8 flex gap-4 pb-2">
+        <FocusArea
+          infusions={infusions.data ?? []}
+          saunas={saunas.data ?? []}
+          meisterName={meisterName}
+          meisterBadges={meisterBadges}
+          coNames={coNamesForInfusion}
+          now={now}
+        />
+        <aside className="w-52 flex-shrink-0 flex flex-col gap-3">
+          {adImageUrls.slice(0, 2).map((url, i) => (
+            <div key={i} className="flex-1 min-h-0 rounded-xl overflow-hidden bg-forest-950/60">
+              <img src={url} alt="" className="w-full h-full object-cover" />
+            </div>
+          ))}
+        </aside>
+      </main>
 
       <DayProgramStrip
         infusions={infusions.data ?? []}
