@@ -12,6 +12,7 @@ import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { HubZone } from '@/components/HubZone';
 import { TodayLiveBento } from '@/components/TodayLiveBento';
 import { AtelierTabs } from '@/components/AtelierTabs';
@@ -177,6 +178,13 @@ export default function Planner() {
       const r = await togglePresenceByCode(m.member_code);
       setCheckMsg({ ok: true, text: r.is_present ? '✅ Eingecheckt — willkommen!' : '👋 Ausgecheckt — bis zum nächsten Mal!' });
       await presentQ.refetch();
+      // Streak-Badges checken nach Check-in
+      if (r.is_present) {
+        try {
+          const badges = await checkAndAwardBadges(m.id);
+          if (badges.length > 0) { setNewBadges(badges); setToastIndex(0); }
+        } catch { /* ignore */ }
+      }
     } catch (e) {
       setCheckMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -468,6 +476,7 @@ export default function Planner() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <ThemeToggle compact />
             {isAdmin ? (
               <AdminQuickNav variant="icons" />
             ) : (

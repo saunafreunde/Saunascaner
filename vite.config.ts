@@ -8,21 +8,24 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {
         name: 'Saunafreunde Schwarzwald',
         short_name: 'Saunafreunde',
         description: 'Sauna-Steuerung & Aufgussplan',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#0a1812',
+        background_color: '#050b08',
         display: 'standalone',
         orientation: 'any',
         start_url: '/',
         icons: [
           { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
       workbox: {
+        importScripts: ['/push-handler.js'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.hostname.includes('supabase.co'),
@@ -47,5 +50,20 @@ export default defineConfig({
   ],
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'query-vendor': ['@tanstack/react-query'],
+          'motion-vendor': ['framer-motion'],
+          'pdf-vendor': ['jspdf', 'html2canvas'],
+          'qr-vendor': ['qr-scanner', 'qrcode'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
   },
 });

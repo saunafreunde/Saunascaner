@@ -1,40 +1,51 @@
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import Dashboard from '@/routes/Dashboard';
-import Guest from '@/routes/Guest';
-import Admin from '@/routes/Admin';
-import Scanner from '@/routes/Scanner';
-import Login from '@/routes/Login';
-import Planner from '@/routes/Planner';
-import OilRoom from '@/routes/OilRoom';
-import Wm from '@/routes/Wm';
-import ForgotPassword from '@/routes/ForgotPassword';
-import ResetPassword from '@/routes/ResetPassword';
-import MagicEntry from '@/routes/MagicEntry';
-import PendingApproval from '@/routes/PendingApproval';
+import { lazy, Suspense } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { useApplyStoredTheme } from '@/components/ThemeToggle';
+
+// Eager-loaded routes (für sofortige Verfügbarkeit)
+import Guest from '@/routes/Guest';
+import Login from '@/routes/Login';
+import PendingApproval from '@/routes/PendingApproval';
+
+// Lazy-loaded routes (nach Bedarf)
+const Dashboard       = lazy(() => import('@/routes/Dashboard'));
+const Scanner         = lazy(() => import('@/routes/Scanner'));
+const Planner         = lazy(() => import('@/routes/Planner'));
+const Admin           = lazy(() => import('@/routes/Admin'));
+const OilRoom         = lazy(() => import('@/routes/OilRoom'));
+const Wm              = lazy(() => import('@/routes/Wm'));
+const Profile         = lazy(() => import('@/routes/Profile'));
+const ForgotPassword  = lazy(() => import('@/routes/ForgotPassword'));
+const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
+const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
 
 export default function App() {
   useRealtimeSync();
+  useApplyStoredTheme();
   return (
-    <Routes>
-      <Route path="/" element={<Guest />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/scanner"   element={<Scanner />} />
-      <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
-      <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
-      <Route path="/oil-room"  element={<OilRoom />} />
-      <Route path="/wm"        element={<RequireAuth><Wm /></RequireAuth>} />
-      <Route path="/login"          element={<Login />} />
-      <Route path="/forgot"         element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/me"             element={<Navigate to="/planner" replace />} />
-      <Route path="/m/:code"        element={<MagicEntry />} />
-      <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />
-      <Route path="*"          element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<Splash />}>
+      <Routes>
+        <Route path="/" element={<Guest />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/scanner"   element={<Scanner />} />
+        <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
+        <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
+        <Route path="/oil-room"  element={<OilRoom />} />
+        <Route path="/wm"        element={<RequireAuth><Wm /></RequireAuth>} />
+        <Route path="/profile/:memberId" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route path="/login"          element={<Login />} />
+        <Route path="/forgot"         element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/me"             element={<Navigate to="/planner" replace />} />
+        <Route path="/m/:code"        element={<MagicEntry />} />
+        <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />
+        <Route path="*"          element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 
@@ -107,6 +118,7 @@ function DevIndex() {
     ['/oil-room', 'Öl-Raum-Tablet (Aufgieser)'],
     ['/admin', 'Admin'],
     ['/scanner', 'Scanner (Eingang)'],
+    ['/wm', 'WM-Tipspiel'],
     ['/login', 'Login'],
   ] as const;
   return (

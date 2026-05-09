@@ -6,6 +6,7 @@ import { WmMatchCard } from '@/components/WmMatchCard';
 import { WmLeaderboard } from '@/components/WmLeaderboard';
 import { WmPreTournament } from '@/components/WmPreTournament';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   useWmTeams, useWmMatches, useMyWmTips, useWmLeaderboard,
   useCurrentMember, useWmSettings,
@@ -101,6 +102,7 @@ export default function Wm() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <ThemeToggle compact />
             {isAdmin ? (
               <AdminQuickNav variant="icons" />
             ) : (

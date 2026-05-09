@@ -9,6 +9,7 @@ import { WeatherWidget } from '@/components/WeatherWidget';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
+import { BirthdayBanner } from '@/components/BirthdayBanner';
 import { fmtClock } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl, useCoAufgieser, useAllMembersBadges } from '@/lib/api';
@@ -125,6 +126,8 @@ export default function Dashboard() {
           </span>
         </div>
       </header>
+
+      <BirthdayBanner />
 
       <LayoutGroup>
         <motion.main

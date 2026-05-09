@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import {
   useSaunas, useToggleSauna,
@@ -52,6 +53,7 @@ export default function Admin() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle compact />
             <AdminQuickNav variant="icons" />
             <button
               onClick={() => signOut()}

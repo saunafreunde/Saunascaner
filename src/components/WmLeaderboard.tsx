@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useWmLeaderboard } from '@/lib/api';
 
 interface Props {
@@ -40,7 +41,7 @@ export function WmLeaderboard({ myMemberId }: Props) {
           const visualHeights = [heights[0], heights[1], heights[2]];
 
           return (
-            <div key={entry.member_id} className="flex flex-col items-center">
+            <Link key={entry.member_id} to={`/profile/${entry.member_id}`} className="flex flex-col items-center hover:opacity-90 transition">
               <div className="text-3xl mb-1 animate-bounce-slow">{medals[visualIdx]}</div>
               <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${colors[colorIdx]} flex items-center justify-center text-2xl font-black text-forest-950 shadow-lg ring-2 ${isMe ? 'ring-amber-300 ring-offset-2 ring-offset-forest-950' : 'ring-white/20'}`}>
                 {entry.name.charAt(0).toUpperCase()}
@@ -53,7 +54,7 @@ export function WmLeaderboard({ myMemberId }: Props) {
                 {entry.total_points}
               </div>
               <div className={`mt-1 w-full ${visualHeights[visualIdx]} rounded-t-xl bg-gradient-to-b ${colors[colorIdx]} opacity-30`} />
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -79,7 +80,9 @@ export function WmLeaderboard({ myMemberId }: Props) {
                   <tr key={r.member_id} className={`border-t border-forest-800/30 ${isMe ? 'bg-amber-950/30' : ''}`}>
                     <td className="px-3 py-2 text-forest-400 tabular-nums">{rank}.</td>
                     <td className="px-3 py-2 font-medium">
-                      {r.name}{isMe && ' ✦'}
+                      <Link to={`/profile/${r.member_id}`} className="hover:text-amber-300 transition">
+                        {r.name}{isMe && ' ✦'}
+                      </Link>
                       {r.sauna_name && <span className="ml-1.5 text-xs text-forest-400">{r.sauna_name}</span>}
                     </td>
                     <td className="px-2 py-2 text-right text-xs text-forest-300 tabular-nums">

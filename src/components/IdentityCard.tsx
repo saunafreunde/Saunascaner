@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { differenceInDays } from 'date-fns';
 import { motion } from 'framer-motion';
 import type { Member, MemberCustomAttr } from '@/lib/api';
-import { useSetSaunaName } from '@/lib/api';
+import { useSetSaunaName, useSetBirthday } from '@/lib/api';
 import { sendNotification } from '@/lib/telegram';
 
 interface IdentityCardProps {
@@ -13,10 +13,25 @@ interface IdentityCardProps {
 
 export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: IdentityCardProps) {
   const setSaunaName = useSetSaunaName();
+  const setBirthday = useSetBirthday();
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
+  const [editingBirthday, setEditingBirthday] = useState(false);
+  const [birthdayInput, setBirthdayInput] = useState(member.birthday ?? '');
+  const [birthdaySaved, setBirthdaySaved] = useState(false);
+
+  async function saveBirthday() {
+    try {
+      await setBirthday.mutateAsync(birthdayInput || null);
+      setEditingBirthday(false);
+      setBirthdaySaved(true);
+      setTimeout(() => setBirthdaySaved(false), 3000);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   const canChange = !member.sauna_name_changed_at || differenceInDays(new Date(), new Date(member.sauna_name_changed_at)) >= 30;
   const daysLeft = !canChange && member.sauna_name_changed_at
@@ -88,6 +103,49 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
                 {setSaunaName.isPending ? 'Speichere…' : 'Speichern'}
               </button>
               <button onClick={() => { setEditingName(false); setNameError(null); }}
+                className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-300 ring-1 ring-forest-700/50 hover:bg-forest-900">
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Geburtstag */}
+      <section className="pt-3 border-t border-forest-800/30">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs">🎂</span>
+          <h3 className="text-[11px] font-bold text-violet-300/80 uppercase tracking-[0.12em]">Geburtstag</h3>
+        </div>
+        {birthdaySaved && <p className="text-sm text-emerald-300 mb-2">✅ Geburtstag gespeichert.</p>}
+        {!editingBirthday ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-forest-200">
+              {member.birthday
+                ? new Date(member.birthday).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
+                : <span className="text-forest-300/50 italic">— nicht gesetzt —</span>}
+            </span>
+            <button
+              onClick={() => { setEditingBirthday(true); setBirthdayInput(member.birthday ?? ''); }}
+              className="rounded-lg bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 ring-1 ring-violet-500/30 hover:bg-violet-500/25"
+            >
+              {member.birthday ? '✏️ Ändern' : '+ Setzen'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <input
+              type="date"
+              value={birthdayInput}
+              onChange={(e) => setBirthdayInput(e.target.value)}
+              className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+            <div className="flex gap-2">
+              <button onClick={saveBirthday} disabled={setBirthday.isPending}
+                className="flex-1 rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-60">
+                {setBirthday.isPending ? 'Speichere…' : 'Speichern'}
+              </button>
+              <button onClick={() => setEditingBirthday(false)}
                 className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-300 ring-1 ring-forest-700/50 hover:bg-forest-900">
                 Abbrechen
               </button>

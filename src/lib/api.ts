@@ -152,8 +152,98 @@ export type Member = {
   is_present: boolean;
   last_scan_at: string | null;
   revoked_at: string | null;
+  birthday: string | null;
   created_at: string;
 };
+
+export function useMember(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['member', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('members')
+        .select('id, name, sauna_name, member_number, is_aufgieser, role, birthday')
+        .eq('id', memberId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as null | { id: string; name: string; sauna_name: string | null; member_number: number | null; is_aufgieser: boolean; role: string; birthday: string | null };
+    },
+  });
+}
+
+export function useSetBirthday() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (birthday: string | null) => {
+      const { data, error } = await need().rpc('set_my_birthday', { p_birthday: birthday });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
+      qc.invalidateQueries({ queryKey: ['birthdays-today'] });
+    },
+  });
+}
+
+export function useBirthdaysToday() {
+  return useQuery({
+    queryKey: ['birthdays-today'],
+    refetchInterval: 60 * 60_000, // 1h
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_birthdays_today');
+      if (error) throw error;
+      return (data ?? []) as { member_id: string; name: string; sauna_name: string | null }[];
+    },
+  });
+}
+
+export async function fetchVapidPublicKey(): Promise<string> {
+  const r = await fetch('/api/push-vapid-public');
+  const data = await r.json();
+  if (!data.publicKey) throw new Error('No VAPID key');
+  return data.publicKey as string;
+}
+
+export async function subscribePush(memberId: string, subscription: PushSubscription) {
+  const json = subscription.toJSON();
+  await fetch('/api/push-subscribe', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      member_id: memberId,
+      subscription: { endpoint: json.endpoint, keys: json.keys },
+      user_agent: navigator.userAgent,
+    }),
+  });
+}
+
+export async function sendTestPush(memberId: string) {
+  await fetch('/api/push-send', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      member_ids: [memberId],
+      title: '🧖 Saunafreunde — Test',
+      body: 'Push-Benachrichtigungen funktionieren! 🎉',
+      url: '/planner',
+    }),
+  });
+}
+
+export function useAttendanceStreak(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['streak', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_attendance_streak_weeks', { p_member_id: memberId! });
+      if (error) throw error;
+      return (data ?? 0) as number;
+    },
+  });
+}
 
 export function useCurrentMember() {
   return useQuery({
@@ -1179,6 +1269,20 @@ export function useSetWmMatchTeams() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wm-matches'] }),
+  });
+}
+
+export function useAwardWmChampions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('award_wm_champions');
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['achievements'] });
+    },
   });
 }
 

@@ -53,6 +53,12 @@ export async function checkAndAwardBadges(memberId: string): Promise<BadgeDefini
     ratingCount = (data as number) ?? 0;
   } catch { /* ignore */ }
 
+  let streakWeeks = 0;
+  try {
+    const { data } = await need().rpc('get_attendance_streak_weeks', { p_member_id: memberId });
+    streakWeeks = (data as number) ?? 0;
+  } catch { /* ignore */ }
+
   const specialChecks: { badge: BadgeDefinition; condition: boolean }[] = [
     {
       badge: SPECIAL_BADGES.find((b) => b.id === 'early_bird')!,
@@ -73,6 +79,18 @@ export async function checkAndAwardBadges(memberId: string): Promise<BadgeDefini
     {
       badge: SPECIAL_BADGES.find((b) => b.id === 'feedback_giver')!,
       condition: ratingCount >= 10,
+    },
+    {
+      badge: SPECIAL_BADGES.find((b) => b.id === 'streak_4w')!,
+      condition: streakWeeks >= 4,
+    },
+    {
+      badge: SPECIAL_BADGES.find((b) => b.id === 'streak_12w')!,
+      condition: streakWeeks >= 12,
+    },
+    {
+      badge: SPECIAL_BADGES.find((b) => b.id === 'streak_24w')!,
+      condition: streakWeeks >= 24,
     },
   ];
 

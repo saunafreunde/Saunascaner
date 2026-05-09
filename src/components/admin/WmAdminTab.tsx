@@ -4,6 +4,7 @@ import { de } from 'date-fns/locale';
 import {
   useWmTeams, useWmMatches, useUpsertWmMatch, useSetWmMatchTeams,
   useRecordWmResult, useWmGroupStandings, useWmPendingTippers,
+  useAwardWmChampions,
   type WmPhase, type WmMatch,
 } from '@/lib/api';
 import { sendNotification } from '@/lib/telegram';
@@ -40,7 +41,50 @@ export function WmAdminTab() {
       {section === 'matches'   && <MatchesSection />}
       {section === 'setup'     && <SetupSection />}
       {section === 'standings' && <StandingsSection />}
+
+      <ChampionsAwardCard />
     </section>
+  );
+}
+
+function ChampionsAwardCard() {
+  const matches = useWmMatches();
+  const award = useAwardWmChampions();
+  const finalMatch = (matches.data ?? []).find((m) => m.phase === 'final');
+  const finalDone = !!finalMatch?.locked;
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  if (!finalDone) {
+    return (
+      <div className="rounded-2xl bg-forest-950/40 ring-1 ring-forest-800/40 p-3 text-xs text-forest-500 italic">
+        🏆 Tipp-Champion-Badges für Top-3 werden vergeben sobald das Finale gelockt ist.
+      </div>
+    );
+  }
+
+  async function awardNow() {
+    setFeedback(null);
+    try {
+      const r = await award.mutateAsync();
+      setFeedback(r === 'ok' ? '✓ Top-3 haben ihre Badges erhalten!' : `Fehler: ${r}`);
+    } catch (e) {
+      setFeedback(`Fehler: ${(e as Error).message}`);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-amber-950/40 to-forest-950/40 ring-2 ring-amber-500/40 p-4 space-y-2">
+      <h3 className="text-sm font-bold text-amber-200 uppercase tracking-wider">🏆 Tipp-Champions auszeichnen</h3>
+      <p className="text-xs text-amber-300/80">Vergibt Gold/Silber/Bronze-Badges an die Top-3 des Tipspiels. Idempotent — kann mehrfach aufgerufen werden ohne doppelte Badges zu vergeben.</p>
+      <button
+        onClick={awardNow}
+        disabled={award.isPending}
+        className="rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-sm font-bold text-amber-950 disabled:opacity-50"
+      >
+        {award.isPending ? 'Vergebe…' : '🥇 Champion-Badges jetzt vergeben'}
+      </button>
+      {feedback && <p className="text-xs text-amber-200">{feedback}</p>}
+    </div>
   );
 }
 
