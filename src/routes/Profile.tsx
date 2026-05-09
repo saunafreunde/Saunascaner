@@ -8,6 +8,7 @@ import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { WmStandMini } from '@/components/WmStandMini';
 import BadgeShowcase from '@/components/BadgeShowcase';
 import { PushPermission } from '@/components/PushPermission';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
 import {
   useCurrentMember, useMember, useMemberStats,
   useAttendanceStreak, useWmLeaderboard,
@@ -153,8 +154,13 @@ export default function Profile() {
           <BadgeShowcase memberId={m.id} />
         </div>
 
-        {/* Push-Permission (nur bei eigenem Profil) */}
-        {isMyself && <PushPermission memberId={m.id} />}
+        {/* PWA Install + Push (nur bei eigenem Profil) */}
+        {isMyself && (
+          <>
+            <PWAInstallButton />
+            <PushPermission memberId={m.id} />
+          </>
+        )}
 
         {isMyself && (
           <p className="text-center text-xs text-forest-500 italic">Das bist du. Aktivere Karten findest du im Mitgliederbereich.</p>

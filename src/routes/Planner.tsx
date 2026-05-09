@@ -19,6 +19,7 @@ import { AtelierTabs } from '@/components/AtelierTabs';
 import { IdentityCard } from '@/components/IdentityCard';
 import { TrophyWall } from '@/components/TrophyWall';
 import { WmStandMini } from '@/components/WmStandMini';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { fireBadgeUnlock, fireFirstInfusionOfDay } from '@/lib/confetti';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -345,6 +346,18 @@ export default function Planner() {
       const ev = await trigEvac.mutateAsync({ triggered_by: m.id, present_names: presentNames });
       broadcastEvac({ type: 'start', triggeredBy: m.name, triggeredAt: Date.parse(ev.triggered_at) });
       const r = await sendEvacuationList({ triggeredBy: m.name, triggeredAt: new Date(ev.triggered_at), presentNames });
+      // Push an alle Mitglieder mit Subscription (parallel)
+      fetch('/api/push-send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: '🚨 EVAKUIERUNG',
+          body: `Bitte sofort das Gebäude verlassen — ausgelöst von ${m.name}`,
+          url: '/dashboard',
+          tag: 'evacuation',
+          requireInteraction: true,
+        }),
+      }).catch(() => { /* push ist optional */ });
       setEvacToast(r.ok ? `Liste an Telegram gesendet (${presentNames.length} Personen).` : `Telegram fehlgeschlagen: ${r.detail ?? 'unbekannt'}`);
     } catch (e) { setEvacToast(`Fehler: ${(e as Error).message}`); }
   }
@@ -829,6 +842,9 @@ export default function Planner() {
                 </div>
                 <TrophyWall memberId={m.id} />
               </div>
+
+              {/* PWA-Install (Android/iOS-Hinweis) */}
+              <PWAInstallButton />
             </div>
           </HubZone>
         )}
