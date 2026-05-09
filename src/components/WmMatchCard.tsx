@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { WmMatch, WmTeam, WmTip } from '@/lib/api';
 import { useSubmitWmTip, useAllWmTips } from '@/lib/api';
+import { computeOdds } from '@/lib/fifaRanks';
 
 interface Props {
   match: WmMatch;
@@ -88,14 +89,22 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
   }
 
   async function saveExtras() {
-    if (tippingClosed || !outcome || !teamsKnown) return;
+    if (tippingClosed || !teamsKnown) return;
+    const sH = scoreHome === '' ? null : Number(scoreHome);
+    const sA = scoreAway === '' ? null : Number(scoreAway);
+    let o = outcome;
+    if (!o && sH != null && sA != null && !Number.isNaN(sH) && !Number.isNaN(sA)) {
+      o = sH > sA ? 'home' : sH < sA ? 'away' : 'draw';
+      setOutcome(o);
+    }
+    if (!o) return;
     setBusy(true);
     setErrMsg(null);
     const result = await submitTip.mutateAsync({
       match_id: match.id,
-      outcome,
-      score_home: scoreHome === '' ? null : Number(scoreHome),
-      score_away: scoreAway === '' ? null : Number(scoreAway),
+      outcome: o,
+      score_home: sH,
+      score_away: sA,
       joker,
     });
     setBusy(false);
@@ -154,20 +163,49 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
         </div>
       </div>
 
+      {/* FIFA-Quoten-Streifen */}
+      {teamsKnown && (() => {
+        const odds = computeOdds(home!.code, away!.code);
+        return (
+          <div className="px-4 pb-2">
+            <div className="text-[10px] text-forest-500 uppercase tracking-wider mb-1">
+              Chancen <span className="text-forest-600 normal-case">(FIFA-Rang)</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 text-center">
+              <div className="rounded-lg bg-blue-950/40 ring-1 ring-blue-700/30 py-1">
+                <div className="text-[9px] text-blue-300/70 truncate px-1">Sieg {home!.name}</div>
+                <div className="font-bold text-blue-200 tabular-nums text-sm">{odds.home}%</div>
+              </div>
+              <div className="rounded-lg bg-slate-900/50 ring-1 ring-slate-600/30 py-1">
+                <div className="text-[9px] text-slate-400">Remis</div>
+                <div className="font-bold text-slate-200 tabular-nums text-sm">{odds.draw}%</div>
+              </div>
+              <div className="rounded-lg bg-rose-950/40 ring-1 ring-rose-700/30 py-1">
+                <div className="text-[9px] text-rose-300/70 truncate px-1">Sieg {away!.name}</div>
+                <div className="font-bold text-rose-200 tabular-nums text-sm">{odds.away}%</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Tipp-Buttons */}
       {teamsKnown && (
         <div className="px-4 pb-3">
           <div className="grid grid-cols-3 gap-1.5">
             {(['home', 'draw', 'away'] as const).map((opt) => {
               const active = outcome === opt;
-              const label = opt === 'home' ? home!.code : opt === 'draw' ? 'X' : away!.code;
+              const label =
+                opt === 'home' ? (home!.name || match.home_label || home!.code)
+                : opt === 'draw' ? 'Remis'
+                : (away!.name || match.away_label || away!.code);
               const flag = opt === 'home' ? home!.flag : opt === 'away' ? away!.flag : '🤝';
               return (
                 <button
                   key={opt}
                   disabled={tippingClosed || busy}
                   onClick={() => pick(opt)}
-                  className={`relative rounded-xl px-2 py-2.5 text-sm font-bold transition ${
+                  className={`relative rounded-xl px-1.5 py-2.5 font-bold transition ${
                     active
                       ? 'bg-amber-500 text-amber-950 shadow-md ring-2 ring-amber-300'
                       : tippingClosed
@@ -175,31 +213,34 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
                         : 'bg-forest-900/70 text-forest-200 hover:bg-forest-800 ring-1 ring-forest-700/40'
                   }`}
                 >
-                  <span className="block text-base">{flag}</span>
-                  <span className="block text-[10px] mt-0.5">{label}</span>
+                  <span className="block text-lg">{flag}</span>
+                  <span className="block text-[11px] mt-0.5 truncate px-1">{label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Heat-Map */}
-          {heat && heat.total > 0 && !tippingClosed && (
-            <div className="mt-2 flex h-1 rounded-full overflow-hidden bg-forest-900/40">
-              <div className="bg-blue-500/60" style={{ width: `${heat.home}%` }} title={`${heat.home}% Heim`} />
-              <div className="bg-slate-500/60" style={{ width: `${heat.draw}%` }} title={`${heat.draw}% Remis`} />
-              <div className="bg-rose-500/60" style={{ width: `${heat.away}%` }} title={`${heat.away}% Auswärts`} />
-            </div>
-          )}
+          {/* Mitglieder-Tipps Heat-Map */}
           {heat && heat.total > 0 && (
-            <div className="mt-1 flex justify-between text-[10px] text-forest-500 tabular-nums">
-              <span>{heat.home}%</span>
-              <span>{heat.draw}%</span>
-              <span>{heat.away}%</span>
-            </div>
+            <>
+              <div className="mt-2 text-[9px] text-forest-500 uppercase tracking-wider">
+                Mitglieder-Tipps ({heat.total})
+              </div>
+              <div className="mt-1 flex h-1 rounded-full overflow-hidden bg-forest-900/40">
+                <div className="bg-blue-500/60" style={{ width: `${heat.home}%` }} />
+                <div className="bg-slate-500/60" style={{ width: `${heat.draw}%` }} />
+                <div className="bg-rose-500/60" style={{ width: `${heat.away}%` }} />
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-forest-500 tabular-nums">
+                <span>{heat.home}%</span>
+                <span>{heat.draw}%</span>
+                <span>{heat.away}%</span>
+              </div>
+            </>
           )}
 
-          {/* Exakt-Tipp + Joker */}
-          {outcome && !tippingClosed && (
+          {/* Exakt-Tipp + Joker — immer sichtbar wenn Teams + nicht gesperrt */}
+          {!tippingClosed && (
             <div className="mt-3 flex items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-1.5">
                 <span className="text-forest-400">Exakt:</span>
