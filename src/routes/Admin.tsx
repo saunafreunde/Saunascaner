@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember,
@@ -20,7 +21,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'branding' | 'polls';
+type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'branding' | 'polls' | 'wm';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:   { label: 'Saunen',      icon: '🔥' },
@@ -29,6 +30,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   stats:    { label: 'Statistik',   icon: '📊' },
   branding: { label: 'Branding',    icon: '🎨' },
   polls:    { label: 'Abfragen',    icon: '📋' },
+  wm:       { label: 'WM-Tipps',    icon: '🏆' },
 };
 
 export default function Admin() {
@@ -92,6 +94,7 @@ export default function Admin() {
         {tab === 'stats' && <StatsTab />}
         {tab === 'branding' && <BrandingTab />}
         {tab === 'polls' && <PollsTab />}
+        {tab === 'wm' && <WmAdminTab />}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import Scanner from '@/routes/Scanner';
 import Login from '@/routes/Login';
 import Planner from '@/routes/Planner';
 import OilRoom from '@/routes/OilRoom';
+import Wm from '@/routes/Wm';
 import ForgotPassword from '@/routes/ForgotPassword';
 import ResetPassword from '@/routes/ResetPassword';
 import MagicEntry from '@/routes/MagicEntry';
@@ -25,6 +26,7 @@ export default function App() {
       <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
       <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
       <Route path="/oil-room"  element={<OilRoom />} />
+      <Route path="/wm"        element={<RequireAuth><Wm /></RequireAuth>} />
       <Route path="/login"          element={<Login />} />
       <Route path="/forgot"         element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />

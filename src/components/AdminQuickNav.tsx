@@ -4,6 +4,7 @@ const NAV_ITEMS = [
   { path: '/dashboard', label: 'Tafel',     icon: '📺' },
   { path: '/planner',   label: 'Mitglied',  icon: '🧖' },
   { path: '/admin',     label: 'Admin',     icon: '⚙️' },
+  { path: '/wm',        label: 'WM',        icon: '🏆' },
   { path: '/scanner',   label: 'Scanner',   icon: '📷' },
   { path: '/oil-room',  label: 'Aromen',    icon: '🌿' },
 ] as const;
