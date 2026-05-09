@@ -155,6 +155,8 @@ export type Member = {
   last_scan_at: string | null;
   revoked_at: string | null;
   birthday: string | null;
+  motto: string | null;
+  avatar_path: string | null;
   created_at: string;
 };
 
@@ -165,7 +167,7 @@ export function useMember(memberId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await need().rpc('get_member_public', { p_member_id: memberId! });
       if (error) throw error;
-      const row = (data ?? [])[0] as undefined | { id: string; name: string; sauna_name: string | null; member_number: number | null; is_aufgieser: boolean; role: string; birthday: string | null; motto: string | null; created_at: string };
+      const row = (data ?? [])[0] as undefined | { id: string; name: string; sauna_name: string | null; member_number: number | null; is_aufgieser: boolean; role: string; birthday: string | null; motto: string | null; avatar_path: string | null; created_at: string };
       return row ?? null;
     },
   });
@@ -202,6 +204,98 @@ export function useSetMotto() {
       qc.invalidateQueries({ queryKey: ['member'] });
       qc.invalidateQueries({ queryKey: ['members-directory'] });
     },
+  });
+}
+
+// ─── Avatar ──────────────────────────────────────────────────────────────
+export function useSetAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (avatarPath: string | null) => {
+      const { data, error } = await need().rpc('set_my_avatar', { p_path: avatarPath ?? '' });
+      if (error) throw error;
+      if (data === 'not_authorized') throw new Error('Nicht berechtigt.');
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
+      qc.invalidateQueries({ queryKey: ['members-directory'] });
+      qc.invalidateQueries({ queryKey: ['member-photos'] });
+    },
+  });
+}
+
+// ─── Member-Foto-Galerie ─────────────────────────────────────────────────
+export type MemberPhoto = {
+  id: string;
+  uploader_id: string;
+  uploader_name: string;
+  uploader_sauna_name: string | null;
+  uploader_avatar_path: string | null;
+  photo_path: string;
+  caption: string | null;
+  approved: boolean;
+  created_at: string;
+};
+
+export function useMemberPhotos(limit = 30, includePending = false) {
+  return useQuery({
+    queryKey: ['member-photos', limit, includePending],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_member_photos', {
+        p_limit: limit,
+        p_include_pending: includePending,
+      });
+      if (error) throw error;
+      return (data ?? []) as MemberPhoto[];
+    },
+  });
+}
+
+export function useUploadMemberPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ uploaderId, file, caption }: { uploaderId: string; file: File; caption: string | null }) => {
+      // uploadAsset komprimiert intern bereits (1920px / 500KB / JPEG)
+      const path = await uploadAsset(file, 'member-photos');
+      const cleanedCaption = caption?.trim() ? caption.trim().slice(0, 280) : null;
+      const { error } = await need().from('member_photos').insert({
+        uploader_id: uploaderId,
+        photo_path: path,
+        caption: cleanedCaption,
+      });
+      if (error) {
+        // Bei DB-Fehler: hochgeladenes Bild wieder entfernen
+        try { await deleteAsset(path); } catch { /* ignore */ }
+        throw error;
+      }
+      return path;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['member-photos'] }),
+  });
+}
+
+export function useDeleteMemberPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (photo: { id: string; photo_path: string }) => {
+      const { error } = await need().from('member_photos').delete().eq('id', photo.id);
+      if (error) throw error;
+      try { await deleteAsset(photo.photo_path); } catch { /* ignore */ }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['member-photos'] }),
+  });
+}
+
+export function useTogglePhotoApproval() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, approved }: { id: string; approved: boolean }) => {
+      const { error } = await need().from('member_photos').update({ approved }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['member-photos'] }),
   });
 }
 
@@ -337,6 +431,7 @@ export type MemberDirectoryEntry = {
   is_present: boolean;
   birthday: string | null;
   motto: string | null;
+  avatar_path: string | null;
   created_at: string;
 };
 
@@ -435,12 +530,12 @@ export function usePresentMembers() {
     queryFn: async () => {
       const { data, error } = await need()
         .from('members')
-        .select('id,name,last_scan_at,is_aufgieser')
+        .select('id,name,last_scan_at,is_aufgieser,avatar_path')
         .eq('is_present', true)
         .is('revoked_at', null)
         .order('name');
       if (error) throw error;
-      return data as { id: string; name: string; last_scan_at: string | null; is_aufgieser: boolean }[];
+      return data as { id: string; name: string; last_scan_at: string | null; is_aufgieser: boolean; avatar_path: string | null }[];
     },
   });
 }

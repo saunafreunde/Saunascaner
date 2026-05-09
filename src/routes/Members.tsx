@@ -7,6 +7,9 @@ import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember, useMembersDirectory, type MemberDirectoryEntry } from '@/lib/api';
+import { Avatar } from '@/components/Avatar';
+import { PhotoCarousel } from '@/components/PhotoCarousel';
+import { PhotoUploadButton } from '@/components/PhotoUploadButton';
 
 type Filter = 'all' | 'aufgieser' | 'present';
 
@@ -67,7 +70,7 @@ export default function Members() {
       </header>
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5 space-y-4">
-        {/* Suche + Filter */}
+        {/* Suche + Filter + Foto-Upload */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
             value={search}
@@ -100,6 +103,17 @@ export default function Members() {
             ))}
           </div>
         )}
+
+        {/* Foto-Galerie + Karussell unten */}
+        <section className="pt-8">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold text-amber-300/90 uppercase tracking-[0.12em] flex items-center gap-2">
+              <span>📸</span><span>Erinnerungen aus der Sauna</span>
+            </h2>
+            {me.data?.id && <PhotoUploadButton uploaderId={me.data.id} />}
+          </div>
+          <PhotoCarousel currentMemberId={me.data?.id ?? null} isAdmin={isAdmin} />
+        </section>
       </div>
     </PageBackground>
   );
@@ -150,13 +164,12 @@ function MemberCard({ m, todayMD }: { m: MemberDirectoryEntry; todayMD: string }
       )}
 
       <div className="flex items-start gap-3">
-        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl font-black shadow-lg ring-2 ${
-          m.is_aufgieser
-            ? 'bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 text-amber-950 ring-amber-400/30 shadow-amber-900/30'
-            : 'bg-gradient-to-br from-forest-300 via-forest-500 to-forest-800 text-forest-950 ring-forest-400/30 shadow-forest-900/30'
-        }`}>
-          {m.name.charAt(0).toUpperCase()}
-        </div>
+        <Avatar
+          name={m.name}
+          avatarPath={m.avatar_path}
+          size="md"
+          isAufgieser={m.is_aufgieser}
+        />
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-bold text-forest-100 truncate">{m.name}</h3>
           {m.sauna_name && (

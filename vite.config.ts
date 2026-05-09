@@ -29,6 +29,28 @@ export default defineConfig({
       workbox: {
         importScripts: ['/push-handler.js'],
         runtimeCaching: [
+          // Storage-Bilder (Avatare, Event-Fotos): aggressiv cachen, 30 Tage
+          {
+            urlPattern: ({ url }) => url.hostname.includes('supabase.co')
+              && url.pathname.includes('/storage/v1/object/public/assets/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'assets-images',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // DiceBear-generierte Avatare: 7 Tage
+          {
+            urlPattern: ({ url }) => url.hostname === 'api.dicebear.com',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'dicebear-avatars',
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Übrige Supabase-Requests (API/RPC): NetworkFirst
           {
             urlPattern: ({ url }) => url.hostname.includes('supabase.co'),
             handler: 'NetworkFirst',

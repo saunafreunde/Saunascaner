@@ -1,22 +1,16 @@
 import { motion } from 'framer-motion';
+import { Avatar } from './Avatar';
 
 interface PresentMember {
   id: string;
   name: string;
   is_aufgieser: boolean;
+  avatar_path?: string | null;
 }
 
 interface PresentAvatarsProps {
   members: PresentMember[];
   currentMemberId?: string;
-}
-
-// Deterministic color from name
-function avatarColor(name: string): string {
-  const hues = [142, 25, 200, 270, 340, 60];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash << 5) - hash + name.charCodeAt(i);
-  return `hsl(${hues[Math.abs(hash) % hues.length]}, 50%, 45%)`;
 }
 
 export function PresentAvatars({ members, currentMemberId }: PresentAvatarsProps) {
@@ -33,7 +27,6 @@ export function PresentAvatars({ members, currentMemberId }: PresentAvatarsProps
     <div className="flex flex-wrap gap-1.5">
       {members.map((p, idx) => {
         const isMe = p.id === currentMemberId;
-        const initials = p.name.split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
         return (
           <motion.div
             key={p.id}
@@ -43,16 +36,17 @@ export function PresentAvatars({ members, currentMemberId }: PresentAvatarsProps
             className="group relative"
           >
             <div
-              className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-transform group-hover:scale-110 ${
-                isMe ? 'ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]' : 'ring-1 ring-white/10'
+              className={`transition-transform group-hover:scale-110 ${
+                isMe ? 'rounded-xl ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]' : ''
               }`}
-              style={{
-                backgroundColor: avatarColor(p.name),
-                color: '#fff',
-              }}
               title={p.name}
             >
-              {initials}
+              <Avatar
+                name={p.name}
+                avatarPath={p.avatar_path}
+                size="sm"
+                isAufgieser={p.is_aufgieser}
+              />
             </div>
             {p.is_aufgieser && (
               <span className="absolute -bottom-0.5 -right-0.5 text-[10px]">🔥</span>

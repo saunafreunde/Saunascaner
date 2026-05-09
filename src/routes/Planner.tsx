@@ -14,6 +14,7 @@ import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { Avatar } from '@/components/Avatar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HubZone } from '@/components/HubZone';
 import { TodayLiveBento } from '@/components/TodayLiveBento';
@@ -480,9 +481,18 @@ export default function Planner() {
       <header className="sticky top-0 z-30 border-b border-forest-800/40 bg-forest-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 py-2.5 sm:py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-forest-400 via-forest-500 to-forest-700 text-base font-bold text-forest-950 shadow-lg shadow-forest-900/50">
-              {m?.name?.charAt(0).toUpperCase() ?? '?'}
-            </div>
+            <Link
+              to={m ? `/profile/${m.id}` : '/planner'}
+              title="Mein Profil"
+              className="shrink-0 transition hover:opacity-90"
+            >
+              <Avatar
+                name={m?.name ?? '?'}
+                avatarPath={m?.avatar_path ?? null}
+                size="sm"
+                isAufgieser={!!m?.is_aufgieser}
+              />
+            </Link>
             <div className="min-w-0">
               <h1 className="text-sm sm:text-base font-semibold text-forest-100 leading-tight truncate">
                 {m ? `Hallo, ${m.name.split(' ')[0]}` : 'Interner Bereich'}

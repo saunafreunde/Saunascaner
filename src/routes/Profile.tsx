@@ -16,6 +16,8 @@ import {
   useFavoriteOils, useSignatureInfusion, useSetMotto,
 } from '@/lib/api';
 import { OIL_BY_ID } from '@/lib/oils';
+import { Avatar } from '@/components/Avatar';
+import AvatarPicker from '@/components/AvatarPicker';
 
 export default function Profile() {
   const { memberId } = useParams<{ memberId: string }>();
@@ -35,6 +37,7 @@ export default function Profile() {
   const [editingMotto, setEditingMotto] = useState(false);
   const [mottoDraft, setMottoDraft] = useState('');
   const [mottoError, setMottoError] = useState<string | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   useEffect(() => {
     if (!editingMotto) setMottoDraft(m?.motto ?? '');
@@ -107,8 +110,24 @@ export default function Profile() {
             </div>
           )}
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex h-20 w-20 sm:h-24 sm:w-24 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-forest-300 via-forest-500 to-forest-800 text-3xl sm:text-4xl font-black text-forest-950 shadow-xl shadow-forest-900/50 ring-2 ring-forest-400/30">
-              {m.name.charAt(0).toUpperCase()}
+            <div className="relative">
+              <Avatar
+                name={m.name}
+                avatarPath={m.avatar_path}
+                size="xl"
+                isAufgieser={m.is_aufgieser}
+              />
+              {isMyself && (
+                <button
+                  type="button"
+                  onClick={() => setShowAvatarPicker(true)}
+                  title="Avatar ändern"
+                  className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-forest-500 text-forest-950 ring-2 ring-forest-950 shadow-lg hover:bg-forest-400 transition"
+                  aria-label="Avatar ändern"
+                >
+                  ✏️
+                </button>
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="text-2xl sm:text-3xl font-bold text-forest-100 truncate">{m.name}</h2>
@@ -303,6 +322,19 @@ export default function Profile() {
           <p className="text-center text-xs text-forest-500 italic">Das bist du. Aktivere Karten findest du im Mitgliederbereich.</p>
         )}
       </div>
+
+      {showAvatarPicker && isMyself && m && (
+        <AvatarPicker
+          member={{
+            id: m.id,
+            name: m.name,
+            sauna_name: m.sauna_name,
+            avatar_path: m.avatar_path,
+            is_aufgieser: m.is_aufgieser,
+          }}
+          onClose={() => setShowAvatarPicker(false)}
+        />
+      )}
     </PageBackground>
   );
 }
