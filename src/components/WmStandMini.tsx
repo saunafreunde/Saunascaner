@@ -14,10 +14,7 @@ export function WmStandMini({ memberId }: Props) {
   const matchesQ = useWmMatches();
 
   const totalMatches = (matchesQ.data ?? []).length;
-  if (totalMatches === 0) {
-    // No tournament running yet — hide widget
-    return null;
-  }
+  const noTournamentYet = totalMatches === 0;
 
   const rows = lb.data ?? [];
   const myEntry = rows.find((e) => e.member_id === memberId);
@@ -36,10 +33,12 @@ export function WmStandMini({ memberId }: Props) {
             🏆
           </div>
           <div className="min-w-0">
-            <h3 className="text-[11px] font-bold text-amber-300/80 uppercase tracking-[0.12em]">
-              WM-Tipspiel
+            <h3 className="text-sm font-bold text-amber-200 leading-tight">
+              WM-Tipspiel 2026
             </h3>
-            {myEntry ? (
+            {noTournamentYet ? (
+              <p className="text-xs text-amber-300/70 mt-0.5 italic">Spielplan noch nicht angelegt — antippen zum Öffnen</p>
+            ) : myEntry ? (
               <p className="text-xs text-forest-300 mt-0.5">
                 <span className="text-2xl">{podiumEmoji}</span>{' '}
                 Platz <strong className="text-amber-200">{myRank}</strong>

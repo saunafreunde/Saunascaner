@@ -497,6 +497,9 @@ export default function Planner() {
       {/* Modern Layout */}
       <div className="mx-auto max-w-7xl p-3 sm:p-4 lg:p-6 space-y-4">
 
+        {/* ══ WM-TIPSPIEL Banner (sichtbar für ALLE) ═══════════════ */}
+        {m && <WmStandMini memberId={m.id} />}
+
         {/* ══ HERO-ROW: Anwesenheit + Notfall ═══════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Check-in/out */}
@@ -766,9 +769,6 @@ export default function Planner() {
                   <MeisterRadarWidget memberId={m.id} size="lg" />
                 </div>
               </div>
-
-              {/* WM-Tipspiel Mini-Widget */}
-              <WmStandMini memberId={m.id} />
 
               <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-800/30 p-4">
                 <div className="flex items-center gap-2 mb-2">
