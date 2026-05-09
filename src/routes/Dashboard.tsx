@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { differenceInMinutes } from 'date-fns';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -10,14 +9,21 @@ import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { BirthdayBanner } from '@/components/BirthdayBanner';
 import { fmtClock } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { useSaunas, useInfusions, useMeisterDirectory, useActiveEvacuation, useTvSettings, publicAssetUrl, useCoAufgieser, useAllMembersBadges, useBirthdaysToday } from '@/lib/api';
+import {
+  useSaunas,
+  useInfusions,
+  useMeisterDirectory,
+  useActiveEvacuation,
+  useTvSettings,
+  publicAssetUrl,
+  useCoAufgieser,
+  useAllMembersBadges,
+} from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
-import { FocusArea } from '@/components/FocusArea';
-import { DayProgramStrip } from '@/components/DayProgramStrip';
-import type { ZwergMood } from '@/components/CuckooDoor';
+import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { onDemo } from '@/lib/demoChannel';
 
 export default function Dashboard() {
@@ -31,10 +37,6 @@ export default function Dashboard() {
   const allBadgesQ = useAllMembersBadges();
 
   const [audioReady, setAudioReady] = useState(false);
-  const [doorOpen, setDoorOpen] = useState(false);
-  const [zwergMood, setZwergMood] = useState<ZwergMood>('idle');
-  const forceExitMode = useRef<'flames' | 'zwerg' | null>(null);
-  const birthdays = useBirthdaysToday();
 
   const teamInfusionIds = useMemo(
     () => (infusions.data ?? []).filter((i) => i.team_infusion).map((i) => i.id),
@@ -47,8 +49,8 @@ export default function Dashboard() {
       .filter((c) => c.infusion_id === infusionId)
       .map((c) => c.member_name ?? '?');
 
-  const activeSaunaCount = useMemo(
-    () => (saunas.data ?? []).filter((s) => s.is_active).length,
+  const activeSaunas = useMemo(
+    () => (saunas.data ?? []).filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
     [saunas.data]
   );
 
@@ -68,66 +70,12 @@ export default function Dashboard() {
       .slice(0, 3);
   };
 
-  // ── Kuckuckstür-Logik ──────────────────────────────────────────────────
-  const nextInfusion = useMemo(() =>
-    (infusions.data ?? [])
-      .filter((i) => new Date(i.start_time) > now)
-      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
-      .at(0) ?? null,
-    [infusions.data, now]
-  );
-
-  const minutesUntilNext = nextInfusion
-    ? differenceInMinutes(new Date(nextInfusion.start_time), now)
-    : 999;
-
-  const isRunning = useMemo(() =>
-    (infusions.data ?? []).some((i) => {
-      const s = new Date(i.start_time);
-      const e = new Date(i.end_time);
-      return now >= s && now <= e;
-    }),
-    [infusions.data, now]
-  );
-
-  const hasBirthday = (birthdays.data ?? []).length > 0;
-
-  useEffect(() => {
-    if (evac.data) { setZwergMood('fleeing'); setDoorOpen(true); return; }
-    setZwergMood(hasBirthday ? 'birthday' : 'waving');
-    setDoorOpen(!isRunning && minutesUntilNext > 20);
-  }, [isRunning, minutesUntilNext, evac.data, hasBirthday]);
-
-  const handleZwergDrag = () => {
-    setDoorOpen(true);
-    setZwergMood('dragging');
-    setTimeout(() => setZwergMood('waving'), 2_600);
-  };
-
-  const handleDoorToggle = () => setDoorOpen((prev) => !prev);
-
-  // ── Demo-Channel Listener ──────────────────────────────────────────────
+  // ── Demo-Channel Listener (nur Confetti aktiv, Rest no-op) ─────────────
   useEffect(() => {
     return onDemo(async (e) => {
-      switch (e.type) {
-        case 'door_open':  setDoorOpen(true);  break;
-        case 'door_close': setDoorOpen(false); break;
-        case 'mood':
-          setZwergMood(e.mood);
-          setDoorOpen(true);
-          break;
-        case 'force_exit':
-          forceExitMode.current = e.mode;
-          break;
-        case 'confetti': {
-          const { fireBadgeUnlock } = await import('@/lib/confetti');
-          fireBadgeUnlock();
-          break;
-        }
-        case 'reset':
-          setZwergMood('waving');
-          forceExitMode.current = null;
-          break;
+      if (e.type === 'confetti') {
+        const { fireBadgeUnlock } = await import('@/lib/confetti');
+        fireBadgeUnlock();
       }
     });
   }, []);
@@ -138,9 +86,11 @@ export default function Dashboard() {
     .map((a) => publicAssetUrl(a.image_path))
     .filter((u): u is string => Boolean(u));
 
+  const allInfusions = infusions.data ?? [];
+
   return (
     <PageBackground page="dashboard" variant="strong" className="h-screen overflow-hidden flex flex-col">
-      <ParticleCanvas activeSaunaCount={activeSaunaCount} />
+      <ParticleCanvas activeSaunaCount={activeSaunas.length} />
       <AnimatePresence>
         {evac.data && (
           <EvacuationOverlay
@@ -177,36 +127,39 @@ export default function Dashboard() {
 
       <BirthdayBanner />
 
-      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-8 flex gap-4 pb-2">
-        <FocusArea
-          infusions={infusions.data ?? []}
-          saunas={saunas.data ?? []}
-          meisterName={meisterName}
-          meisterBadges={meisterBadges}
-          coNames={coNamesForInfusion}
-          now={now}
-        />
-        <aside className="w-52 flex-shrink-0 flex flex-col gap-3">
-          {adImageUrls.slice(0, 2).map((url, i) => (
-            <div key={i} className="flex-1 min-h-0 rounded-xl overflow-hidden bg-forest-950/60">
-              <img src={url} alt="" className="w-full h-full object-cover" />
-            </div>
-          ))}
-        </aside>
+      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-6 pb-6 flex gap-4">
+        {activeSaunas.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center text-3xl text-forest-300/70">
+            Heute keine Saunen aktiv.
+          </div>
+        ) : (
+          <>
+            {activeSaunas.map((sauna) => (
+              <SaunaTileColumn
+                key={sauna.id}
+                sauna={sauna}
+                infusions={allInfusions}
+                meisterName={meisterName}
+                meisterBadges={meisterBadges}
+                coNames={coNamesForInfusion}
+                now={now}
+              />
+            ))}
+            {adImageUrls.length > 0 && (
+              <aside className="w-44 flex-shrink-0 flex flex-col gap-3">
+                {adImageUrls.slice(0, 2).map((url, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 min-h-0 rounded-2xl overflow-hidden bg-forest-950/60 ring-1 ring-forest-800/40"
+                  >
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </aside>
+            )}
+          </>
+        )}
       </main>
-
-      <DayProgramStrip
-        infusions={infusions.data ?? []}
-        saunas={saunas.data ?? []}
-        meisterName={meisterName}
-        doorOpen={doorOpen}
-        zwergMood={zwergMood}
-        minutesUntilNext={minutesUntilNext}
-        nextTitle={nextInfusion?.title ?? ''}
-        forceExitMode={forceExitMode}
-        onZwergDrag={handleZwergDrag}
-        onDoorToggle={handleDoorToggle}
-      />
     </PageBackground>
   );
 }

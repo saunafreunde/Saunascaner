@@ -19,6 +19,7 @@ export function InfusionCard({
   coNames,
   now,
   compact = false,
+  className = '',
 }: {
   infusion: Infusion;
   sauna: Sauna;
@@ -27,6 +28,7 @@ export function InfusionCard({
   coNames?: string[];
   now: Date;
   compact?: boolean;
+  className?: string;
 }) {
   const start = new Date(infusion.start_time);
   const minsToStart = differenceInMinutes(start, now);
@@ -65,13 +67,13 @@ export function InfusionCard({
         opacity: { duration: 0.35 },
         boxShadow: imminent ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 },
       }}
-      className={`relative overflow-hidden rounded-2xl border bg-forest-950/55 p-5 backdrop-blur ${
+      className={`relative overflow-hidden rounded-2xl border bg-forest-950/55 ${compact ? 'p-3' : 'p-5'} backdrop-blur ${
         running
           ? 'border-emerald-400/50 ring-1 ring-emerald-400/30'
           : imminent
             ? 'border-transparent'
             : 'border-forest-800/40'
-      }`}
+      } ${className}`}
       style={imminent ? { borderColor: sauna.accent_color } : undefined}
     >
       <span
