@@ -24,6 +24,8 @@ import {
 import { ALL_BADGES } from '@/lib/badges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
+// Browser blockiert Audio bis zum ersten Klick — wir versuchen es deshalb
+// stillschweigend bei jeder Interaktion zu entsperren, ohne sichtbaren Button.
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { CuckooDoor, type ZwergMood } from '@/components/CuckooDoor';
@@ -154,7 +156,16 @@ export default function Dashboard() {
     });
   }, []);
 
-  useEffect(() => { if (audioReady) unlockAudio(); }, [audioReady]);
+  // Audio still beim ersten User-Klick irgendwo im Dokument entsperren —
+  // ohne den nervenden 'Ton aktivieren'-Button.
+  useEffect(() => {
+    const tryUnlock = () => {
+      if (unlockAudio()) setAudioReady(true);
+      document.removeEventListener('pointerdown', tryUnlock);
+    };
+    document.addEventListener('pointerdown', tryUnlock, { once: false });
+    return () => document.removeEventListener('pointerdown', tryUnlock);
+  }, []);
 
   const adImageUrls = (tv.data?.ads ?? [])
     .map((a) => publicAssetUrl(a.image_path))
@@ -230,16 +241,6 @@ export default function Dashboard() {
           />
         )}
       </AnimatePresence>
-
-      {!audioReady && !evac.data && (
-        <button
-          onClick={() => { if (unlockAudio()) setAudioReady(true); }}
-          className="fixed bottom-4 left-4 z-50 rounded-full bg-forest-900/80 px-4 py-2 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900"
-          title="Einmal klicken um Sirene-Sound zu aktivieren (Browser-Schutz)"
-        >
-          🔊 Ton aktivieren
-        </button>
-      )}
 
       {/* Header — Uhr links (+ 2. Uhr 10min vor Aufguss), Logo mittig, Wetter rechts */}
       <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-8 pb-3">
