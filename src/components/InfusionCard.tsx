@@ -56,7 +56,7 @@ export function InfusionCard({
         opacity: { duration: 0.35 },
         boxShadow: imminent ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 },
       }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl border ${backgroundImage ? '' : 'bg-forest-950/55'} ${compact ? 'p-2.5' : 'p-5'} backdrop-blur ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl border ${backgroundImage ? '' : 'bg-forest-950/55'} ${compact ? 'p-2' : 'p-5'} backdrop-blur ${
         running
           ? 'border-emerald-400/50 ring-1 ring-emerald-400/30'
           : imminent
@@ -81,7 +81,7 @@ export function InfusionCard({
 
       {/* Glass-Halo-Header: Time · Title (mit Akzent-Glow) */}
       <div
-        className="relative rounded-xl px-3 py-1.5 backdrop-blur-md"
+        className={`relative flex-shrink-0 rounded-xl backdrop-blur-md ${compact ? 'px-2.5 py-1' : 'px-3 py-1.5'}`}
         style={{
           background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%, rgba(8,18,12,0.4) 100%)`,
           boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f, inset 0 1px 0 rgba(255,255,255,0.07)`,
@@ -92,85 +92,51 @@ export function InfusionCard({
           aria-hidden
           className="absolute pointer-events-none rounded-full"
           style={{
-            left: -8,
+            left: -6,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 60,
-            height: 60,
+            width: 50,
+            height: 50,
             background: `radial-gradient(circle, ${sauna.accent_color}55 0%, transparent 65%)`,
             filter: 'blur(4px)',
           }}
         />
 
-        <div className="relative flex items-baseline gap-2.5 pr-[88px]">
+        <div className="relative flex items-baseline gap-2">
           <span
-            className={`font-semibold tracking-tight tabular-nums leading-none ${compact ? 'text-2xl' : 'text-4xl'}`}
-            style={{ color: sauna.accent_color, textShadow: `0 0 12px ${sauna.accent_color}66` }}
+            className={`font-semibold tracking-tight tabular-nums leading-none ${compact ? 'text-xl' : 'text-4xl'}`}
+            style={{ color: sauna.accent_color, textShadow: `0 0 10px ${sauna.accent_color}55` }}
           >
             {fmtClock(infusion.start_time)}
           </span>
-          <span className="text-forest-400/50 text-sm leading-none">·</span>
-          <h3 className={`font-semibold text-slate-100 truncate flex-1 leading-none ${compact ? 'text-base' : 'text-2xl'}`}>
+          <span className="text-forest-400/50 text-xs leading-none">·</span>
+          <h3 className={`font-semibold text-slate-100 truncate flex-1 leading-none ${compact ? 'text-sm' : 'text-2xl'}`}>
             {infusion.title}
           </h3>
+          {suffix !== 'Uhr' && (
+            <span className="ml-1 text-[9px] text-forest-300/60 leading-none whitespace-nowrap">{suffix}</span>
+          )}
         </div>
-
-        {/* Suffix (Uhr / morgen / Datum) klein darunter */}
-        {suffix !== 'Uhr' && (
-          <div className="relative mt-0.5 text-[10px] text-forest-300/70 leading-none">{suffix}</div>
-        )}
       </div>
-
-      {/* Öle: bis zu 3 überlappende Glas-Kreise rechts oben am Header */}
-      {oils.length > 0 && (
-        <div
-          className="absolute z-10 flex"
-          style={{ top: compact ? 10 : 18, right: compact ? 10 : 18 }}
-        >
-          {oils.map((oilId, i) => {
-            const o = OIL_BY_ID[oilId];
-            if (!o) return null;
-            const dim = compact ? 26 : 34;
-            return (
-              <div
-                key={`${i}-${oilId}`}
-                title={o.name}
-                className="grid place-items-center rounded-full backdrop-blur"
-                style={{
-                  width: dim,
-                  height: dim,
-                  marginLeft: i === 0 ? 0 : -8,
-                  zIndex: 10 + i,
-                  fontSize: compact ? 13 : 17,
-                  background: `radial-gradient(circle at 30% 25%, rgba(255,210,140,0.85), rgba(120,75,20,0.85))`,
-                  boxShadow: `0 0 0 2px rgba(8,18,12,0.95), 0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)`,
-                }}
-              >
-                <span style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.4))' }}>{o.emoji}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* Description */}
       {infusion.description && (
-        <p className={`relative mt-1.5 pl-2 text-slate-300/75 italic line-clamp-1 ${compact ? 'text-xs' : 'text-base'}`}>
+        <p className={`relative mt-1 pl-2 text-slate-300/75 italic line-clamp-1 ${compact ? 'text-[11px] leading-snug' : 'text-base'}`}>
           {infusion.description}
         </p>
       )}
 
-      {/* Attribute als Glas-Pills */}
-      {infusion.attributes.length > 0 && (
-        <div className="relative mt-1.5 flex flex-wrap gap-1 pl-2">
+      {/* Attribute + Öle gemeinsam in einer Pill-Reihe (Öle haben Amber-Tönung) */}
+      {(infusion.attributes.length > 0 || oils.length > 0) && (
+        <div className={`relative flex flex-wrap pl-2 ${compact ? 'mt-1 gap-1' : 'mt-2 gap-1.5'}`}>
           {infusion.attributes.map((a) => {
             const meta = ATTR_BY_ID[a];
             if (!meta) return null;
             return (
               <span
-                key={a}
+                key={`a-${a}`}
                 title={meta.label}
-                className={`inline-flex items-center gap-1 rounded-full backdrop-blur ${compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'}`}
+                className={`inline-flex items-center gap-1 rounded-full backdrop-blur ${compact ? 'px-1.5 py-0 text-[10px] leading-tight' : 'px-2.5 py-1 text-xs'}`}
                 style={{
                   background: `linear-gradient(135deg, ${sauna.accent_color}1a, rgba(8,18,12,0.55))`,
                   boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
@@ -181,13 +147,31 @@ export function InfusionCard({
               </span>
             );
           })}
+          {oils.map((oilId, i) => {
+            const o = OIL_BY_ID[oilId];
+            if (!o) return null;
+            return (
+              <span
+                key={`o-${i}-${oilId}`}
+                title={o.name}
+                className={`inline-flex items-center gap-1 rounded-full backdrop-blur ${compact ? 'px-1.5 py-0 text-[10px] leading-tight' : 'px-2.5 py-1 text-xs'}`}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(120,75,20,0.45))',
+                  boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.4)',
+                }}
+              >
+                <span aria-hidden>{o.emoji}</span>
+                <span className="text-amber-100/95">{o.name}</span>
+              </span>
+            );
+          })}
         </div>
       )}
 
-      {/* Footer: Meister + Dauer (rechts) */}
-      <div className={`relative mt-auto pt-2 pl-2 flex items-end justify-between gap-2 ${compact ? 'text-[11px]' : 'text-sm'} text-forest-300/70`}>
+      {/* Footer: Meister + Dauer */}
+      <div className={`relative mt-auto pt-1.5 pl-2 flex items-baseline justify-between gap-2 ${compact ? 'text-[10px]' : 'text-sm'} text-forest-300/70`}>
         <span className="truncate">
-          {meisterName ? meisterName : '—'}
+          {meisterName ?? '—'}
           {coNames && coNames.length > 0 && (
             <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
           )}
@@ -198,10 +182,10 @@ export function InfusionCard({
         <span className="tabular-nums whitespace-nowrap text-forest-200/85 font-medium">{infusion.duration_minutes} Min</span>
       </div>
 
-      {/* Meister-Badges (max 2 in compact, 3 sonst) — kompakt unter Footer */}
-      {meisterBadges && meisterBadges.length > 0 && (
+      {/* Meister-Badges nur im non-compact Modus */}
+      {!compact && meisterBadges && meisterBadges.length > 0 && (
         <div className="relative mt-1 flex flex-wrap gap-1 pl-2">
-          {meisterBadges.slice(0, compact ? 2 : 3).map((b) => (
+          {meisterBadges.slice(0, 3).map((b) => (
             <BadgeChip key={b.id} badge={b} size="sm" />
           ))}
         </div>
