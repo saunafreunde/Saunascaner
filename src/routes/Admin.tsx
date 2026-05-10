@@ -622,12 +622,24 @@ function BrandingTab() {
     }));
   }
 
+  // Stellt sicher, dass tile_bgs[saunaId] immer ein 5er-Array (Slots 0-4) ist.
+  function normalizedTileSlots(saunaId: string): (string | null)[] {
+    const existing = tv.tile_bgs?.[saunaId] ?? [];
+    return [
+      existing[0] ?? null,
+      existing[1] ?? null,
+      existing[2] ?? null,
+      existing[3] ?? null,
+      existing[4] ?? null,
+    ];
+  }
+
   async function uploadTileBg(saunaId: string, slot: number, file: File) {
     setBusy(true); setErr(null);
     try {
       const oldPath = tv.tile_bgs?.[saunaId]?.[slot] ?? null;
       const path = await uploadAsset(file, `tile-bgs/${saunaId}`);
-      const slots = [...(tv.tile_bgs?.[saunaId] ?? [null, null, null, null, null])];
+      const slots = normalizedTileSlots(saunaId);
       slots[slot] = path;
       await update.mutateAsync({ ...tv, tile_bgs: { ...(tv.tile_bgs ?? {}), [saunaId]: slots } });
       if (oldPath) await deleteAsset(oldPath).catch(() => {});
@@ -639,7 +651,7 @@ function BrandingTab() {
     setBusy(true); setErr(null);
     try {
       const oldPath = tv.tile_bgs?.[saunaId]?.[slot] ?? null;
-      const slots = [...(tv.tile_bgs?.[saunaId] ?? [null, null, null, null, null])];
+      const slots = normalizedTileSlots(saunaId);
       slots[slot] = null;
       await update.mutateAsync({ ...tv, tile_bgs: { ...(tv.tile_bgs ?? {}), [saunaId]: slots } });
       if (oldPath) await deleteAsset(oldPath).catch(() => {});

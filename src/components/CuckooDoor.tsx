@@ -148,14 +148,18 @@ export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick,
   const W = 140;
   const H = 155;
 
+  // Wrapper hält Layout-Bounds (skalierte Größe), Inner-Div behält DOM-Pixel und nutzt transform
   return (
+    <div style={{ width: W * scale, height: H * scale, position: 'relative' }}>
     <div
-      className="relative cursor-pointer select-none"
+      className="absolute cursor-pointer select-none"
       style={{
-        width: W * scale,
-        height: H * scale,
-        transform: scale !== 1 ? `scale(${scale})` : undefined,
-        transformOrigin: 'bottom center',
+        width: W,
+        height: H,
+        left: 0,
+        top: 0,
+        transform: scale === 1 ? undefined : `scale(${scale})`,
+        transformOrigin: 'top left',
       }}
       onClick={onClick}
       title="Klicken für Zwerg-Besuch"
@@ -362,6 +366,7 @@ export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick,
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
     </div>
   );
 }

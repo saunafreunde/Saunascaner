@@ -763,7 +763,7 @@ export function useTvSettings() {
         .eq('key', 'tv_settings')
         .maybeSingle();
       if (error) throw error;
-      return (data?.value ?? { ads: [], background_path: null, logo_path: null }) as TvSettings;
+      return (data?.value ?? { ads: [], background_path: null, logo_path: null, tile_bgs: {} }) as TvSettings;
     },
   });
 }

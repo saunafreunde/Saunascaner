@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { format, parse } from 'date-fns';
 import { de } from 'date-fns/locale';
 import Tilt from 'react-parallax-tilt';
+import { useReducedMotion } from 'framer-motion';
 import { PageBackground } from '@/components/PageBackground';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -136,102 +137,123 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
+function useIsTouchDevice() {
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const check = () => setTouch(
+      typeof window !== 'undefined' &&
+      (window.matchMedia('(hover: none)').matches || 'ontouchstart' in window)
+    );
+    check();
+  }, []);
+  return touch;
+}
+
 function MemberCard({ m, todayMD }: { m: MemberDirectoryEntry; todayMD: string }) {
   const birthdayMD = m.birthday ? format(parse(m.birthday, 'yyyy-MM-dd', new Date()), 'MM-dd') : null;
   const isBirthdayToday = birthdayMD === todayMD;
   const memberSince = m.created_at ? format(new Date(m.created_at), 'MMM yyyy', { locale: de }) : null;
+  const reduceMotion = useReducedMotion();
+  const isTouch = useIsTouchDevice();
+  // Tilt nur auf Desktop ohne Reduce-Motion. Touch-Geräten + a11y-Modus geben wir flat layout.
+  const enableTilt = !reduceMotion && !isTouch;
+
+  const linkClasses = `group relative block rounded-2xl bg-gradient-to-br from-forest-950/80 via-forest-950/60 to-forest-900/40 ring-1 backdrop-blur-md p-4 transition hover:shadow-xl hover:shadow-forest-900/40 ${
+    isBirthdayToday
+      ? 'ring-pink-500/40 shadow-pink-900/30 shadow-md'
+      : m.is_aufgieser
+        ? 'ring-amber-700/30 hover:ring-amber-500/50'
+        : 'ring-forest-700/30 hover:ring-forest-500/50'
+  }`;
+
+  const tz = (px: number) => (enableTilt ? { transform: `translateZ(${px}px)` } : undefined);
+
+  const card = (
+    <Link
+      to={`/profile/${m.id}`}
+      style={enableTilt ? { transformStyle: 'preserve-3d' } : undefined}
+      className={linkClasses}
+    >
+      {isBirthdayToday && (
+        <div
+          className="absolute top-2 right-2 text-xs bg-pink-500/30 text-pink-200 ring-1 ring-pink-400/40 rounded-full px-2 py-0.5 font-bold animate-pulse"
+          style={tz(36)}
+        >
+          🎂 Heute
+        </div>
+      )}
+      {m.is_present && !isBirthdayToday && (
+        <div
+          className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-200 ring-1 ring-emerald-400/40"
+          style={tz(36)}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          Anwesend
+        </div>
+      )}
+
+      <div className="flex items-start gap-3">
+        <div style={tz(40)}>
+          <Avatar name={m.name} avatarPath={m.avatar_path} size="md" isAufgieser={m.is_aufgieser} />
+        </div>
+        <div className="min-w-0 flex-1" style={tz(20)}>
+          <h3 className="text-base font-bold text-forest-100 truncate">{m.name}</h3>
+          {m.sauna_name && (
+            <p className="text-sm text-amber-300 font-medium truncate">„{m.sauna_name}"</p>
+          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-forest-400">
+            {m.member_number != null && <span>FDS-{String(m.member_number).padStart(3, '0')}</span>}
+            {m.is_aufgieser && <span className="text-amber-300">· Aufgieser</span>}
+            {m.role === 'admin' && <span className="text-violet-300">· Admin</span>}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-forest-500">
+            {memberSince && <span>seit {memberSince}</span>}
+            {birthdayMD && (
+              <span className="text-pink-300/70">
+                · 🎂 {format(parse(m.birthday!, 'yyyy-MM-dd', new Date()), 'd. MMM', { locale: de })}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {m.motto && (
+        <p
+          className="mt-3 text-xs italic text-forest-300/80 line-clamp-2 leading-snug"
+          style={tz(12)}
+        >
+          „{m.motto}"
+        </p>
+      )}
+
+      <div
+        className="mt-3 flex items-center justify-between text-[10px] text-forest-500"
+        style={tz(8)}
+      >
+        <span>Profil ansehen</span>
+        <span className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition">→</span>
+      </div>
+    </Link>
+  );
+
+  if (!enableTilt) return card;
 
   return (
     <Tilt
-      tiltMaxAngleX={8}
-      tiltMaxAngleY={8}
+      tiltMaxAngleX={6}
+      tiltMaxAngleY={6}
       perspective={1100}
       transitionSpeed={500}
       glareEnable
-      glareMaxOpacity={0.18}
+      glareMaxOpacity={0.16}
       glareColor="#fef3c7"
       glarePosition="all"
       glareBorderRadius="1rem"
-      gyroscope
+      gyroscope={false}
       tiltReverse={false}
       className="rounded-2xl"
     >
-      <Link
-        to={`/profile/${m.id}`}
-        style={{ transformStyle: 'preserve-3d' }}
-        className={`group relative block rounded-2xl bg-gradient-to-br from-forest-950/80 via-forest-950/60 to-forest-900/40 ring-1 backdrop-blur-md p-4 transition hover:shadow-xl hover:shadow-forest-900/40 ${
-          isBirthdayToday
-            ? 'ring-pink-500/40 shadow-pink-900/30 shadow-md'
-            : m.is_aufgieser
-              ? 'ring-amber-700/30 hover:ring-amber-500/50'
-              : 'ring-forest-700/30 hover:ring-forest-500/50'
-        }`}
-      >
-        {isBirthdayToday && (
-          <div
-            className="absolute top-2 right-2 text-xs bg-pink-500/30 text-pink-200 ring-1 ring-pink-400/40 rounded-full px-2 py-0.5 font-bold animate-pulse"
-            style={{ transform: 'translateZ(36px)' }}
-          >
-            🎂 Heute
-          </div>
-        )}
-        {m.is_present && !isBirthdayToday && (
-          <div
-            className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-200 ring-1 ring-emerald-400/40"
-            style={{ transform: 'translateZ(36px)' }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Anwesend
-          </div>
-        )}
-
-        <div className="flex items-start gap-3">
-          <div style={{ transform: 'translateZ(40px)' }}>
-            <Avatar
-              name={m.name}
-              avatarPath={m.avatar_path}
-              size="md"
-              isAufgieser={m.is_aufgieser}
-            />
-          </div>
-          <div className="min-w-0 flex-1" style={{ transform: 'translateZ(20px)' }}>
-            <h3 className="text-base font-bold text-forest-100 truncate">{m.name}</h3>
-            {m.sauna_name && (
-              <p className="text-sm text-amber-300 font-medium truncate">„{m.sauna_name}"</p>
-            )}
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-forest-400">
-              {m.member_number != null && <span>FDS-{String(m.member_number).padStart(3, '0')}</span>}
-              {m.is_aufgieser && <span className="text-amber-300">· Aufgieser</span>}
-              {m.role === 'admin' && <span className="text-violet-300">· Admin</span>}
-            </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-forest-500">
-              {memberSince && <span>seit {memberSince}</span>}
-              {birthdayMD && (
-                <span className="text-pink-300/70">
-                  · 🎂 {format(parse(m.birthday!, 'yyyy-MM-dd', new Date()), 'd. MMM', { locale: de })}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {m.motto && (
-          <p
-            className="mt-3 text-xs italic text-forest-300/80 line-clamp-2 leading-snug"
-            style={{ transform: 'translateZ(12px)' }}
-          >
-            „{m.motto}"
-          </p>
-        )}
-
-        <div
-          className="mt-3 flex items-center justify-between text-[10px] text-forest-500"
-          style={{ transform: 'translateZ(8px)' }}
-        >
-          <span>Profil ansehen</span>
-          <span className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition">→</span>
-        </div>
-      </Link>
+      {card}
     </Tilt>
   );
 }
