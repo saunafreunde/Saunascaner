@@ -7,28 +7,18 @@ interface Props {
 const W = 460;
 const H = 200;
 
-// Sehr ferne Bäume — winzig, sehr blass, weit hinter Sauna und See
+// Hintergrund-Wald: 10 Bäume hinter Sauna + See, klar sichtbar (opacity 0.55)
 const VERY_BACK_TREES = [
-  { x: 8,   h: 32, delay: '-0.2s' },
-  { x: 35,  h: 28, delay: '-1.4s' },
-  { x: 78,  h: 36, delay: '-2.8s' },
-  { x: 110, h: 30, delay: '-0.7s' },
-  { x: 138, h: 34, delay: '-3.1s' },
-  { x: 165, h: 26, delay: '-1.9s' },
-  { x: 188, h: 30, delay: '-2.4s' },
-  { x: 215, h: 38, delay: '-0.5s' },
-  { x: 242, h: 32, delay: '-3.5s' },
-  { x: 268, h: 28, delay: '-1.1s' },
-  { x: 295, h: 36, delay: '-2.6s' },
-  { x: 322, h: 30, delay: '-0.8s' },
-  { x: 350, h: 34, delay: '-1.7s' },
-  { x: 378, h: 30, delay: '-2.9s' },
-  { x: 405, h: 36, delay: '-0.3s' },
-  { x: 432, h: 28, delay: '-2.1s' },
-  { x: 452, h: 32, delay: '-1.3s' },
-  { x: 22,  h: 26, delay: '-3.7s' },
-  { x: 60,  h: 30, delay: '-2.2s' },
-  { x: 95,  h: 32, delay: '-0.4s' },
+  { x: 165, h: 50, delay: '-1.9s' },
+  { x: 188, h: 44, delay: '-2.4s' },
+  { x: 215, h: 52, delay: '-0.5s' },
+  { x: 242, h: 46, delay: '-3.5s' },
+  { x: 295, h: 48, delay: '-2.6s' },
+  { x: 322, h: 44, delay: '-0.8s' },
+  { x: 350, h: 50, delay: '-1.7s' },
+  { x: 378, h: 42, delay: '-2.9s' },
+  { x: 405, h: 48, delay: '-0.3s' },
+  { x: 432, h: 44, delay: '-2.1s' },
 ];
 
 // Mittel-ferne Bäume (kräftiger sichtbar)
@@ -42,9 +32,9 @@ const BACK_TREES = [
   { x: 410, h: 86, dimmer: false, delay: '-1.6s' },
 ];
 
-// Vordere Bäume
+// Vordere Bäume — x=60 nach x=20 verschoben damit Imker-Bereich frei bleibt
 const FRONT_TREES = [
-  { x: 60,  h: 56, delay: '-1.0s' },
+  { x: 20,  h: 56, delay: '-1.0s' },
   { x: 268, h: 60, delay: '-2.8s' },
   { x: 440, h: 68, delay: '-0.6s' },
 ];
@@ -210,24 +200,24 @@ export function BlockhausScene({ children }: Props) {
           </g>
         </g>
 
-        {/* Bienenstöcke + Imker (zwischen Berg und Sauna) */}
-        <Beehive x={88}  y={188} />
-        <Beehive x={108} y={188} small />
-        <g transform="translate(120, 188)">
+        {/* Bienenstöcke + Imker — größer und klar zwischen Mountain und Sauna */}
+        <Beehive x={75}  y={190} />
+        <Beehive x={100} y={190} small />
+        <g transform="translate(118, 192)">
           <Imker />
         </g>
-        {/* Bienen schwirren um die Stöcke */}
+        {/* Bienen schwirren um die Stöcke — größer + heller */}
         <g className="bs-bee" style={{ animationDelay: '0s' }}>
-          <circle cx="92" cy="180" r="0.7" fill="#1a1a1a" />
-          <ellipse cx="92" cy="180" rx="1.4" ry="0.5" fill="rgba(252,211,77,0.4)" />
+          <circle cx="80" cy="178" r="1" fill="#1a1a1a" />
+          <ellipse cx="80" cy="178" rx="2" ry="0.7" fill="rgba(252,211,77,0.7)" />
         </g>
         <g className="bs-bee" style={{ animationDelay: '-0.8s' }}>
-          <circle cx="106" cy="178" r="0.7" fill="#1a1a1a" />
-          <ellipse cx="106" cy="178" rx="1.4" ry="0.5" fill="rgba(252,211,77,0.4)" />
+          <circle cx="98" cy="176" r="1" fill="#1a1a1a" />
+          <ellipse cx="98" cy="176" rx="2" ry="0.7" fill="rgba(252,211,77,0.7)" />
         </g>
         <g className="bs-bee" style={{ animationDelay: '-1.6s' }}>
-          <circle cx="114" cy="184" r="0.7" fill="#1a1a1a" />
-          <ellipse cx="114" cy="184" rx="1.4" ry="0.5" fill="rgba(252,211,77,0.4)" />
+          <circle cx="112" cy="180" r="1" fill="#1a1a1a" />
+          <ellipse cx="112" cy="180" rx="2" ry="0.7" fill="rgba(252,211,77,0.7)" />
         </g>
 
         {/* Mittel-ferne Bäume */}
@@ -261,19 +251,29 @@ export function BlockhausScene({ children }: Props) {
           <Reeds x={425} y={172} />
         </g>
 
-        {/* Ente */}
+        {/* Enten-Familie: Mama vorne, 3 Küken im Schlepptau */}
         <g transform="translate(330, 172)">
           <g className="bs-duck">
             <g className="bs-duck-bob">
               <Duck />
+              {/* 3 Küken hinter Mama in einer Reihe */}
+              <g transform="translate(-9, 1)">
+                <Duckling />
+              </g>
+              <g transform="translate(-15, 0.3)">
+                <Duckling />
+              </g>
+              <g transform="translate(-21, 1)">
+                <Duckling />
+              </g>
             </g>
           </g>
         </g>
 
-        {/* Bank + Angler — links vom Teich auf trockenem Land */}
-        <Bench x={262} y={172} />
+        {/* Bank + Angler — RECHTS der Sauna auf trockenem Land, klar sichtbar */}
+        <Bench x={290} y={148} />
         <g className="bs-fisher">
-          <Fisher x={268} y={140} />
+          <Fisher x={296} y={116} />
         </g>
 
         {/* Sauna mittig — children */}
@@ -306,8 +306,8 @@ export function BlockhausScene({ children }: Props) {
           </g>
         ))}
 
-        {/* Specht am vorderen Baum links */}
-        <g transform="translate(60, 152)">
+        {/* Specht am rechten Vorder-Baum (klar sichtbar, kein Sauna-Konflikt) */}
+        <g transform="translate(440, 148)">
           <g className="bs-specht">
             <Specht />
           </g>
@@ -513,11 +513,11 @@ function Bather() {
 function BackTree({ x, h, dimmer = false, front = false, veryFar = false }: {
   x: number; h: number; dimmer?: boolean; front?: boolean; veryFar?: boolean;
 }) {
-  const groundY = front ? 192 : veryFar ? 178 : 188;
-  const trunkW = front ? 4 : veryFar ? 1.5 : 3;
+  const groundY = front ? 192 : veryFar ? 175 : 188;
+  const trunkW = front ? 4 : veryFar ? 2 : 3;
   const crownH = h - 10;
-  const crownW = (veryFar ? 8 : 16) + crownH * (veryFar ? 0.18 : 0.28);
-  const opacity = veryFar ? 0.32 : dimmer ? 0.55 : front ? 1 : 0.85;
+  const crownW = (veryFar ? 11 : 16) + crownH * (veryFar ? 0.22 : 0.28);
+  const opacity = veryFar ? 0.55 : dimmer ? 0.55 : front ? 1 : 0.85;
 
   return (
     <g opacity={opacity}>
@@ -566,7 +566,7 @@ function Pond({ cx, cy, rx, ry }: { cx: number; cy: number; rx: number; ry: numb
   );
 }
 
-// ── Ente ──────────────────────────────────────────────────────────────────
+// ── Ente (Mama) ───────────────────────────────────────────────────────────
 function Duck() {
   return (
     <g>
@@ -578,6 +578,26 @@ function Duck() {
       <circle cx="4" cy="-3.5" r="1.6" fill="#1f4d2f" />
       <polygon points="5.2,-3.5 6.6,-3.2 5.2,-3" fill="#fbbf24" />
       <circle cx="4.4" cy="-3.7" r="0.3" fill="#1a0e05" />
+    </g>
+  );
+}
+
+// ── Küken (kleinere flauschige Mini-Ente) ─────────────────────────────────
+function Duckling() {
+  return (
+    <g>
+      <ellipse cx="0" cy="1" rx="2.5" ry="0.4" fill="rgba(0,0,0,0.3)" />
+      {/* Körper hellgelb-flauschig */}
+      <ellipse cx="0" cy="0" rx="2.2" ry="1.4" fill="#fde047" />
+      <ellipse cx="0" cy="-0.2" rx="1.8" ry="1" fill="#fef9c3" />
+      {/* Schwanz */}
+      <polygon points="-2.2,0 -3,-0.5 -2.2,-0.4" fill="#fde047" />
+      {/* Kopf */}
+      <circle cx="1.5" cy="-1.2" r="1" fill="#fde047" />
+      {/* Mini-Schnabel */}
+      <polygon points="2.3,-1.2 3.1,-1 2.3,-0.9" fill="#f59e0b" />
+      {/* Mini-Auge */}
+      <circle cx="1.7" cy="-1.4" r="0.2" fill="#1a0e05" />
     </g>
   );
 }
