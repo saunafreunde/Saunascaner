@@ -80,42 +80,53 @@ export function InfusionCard({
       />
 
       {compact ? (
-        <>
-          {/* Header-Zeile: Uhrzeit-Chip links + Titel-Container rechts */}
-          <div className="flex items-center gap-3 flex-shrink-0 pl-2">
-            <div
-              className="rounded-xl px-3 py-1.5 backdrop-blur-md flex-shrink-0"
-              style={{
-                background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
-                boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
-              }}
-            >
-              <span
-                className="text-2xl font-semibold tabular-nums leading-none"
-                style={{ color: sauna.accent_color, textShadow: `0 0 10px ${sauna.accent_color}55` }}
+        <div className="flex gap-3 flex-1 min-h-0 pl-2">
+          {/* Linke Spalte: Header (Uhr + Titel) + Beschreibung + Attribute + Footer */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {/* Header-Zeile: Uhrzeit-Chip + Titel-Container */}
+            <div className="flex items-stretch gap-3 flex-shrink-0">
+              <div
+                className="rounded-xl px-3 flex items-center justify-center backdrop-blur-md flex-shrink-0"
+                style={{
+                  background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
+                  boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
+                }}
               >
-                {fmtClock(infusion.start_time)}
-              </span>
+                <span
+                  className="font-bold tabular-nums leading-none whitespace-nowrap"
+                  style={{
+                    color: sauna.accent_color,
+                    textShadow: `0 0 10px ${sauna.accent_color}55`,
+                    fontSize: 'clamp(1rem, 1.8vw, 1.875rem)',
+                  }}
+                >
+                  {fmtClock(infusion.start_time)}
+                </span>
+              </div>
+              <div
+                className="relative flex-1 rounded-xl px-4 flex items-center backdrop-blur-md min-w-0"
+                style={{
+                  background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
+                  boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
+                }}
+              >
+                <h3
+                  className="font-bold text-slate-50 truncate leading-tight"
+                  style={{ fontSize: 'clamp(1rem, 1.8vw, 1.875rem)' }}
+                >
+                  {infusion.title}
+                  {infusion.team_infusion && <span className="ml-2 text-base text-amber-300">👥</span>}
+                </h3>
+              </div>
             </div>
-            <div
-              className="relative flex-1 rounded-xl px-4 py-2 backdrop-blur-md min-w-0"
-              style={{
-                background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
-                boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
-              }}
-            >
-              <h3 className="text-3xl font-bold text-slate-50 truncate leading-tight">
-                {infusion.title}
-                {infusion.team_infusion && <span className="ml-2 text-base text-amber-300">👥</span>}
-              </h3>
-            </div>
-          </div>
 
-          {/* Body: links Beschreibung + Attribute, rechts Öl-Karten */}
-          <div className="flex-1 mt-3 flex gap-3 min-h-0 pl-2">
-            <div className="flex-1 min-w-0 flex flex-col gap-2">
+            {/* Beschreibung + Attribute */}
+            <div className="flex-1 mt-3 flex flex-col gap-2 min-h-0">
               {infusion.description && (
-                <p className="text-xl italic text-slate-200/85 leading-snug line-clamp-2">
+                <p
+                  className="italic text-slate-200/85 leading-snug line-clamp-2"
+                  style={{ fontSize: 'clamp(0.875rem, 1.2vw, 1.25rem)' }}
+                >
                   {infusion.description}
                 </p>
               )}
@@ -143,42 +154,48 @@ export function InfusionCard({
               )}
             </div>
 
-            {oils.length > 0 && (
-              <div className="flex flex-col gap-1.5 w-48 flex-shrink-0">
-                {oils.map((oilId, i) => {
-                  const o = OIL_BY_ID[oilId];
-                  if (!o) return null;
-                  return (
-                    <div
-                      key={`${i}-${oilId}`}
-                      className="flex items-center gap-2 rounded-xl px-3 py-2 backdrop-blur"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(120,75,20,0.5))',
-                        boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.45)',
-                      }}
-                    >
-                      <span className="text-2xl flex-shrink-0" aria-hidden>{o.emoji}</span>
-                      <span className="text-base font-semibold text-amber-100 truncate">{o.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Footer: Meister + Dauer */}
+            <div className="mt-2 pt-1.5 flex items-baseline justify-between gap-2 text-sm text-forest-300/80 flex-shrink-0">
+              <span className="truncate">
+                {meisterName ?? '—'}
+                {coNames && coNames.length > 0 && (
+                  <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
+                )}
+              </span>
+              <span className="tabular-nums whitespace-nowrap text-forest-100 font-semibold">
+                {infusion.duration_minutes} Min
+              </span>
+            </div>
           </div>
 
-          {/* Footer: Meister + Dauer */}
-          <div className="mt-2 pt-1.5 pl-2 flex items-baseline justify-between gap-2 text-sm text-forest-300/80">
-            <span className="truncate">
-              {meisterName ?? '—'}
-              {coNames && coNames.length > 0 && (
-                <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
-              )}
-            </span>
-            <span className="tabular-nums whitespace-nowrap text-forest-100 font-semibold">
-              {infusion.duration_minutes} Min
-            </span>
-          </div>
-        </>
+          {/* Rechte Spalte: Öl-Karten über volle Höhe */}
+          {oils.length > 0 && (
+            <div className="flex flex-col gap-1.5 w-48 flex-shrink-0">
+              {oils.map((oilId, i) => {
+                const o = OIL_BY_ID[oilId];
+                if (!o) return null;
+                return (
+                  <div
+                    key={`${i}-${oilId}`}
+                    className="flex-1 flex items-center gap-2 rounded-xl px-3 py-2 backdrop-blur min-h-0"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(120,75,20,0.5))',
+                      boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.45)',
+                    }}
+                  >
+                    <span className="text-2xl flex-shrink-0" aria-hidden>{o.emoji}</span>
+                    <span
+                      className="font-semibold text-amber-100 truncate"
+                      style={{ fontSize: 'clamp(0.875rem, 1.1vw, 1.125rem)' }}
+                    >
+                      {o.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       ) : (
         <>
           {/* Glass-Halo-Header: Time · Title (mit Akzent-Glow) — non-compact bleibt wie vorher */}
