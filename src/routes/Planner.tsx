@@ -26,6 +26,7 @@ import { WmStandMini } from '@/components/WmStandMini';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { fireBadgeUnlock, fireFirstInfusionOfDay } from '@/lib/confetti';
 import { useAuth } from '@/hooks/useAuth';
+import { useNow } from '@/hooks/useNow';
 import {
   useSaunas, useInfusions, useTemplates,
   useAddInfusion, useDeleteInfusion,
@@ -135,6 +136,7 @@ export default function Planner() {
   const m = member.data;
   const isAufgieser = !!(m?.is_aufgieser || m?.role === 'admin');
   const isAdmin = m?.role === 'admin';
+  const now = useNow(60_000);
 
   const [ratingFormInfusion, setRatingFormInfusion] = useState<RatableInfusion | null>(null);
   const [ratingToast, setRatingToast] = useState<string | null>(null);
@@ -825,6 +827,7 @@ export default function Planner() {
               onApplyTemplate={(t) => applyTemplate(t)}
               onDeleteTemplate={(id) => delTpl.mutate(id)}
               isAdmin={isAdmin}
+              now={now}
             />
           </HubZone>
         )}

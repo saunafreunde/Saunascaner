@@ -41,7 +41,10 @@ export function AtelierTabs({
   now,
 }: AtelierTabsProps) {
   const currentTime = now ?? new Date();
-  const canDelete = (i: Infusion) => isAdmin && new Date(i.end_time) > currentTime;
+  const isUpcoming = (i: Infusion) => new Date(i.end_time) > currentTime;
+  const upcomingMine = myInfusions.filter(isUpcoming);
+  const upcomingTeam = joinableTeamInfusions.filter(isUpcoming);
+  const canDelete = (i: Infusion) => isAdmin && isUpcoming(i);
   const handleDelete = (i: Infusion) => {
     const ok = window.confirm(
       `Aufguss "${i.title}" am ${dayLabel(i.start_time)} ${fmtClock(i.start_time)} wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`,
@@ -54,8 +57,8 @@ export function AtelierTabs({
   const saunaName = (id: string) => saunas.find((s) => s.id === id)?.name ?? '?';
 
   const tabs: { id: TabId; icon: string; label: string; count: number; pulse?: boolean }[] = [
-    { id: 'mine',      icon: '📋', label: 'Geplant',     count: myInfusions.length },
-    { id: 'team',      icon: '🤝', label: 'Team',        count: joinableTeamInfusions.length, pulse: joinableTeamInfusions.length > 0 },
+    { id: 'mine',      icon: '📋', label: 'Geplant',     count: upcomingMine.length },
+    { id: 'team',      icon: '🤝', label: 'Team',        count: upcomingTeam.length, pulse: upcomingTeam.length > 0 },
     { id: 'templates', icon: '⚡', label: 'Vorlagen',    count: templates.length },
   ];
 
@@ -111,11 +114,11 @@ export function AtelierTabs({
           className="min-h-[120px]"
         >
           {tab === 'mine' && (
-            myInfusions.length === 0 ? (
+            upcomingMine.length === 0 ? (
               <EmptyState emoji="🌬️" title="Noch leer hier" subtitle="Trag deinen ersten Aufguss oben ein!" />
             ) : (
               <ul className="space-y-2">
-                {myInfusions.map((i) => {
+                {upcomingMine.map((i) => {
                   const coNames = getCoNames(i.id);
                   return (
                     <li key={i.id}
@@ -154,11 +157,11 @@ export function AtelierTabs({
           )}
 
           {tab === 'team' && (
-            joinableTeamInfusions.length === 0 ? (
+            upcomingTeam.length === 0 ? (
               <EmptyState emoji="🌿" title="Aktuell keine Team-Aufgüsse" subtitle="Wenn jemand einen 👥-Aufguss anlegt, kannst du beitreten." />
             ) : (
               <ul className="space-y-2">
-                {joinableTeamInfusions.map((i) => {
+                {upcomingTeam.map((i) => {
                   const joined = isJoined(i.id);
                   const coNames = getCoNames(i.id);
                   return (
