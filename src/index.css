@@ -121,3 +121,92 @@ html.light .text-emerald-300 { color: #047857 !important; }
 
 /* Card-Schatten heller machen */
 html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) !important; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   HOLZFÄLLER — Pure-CSS-Animationen (Schlag, Erschöpfung, Baumfall)
+   Drei Phasen via React-Klassen: 'hf-axt' | 'hf-axt exhausted' | 'hf-axt fallen'
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Normales Hacken im Takt */
+@keyframes hf-schlag {
+  0%   { transform: rotate(-110deg); }
+  45%  { transform: rotate(-110deg); }
+  60%  { transform: rotate(55deg); }
+  70%  { transform: rotate(55deg); }
+  100% { transform: rotate(-110deg); }
+}
+
+/* Baum fällt um (Pivot am Stammfuß) */
+@keyframes hf-fall {
+  0%   { transform: rotate(0deg); animation-timing-function: ease-in; }
+  15%  { transform: rotate(12deg); animation-timing-function: ease-in-out; }
+  100% { transform: rotate(88deg); }
+}
+
+/* Holzspäne fliegen weg im Schlag-Takt */
+@keyframes hf-chips-flying {
+  0%   { opacity: 0; transform: translateY(0); }
+  55%  { opacity: 0; }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.3); }
+  75%  { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 0; }
+}
+
+/* Schweiß-/Exhale-Wölkchen pulsiert */
+@keyframes hf-steam-pulse {
+  0%   { opacity: 0; transform: translateY(0); }
+  20%  { opacity: 0.6; }
+  80%  { opacity: 0.8; transform: translateY(-5px); }
+  100% { opacity: 0; transform: translateY(-10px) scale(1.1); }
+}
+
+/* Zittern in der Erschöpfung */
+@keyframes hf-shake {
+  0%   { transform: rotate(55deg) translate(0, 0); }
+  25%  { transform: rotate(57deg) translate(1px, -1px); }
+  50%  { transform: rotate(53deg) translate(-1px, 1px); }
+  75%  { transform: rotate(56deg) translate(1px, 0px); }
+  100% { transform: rotate(55deg) translate(0, 0); }
+}
+
+/* Anwendung */
+
+.hf-tree {
+  transform-origin: 87px 92px;
+  transition: transform 0.5s;
+}
+.hf-tree.fallen {
+  animation: hf-fall 1.2s forwards;
+}
+
+.hf-chips {
+  animation: hf-chips-flying 1.6s infinite ease-out;
+}
+.hf-chips.paused {
+  animation-play-state: paused;
+  opacity: 0;
+}
+
+.hf-axt {
+  transform-origin: 46px 52px;
+  animation: hf-schlag 1.6s infinite ease-in-out;
+}
+.hf-axt.exhausted {
+  animation: hf-shake 0.3s infinite linear;
+}
+.hf-axt.fallen {
+  animation: none;
+  transform: rotate(-10deg);
+}
+
+.hf-steam {
+  transform-origin: 36px 36px;
+  opacity: 0;
+}
+.hf-steam.exhausted {
+  opacity: 1;
+  animation: hf-steam-pulse 1s 2 alternate ease-in-out;
+}
+.hf-steam.hidden {
+  display: none;
+}
