@@ -40,6 +40,13 @@ export function InfusionCard({
 
   const oils = (infusion.oils ?? []).filter(Boolean).slice(0, 3) as string[];
 
+  // Auto-Shrink: Schrift + Emoji passen sich der Anzahl an, damit nichts truncatet wird.
+  // TV ist immer 16:9, daher reine vw-Werte (kein clamp).
+  const attrCount = infusion.attributes.length;
+  const attrFontVw = attrCount <= 2 ? 1.0 : attrCount <= 4 ? 0.85 : attrCount <= 6 ? 0.72 : 0.62;
+  const oilCount = oils.length;
+  const oilFontVw = oilCount <= 1 ? 1.15 : oilCount === 2 ? 1.0 : 0.9;
+
   return (
     <motion.div
       layout
@@ -131,7 +138,14 @@ export function InfusionCard({
                 </p>
               )}
               {infusion.attributes.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
+                <div
+                  className="rounded-xl px-3 py-2 backdrop-blur flex flex-wrap items-center gap-x-3 gap-y-1.5"
+                  style={{
+                    background: `linear-gradient(135deg, ${sauna.accent_color}1a, rgba(8,18,12,0.45))`,
+                    boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
+                    fontSize: `${attrFontVw}vw`,
+                  }}
+                >
                   {infusion.attributes.map((a) => {
                     const meta = ATTR_BY_ID[a];
                     if (!meta) return null;
@@ -139,14 +153,12 @@ export function InfusionCard({
                       <span
                         key={a}
                         title={meta.label}
-                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm backdrop-blur"
-                        style={{
-                          background: `linear-gradient(135deg, ${sauna.accent_color}1a, rgba(8,18,12,0.55))`,
-                          boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
-                        }}
+                        className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-forest-100/95"
                       >
-                        <span aria-hidden>{meta.emoji}</span>
-                        <span className="text-forest-100/90">{meta.label}</span>
+                        <span aria-hidden style={{ fontSize: `${attrFontVw * 1.2}vw`, lineHeight: 1 }}>
+                          {meta.emoji}
+                        </span>
+                        <span>{meta.label}</span>
                       </span>
                     );
                   })}
@@ -168,26 +180,28 @@ export function InfusionCard({
             </div>
           </div>
 
-          {/* Rechte Spalte: Öl-Karten über volle Höhe */}
+          {/* Rechte Spalte: Eine Box mit allen Ölen über die volle Karten-Höhe */}
           {oils.length > 0 && (
-            <div className="flex flex-col gap-1.5 w-48 flex-shrink-0">
+            <div
+              className="w-48 flex-shrink-0 rounded-xl px-2 py-2 backdrop-blur flex flex-col justify-around"
+              style={{
+                background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(120,75,20,0.42))',
+                boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.4)',
+              }}
+            >
               {oils.map((oilId, i) => {
                 const o = OIL_BY_ID[oilId];
                 if (!o) return null;
                 return (
                   <div
                     key={`${i}-${oilId}`}
-                    className="flex-1 flex items-center gap-2 rounded-xl px-3 py-2 backdrop-blur min-h-0"
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(120,75,20,0.5))',
-                      boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.45)',
-                    }}
+                    className="flex items-center gap-2 px-1 whitespace-nowrap"
+                    style={{ fontSize: `${oilFontVw}vw` }}
                   >
-                    <span className="text-2xl flex-shrink-0" aria-hidden>{o.emoji}</span>
-                    <span
-                      className="font-semibold text-amber-100 truncate"
-                      style={{ fontSize: 'clamp(0.875rem, 1.1vw, 1.125rem)' }}
-                    >
+                    <span aria-hidden style={{ fontSize: `${oilFontVw * 1.4}vw`, lineHeight: 1 }}>
+                      {o.emoji}
+                    </span>
+                    <span className="font-semibold text-amber-100 min-w-0 truncate">
                       {o.name}
                     </span>
                   </div>
