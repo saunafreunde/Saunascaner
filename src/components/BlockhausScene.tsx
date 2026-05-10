@@ -162,6 +162,71 @@ export function BlockhausScene({ children }: Props) {
           0%, 100% { transform: scale(1, 1); }
           50%      { transform: scale(1.03, 0.97); }
         }
+        @keyframes bs-dragonfly {
+          0%   { transform: translate(330px, 160px) rotate(0deg); }
+          20%  { transform: translate(360px, 150px) rotate(15deg); }
+          40%  { transform: translate(400px, 158px) rotate(-10deg); }
+          60%  { transform: translate(380px, 168px) rotate(5deg); }
+          80%  { transform: translate(345px, 162px) rotate(-8deg); }
+          100% { transform: translate(330px, 160px) rotate(0deg); }
+        }
+        @keyframes bs-dragonfly-2 {
+          0%   { transform: translate(395px, 155px) rotate(0deg); }
+          25%  { transform: translate(360px, 168px) rotate(-12deg); }
+          50%  { transform: translate(335px, 158px) rotate(8deg); }
+          75%  { transform: translate(370px, 152px) rotate(-5deg); }
+          100% { transform: translate(395px, 155px) rotate(0deg); }
+        }
+        @keyframes bs-wing-buzz { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(0.2); } }
+        @keyframes bs-heron-head {
+          0%, 38%, 100% { transform: rotate(0deg); }
+          42%, 56%      { transform: rotate(-25deg); }
+          60%           { transform: rotate(0deg); }
+          78%, 92%      { transform: rotate(15deg); }
+          96%           { transform: rotate(0deg); }
+        }
+        @keyframes bs-shooting-star {
+          0%, 88%, 100% { opacity: 0; transform: translate(0, 0); }
+          90%           { opacity: 1; transform: translate(0, 0); }
+          97%           { opacity: 0; transform: translate(80px, 30px); }
+        }
+        @keyframes bs-ladybug-crawl {
+          0%, 100% { transform: translate(0, 0); }
+          50%      { transform: translate(2.5px, -1.5px); }
+        }
+        @keyframes bs-sign-creak {
+          0%, 100% { transform: rotate(-1deg); }
+          50%      { transform: rotate(1deg); }
+        }
+        @keyframes bs-towel-sway {
+          0%, 100% { transform: rotate(-3deg); }
+          50%      { transform: rotate(4deg); }
+        }
+        @keyframes bs-hedgehog-walk {
+          0%   { transform: translate(0, 0); }
+          50%  { transform: translate(45px, 0) scaleX(-1); }
+          100% { transform: translate(0, 0) scaleX(1); }
+        }
+        @keyframes bs-hedgehog-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-0.4px); } }
+        @keyframes bs-sunflower-sway {
+          0%, 100% { transform: rotate(-2deg); }
+          50%      { transform: rotate(3deg); }
+        }
+        @keyframes bs-kingfisher {
+          0%, 95%, 100% { opacity: 0; transform: translate(-30px, 165px); }
+          5%            { opacity: 1; transform: translate(-30px, 165px); }
+          45%           { opacity: 1; transform: translate(230px, 158px); }
+          50%           { opacity: 1; transform: translate(490px, 167px); }
+          55%           { opacity: 0; transform: translate(490px, 167px); }
+        }
+        @keyframes bs-string-light {
+          0%, 100% { opacity: 0.55; }
+          50%      { opacity: 1; }
+        }
+        @keyframes bs-pond-shimmer {
+          0%, 100% { opacity: 0.3; transform: translateX(0); }
+          50%      { opacity: 0.7; transform: translateX(4px); }
+        }
 
         .bs-tree            { transform-origin: bottom center; animation: bs-tree-sway 4s infinite ease-in-out; }
         .bs-reeds           { transform-origin: bottom center; animation: bs-reeds-sway 3s infinite ease-in-out; }
@@ -187,6 +252,20 @@ export function BlockhausScene({ children }: Props) {
         .bs-balloon         { animation: bs-balloon 90s infinite linear; }
         .bs-balloon-flame   { transform-origin: center bottom; animation: bs-balloon-flame 3s infinite ease-in-out; }
         .bs-bush            { transform-origin: bottom center; animation: bs-bush-sway 5s infinite ease-in-out; }
+        .bs-dragonfly       { animation: bs-dragonfly 9s infinite ease-in-out; }
+        .bs-dragonfly-2     { animation: bs-dragonfly-2 11s infinite ease-in-out; }
+        .bs-wing-buzz       { transform-origin: center; animation: bs-wing-buzz 0.12s infinite linear; }
+        .bs-heron-head      { transform-origin: 0 0; animation: bs-heron-head 14s infinite ease-in-out; }
+        .bs-shooting-star   { animation: bs-shooting-star 18s infinite ease-out; }
+        .bs-ladybug         { animation: bs-ladybug-crawl 8s infinite ease-in-out; }
+        .bs-sign            { transform-origin: top center; animation: bs-sign-creak 6s infinite ease-in-out; }
+        .bs-towel           { transform-origin: top center; animation: bs-towel-sway 3.4s infinite ease-in-out; }
+        .bs-hedgehog        { animation: bs-hedgehog-walk 40s infinite ease-in-out; }
+        .bs-hedgehog-bob    { animation: bs-hedgehog-bob 0.6s infinite ease-in-out; }
+        .bs-sunflower       { transform-origin: bottom center; animation: bs-sunflower-sway 4.5s infinite ease-in-out; }
+        .bs-kingfisher      { animation: bs-kingfisher 28s infinite ease-out; }
+        .bs-string-light    { animation: bs-string-light 2s infinite ease-in-out; }
+        .bs-pond-shimmer    { animation: bs-pond-shimmer 6s infinite ease-in-out; }
 
         @media (prefers-reduced-motion: reduce) {
           .bs-tree, .bs-reeds, .bs-ripple, .bs-bird-1, .bs-bird-2,
@@ -194,7 +273,11 @@ export function BlockhausScene({ children }: Props) {
           .bs-firefly, .bs-firefly-drift, .bs-climber, .bs-climber-step,
           .bs-duck, .bs-duck-bob, .bs-fox, .bs-specht, .bs-bee,
           .bs-master-enter, .bs-mole, .bs-grill-smoke,
-          .bs-balloon, .bs-balloon-flame, .bs-bush {
+          .bs-balloon, .bs-balloon-flame, .bs-bush,
+          .bs-dragonfly, .bs-dragonfly-2, .bs-wing-buzz,
+          .bs-heron-head, .bs-shooting-star, .bs-ladybug, .bs-sign,
+          .bs-towel, .bs-hedgehog, .bs-hedgehog-bob, .bs-sunflower,
+          .bs-kingfisher, .bs-string-light, .bs-pond-shimmer {
             animation: none;
           }
         }
@@ -243,6 +326,14 @@ export function BlockhausScene({ children }: Props) {
           <HotAirBalloon />
         </g>
 
+        {/* Sternschnuppe — selten und kurz, mit Schweif */}
+        <g className="bs-shooting-star">
+          <line x1="50" y1="20" x2="20" y2="8" stroke="rgba(255,255,255,0.85)" strokeWidth="1.1" strokeLinecap="round" />
+          <line x1="50" y1="20" x2="32" y2="13" stroke="rgba(255,255,255,0.5)" strokeWidth="0.6" strokeLinecap="round" />
+          <circle cx="50" cy="20" r="1.8" fill="#fef9c3" />
+          <circle cx="50" cy="20" r="1" fill="#fff" />
+        </g>
+
         {/* 2 Vögel */}
         <g className="bs-bird-1">
           <path d="M0,0 Q3,-3 6,0 Q9,-3 12,0" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="0.8" />
@@ -258,6 +349,18 @@ export function BlockhausScene({ children }: Props) {
 
         {/* Teich */}
         <Pond cx={360} cy={175} rx={65} ry={16} />
+
+        {/* Subtile Glitzer-Reflexion auf der Wasseroberfläche */}
+        <g className="bs-pond-shimmer">
+          <ellipse cx={345} cy={172} rx="6" ry="0.5" fill="rgba(255,255,255,0.7)" />
+          <ellipse cx={375} cy={174} rx="4" ry="0.4" fill="rgba(255,255,255,0.6)" />
+          <ellipse cx={400} cy={176} rx="5" ry="0.4" fill="rgba(255,255,255,0.5)" />
+        </g>
+
+        {/* Eisvogel flitzt schnell und tief über den Teich */}
+        <g className="bs-kingfisher">
+          <Kingfisher />
+        </g>
 
         {/* Büsche rund um den Teich */}
         <g className="bs-bush" style={{ animationDelay: '-0.4s', transformOrigin: '288px 192px' }}>
@@ -275,6 +378,32 @@ export function BlockhausScene({ children }: Props) {
 
         {/* Felsen-Gruppe im rechten vorderen Eck */}
         <Felsen x={300} y={193} />
+
+        {/* Marienkäfer auf dem großen Felsen (Easter-Egg) */}
+        <g className="bs-ladybug" style={{ transformOrigin: '298px 188px' }}>
+          <Ladybug cx={298} cy={188} />
+        </g>
+
+        {/* Schwarzwald-Wegweiser zwischen Sauna-Vorplatz und Teich */}
+        <Wegweiser x={283} y={193} />
+
+        {/* Fischreiher steht im hinteren Teich */}
+        <g transform="translate(400, 170)">
+          <Heron />
+        </g>
+
+        {/* Zwei Libellen über dem Teich */}
+        <g className="bs-dragonfly">
+          <Dragonfly />
+        </g>
+        <g className="bs-dragonfly-2">
+          <Dragonfly tint="#7dd3fc" />
+        </g>
+
+        {/* Vogelhäuschen am rechten Hinterbaum */}
+        <g transform="translate(412, 170)">
+          <Vogelhaus />
+        </g>
 
         {/* Schilf — links/rechts der Bank UND am vorderen Teichufer */}
         <g className="bs-reeds" style={{ animationDelay: '-0.2s' }}>
@@ -344,6 +473,45 @@ export function BlockhausScene({ children }: Props) {
         <Bench x={427} y={148} />
         <g className="bs-fisher">
           <Fisher x={428} y={116} />
+        </g>
+
+        {/* Sonnenblumen-Reihe links vor dem Bienenstand */}
+        <g className="bs-sunflower" style={{ animationDelay: '0s', transformOrigin: '50px 188px' }}>
+          <Sunflower x={50} y={188} h={15} />
+        </g>
+        <g className="bs-sunflower" style={{ animationDelay: '-1.4s', transformOrigin: '57px 188px' }}>
+          <Sunflower x={57} y={188} h={12} />
+        </g>
+        <g className="bs-sunflower" style={{ animationDelay: '-0.7s', transformOrigin: '147px 188px' }}>
+          <Sunflower x={147} y={188} h={14} />
+        </g>
+        <g className="bs-sunflower" style={{ animationDelay: '-2.1s', transformOrigin: '258px 188px' }}>
+          <Sunflower x={258} y={188} h={13} />
+        </g>
+
+        {/* Wiesenblumen verstreut auf der Wiese (statisch) */}
+        <Flower cx={8}   cy={195} color="#ec4899" />
+        <Flower cx={48}  cy={196} color="#fbbf24" />
+        <Flower cx={120} cy={196} color="#a78bfa" />
+        <Flower cx={250} cy={196} color="#fbbf24" />
+        <Flower cx={282} cy={195} color="#ec4899" />
+        <Flower cx={425} cy={193} color="#fbbf24" />
+        <Flower cx={460} cy={196} color="#a78bfa" />
+        <Flower cx={92}  cy={194} color="#fbbf24" />
+
+        {/* Waescheleine zwischen den Bäumen oben — 3 Saunatücher trocknen */}
+        <Waescheleine x1={32} y1={138} x2={158} y2={130} />
+
+        {/* Lichterkette vom Sauna-Dach zum rechten Hinterbaum (warmer Glow) */}
+        <Lichterkette />
+
+        {/* Igel wandert auf der Wiese vor der Sauna */}
+        <g transform="translate(210, 193)">
+          <g className="bs-hedgehog">
+            <g className="bs-hedgehog-bob">
+              <Hedgehog />
+            </g>
+          </g>
         </g>
 
         {/* Bratwurst-Grill links vorne */}
@@ -906,6 +1074,365 @@ function Felsen({ x, y }: { x: number; y: number }) {
       {/* Mini-Sprenkel */}
       <circle cx={x - 4} cy={y - 1} r="0.4" fill="#5a5a62" />
       <circle cx={x + 3} cy={y - 5} r="0.3" fill="#5a5a62" />
+    </g>
+  );
+}
+
+// ── Schwarzwald-Wegweiser ─────────────────────────────────────────────────
+function Wegweiser({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      {/* Bodenschatten */}
+      <ellipse cx={x} cy={y + 1} rx="2.5" ry="0.5" fill="rgba(0,0,0,0.4)" />
+      {/* Pfahl */}
+      <rect x={x - 0.7} y={y - 22} width="1.4" height="22" fill="#5a3010" />
+      <rect x={x - 0.7} y={y - 22} width="0.5" height="22" fill="#7c4a1a" />
+      {/* Mini-Stein-Sockel um den Pfahl */}
+      <ellipse cx={x} cy={y} rx="2.2" ry="0.8" fill="#7a7a82" />
+
+      {/* Oberes Schild → SAUNA → (zeigt nach rechts) */}
+      <g className="bs-sign" style={{ transformOrigin: `${x}px ${y - 20}px` }}>
+        <polygon
+          points={`${x + 0.5},${y - 21} ${x + 13},${y - 21} ${x + 15},${y - 18.5} ${x + 13},${y - 16} ${x + 0.5},${y - 16}`}
+          fill="#7c4a1a"
+          stroke="#3a1808"
+          strokeWidth="0.4"
+        />
+        <text x={x + 2} y={y - 18} fontSize="2.6" fontWeight="800" fill="#1a0e05" fontFamily="Inter, sans-serif">SAUNA</text>
+        <circle cx={x + 0.6} cy={y - 18.5} r="0.4" fill="#1a1a1a" />
+      </g>
+
+      {/* Mittleres Schild ← BERG (zeigt nach links) */}
+      <g className="bs-sign" style={{ transformOrigin: `${x}px ${y - 14}px`, animationDelay: '-2s' }}>
+        <polygon
+          points={`${x - 0.5},${y - 15} ${x - 13},${y - 15} ${x - 15},${y - 12.5} ${x - 13},${y - 10} ${x - 0.5},${y - 10}`}
+          fill="#5a3010"
+          stroke="#3a1808"
+          strokeWidth="0.4"
+        />
+        <text x={x - 12} y={y - 12} fontSize="2.6" fontWeight="800" fill="#f5e6c8" fontFamily="Inter, sans-serif">BERG</text>
+        <circle cx={x - 0.6} cy={y - 12.5} r="0.4" fill="#1a1a1a" />
+      </g>
+
+      {/* Unteres Schild → TEICH (zeigt nach rechts, klein) */}
+      <g className="bs-sign" style={{ transformOrigin: `${x}px ${y - 8}px`, animationDelay: '-4s' }}>
+        <polygon
+          points={`${x + 0.5},${y - 9} ${x + 10},${y - 9} ${x + 11.5},${y - 6.5} ${x + 10},${y - 4} ${x + 0.5},${y - 4}`}
+          fill="#a06530"
+          stroke="#3a1808"
+          strokeWidth="0.4"
+        />
+        <text x={x + 1.6} y={y - 6} fontSize="2.4" fontWeight="800" fill="#1a0e05" fontFamily="Inter, sans-serif">TEICH</text>
+      </g>
+    </g>
+  );
+}
+
+// ── Fischreiher (Heron) — steht im Teich, schaut umher ────────────────────
+function Heron() {
+  return (
+    <g>
+      {/* Wasser-Reflexion am Fuß */}
+      <ellipse cx="0" cy="6.5" rx="2" ry="0.4" fill="rgba(255,255,255,0.4)" />
+      {/* Beine (sehr dünn) */}
+      <line x1="-0.6" y1="2" x2="-0.6" y2="6" stroke="#d97706" strokeWidth="0.4" />
+      <line x1="0.6"  y1="2" x2="0.6"  y2="6" stroke="#d97706" strokeWidth="0.4" />
+      {/* Körper grau-weiß */}
+      <ellipse cx="0" cy="0" rx="3.5" ry="2.3" fill="#cbd5e1" />
+      <ellipse cx="0" cy="0.4" rx="2.8" ry="1.6" fill="#f1f5f9" />
+      {/* Flügel-Andeutung */}
+      <path d="M -2.5 -0.5 Q 0 1.5 3 -0.5" fill="#94a3b8" />
+      <line x1="-2" y1="-0.5" x2="2.5" y2="-0.5" stroke="#64748b" strokeWidth="0.3" />
+      {/* Schwanz-Federn */}
+      <polygon points="-3.5,0 -5.5,0.5 -3.5,1.2" fill="#94a3b8" />
+      {/* Hals — nach oben gebogen */}
+      <g className="bs-heron-head" style={{ transformOrigin: '2.5px -1px' }}>
+        <path d="M 2.5 -1 Q 4.5 -3 4.2 -6" stroke="#cbd5e1" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+        {/* Kopf */}
+        <ellipse cx="4.2" cy="-6.5" rx="1.4" ry="1.1" fill="#cbd5e1" />
+        {/* Federbusch hinten am Kopf */}
+        <path d="M 3.5 -7 Q 2.5 -8 1.5 -7.5" stroke="#475569" strokeWidth="0.4" fill="none" />
+        {/* Auge */}
+        <circle cx="4.6" cy="-6.7" r="0.35" fill="#fbbf24" />
+        <circle cx="4.7" cy="-6.7" r="0.18" fill="#1a0e05" />
+        {/* Schnabel — lang spitz gelb */}
+        <polygon points="5.5,-6.5 8.2,-6.2 5.5,-6" fill="#f59e0b" stroke="#92400e" strokeWidth="0.2" />
+      </g>
+    </g>
+  );
+}
+
+// ── Libelle ──────────────────────────────────────────────────────────────
+function Dragonfly({ tint = '#a78bfa' }: { tint?: string }) {
+  return (
+    <g>
+      {/* Körper schmal länglich */}
+      <ellipse cx="0" cy="0" rx="2.5" ry="0.4" fill="#1f2937" />
+      <ellipse cx="-1.8" cy="0" rx="0.8" ry="0.5" fill={tint} />
+      {/* Kopf */}
+      <circle cx="2.3" cy="0" r="0.6" fill="#0f172a" />
+      <circle cx="2.55" cy="-0.1" r="0.15" fill="#fbbf24" />
+      {/* 4 Flügel mit Buzz */}
+      <g className="bs-wing-buzz" style={{ transformOrigin: '0.5px -0.5px' }}>
+        <ellipse cx="-0.5" cy="-1.6" rx="2"   ry="0.7" fill={tint} opacity="0.6" />
+        <ellipse cx="1.5"  cy="-1.6" rx="1.8" ry="0.6" fill={tint} opacity="0.6" />
+      </g>
+      <g className="bs-wing-buzz" style={{ transformOrigin: '0.5px 0.5px', animationDelay: '-0.06s' }}>
+        <ellipse cx="-0.5" cy="1.6" rx="2"   ry="0.7" fill={tint} opacity="0.55" />
+        <ellipse cx="1.5"  cy="1.6" rx="1.8" ry="0.6" fill={tint} opacity="0.55" />
+      </g>
+    </g>
+  );
+}
+
+// ── Vogelhäuschen am Baumstamm ────────────────────────────────────────────
+function Vogelhaus() {
+  return (
+    <g>
+      {/* Aufhängung */}
+      <line x1="0" y1="-5" x2="0" y2="0" stroke="#1a1a1a" strokeWidth="0.4" />
+      {/* Dach */}
+      <polygon points="-4,0 4,0 0,-3" fill="#3a1808" stroke="#1a0808" strokeWidth="0.3" />
+      <line x1="-3.5" y1="-0.4" x2="3.5" y2="-0.4" stroke="#1a0808" strokeWidth="0.2" />
+      {/* Korpus */}
+      <rect x="-3" y="0" width="6" height="6" fill="#a06530" stroke="#3a1808" strokeWidth="0.4" />
+      <rect x="-3" y="0" width="6" height="1" fill="#7c4a1a" />
+      {/* Eingangsloch */}
+      <circle cx="0" cy="2.5" r="1.2" fill="#1a0808" />
+      <circle cx="0" cy="2.5" r="0.9" fill="#3a1808" />
+      {/* Sitzstange */}
+      <line x1="-0.6" y1="3.7" x2="0.6" y2="3.7" stroke="#3a1808" strokeWidth="0.5" />
+      {/* Mini-Meise schaut raus */}
+      <circle cx="0" cy="2.2" r="0.5" fill="#fde047" />
+      <circle cx="0.15" cy="2.1" r="0.15" fill="#1a0e05" />
+      {/* Holzmaserung */}
+      <line x1="-3" y1="3.5" x2="3" y2="3.5" stroke="rgba(58,24,8,0.4)" strokeWidth="0.2" />
+      <line x1="-3" y1="5"   x2="3" y2="5"   stroke="rgba(58,24,8,0.3)" strokeWidth="0.2" />
+    </g>
+  );
+}
+
+// ── Marienkäfer ───────────────────────────────────────────────────────────
+function Ladybug({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <g>
+      {/* Körper */}
+      <ellipse cx={cx} cy={cy} rx="1.2" ry="0.9" fill="#dc2626" />
+      {/* Mitte schwarz */}
+      <line x1={cx} y1={cy - 0.9} x2={cx} y2={cy + 0.9} stroke="#0a0a0a" strokeWidth="0.3" />
+      {/* Punkte */}
+      <circle cx={cx - 0.45} cy={cy - 0.25} r="0.18" fill="#0a0a0a" />
+      <circle cx={cx + 0.45} cy={cy - 0.25} r="0.18" fill="#0a0a0a" />
+      <circle cx={cx - 0.45} cy={cy + 0.35} r="0.18" fill="#0a0a0a" />
+      <circle cx={cx + 0.45} cy={cy + 0.35} r="0.18" fill="#0a0a0a" />
+      {/* Kopf */}
+      <ellipse cx={cx - 1.1} cy={cy - 0.05} rx="0.45" ry="0.55" fill="#0a0a0a" />
+      {/* Augen-Highlights */}
+      <circle cx={cx - 1.2} cy={cy - 0.2} r="0.1" fill="#fff" />
+    </g>
+  );
+}
+
+// ── Sonnenblume ───────────────────────────────────────────────────────────
+function Sunflower({ x, y, h }: { x: number; y: number; h: number }) {
+  return (
+    <g>
+      {/* Stiel */}
+      <line x1={x} y1={y} x2={x} y2={y - h} stroke="#2d5a3f" strokeWidth="0.8" strokeLinecap="round" />
+      {/* Blätter am Stiel */}
+      <ellipse cx={x - 2} cy={y - h * 0.5} rx="2" ry="0.8" fill="#326c44" transform={`rotate(-30 ${x - 2} ${y - h * 0.5})`} />
+      <ellipse cx={x + 2} cy={y - h * 0.65} rx="2" ry="0.8" fill="#326c44" transform={`rotate(30 ${x + 2} ${y - h * 0.65})`} />
+      {/* Blütenblätter (gelb, sternförmig) */}
+      {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+        <ellipse
+          key={deg}
+          cx={x}
+          cy={y - h - 2}
+          rx="1.2"
+          ry="2.5"
+          fill="#fbbf24"
+          transform={`rotate(${deg} ${x} ${y - h - 2})`}
+        />
+      ))}
+      {/* Innen-Scheibe */}
+      <circle cx={x} cy={y - h - 2} r="1.6" fill="#7c2d12" />
+      <circle cx={x} cy={y - h - 2} r="1" fill="#92400e" />
+      {/* Kerne als Punkte */}
+      <circle cx={x - 0.5} cy={y - h - 2.3} r="0.2" fill="#1a0e05" />
+      <circle cx={x + 0.4} cy={y - h - 1.8} r="0.2" fill="#1a0e05" />
+      <circle cx={x}       cy={y - h - 2}   r="0.2" fill="#1a0e05" />
+    </g>
+  );
+}
+
+// ── Wiesen-Blume (klein, statisch) ────────────────────────────────────────
+function Flower({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+  return (
+    <g>
+      <line x1={cx} y1={cy} x2={cx} y2={cy - 2.2} stroke="#2d5a3f" strokeWidth="0.4" strokeLinecap="round" />
+      <circle cx={cx - 0.6} cy={cy - 2.4} r="0.5" fill={color} />
+      <circle cx={cx + 0.6} cy={cy - 2.4} r="0.5" fill={color} />
+      <circle cx={cx}       cy={cy - 3.0} r="0.5" fill={color} />
+      <circle cx={cx - 0.6} cy={cy - 3.2} r="0.5" fill={color} />
+      <circle cx={cx + 0.6} cy={cy - 3.2} r="0.5" fill={color} />
+      <circle cx={cx}       cy={cy - 2.7} r="0.35" fill="#fbbf24" />
+    </g>
+  );
+}
+
+// ── Waescheleine mit Saunatüchern ──────────────────────────────────────────
+function Waescheleine({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: number }) {
+  // Mittlerer Durchhang
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2 + 6;
+  // Drei Tuch-Positionen entlang der Leine (parametrisch)
+  const tuch = (t: number) => {
+    // Quadratische Bezier-Approximation
+    const x = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * midX + t * t * x2;
+    const y = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * midY + t * t * y2;
+    return { x, y };
+  };
+  const t1 = tuch(0.28);
+  const t2 = tuch(0.5);
+  const t3 = tuch(0.72);
+  return (
+    <g>
+      {/* Befestigungspunkt am linken Baum */}
+      <circle cx={x1} cy={y1} r="0.7" fill="#1a1a1a" />
+      <circle cx={x2} cy={y2} r="0.7" fill="#1a1a1a" />
+      {/* Seil als Bezier-Kurve */}
+      <path
+        d={`M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`}
+        stroke="#1a1a1a"
+        strokeWidth="0.4"
+        fill="none"
+      />
+      {/* Saunatuch 1 — rot-weiß gestreift */}
+      <g className="bs-towel" style={{ transformOrigin: `${t1.x}px ${t1.y}px`, animationDelay: '0s' }}>
+        <rect x={t1.x - 3} y={t1.y - 0.5} width="6" height="8" fill="#fff" stroke="#5a5a5a" strokeWidth="0.2" />
+        <rect x={t1.x - 3} y={t1.y + 1}   width="6" height="1" fill="#dc2626" />
+        <rect x={t1.x - 3} y={t1.y + 3}   width="6" height="1" fill="#dc2626" />
+        <rect x={t1.x - 3} y={t1.y + 5}   width="6" height="1" fill="#dc2626" />
+        {/* Wäscheklammer */}
+        <rect x={t1.x - 0.6} y={t1.y - 1.2} width="1.2" height="1.4" fill="#7c4a1a" />
+      </g>
+      {/* Saunatuch 2 — Saunafreunde-grün */}
+      <g className="bs-towel" style={{ transformOrigin: `${t2.x}px ${t2.y}px`, animationDelay: '-1s' }}>
+        <rect x={t2.x - 3.2} y={t2.y - 0.5} width="6.4" height="9" fill="#2d5a3f" stroke="#1a3a25" strokeWidth="0.2" />
+        <rect x={t2.x - 3.2} y={t2.y - 0.5} width="6.4" height="1.2" fill="#1a3a25" />
+        <rect x={t2.x - 3.2} y={t2.y + 7}   width="6.4" height="1"   fill="#1a3a25" />
+        {/* Aufdruck */}
+        <text x={t2.x} y={t2.y + 5} textAnchor="middle" fontSize="2" fontWeight="800" fill="#f5e6c8" fontFamily="Inter, sans-serif">SF</text>
+        <rect x={t2.x - 0.6} y={t2.y - 1.2} width="1.2" height="1.4" fill="#7c4a1a" />
+      </g>
+      {/* Saunatuch 3 — blau */}
+      <g className="bs-towel" style={{ transformOrigin: `${t3.x}px ${t3.y}px`, animationDelay: '-2s' }}>
+        <rect x={t3.x - 2.8} y={t3.y - 0.5} width="5.6" height="7" fill="#3b82f6" stroke="#1e3a8a" strokeWidth="0.2" />
+        <rect x={t3.x - 2.8} y={t3.y + 2} width="5.6" height="0.7" fill="#1e3a8a" />
+        <rect x={t3.x - 2.8} y={t3.y + 4} width="5.6" height="0.7" fill="#1e3a8a" />
+        <rect x={t3.x - 0.6} y={t3.y - 1.2} width="1.2" height="1.4" fill="#7c4a1a" />
+      </g>
+    </g>
+  );
+}
+
+// ── Lichterkette vom Sauna-Dach zum Hinterbaum ───────────────────────────
+function Lichterkette() {
+  // Befestigungspunkte: Sauna-Dach (x=200, y=80) → Baum (x=405, y=115)
+  // Bezier-Kurve mit Durchhang
+  const x1 = 200, y1 = 80, x2 = 405, y2 = 115;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2 + 18;
+  const lights = [0.15, 0.3, 0.45, 0.55, 0.7, 0.85];
+  const colors = ['#fbbf24', '#fef3c7', '#fbbf24', '#fb923c', '#fef3c7', '#fbbf24'];
+  return (
+    <g>
+      {/* Seil */}
+      <path
+        d={`M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`}
+        stroke="#1a1a1a"
+        strokeWidth="0.4"
+        fill="none"
+        opacity="0.7"
+      />
+      {/* Lampions / Glühbirnen */}
+      {lights.map((t, i) => {
+        const px = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * midX + t * t * x2;
+        const py = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * midY + t * t * y2;
+        return (
+          <g key={i} className="bs-string-light" style={{ animationDelay: `${-i * 0.3}s`, transformOrigin: `${px}px ${py}px` }}>
+            <circle cx={px} cy={py + 2.5} r="2.2" fill={colors[i]} opacity="0.4" />
+            <circle cx={px} cy={py + 2.5} r="1.3" fill={colors[i]} />
+            <circle cx={px} cy={py + 2.2} r="0.5" fill="#fff" opacity="0.9" />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+// ── Igel ──────────────────────────────────────────────────────────────────
+function Hedgehog() {
+  return (
+    <g>
+      {/* Bodenschatten */}
+      <ellipse cx="0" cy="1" rx="3.5" ry="0.5" fill="rgba(0,0,0,0.35)" />
+      {/* Körper (stachelig) */}
+      <ellipse cx="0" cy="-1.5" rx="3.2" ry="2" fill="#5a3a1c" />
+      {/* Stacheln als kleine Dreiecke */}
+      {[-2.6, -1.8, -1, -0.2, 0.6, 1.4, 2.2].map((dx, i) => (
+        <polygon
+          key={i}
+          points={`${dx},${-2.5} ${dx + 0.4},${-3.5} ${dx + 0.7},${-2.5}`}
+          fill="#3a1808"
+        />
+      ))}
+      {[-2.2, -1.4, -0.6, 0.2, 1, 1.8].map((dx, i) => (
+        <polygon
+          key={`b-${i}`}
+          points={`${dx},${-1.8} ${dx + 0.4},${-3} ${dx + 0.7},${-1.8}`}
+          fill="#7c4a1a"
+        />
+      ))}
+      {/* Kopf */}
+      <ellipse cx="2.8" cy="-1" rx="1.4" ry="1.1" fill="#ffd5aa" />
+      {/* Schnauze */}
+      <ellipse cx="4" cy="-0.8" rx="0.5" ry="0.4" fill="#1a0e05" />
+      {/* Auge */}
+      <circle cx="3.2" cy="-1.3" r="0.25" fill="#1a0e05" />
+      <circle cx="3.25" cy="-1.4" r="0.08" fill="#fff" />
+      {/* Beinchen */}
+      <ellipse cx="-1.5" cy="0.5" rx="0.4" ry="0.5" fill="#3a1808" />
+      <ellipse cx="1.5"  cy="0.5" rx="0.4" ry="0.5" fill="#3a1808" />
+      {/* Mini-Apfel auf dem Rücken (Easter Egg) */}
+      <circle cx="-0.5" cy="-2.5" r="0.5" fill="#dc2626" />
+      <line x1="-0.5" y1="-2.9" x2="-0.5" y2="-3.3" stroke="#2d5a3f" strokeWidth="0.3" />
+    </g>
+  );
+}
+
+// ── Eisvogel ──────────────────────────────────────────────────────────────
+function Kingfisher() {
+  return (
+    <g>
+      {/* Körper türkis-blau */}
+      <ellipse cx="0" cy="0" rx="3.2" ry="1.6" fill="#0891b2" />
+      <ellipse cx="0" cy="0.3" rx="2.4" ry="1" fill="#22d3ee" />
+      {/* Bauch orange-rost */}
+      <ellipse cx="0.5" cy="0.8" rx="2" ry="0.8" fill="#c2410c" />
+      {/* Kopf */}
+      <circle cx="2.6" cy="-0.3" r="1.3" fill="#0e7490" />
+      <circle cx="2.5" cy="-0.1" r="0.8" fill="#22d3ee" />
+      {/* Auge */}
+      <circle cx="3" cy="-0.5" r="0.3" fill="#fff" />
+      <circle cx="3.1" cy="-0.5" r="0.15" fill="#1a0e05" />
+      {/* Schnabel — lang und schwarz */}
+      <polygon points="3.6,-0.3 6.5,0 3.6,0.3" fill="#1a0e05" />
+      {/* Flügel oben (Bewegungs-Andeutung) */}
+      <path d="M -1.5 -1.2 Q 0 -2.5 2 -1.5" fill="#0e7490" />
+      <path d="M -1.5 -1.2 Q 0 -2.5 2 -1.5" stroke="#155e75" strokeWidth="0.3" fill="none" />
+      {/* Schwanz */}
+      <polygon points="-3.2,0 -4.8,0.4 -3.2,0.8" fill="#0e7490" />
     </g>
   );
 }
