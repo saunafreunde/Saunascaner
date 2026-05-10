@@ -4,6 +4,8 @@ import { de } from 'date-fns/locale';
 import type { WmMatch, WmTeam, WmTip } from '@/lib/api';
 import { useSubmitWmTip, useAllWmTips } from '@/lib/api';
 import { computeOdds } from '@/lib/fifaRanks';
+import { TeamFlag } from '@/components/TeamFlag';
+import { getTeamMeta } from '@/lib/teamMeta';
 
 interface Props {
   match: WmMatch;
@@ -131,8 +133,20 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
     ? myResult?.correct ? 'ring-emerald-500/50' : 'ring-rose-700/40'
     : tippingClosed ? 'ring-forest-700/30' : 'ring-forest-800/40';
 
+  // Subtiler Akzent-Gradient aus Heim → Auswärts-Flaggenfarben
+  const homeMeta = home ? getTeamMeta(home.code) : null;
+  const awayMeta = away ? getTeamMeta(away.code) : null;
+  const accentBgStyle = (homeMeta && awayMeta)
+    ? {
+        backgroundImage: `linear-gradient(135deg, ${homeMeta.accent}14 0%, transparent 35%, transparent 65%, ${awayMeta.accent}14 100%), linear-gradient(180deg, rgba(2,15,10,0.85) 0%, rgba(2,15,10,0.65) 100%)`,
+      }
+    : undefined;
+
   return (
-    <div className={`rounded-2xl bg-gradient-to-b from-forest-950/85 to-forest-950/65 ring-1 ${borderClass} backdrop-blur shadow-lg shadow-black/20 overflow-hidden`}>
+    <div
+      className={`rounded-2xl ${accentBgStyle ? '' : 'bg-gradient-to-b from-forest-950/85 to-forest-950/65'} ring-1 ${borderClass} backdrop-blur shadow-lg shadow-black/20 overflow-hidden`}
+      style={accentBgStyle}
+    >
       {/* Header */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between text-xs text-forest-400">
         <span>{format(kickoff, 'EE dd.MM. HH:mm', { locale: de })}</span>
@@ -146,8 +160,8 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
 
       {/* Teams */}
       <div className="px-4 pb-2 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span className="text-2xl">{home?.flag ?? '⬜'}</span>
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <TeamFlag code={home?.code} fallbackEmoji={home?.flag} size="md" />
           <span className="font-semibold text-sm truncate">{home?.name ?? match.home_label ?? '?'}</span>
         </div>
         {finished ? (
@@ -155,11 +169,11 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
             {match.score_home}<span className="text-forest-500 mx-1">:</span>{match.score_away}
           </div>
         ) : (
-          <span className="text-xs text-forest-500">vs</span>
+          <span className="text-xs text-forest-500 font-semibold tracking-widest">VS</span>
         )}
-        <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 justify-end">
           <span className="font-semibold text-sm truncate text-right">{away?.name ?? match.away_label ?? '?'}</span>
-          <span className="text-2xl">{away?.flag ?? '⬜'}</span>
+          <TeamFlag code={away?.code} fallbackEmoji={away?.flag} size="md" />
         </div>
       </div>
 
@@ -199,7 +213,8 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
                 opt === 'home' ? (home!.name || match.home_label || home!.code)
                 : opt === 'draw' ? 'Remis'
                 : (away!.name || match.away_label || away!.code);
-              const flag = opt === 'home' ? home!.flag : opt === 'away' ? away!.flag : '🤝';
+              const code = opt === 'home' ? home!.code : opt === 'away' ? away!.code : null;
+              const fallback = opt === 'home' ? home!.flag : opt === 'away' ? away!.flag : '🤝';
               return (
                 <button
                   key={opt}
@@ -213,8 +228,14 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
                         : 'bg-forest-900/70 text-forest-200 hover:bg-forest-800 ring-1 ring-forest-700/40'
                   }`}
                 >
-                  <span className="block text-lg">{flag}</span>
-                  <span className="block text-[11px] mt-0.5 truncate px-1">{label}</span>
+                  <span className="flex justify-center">
+                    {code ? (
+                      <TeamFlag code={code} fallbackEmoji={fallback} size="sm" showRankStar={false} />
+                    ) : (
+                      <span className="text-lg leading-none inline-grid place-items-center" style={{ width: 28, height: 28 }}>🤝</span>
+                    )}
+                  </span>
+                  <span className="block text-[11px] mt-1 truncate px-1">{label}</span>
                 </button>
               );
             })}
