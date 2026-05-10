@@ -6,7 +6,7 @@ import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
-  usePendingMembers, useApproveMember,
+  usePendingMembers, useApproveMember, useCurrentMember,
   useTvSettings, useUpdateTvSettings,
   usePresentMembers,
   useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
@@ -208,6 +208,7 @@ function MembersTab() {
   const update = useUpdateMember();
   const approve = useApproveMember();
   const del = useDeleteMember();
+  const me = useCurrentMember();
   const tvQ = useTvSettings();
   const frontBgUrl = publicAssetUrl(tvQ.data?.badge?.front_bg);
   const backBgUrl  = publicAssetUrl(tvQ.data?.badge?.back_bg);
@@ -334,6 +335,27 @@ function MembersTab() {
                   })}
                     className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
                     Ausweis-PDF
+                  </button>
+                  <button
+                    onClick={() => {
+                      const becomingAdmin = m.role !== 'admin';
+                      const ok = window.confirm(
+                        becomingAdmin
+                          ? `"${m.name}" zum Admin machen? Admins haben Vollzugriff auf alle Saunen, Mitglieder, WM und Branding.`
+                          : `Admin-Rechte von "${m.name}" entfernen?`,
+                      );
+                      if (!ok) return;
+                      update.mutate({ id: m.id, role: becomingAdmin ? 'admin' : 'member' });
+                    }}
+                    disabled={m.id === me.data?.id}
+                    title={m.id === me.data?.id ? 'Du kannst dich nicht selbst degradieren' : undefined}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      m.role === 'admin'
+                        ? 'bg-forest-500/30 text-forest-100 ring-forest-400/40 hover:bg-forest-500/50'
+                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
+                    }`}
+                  >
+                    {m.role === 'admin' ? '👑 Admin entfernen' : '+ Admin'}
                   </button>
                   <button
                     onClick={() => update.mutate({ id: m.id, revoked_at: m.revoked_at ? null : new Date().toISOString() })}
