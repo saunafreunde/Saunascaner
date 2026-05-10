@@ -322,7 +322,7 @@ export default function Dashboard() {
                 minutesUntilNext={minutesUntilNext}
                 nextTitle={nextInfusion?.title ?? ''}
                 onClick={handleDoorToggle}
-                scale={1.0}
+                scale={0.8}
               />
             </BlockhausScene>
           </div>

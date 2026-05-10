@@ -163,6 +163,20 @@ export function Holzfaeller({ scale = 1 }: Props) {
           </g>
         ))}
 
+        {/* Vordere Bäume — laut Z-Order-Regel auch hinter dem Holzfäller */}
+        {FRONT_TREES.map((t, i) => (
+          <g key={`ft-${i}`} className="hfs-tree" style={{ animationDelay: t.delay }}>
+            <Tree x={t.x} h={t.h} front />
+          </g>
+        ))}
+
+        {/* Eichhörnchen am rechten Vorderbaum (jetzt im Hinterlayer mit den Bäumen) */}
+        <g transform="translate(192, 110)">
+          <g className="hfs-squirrel">
+            <Squirrel />
+          </g>
+        </g>
+
         {/* Eule auf dem mittleren Hinterbaum */}
         <g transform="translate(154, 64)">
           <Owl />
@@ -243,20 +257,6 @@ export function Holzfaeller({ scale = 1 }: Props) {
           <polygon points="56,30 72,28 76,42 60,44" fill="#b8b8c0" stroke="#5a5a64" strokeWidth="0.8" />
           <polygon points="56,30 72,28 70,34 60,36" fill="#dcdce0" />
           <line x1="76" y1="32" x2="78" y2="42" stroke="#fff" strokeWidth="0.6" opacity="0.7" />
-        </g>
-
-        {/* ──── VORDERE BÄUME (überlappen Szene leicht) ──── */}
-        {FRONT_TREES.map((t, i) => (
-          <g key={`ft-${i}`} className="hfs-tree" style={{ animationDelay: t.delay }}>
-            <Tree x={t.x} h={t.h} front />
-          </g>
-        ))}
-
-        {/* Eichhörnchen am rechten Vorderbaum */}
-        <g transform="translate(192, 110)">
-          <g className="hfs-squirrel">
-            <Squirrel />
-          </g>
         </g>
 
         {/* Bach unten */}

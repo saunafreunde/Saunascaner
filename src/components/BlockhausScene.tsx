@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -7,7 +7,9 @@ interface Props {
 const W = 460;
 const H = 200;
 
-// Hintergrund-Wald: 10 Bäume hinter Sauna + See, klar sichtbar (opacity 0.55)
+// ──── BÄUME — bilden zusammen die hinterste Schicht (Z-Order-Regel) ────
+
+// Sehr ferne Bäume (Wald-Tiefe)
 const VERY_BACK_TREES = [
   { x: 165, h: 50, delay: '-1.9s' },
   { x: 188, h: 44, delay: '-2.4s' },
@@ -21,25 +23,24 @@ const VERY_BACK_TREES = [
   { x: 432, h: 44, delay: '-2.1s' },
 ];
 
-// Mittel-ferne Bäume (kräftiger sichtbar)
+// Mittel-ferne Bäume — verschoben aus den Foreground-Zonen heraus,
+// damit Bienenstöcke / Imker / Briefkasten nicht mehr verdeckt werden.
 const BACK_TREES = [
   { x: 22,  h: 60, dimmer: true,  delay: '-0.4s' },
-  { x: 95,  h: 78, dimmer: false, delay: '-2.5s' },
-  { x: 140, h: 65, dimmer: true,  delay: '-1.2s' },
+  { x: 152, h: 78, dimmer: false, delay: '-2.5s' },
   { x: 200, h: 82, dimmer: false, delay: '-3.6s' },
-  { x: 245, h: 70, dimmer: true,  delay: '-0.9s' },
+  { x: 248, h: 70, dimmer: true,  delay: '-0.9s' },
   { x: 305, h: 60, dimmer: true,  delay: '-2.0s' },
   { x: 410, h: 86, dimmer: false, delay: '-1.6s' },
 ];
 
-// Vordere Bäume — x=60 nach x=20 verschoben damit Imker-Bereich frei bleibt
-const FRONT_TREES = [
-  { x: 20,  h: 56, delay: '-1.0s' },
+// Größere Bäume in der zweiten Reihe — keine FRONT_TREES mehr,
+// alles in derselben Hintergrund-Schicht.
+const MID_TREES = [
   { x: 268, h: 60, delay: '-2.8s' },
   { x: 440, h: 68, delay: '-0.6s' },
 ];
 
-// 12 Wolken
 const CLOUDS = [
   { cx: 30,  cy: 14, w: 22, delay: '0s'   },
   { cx: 75,  cy: 22, w: 18, delay: '-12s' },
@@ -56,6 +57,18 @@ const CLOUDS = [
 ];
 
 export function BlockhausScene({ children }: Props) {
+  // Saunameister: nur in den letzten 10 Min vor jeder vollen Stunde sichtbar
+  const [showSaunameister, setShowSaunameister] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      setShowSaunameister(new Date().getMinutes() >= 50);
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="relative pointer-events-none" style={{ width: W, height: H }}>
       <style>{`
@@ -111,23 +124,10 @@ export function BlockhausScene({ children }: Props) {
           75%  { transform: translate(-6px, -4px); }
           100% { transform: translate(0, 0); }
         }
-        @keyframes bs-bather {
-          0%, 8%, 78%, 100% { transform: translate(0, 0); opacity: 0; }
-          12%               { transform: translate(0, 0); opacity: 1; }
-          25%               { transform: translate(120px, 0); opacity: 1; }
-          27%               { transform: translate(140px, 0); opacity: 1; }
-          30%               { transform: translate(155px, -22px); opacity: 1; }
-          32%               { transform: translate(165px, 8px); opacity: 1; }
-          35%, 55%          { transform: translate(165px, 8px); opacity: 0.5; }
-          58%               { transform: translate(155px, 0); opacity: 1; }
-          74%               { transform: translate(0, 0); opacity: 1; }
-          76%               { transform: translate(0, 0); opacity: 0; }
-        }
-        @keyframes bs-splash {
-          0%, 30%       { opacity: 0; transform: scale(0.4); }
-          32%           { opacity: 0.95; transform: scale(1); }
-          36%           { opacity: 0.6; transform: scale(2.2); }
-          40%, 100%     { opacity: 0; transform: scale(3); }
+        @keyframes bs-master-enter {
+          0%   { transform: translate(0, 0)   scale(0.85); opacity: 0; }
+          10%  { opacity: 1; }
+          100% { transform: translate(45px, 0) scale(1.6);  opacity: 1; }
         }
         @keyframes bs-mole {
           0%, 60%, 100% { transform: translateY(2.5px); opacity: 0.3; }
@@ -158,8 +158,7 @@ export function BlockhausScene({ children }: Props) {
         .bs-fox             { animation: bs-fox-peek 30s infinite ease-in-out; }
         .bs-specht          { transform-origin: 4px 0px; animation: bs-specht-peck 5s infinite ease-in-out; }
         .bs-bee             { animation: bs-bee-orbit 2.4s infinite linear; }
-        .bs-bather          { animation: bs-bather 60s infinite ease-in-out; }
-        .bs-splash          { transform-origin: center; animation: bs-splash 60s infinite ease-out; }
+        .bs-master-enter    { animation: bs-master-enter 6s ease-out forwards; animation-iteration-count: 1; }
         .bs-mole            { transform-origin: center; animation: bs-mole 18s infinite ease-in-out; }
         .bs-grill-smoke     { animation: bs-grill-smoke 4s infinite ease-out; }
 
@@ -168,7 +167,7 @@ export function BlockhausScene({ children }: Props) {
           .bs-fisher, .bs-cloud, .bs-butterfly-fly, .bs-butterfly-flap,
           .bs-firefly, .bs-firefly-drift, .bs-climber, .bs-climber-step,
           .bs-duck, .bs-duck-bob, .bs-fox, .bs-specht, .bs-bee,
-          .bs-bather, .bs-splash, .bs-mole, .bs-grill-smoke {
+          .bs-master-enter, .bs-mole, .bs-grill-smoke {
             animation: none;
           }
         }
@@ -178,17 +177,34 @@ export function BlockhausScene({ children }: Props) {
         {/* Bodensaum */}
         <ellipse cx={W / 2} cy={H - 4} rx={W / 2 - 6} ry="6" fill="rgba(20,40,25,0.45)" />
 
-        {/* Berg links — jetzt deutlich kleiner */}
+        {/* Berg links + Bergsteiger */}
         <Mountain />
+        <g transform="translate(35, 130)">
+          <g className="bs-climber">
+            <g className="bs-climber-step">
+              <Climber />
+            </g>
+          </g>
+        </g>
 
-        {/* Sehr ferne Bäume (Wald-Tiefe) */}
+        {/* ──────── BÄUME — alle in einer Schicht ganz hinten ──────── */}
         {VERY_BACK_TREES.map((t, i) => (
           <g key={`vbt-${i}`} className="bs-tree" style={{ animationDelay: t.delay }}>
             <BackTree x={t.x} h={t.h} dimmer veryFar />
           </g>
         ))}
+        {BACK_TREES.map((t, i) => (
+          <g key={`bt-${i}`} className="bs-tree" style={{ animationDelay: t.delay }}>
+            <BackTree x={t.x} h={t.h} dimmer={t.dimmer} />
+          </g>
+        ))}
+        {MID_TREES.map((t, i) => (
+          <g key={`mt-${i}`} className="bs-tree" style={{ animationDelay: t.delay }}>
+            <BackTree x={t.x} h={t.h} dimmer={false} front />
+          </g>
+        ))}
 
-        {/* 12 Wolken */}
+        {/* Wolken über den Bäumen */}
         {CLOUDS.map((c, i) => (
           <g key={`cl-${i}`} className="bs-cloud" style={{ animationDelay: c.delay }}>
             <Cloud cx={c.cx} cy={c.cy} w={c.w} />
@@ -203,66 +219,6 @@ export function BlockhausScene({ children }: Props) {
           <path d="M0,0 Q3,-3 6,0 Q9,-3 12,0" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="0.7" />
         </g>
 
-        {/* Bergsteiger (auf dem kleineren Berg) */}
-        <g transform="translate(35, 130)">
-          <g className="bs-climber">
-            <g className="bs-climber-step">
-              <Climber />
-            </g>
-          </g>
-        </g>
-
-        {/* Bienenstöcke (große Skalierung) + Imker (Fisher-Größe) */}
-        <g transform="translate(60, 195) scale(2)">
-          <Beehive x={0} y={0} />
-        </g>
-        <g transform="translate(98, 195) scale(1.7)">
-          <Beehive x={0} y={0} small />
-        </g>
-        <g transform="translate(125, 195) scale(2)">
-          <Imker />
-        </g>
-        {/* 8 Bienen schwirren um die Stöcke */}
-        <g className="bs-bee" style={{ animationDelay: '0s' }}>
-          <circle cx="65"  cy="175" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="65"  cy="175" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-        <g className="bs-bee" style={{ animationDelay: '-0.4s' }}>
-          <circle cx="55"  cy="180" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="55"  cy="180" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-        <g className="bs-bee" style={{ animationDelay: '-0.8s' }}>
-          <circle cx="73"  cy="182" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="73"  cy="182" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-        <g className="bs-bee" style={{ animationDelay: '-1.2s' }}>
-          <circle cx="92"  cy="172" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="92"  cy="172" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-        <g className="bs-bee" style={{ animationDelay: '-1.6s' }}>
-          <circle cx="100" cy="178" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="100" cy="178" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-        <g className="bs-bee" style={{ animationDelay: '-2.0s' }}>
-          <circle cx="115" cy="174" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="115" cy="174" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-        <g className="bs-bee" style={{ animationDelay: '-2.4s' }}>
-          <circle cx="130" cy="180" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="130" cy="180" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-        <g className="bs-bee" style={{ animationDelay: '-1.8s' }}>
-          <circle cx="83"  cy="170" r="1.1" fill="#1a1a1a" />
-          <ellipse cx="83"  cy="170" rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-        </g>
-
-        {/* Mittel-ferne Bäume */}
-        {BACK_TREES.map((t, i) => (
-          <g key={`bt-${i}`} className="bs-tree" style={{ animationDelay: t.delay }}>
-            <BackTree x={t.x} h={t.h} dimmer={t.dimmer} />
-          </g>
-        ))}
-
         {/* Schmetterling */}
         <g className="bs-butterfly-fly">
           <Butterfly />
@@ -270,14 +226,6 @@ export function BlockhausScene({ children }: Props) {
 
         {/* Teich */}
         <Pond cx={360} cy={175} rx={65} ry={16} />
-
-        {/* Splash-Ringe synchron zum Saunagast */}
-        <g className="bs-splash" style={{ transformOrigin: '360px 175px' }}>
-          <circle cx="360" cy="175" r="3" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.8" />
-        </g>
-        <g className="bs-splash" style={{ transformOrigin: '360px 175px', animationDelay: '0.15s' }}>
-          <circle cx="360" cy="175" r="3" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.5" />
-        </g>
 
         {/* Schilf */}
         <g className="bs-reeds" style={{ animationDelay: '-0.2s' }}>
@@ -287,123 +235,70 @@ export function BlockhausScene({ children }: Props) {
           <Reeds x={418} y={185} />
         </g>
 
-        {/* EASTER 1: Frosch auf einer Seerose im Teich */}
+        {/* Frosch auf Seerose */}
         <g transform="translate(345, 174)">
           <ellipse cx="0" cy="0.5" rx="6" ry="2" fill="#1f5a3a" />
           <ellipse cx="0" cy="-0.3" rx="4.5" ry="1.4" fill="#2a7048" />
-          {/* Frosch */}
           <ellipse cx="0" cy="-2" rx="3" ry="2" fill="#326c44" />
           <ellipse cx="0" cy="-3" rx="2" ry="1.5" fill="#4a8a5a" />
-          {/* Augen-Buckel */}
           <circle cx="-1.5" cy="-4" r="1" fill="#326c44" />
           <circle cx="1.5"  cy="-4" r="1" fill="#326c44" />
           <circle cx="-1.5" cy="-4" r="0.5" fill="#fbbf24" />
           <circle cx="1.5"  cy="-4" r="0.5" fill="#fbbf24" />
           <circle cx="-1.5" cy="-4" r="0.2" fill="#1a0e05" />
           <circle cx="1.5"  cy="-4" r="0.2" fill="#1a0e05" />
-          {/* Mund */}
           <path d="M-1.5 -2 Q0 -1.4 1.5 -2" stroke="#1a0e05" strokeWidth="0.3" fill="none" />
         </g>
 
-        {/* Enten-Familie: Mama vorne, 3 Küken im Schlepptau */}
+        {/* Enten-Familie */}
         <g transform="translate(330, 172)">
           <g className="bs-duck">
             <g className="bs-duck-bob">
               <Duck />
-              {/* 3 Küken hinter Mama in einer Reihe */}
-              <g transform="translate(-9, 1)">
-                <Duckling />
-              </g>
-              <g transform="translate(-15, 0.3)">
-                <Duckling />
-              </g>
-              <g transform="translate(-21, 1)">
-                <Duckling />
-              </g>
+              <g transform="translate(-9, 1)"><Duckling /></g>
+              <g transform="translate(-15, 0.3)"><Duckling /></g>
+              <g transform="translate(-21, 1)"><Duckling /></g>
             </g>
           </g>
         </g>
 
-        {/* Bank + Angler — RECHTS vom Teich auf trockenem Land (kein Wasser-Konflikt) */}
+        {/* Bienenstöcke + Imker — links der Sauna, beide klar sichtbar */}
+        <g transform="translate(72, 195) scale(2)">
+          <Beehive x={0} y={0} />
+        </g>
+        <g transform="translate(108, 195) scale(1.7)">
+          <Beehive x={0} y={0} small />
+        </g>
+        <g transform="translate(135, 195) scale(2)">
+          <Imker />
+        </g>
+        {/* 8 Bienen schwirren um die Stöcke */}
+        <Bee cx={72}  cy={175} delay="0s" />
+        <Bee cx={66}  cy={180} delay="-0.4s" />
+        <Bee cx={82}  cy={182} delay="-0.8s" />
+        <Bee cx={100} cy={172} delay="-1.2s" />
+        <Bee cx={112} cy={178} delay="-1.6s" />
+        <Bee cx={125} cy={174} delay="-2.0s" />
+        <Bee cx={92}  cy={170} delay="-1.8s" />
+        <Bee cx={78}  cy={188} delay="-2.4s" />
+
+        {/* Bank + Angler — rechts vom Teich */}
         <Bench x={427} y={148} />
         <g className="bs-fisher">
           <Fisher x={428} y={116} />
         </g>
 
-        {/* Sauna mittig — children */}
-      </svg>
-
-      {/* Sauna (HTML-Overlay zwischen Body und Vordergrund) */}
-      <div className="absolute" style={{ left: 130, top: 40, pointerEvents: 'auto' }}>
-        {children}
-      </div>
-
-      {/* Vordergrund-SVG ÜBER der Sauna für Specht, Vorderbäume, Saunagast, Fuchs, Glühwürmchen */}
-      <svg
-        className="absolute inset-0"
-        viewBox={`0 0 ${W} ${H}`}
-        width={W}
-        height={H}
-        style={{ overflow: 'visible', pointerEvents: 'none' }}
-      >
-        {/* Fuchs hinter der rechten Sauna-Wand, peekt periodisch raus */}
-        <g transform="translate(258, 188)">
-          <g className="bs-fox">
-            <Fox />
-          </g>
-        </g>
-
-        {/* Vorderbäume (überlappen Sauna leicht) */}
-        {FRONT_TREES.map((t, i) => (
-          <g key={`ft-${i}`} className="bs-tree" style={{ animationDelay: t.delay }}>
-            <BackTree x={t.x} h={t.h} dimmer={false} front />
-          </g>
-        ))}
-
-        {/* Specht am rechten Vorder-Baum (klar sichtbar, kein Sauna-Konflikt) */}
-        <g transform="translate(440, 148)">
-          <g className="bs-specht">
-            <Specht />
-          </g>
-        </g>
-
-        {/* Saunagast — Fisher-Größe, läuft aus Sauna zum Teich, springt rein */}
-        <g transform="translate(195, 192) scale(1.6)">
-          <g className="bs-bather">
-            <Bather />
-          </g>
-        </g>
-
-        {/* EASTER 2: Maulwurfshügel + Maulwurf der periodisch rauspoppt — vor der Bank */}
-        <g transform="translate(448, 192)">
-          {/* Hügel */}
-          <ellipse cx="0" cy="2" rx="6" ry="1.5" fill="#5a3a1c" />
-          <ellipse cx="0" cy="1" rx="5" ry="1.8" fill="#6b4a2a" />
-          {/* Maulwurf */}
-          <g className="bs-mole">
-            <ellipse cx="0" cy="-1" rx="2.2" ry="1.8" fill="#1a1a1a" />
-            <circle cx="-0.8" cy="-1.4" r="0.3" fill="#fff" />
-            <circle cx="0.8"  cy="-1.4" r="0.3" fill="#fff" />
-            <ellipse cx="0" cy="-0.4" rx="0.7" ry="0.5" fill="#ffd5aa" />
-          </g>
-        </g>
-
-        {/* EASTER 3: Bratwurst-Grill mit Rauch */}
-        <g transform="translate(40, 192)">
-          {/* Grill-Beine */}
+        {/* Bratwurst-Grill links vorne */}
+        <g transform="translate(35, 192)">
           <line x1="-3" y1="0" x2="-4" y2="3" stroke="#2a2a2a" strokeWidth="0.7" />
           <line x1="3"  y1="0" x2="4"  y2="3" stroke="#2a2a2a" strokeWidth="0.7" />
-          {/* Grill-Rost */}
           <ellipse cx="0" cy="0" rx="5" ry="1.5" fill="#1a1a1a" stroke="#5a5a5a" strokeWidth="0.3" />
           <ellipse cx="0" cy="-0.3" rx="4.5" ry="1.2" fill="#2a2a2a" />
-          {/* Glut */}
           <circle cx="-2" cy="-0.3" r="0.5" fill="#dc2626" opacity="0.85" />
           <circle cx="0.5"  cy="-0.5" r="0.5" fill="#f97316" opacity="0.85" />
           <circle cx="2.5"  cy="-0.3" r="0.4" fill="#dc2626" opacity="0.85" />
-          {/* Bratwürste */}
           <ellipse cx="-2.5" cy="-1.3" rx="2.5" ry="0.6" fill="#a04510" stroke="#5a2010" strokeWidth="0.2" />
           <ellipse cx="1.5"  cy="-1.5" rx="2.8" ry="0.6" fill="#c45a1c" stroke="#5a2010" strokeWidth="0.2" />
-          {/* Rauchwölkchen aufsteigend */}
           <g className="bs-grill-smoke" style={{ animationDelay: '0s' }}>
             <circle cx="-1" cy="-3" r="1.2" fill="rgba(220,220,220,0.7)" />
           </g>
@@ -415,46 +310,84 @@ export function BlockhausScene({ children }: Props) {
           </g>
         </g>
 
-        {/* EASTER 4: Holzpfosten-Briefkasten "SAUNAFREUNDE" */}
-        <g transform="translate(280, 195)">
-          {/* Pfahl */}
+        {/* Briefkasten zwischen Sauna und Teich */}
+        <g transform="translate(270, 195)">
           <rect x="-0.7" y="-15" width="1.4" height="15" fill="#5a3010" />
-          {/* Briefkasten */}
           <rect x="-4" y="-22" width="8" height="6" fill="#dc2626" stroke="#7c2d12" strokeWidth="0.4" rx="0.5" />
           <rect x="-4" y="-22" width="8" height="1.5" fill="#7c2d12" rx="0.5" />
-          {/* Schlitz */}
           <rect x="-2.5" y="-20" width="5" height="0.6" fill="#1a0e05" />
-          {/* Mini-Wimpel */}
           <line x1="3" y1="-22" x2="3" y2="-25" stroke="#5a3010" strokeWidth="0.4" />
           <polygon points="3,-25 6,-24 3,-23" fill="#fbbf24" />
-          {/* Schild "SAUNAFREUNDE" */}
           <rect x="-7" y="-12" width="14" height="3" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.3" rx="0.3" />
           <text x="0" y="-9.8" textAnchor="middle" fontSize="2" fontWeight="800" fill="#1a0e05">SAUNA</text>
         </g>
 
-        {/* EASTER 5: Gartenzwerg ganz vorne links auf der Wiese */}
+        {/* Gartenzwerg ganz vorne links */}
         <g transform="translate(15, 192)">
-          {/* Schatten */}
           <ellipse cx="0" cy="0" rx="2.5" ry="0.5" fill="rgba(0,0,0,0.4)" />
-          {/* Beine */}
           <rect x="-0.8" y="-3" width="1.4" height="3" fill="#1f4d2f" />
           <rect x="0.4"  y="-3" width="1.4" height="3" fill="#1f4d2f" />
-          {/* Schuhe */}
           <ellipse cx="-0.1" cy="0" rx="0.9" ry="0.4" fill="#1a0e05" />
           <ellipse cx="1.1"  cy="0" rx="0.9" ry="0.4" fill="#1a0e05" />
-          {/* Roter Bauch */}
           <ellipse cx="0.5" cy="-5" rx="2.2" ry="2" fill="#dc2626" />
-          {/* Weißer Bart */}
           <path d="M-1.5 -7 Q0.5 -5 2.5 -7 Q2 -5.5 0.5 -5.5 Q-1 -5.5 -1.5 -7 Z" fill="#fff" />
-          {/* Kopf */}
           <circle cx="0.5" cy="-8" r="1.5" fill="#ffd5aa" />
-          {/* Roter Spitzhut */}
           <polygon points="0.5,-12 -1.5,-7.5 2.5,-7.5" fill="#dc2626" />
           <ellipse cx="0.5" cy="-7.5" rx="2.2" ry="0.4" fill="#7c2d12" />
-          {/* Augen */}
           <circle cx="0" cy="-8" r="0.2" fill="#1a0e05" />
           <circle cx="1"  cy="-8" r="0.2" fill="#1a0e05" />
         </g>
+
+        {/* Maulwurfshügel vor der Bank rechts */}
+        <g transform="translate(450, 192)">
+          <ellipse cx="0" cy="2" rx="6" ry="1.5" fill="#5a3a1c" />
+          <ellipse cx="0" cy="1" rx="5" ry="1.8" fill="#6b4a2a" />
+          <g className="bs-mole">
+            <ellipse cx="0" cy="-1" rx="2.2" ry="1.8" fill="#1a1a1a" />
+            <circle cx="-0.8" cy="-1.4" r="0.3" fill="#fff" />
+            <circle cx="0.8"  cy="-1.4" r="0.3" fill="#fff" />
+            <ellipse cx="0" cy="-0.4" rx="0.7" ry="0.5" fill="#ffd5aa" />
+          </g>
+        </g>
+
+        {/* Specht am rechten Hinterbaum (Bäume sind hinten, Specht davor) */}
+        <g transform="translate(412, 152)">
+          <g className="bs-specht">
+            <Specht />
+          </g>
+        </g>
+      </svg>
+
+      {/* Sauna (HTML-Overlay) — 20 % kleiner, mittig auf Bodenlinie */}
+      <div className="absolute" style={{ left: 144, top: 71, pointerEvents: 'auto' }}>
+        {children}
+      </div>
+
+      {/* Vordergrund-SVG — nur Elemente, die ÜBER der Sauna liegen müssen */}
+      <svg
+        className="absolute inset-0"
+        viewBox={`0 0 ${W} ${H}`}
+        width={W}
+        height={H}
+        style={{ overflow: 'visible', pointerEvents: 'none' }}
+      >
+        {/* Fuchs peekt hinter der Sauna-Wand hervor */}
+        <g transform="translate(244, 188)">
+          <g className="bs-fox">
+            <Fox />
+          </g>
+        </g>
+
+        {/* Saunameister: nur 10 min vor voller Stunde sichtbar.
+            Startet vor der Sauna-Tür (x=200, mittig) und läuft ein paar Schritte
+            Richtung Teich (Endposition x=245), bleibt dort mit Eimer + Kelle. */}
+        {showSaunameister && (
+          <g transform="translate(200, 192)">
+            <g className="bs-master-enter">
+              <Saunameister />
+            </g>
+          </g>
+        )}
 
         {/* Glühwürmchen */}
         <Firefly cx={30}  cy={130} driftDelay="-3s"  glowDelay="-1s" />
@@ -466,7 +399,7 @@ export function BlockhausScene({ children }: Props) {
   );
 }
 
-// ── Berg links — kleiner ──────────────────────────────────────────────────
+// ── Berg links ────────────────────────────────────────────────────────────
 function Mountain() {
   return (
     <g opacity="0.85">
@@ -481,7 +414,6 @@ function Mountain() {
   );
 }
 
-// ── Wolke ─────────────────────────────────────────────────────────────────
 function Cloud({ cx, cy, w }: { cx: number; cy: number; w: number }) {
   return (
     <g opacity="0.5">
@@ -493,7 +425,6 @@ function Cloud({ cx, cy, w }: { cx: number; cy: number; w: number }) {
   );
 }
 
-// ── Bergsteiger ───────────────────────────────────────────────────────────
 function Climber() {
   return (
     <g>
@@ -513,7 +444,6 @@ function Climber() {
   );
 }
 
-// ── Bienenstock ───────────────────────────────────────────────────────────
 function Beehive({ x, y, small = false }: { x: number; y: number; small?: boolean }) {
   const s = small ? 0.8 : 1;
   return (
@@ -524,100 +454,83 @@ function Beehive({ x, y, small = false }: { x: number; y: number; small?: boolea
       <ellipse cx="0" cy="-9"  rx="6" ry="2.2" fill="#a06530" />
       <ellipse cx="0" cy="-12" rx="5" ry="2" fill="#7c4a1a" />
       <ellipse cx="0" cy="-14" rx="3.5" ry="1.4" fill="#5a3010" />
-      {/* Eingangsloch */}
       <rect x="-1.5" y="-3" width="3" height="2" fill="#1a0808" rx="0.5" />
     </g>
   );
 }
 
-// ── Imker mit Schleier ────────────────────────────────────────────────────
 function Imker() {
   return (
     <g>
-      {/* Schatten */}
       <ellipse cx="1.5" cy="0" rx="3.5" ry="0.7" fill="rgba(0,0,0,0.4)" />
-      {/* Beine */}
       <line x1="0"  y1="-2" x2="-0.5" y2="0" stroke="#1a1a1a" strokeWidth="1.4" strokeLinecap="round" />
       <line x1="3"  y1="-2" x2="3.5" y2="0" stroke="#1a1a1a" strokeWidth="1.4" strokeLinecap="round" />
-      {/* Schuhe */}
       <ellipse cx="-0.5" cy="0" rx="1.2" ry="0.5" fill="#1a0808" />
       <ellipse cx="3.5"  cy="0" rx="1.2" ry="0.5" fill="#1a0808" />
-      {/* Weißer Anzug-Körper */}
       <ellipse cx="1.5" cy="-5" rx="3.5" ry="4" fill="#f5f5f5" stroke="#d4d4d4" strokeWidth="0.4" />
-      {/* Arme */}
       <line x1="-1.5" y1="-5" x2="-3.5" y2="-2" stroke="#f5f5f5" strokeWidth="1.6" strokeLinecap="round" />
       <line x1="4.5"  y1="-5" x2="6.5"  y2="-2" stroke="#f5f5f5" strokeWidth="1.6" strokeLinecap="round" />
-      {/* Handschuhe */}
       <circle cx="-3.5" cy="-2" r="0.8" fill="#d4d4d4" />
       <circle cx="6.5"  cy="-2" r="0.8" fill="#d4d4d4" />
-      {/* Kopf-Kapsel mit Schleier */}
       <ellipse cx="1.5" cy="-10" rx="2.5" ry="2.8" fill="#f5f5f5" />
-      {/* Schleier-Netz */}
       <line x1="-0.8" y1="-10.5" x2="3.8" y2="-10.5" stroke="#5a5a5a" strokeWidth="0.3" />
       <line x1="-0.8" y1="-9.5"  x2="3.8" y2="-9.5"  stroke="#5a5a5a" strokeWidth="0.3" />
       <line x1="0"    y1="-11.5" x2="0"   y2="-9"    stroke="#5a5a5a" strokeWidth="0.3" />
       <line x1="3"    y1="-11.5" x2="3"   y2="-9"    stroke="#5a5a5a" strokeWidth="0.3" />
-      {/* Hut */}
       <ellipse cx="1.5" cy="-13" rx="3.5" ry="0.9" fill="#3a1808" />
       <rect x="0" y="-14.5" width="3" height="2" fill="#5a3a18" rx="0.3" />
     </g>
   );
 }
 
-// ── Specht ────────────────────────────────────────────────────────────────
+function Bee({ cx, cy, delay }: { cx: number; cy: number; delay: string }) {
+  return (
+    <g className="bs-bee" style={{ animationDelay: delay }}>
+      <circle cx={cx} cy={cy} r="1.1" fill="#1a1a1a" />
+      <ellipse cx={cx} cy={cy} rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
+    </g>
+  );
+}
+
 function Specht() {
   return (
     <g>
-      {/* Körper schwarz-weiß */}
       <ellipse cx="0" cy="0" rx="2.5" ry="3" fill="#1a1a1a" />
       <ellipse cx="0.6" cy="1" rx="1.5" ry="2.2" fill="#f5f5f5" />
-      {/* Kopf */}
       <circle cx="2.2" cy="-2" r="1.6" fill="#1a1a1a" />
-      {/* Roter Kopf-Akzent */}
       <path d="M2 -3.5 Q3 -4 3.5 -2.5" fill="#dc2626" />
-      {/* Schnabel — DIESER schwingt mit der Animation */}
       <polygon points="3.8,-2 5.6,-1.7 3.8,-1.4" fill="#5a3a18" />
-      {/* Auge */}
       <circle cx="2.4" cy="-2.2" r="0.3" fill="#fff" />
       <circle cx="2.4" cy="-2.2" r="0.15" fill="#1a0e05" />
-      {/* Schwanz */}
       <polygon points="-2,1 -3.5,2 -2,2.5" fill="#1a1a1a" />
     </g>
   );
 }
 
-// ── Fuchs ─────────────────────────────────────────────────────────────────
 function Fox() {
   return (
     <g>
-      {/* Körper */}
       <ellipse cx="0" cy="0" rx="6" ry="3" fill="#d97706" />
       <ellipse cx="0" cy="1" rx="5" ry="2" fill="#fbbf24" opacity="0.7" />
-      {/* Kopf */}
       <circle cx="6" cy="-1" r="3" fill="#d97706" />
-      {/* Schnauze */}
       <ellipse cx="9" cy="-0.5" rx="1.8" ry="1.2" fill="#1a1a1a" />
       <circle cx="10" cy="-0.5" r="0.3" fill="#1a0e05" />
-      {/* Auge */}
       <circle cx="6.5" cy="-1.5" r="0.5" fill="#1a0e05" />
       <circle cx="6.7" cy="-1.7" r="0.15" fill="#fff" />
-      {/* Ohren */}
       <polygon points="3.5,-3.5 4.5,-5 5.5,-3" fill="#d97706" />
       <polygon points="4,-3.5 4.5,-4.5 5,-3.5" fill="#1a1a1a" />
       <polygon points="6.5,-3 7.5,-5 8.5,-3" fill="#d97706" />
       <polygon points="7,-3 7.5,-4.5 8,-3" fill="#1a1a1a" />
-      {/* Schwanz */}
       <path d="M-6 0 Q-9 -1 -8 -3" stroke="#d97706" strokeWidth="3" fill="none" strokeLinecap="round" />
       <circle cx="-8" cy="-3" r="1.3" fill="#fff" />
-      {/* Beine sitzend */}
       <ellipse cx="-2" cy="2.5" rx="1" ry="1.5" fill="#a04510" />
       <ellipse cx="3" cy="2.5" rx="1" ry="1.5" fill="#a04510" />
     </g>
   );
 }
 
-// ── Saunagast (im Handtuch, springt in den Teich) ─────────────────────────
-function Bather() {
+// ── Saunameister mit Wassereimer + Saunakelle ────────────────────────────
+function Saunameister() {
   return (
     <g>
       {/* Schatten */}
@@ -630,22 +543,36 @@ function Bather() {
       <rect x="-3" y="-3" width="6" height="1.2" fill="#dc2626" rx="0.5" />
       {/* Oberkörper */}
       <ellipse cx="0" cy="-5" rx="2.2" ry="2" fill="#ffd5aa" />
-      {/* Arme */}
+      {/* Linker Arm hängt zum Eimer */}
       <line x1="-2.2" y1="-5" x2="-3.5" y2="-2" stroke="#ffd5aa" strokeWidth="1.2" strokeLinecap="round" />
-      <line x1="2.2"  y1="-5" x2="3.5"  y2="-2" stroke="#ffd5aa" strokeWidth="1.2" strokeLinecap="round" />
+      {/* Rechter Arm hält Kelle leicht nach oben */}
+      <line x1="2.2"  y1="-5" x2="3.8"  y2="-3" stroke="#ffd5aa" strokeWidth="1.2" strokeLinecap="round" />
       {/* Kopf */}
       <circle cx="0" cy="-8" r="1.8" fill="#ffd5aa" />
-      {/* Haare */}
       <path d="M-1.5 -9 Q0 -10 1.5 -9" stroke="#3a1808" strokeWidth="0.6" fill="none" strokeLinecap="round" />
-      {/* Lächelndes Gesicht */}
       <circle cx="-0.6" cy="-8" r="0.2" fill="#1a0e05" />
       <circle cx="0.6"  cy="-8" r="0.2" fill="#1a0e05" />
       <path d="M-0.6 -7.4 Q0 -7.1 0.6 -7.4" stroke="#3a1808" strokeWidth="0.3" fill="none" strokeLinecap="round" />
+
+      {/* Wassereimer in der linken Hand */}
+      <g transform="translate(-3.7, -1.6)">
+        <path d="M-1.4 0 L 1.4 0 L 1.1 3.6 L -1.1 3.6 Z" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.3" />
+        <line x1="-1.3" y1="1"   x2="1.3" y2="1"   stroke="#1a1a1a" strokeWidth="0.3" />
+        <line x1="-1.2" y1="2.6" x2="1.2" y2="2.6" stroke="#1a1a1a" strokeWidth="0.3" />
+        <path d="M-1.4 0 Q 0 -1.4 1.4 0" stroke="#1a1a1a" strokeWidth="0.4" fill="none" />
+        <ellipse cx="0" cy="0.4" rx="1" ry="0.3" fill="#3a6a98" opacity="0.7" />
+      </g>
+
+      {/* Saunakelle in der rechten Hand */}
+      <g transform="translate(3.9, -2.8) rotate(25)">
+        <line x1="0" y1="0" x2="0" y2="5" stroke="#7c4a1a" strokeWidth="0.7" strokeLinecap="round" />
+        <ellipse cx="0" cy="5.2" rx="1.1" ry="0.6" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.25" />
+        <ellipse cx="0" cy="5"   rx="0.7" ry="0.4" fill="#5a3010" />
+      </g>
     </g>
   );
 }
 
-// ── Mini-Tannenbaum mit Tiefen-Stufen ─────────────────────────────────────
 function BackTree({ x, h, dimmer = false, front = false, veryFar = false }: {
   x: number; h: number; dimmer?: boolean; front?: boolean; veryFar?: boolean;
 }) {
@@ -681,7 +608,6 @@ function BackTree({ x, h, dimmer = false, front = false, veryFar = false }: {
   );
 }
 
-// ── Teich ─────────────────────────────────────────────────────────────────
 function Pond({ cx, cy, rx, ry }: { cx: number; cy: number; rx: number; ry: number }) {
   return (
     <g>
@@ -702,7 +628,6 @@ function Pond({ cx, cy, rx, ry }: { cx: number; cy: number; rx: number; ry: numb
   );
 }
 
-// ── Ente (Mama) ───────────────────────────────────────────────────────────
 function Duck() {
   return (
     <g>
@@ -718,27 +643,20 @@ function Duck() {
   );
 }
 
-// ── Küken (kleinere flauschige Mini-Ente) ─────────────────────────────────
 function Duckling() {
   return (
     <g>
       <ellipse cx="0" cy="1" rx="2.5" ry="0.4" fill="rgba(0,0,0,0.3)" />
-      {/* Körper hellgelb-flauschig */}
       <ellipse cx="0" cy="0" rx="2.2" ry="1.4" fill="#fde047" />
       <ellipse cx="0" cy="-0.2" rx="1.8" ry="1" fill="#fef9c3" />
-      {/* Schwanz */}
       <polygon points="-2.2,0 -3,-0.5 -2.2,-0.4" fill="#fde047" />
-      {/* Kopf */}
       <circle cx="1.5" cy="-1.2" r="1" fill="#fde047" />
-      {/* Mini-Schnabel */}
       <polygon points="2.3,-1.2 3.1,-1 2.3,-0.9" fill="#f59e0b" />
-      {/* Mini-Auge */}
       <circle cx="1.7" cy="-1.4" r="0.2" fill="#1a0e05" />
     </g>
   );
 }
 
-// ── Schmetterling ─────────────────────────────────────────────────────────
 function Butterfly() {
   return (
     <g className="bs-butterfly-flap">
@@ -755,7 +673,6 @@ function Butterfly() {
   );
 }
 
-// ── Schilf ────────────────────────────────────────────────────────────────
 function Reeds({ x, y }: { x: number; y: number }) {
   return (
     <g stroke="#2d4a1e" strokeWidth="1.2" strokeLinecap="round">
@@ -766,7 +683,6 @@ function Reeds({ x, y }: { x: number; y: number }) {
   );
 }
 
-// ── Bank ──────────────────────────────────────────────────────────────────
 function Bench({ x, y }: { x: number; y: number }) {
   return (
     <g fill="#5a3010">
@@ -777,39 +693,28 @@ function Bench({ x, y }: { x: number; y: number }) {
   );
 }
 
-// ── Angler mit Beinen + Füßen ─────────────────────────────────────────────
 function Fisher({ x, y }: { x: number; y: number }) {
   return (
     <g>
-      {/* Beine */}
       <rect x={x + 7}  y={y + 27} width="2.5" height="7" fill="#1f2937" />
       <rect x={x + 13} y={y + 27} width="2.5" height="7" fill="#1f2937" />
-      {/* Wanderschuhe */}
       <ellipse cx={x + 8.2}  cy={y + 35} rx="2.3" ry="1" fill="#1a0e05" />
       <ellipse cx={x + 14.2} cy={y + 35} rx="2.3" ry="1" fill="#1a0e05" />
-      {/* Schatten unter den Schuhen */}
       <ellipse cx={x + 11} cy={y + 36.2} rx="6" ry="0.8" fill="rgba(0,0,0,0.35)" />
-      {/* Körper (blaue Anglerjacke) */}
       <rect x={x + 5} y={y + 15} width="12" height="12" fill="#2d4a78" rx="2" />
       <rect x={x + 5} y={y + 15} width="12" height="2" fill="#3a5a88" />
-      {/* Knöpfe */}
       <circle cx={x + 11} cy={y + 19} r="0.4" fill="#1a1a1a" />
       <circle cx={x + 11} cy={y + 23} r="0.4" fill="#1a1a1a" />
-      {/* Kopf */}
       <circle cx={x + 11} cy={y + 8} r="6" fill="#ffd5aa" />
-      {/* Hut */}
       <path d={`M${x + 4} ${y + 5} Q${x + 11} ${y - 5} ${x + 18} ${y + 5}`} fill="#5a3a18" />
       <ellipse cx={x + 11} cy={y + 5} rx="7" ry="0.8" fill="#3a1808" />
-      {/* Lächeln */}
       <path d={`M${x + 8} ${y + 10} Q${x + 11} ${y + 12} ${x + 14} ${y + 10}`} stroke="#333" strokeWidth="0.5" fill="none" />
-      {/* Augen */}
       <circle cx={x + 9} cy={y + 7} r="0.4" fill="#1a1a1a" />
       <circle cx={x + 13} cy={y + 7} r="0.4" fill="#1a1a1a" />
     </g>
   );
 }
 
-// ── Glühwürmchen ──────────────────────────────────────────────────────────
 function Firefly({ cx, cy, driftDelay, glowDelay }: { cx: number; cy: number; driftDelay: string; glowDelay: string }) {
   return (
     <g className="bs-firefly-drift" style={{ animationDelay: driftDelay, transformOrigin: `${cx}px ${cy}px` }}>
