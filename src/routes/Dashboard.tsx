@@ -32,6 +32,7 @@ import { CuckooDoor, type ZwergMood } from '@/components/CuckooDoor';
 import { BlockhausScene } from '@/components/BlockhausScene';
 import { Holzfaeller } from '@/components/Holzfaeller';
 import { Reh } from '@/components/Reh';
+import { GapBridge } from '@/components/GapBridge';
 import { onDemo } from '@/lib/demoChannel';
 
 // ── Werbe-Sidebar: 3× 16:9 Tafeln ────────────────────────────────────────────
@@ -304,16 +305,19 @@ export default function Dashboard() {
         {renderMain()}
       </main>
 
-      {/* Schwarzwald-Bühne unten: Holzfäller links · Kuckuckhaus mittig · Reh rechts */}
+      {/* Schwarzwald-Bühne unten: Holzfäller · Wald-Pfad · Kuckuckhaus · Spielplatz · Reh */}
       <div className="fixed inset-x-0 bottom-2 z-30 pointer-events-none">
-        <div className="relative mx-auto w-full max-w-[1920px] px-8 flex items-end justify-between">
+        <div className="relative mx-auto w-full max-w-[1920px] px-8 flex items-end justify-center gap-0">
           {/* Holzfäller links */}
           <div className="flex-shrink-0">
             <Holzfaeller scale={1.0} />
           </div>
 
+          {/* Wald-Pfad zwischen Holzfäller und Sauna */}
+          <GapBridge variant="forest" />
+
           {/* Blockhaus-Szene mittig: Hütte + Teich + Bank + Angler + Bäume */}
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-2 flex-shrink-0">
             <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
             <BlockhausScene>
               <CuckooDoor
@@ -326,6 +330,9 @@ export default function Dashboard() {
               />
             </BlockhausScene>
           </div>
+
+          {/* Kinderspielplatz zwischen Sauna und Reh */}
+          <GapBridge variant="playground" />
 
           {/* Reh rechts */}
           <div className="flex-shrink-0">
