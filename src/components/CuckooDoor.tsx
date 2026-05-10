@@ -19,12 +19,20 @@ function ZwergSvg({ mood }: { mood: ZwergMood }) {
   const dragging = mood === 'dragging';
 
   const armAnimate = waving
-    ? { rotate: [0, 35, 0, 35, 0], transition: { duration: 1.6, repeat: Infinity, repeatDelay: 0.8 } }
+    ? { rotate: [0, 35, 0, 35, 0] }
     : dragging
-    ? { rotate: [-30, -60, -30], transition: { duration: 0.4, repeat: Infinity } }
+    ? { rotate: [-30, -60, -30] }
     : fleeing
-    ? { rotate: [0, -20, 0, -20, 0], transition: { duration: 0.3, repeat: Infinity } }
-    : { rotate: 0, transition: { duration: 0.4 } };
+    ? { rotate: [0, -20, 0, -20, 0] }
+    : { rotate: 0 };
+
+  const armTransition = waving
+    ? { duration: 1.6, repeat: Infinity, repeatDelay: 0.8 }
+    : dragging
+    ? { duration: 0.4, repeat: Infinity }
+    : fleeing
+    ? { duration: 0.3, repeat: Infinity }
+    : { duration: 0.4 };
 
   return (
     <svg viewBox="-8 0 76 90" width="60" height="75" style={{ overflow: 'visible' }}>
@@ -77,8 +85,9 @@ function ZwergSvg({ mood }: { mood: ZwergMood }) {
 
       {/* Right arm (animated for waving) */}
       <motion.g
-        style={{ originX: '46px', originY: '78px' }}
+        style={{ transformOrigin: '46px 78px' }}
         animate={armAnimate}
+        transition={armTransition}
       >
         <path d="M46 78 Q 60 70 64 60" stroke="#ffd5aa" strokeWidth="7" fill="none" strokeLinecap="round" />
         {/* Hand wave */}
@@ -108,11 +117,10 @@ function ZwergSvg({ mood }: { mood: ZwergMood }) {
   );
 }
 
-// ── Kuckuckstür ────────────────────────────────────────────────────────────
+// ── Blockhütte mit Kuckuckstür ─────────────────────────────────────────────
 export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick, scale = 1 }: CuckooDoorProps) {
   const [isHourlyTick, setIsHourlyTick] = useState(false);
 
-  // Detect top of the hour independently
   useEffect(() => {
     const check = () => {
       const d = new Date();
@@ -136,28 +144,36 @@ export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick,
     minutesUntilNext < 999 ? `⏱ ${minutesUntilNext} Min` :
     '🧖 Wohlfühlen!';
 
+  // Cabin dimensions in source-pixels
+  const W = 140;
+  const H = 155;
+
   return (
     <div
-      className="relative flex-shrink-0 cursor-pointer select-none"
-      style={{ width: 88 * scale, height: 110 * scale, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: 'bottom center' }}
+      className="relative cursor-pointer select-none"
+      style={{
+        width: W * scale,
+        height: H * scale,
+        transform: scale !== 1 ? `scale(${scale})` : undefined,
+        transformOrigin: 'bottom center',
+      }}
       onClick={onClick}
       title="Klicken für Zwerg-Besuch"
     >
-      {/* Schornstein — sitzt auf dem Dach oben rechts */}
+      {/* Schornstein auf dem Dach (rechts) — sticht oben raus */}
       <div
-        className="absolute z-10"
+        className="absolute z-30"
         style={{
-          left: 56,
-          top: -16,
-          width: 14,
-          height: 22,
+          left: 96,
+          top: -10,
+          width: 16,
+          height: 28,
           background: 'repeating-linear-gradient(0deg, #8a3a1a 0px, #6b2410 2px, #7a2f15 4px, #8a3a1a 6px)',
           border: '2px solid #4a1a08',
           borderRadius: '2px 2px 0 0',
           boxShadow: 'inset -2px 0 4px rgba(0,0,0,0.4)',
         }}
       >
-        {/* Schornstein-Krone */}
         <div
           style={{
             position: 'absolute',
@@ -169,104 +185,174 @@ export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick,
             borderRadius: 2,
           }}
         />
-        {/* Rauch */}
         <Smoke />
       </div>
 
-      {/* Door frame — wood texture via gradient */}
+      {/* Cabin Shell (Dach + Holzwand mit Stamm-Enden) als SVG */}
+      <svg
+        className="absolute inset-0 z-10"
+        viewBox={`0 0 ${W} ${H}`}
+        width={W}
+        height={H}
+        style={{ overflow: 'visible' }}
+      >
+        {/* Boden-Schatten */}
+        <ellipse cx={W / 2} cy={H - 1} rx={W / 2 - 4} ry="3" fill="rgba(0,0,0,0.5)" />
+
+        {/* Spitzdach */}
+        <polygon points={`${W / 2},6 4,52 ${W - 4},52`} fill="#3a1808" stroke="#1a0808" strokeWidth="1.5" />
+        {/* Dachschindeln-Linien */}
+        <line x1="14" y1="46" x2={W - 14} y2="46" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+        <line x1="22" y1="40" x2={W - 22} y2="40" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+        <line x1="30" y1="34" x2={W - 30} y2="34" stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
+        <line x1="38" y1="28" x2={W - 38} y2="28" stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
+        {/* Dach-Lichtreflex */}
+        <polygon points={`${W / 2},6 ${W / 2 - 28},38 ${W / 2},38`} fill="rgba(255,255,255,0.07)" />
+        {/* Dachüberstand-Linie */}
+        <line x1="0" y1="52" x2={W} y2="52" stroke="#1a0808" strokeWidth="2" />
+
+        {/* Hintergrund-Wand (dunkel) */}
+        <rect x="6" y="50" width={W - 12} height={H - 56} fill="#3a2010" rx="1" />
+
+        {/* Gestapelte Holzstämme — 7 Lagen */}
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => {
+          const y = 52 + i * 14;
+          return (
+            <g key={i}>
+              {/* Stamm-Körper */}
+              <rect x="8" y={y} width={W - 16} height="12" fill="#7c4a1a" rx="1.5" />
+              {/* Highlight oben */}
+              <rect x="8" y={y} width={W - 16} height="3" fill="#a06530" rx="1.5" />
+              {/* Schatten unten */}
+              <rect x="8" y={y + 10} width={W - 16} height="2.5" fill="rgba(0,0,0,0.4)" />
+              {/* Stamm-Enden links */}
+              <ellipse cx="8" cy={y + 6} rx="4.5" ry="6" fill="#5a3010" />
+              <ellipse cx="8" cy={y + 6} rx="3" ry="4.2" fill="#3a1808" />
+              <ellipse cx="8" cy={y + 6} rx="1.6" ry="2.4" fill="none" stroke="#6b3410" strokeWidth="0.5" />
+              {/* Stamm-Enden rechts */}
+              <ellipse cx={W - 8} cy={y + 6} rx="4.5" ry="6" fill="#5a3010" />
+              <ellipse cx={W - 8} cy={y + 6} rx="3" ry="4.2" fill="#3a1808" />
+              <ellipse cx={W - 8} cy={y + 6} rx="1.6" ry="2.4" fill="none" stroke="#6b3410" strokeWidth="0.5" />
+            </g>
+          );
+        })}
+
+        {/* Fenster links */}
+        <rect x="18" y="68" width="20" height="20" fill="#1a2a18" rx="1" stroke="#5a3010" strokeWidth="1.5" />
+        <line x1="28" y1="68" x2="28" y2="88" stroke="#5a3010" strokeWidth="1" />
+        <line x1="18" y1="78" x2="38" y2="78" stroke="#5a3010" strokeWidth="1" />
+        {/* Fenster-Glanz */}
+        <polygon points="20,70 26,70 22,76 20,76" fill="rgba(255,255,180,0.15)" />
+
+        {/* Fenster rechts */}
+        <rect x={W - 38} y="68" width="20" height="20" fill="#1a2a18" rx="1" stroke="#5a3010" strokeWidth="1.5" />
+        <line x1={W - 28} y1="68" x2={W - 28} y2="88" stroke="#5a3010" strokeWidth="1" />
+        <line x1={W - 38} y1="78" x2={W - 18} y2="78" stroke="#5a3010" strokeWidth="1" />
+        <polygon points={`${W - 36},70 ${W - 30},70 ${W - 34},76 ${W - 36},76`} fill="rgba(255,255,180,0.15)" />
+
+        {/* Sauna-Symbol über der Tür */}
+        <text x={W / 2} y="100" textAnchor="middle" fontSize="12">🌿</text>
+
+        {/* Tür-Öffnung (dunkler Hintergrund) */}
+        <rect x={W / 2 - 28} y="98" width="56" height="50" fill="#0a0604" rx="2" />
+
+        {/* Tür-Schwelle */}
+        <rect x={W / 2 - 32} y="146" width="64" height="5" fill="#2a1408" rx="1" />
+      </svg>
+
+      {/* Tür-Panel mit 3D-Öffnung — HTML über dem SVG */}
       <div
-        className="absolute inset-0 rounded-xl overflow-hidden"
+        className="absolute z-20"
         style={{
-          background: 'repeating-linear-gradient(90deg, #7c4a1a 0px, #8B5A2B 4px, #6B3A0F 8px, #7c4a1a 12px)',
-          boxShadow: 'inset 0 0 0 3px #5a3010, 0 4px 16px rgba(0,0,0,0.5)',
-          border: '3px solid #5a3010',
-          borderRadius: 12,
+          left: W / 2 - 28,
+          top: 98,
+          width: 56,
+          height: 50,
+          perspective: 350,
         }}
       >
-        {/* Wood grain overlay */}
-        <div
-          className="absolute inset-0 rounded-lg"
+        <motion.div
+          className="absolute inset-0 rounded-sm overflow-hidden"
           style={{
-            background: 'repeating-linear-gradient(0deg, transparent 0px, rgba(0,0,0,0.06) 3px, transparent 6px)',
+            originX: '0%',
+            background: 'repeating-linear-gradient(90deg, #6B3A0F 0px, #7c4a1a 3px, #5a3010 6px, #6B3A0F 9px)',
+            boxShadow: 'inset 0 0 0 2px #4a2808',
+            backfaceVisibility: 'hidden',
           }}
-        />
-
-        {/* Decorative sauna symbol above door */}
-        <div className="absolute top-2 left-0 right-0 text-center text-base leading-none">🌿</div>
-
-        {/* Door panel with 3D opening */}
-        <div
-          className="absolute"
-          style={{
-            left: 10, top: 22, width: 68, height: 76,
-            perspective: 350,
-          }}
+          animate={{ rotateY: isOpen ? -82 : 0 }}
+          transition={{ duration: 0.55, ease: [0.25, 1, 0.5, 1] }}
         >
-          <motion.div
-            className="absolute inset-0 rounded-md overflow-hidden"
+          {/* Tür-Kreuzbalken (Diagonale Verstrebung) */}
+          <div
+            className="absolute"
             style={{
-              originX: '0%',
-              background: 'repeating-linear-gradient(90deg, #6B3A0F 0px, #7c4a1a 3px, #5a3010 6px, #6B3A0F 9px)',
-              boxShadow: 'inset 0 0 0 2px #4a2808',
-              backfaceVisibility: 'hidden',
+              left: 6,
+              top: 22,
+              width: 44,
+              height: 1.5,
+              background: '#3a1808',
+              transform: 'rotate(-18deg)',
+              transformOrigin: '0 0',
             }}
-            animate={{ rotateY: isOpen ? -82 : 0 }}
-            transition={{ duration: 0.55, ease: [0.25, 1, 0.5, 1] }}
-          >
-            {/* Door knob */}
-            <div
-              className="absolute rounded-full"
-              style={{
-                width: 10, height: 10,
-                background: 'radial-gradient(circle at 35% 35%, #fbbf24, #d97706)',
-                right: 8, top: '50%', transform: 'translateY(-50%)',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
-              }}
-            />
-          </motion.div>
+          />
+          {/* Tür-Knauf */}
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: 7,
+              height: 7,
+              background: 'radial-gradient(circle at 35% 35%, #fbbf24, #d97706)',
+              right: 5,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.6)',
+            }}
+          />
+        </motion.div>
 
-          {/* Behind the door: Zwerg */}
-          <AnimatePresence>
-            {isOpen && (
+        {/* Hinter der Tür: Zwerg */}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              className="absolute inset-0 flex flex-col items-center justify-center"
+              style={{ background: 'rgba(8,18,10,0.95)', borderRadius: 2 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ delay: 0.3, duration: 0.3 }}
+            >
               <motion.div
-                className="absolute inset-0 flex flex-col items-center justify-center"
-                style={{ background: 'rgba(8,20,12,0.9)', borderRadius: 6 }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ delay: 0.3, duration: 0.3 }}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -20, opacity: 0 }}
+                transition={{ delay: 0.4, duration: 0.35, ease: 'easeOut' }}
+                style={{ transform: 'scale(0.65)', transformOrigin: 'center' }}
               >
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -20, opacity: 0 }}
-                  transition={{ delay: 0.4, duration: 0.35, ease: 'easeOut' }}
-                >
-                  <ZwergSvg mood={effectiveMood} />
-                </motion.div>
-
-                {/* Sign with info text */}
-                <motion.div
-                  className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-0.5 text-[9px] font-bold text-white"
-                  style={{ background: 'rgba(15,25,20,0.95)', border: '1px solid #2d5a3f' }}
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ delay: 0.6, duration: 0.25 }}
-                >
-                  {signText}
-                </motion.div>
+                <ZwergSvg mood={effectiveMood} />
               </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+
+              {/* Schild mit Info-Text */}
+              <motion.div
+                className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-0.5 text-[9px] font-bold text-white"
+                style={{ background: 'rgba(15,25,20,0.95)', border: '1px solid #2d5a3f' }}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 0.6, duration: 0.25 }}
+              >
+                {signText}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Closed door hint */}
+      {/* Zugeschlossen-Hinweis */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
-            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-forest-600 flex items-center justify-center text-[8px]"
+            className="absolute z-30 w-4 h-4 rounded-full bg-forest-600 flex items-center justify-center text-[8px]"
+            style={{ top: -2, right: -2 }}
             initial={{ scale: 0 }}
             animate={{ scale: [1, 1.15, 1] }}
             exit={{ scale: 0 }}
@@ -297,14 +383,14 @@ function Smoke() {
           initial={{ opacity: 0, y: 0, scale: 0.6 }}
           animate={{
             opacity: [0, 0.85, 0.6, 0],
-            y: -38,
-            x: i % 2 === 0 ? -6 : 6,
-            scale: [0.6, 1.1, 1.6],
+            y: -42,
+            x: i % 2 === 0 ? -8 : 8,
+            scale: [0.6, 1.2, 1.8],
           }}
           transition={{
-            duration: 3.4,
+            duration: 3.6,
             repeat: Infinity,
-            delay: i * 1.1,
+            delay: i * 1.2,
             ease: 'easeOut',
           }}
         />

@@ -121,28 +121,30 @@ export function Holzfaeller({ scale = 1 }: Props) {
         {/* Linker Arm (statisch, hält den Stamm) */}
         <path d="M26 50 Q18 56 22 66" stroke="#a01818" strokeWidth="6" fill="none" strokeLinecap="round" />
 
-        {/* Rechter Arm + Axt — schwingt rhythmisch */}
+        {/* Rechter Arm + Axt — schwingt rhythmisch (rauf, dann schneller runter zum Zuschlagen) */}
         <motion.g
-          style={{ originX: '46px', originY: '52px' }}
+          style={{ transformOrigin: '46px 52px' }}
           animate={
             treeFallen
-              ? { rotate: [-30, -30], transition: { duration: 0.3 } }
-              : { rotate: [-30, -120, -30], transition: { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } }
+              ? { rotate: -10 }
+              : { rotate: [-110, -110, 55, 55, -110] }
+          }
+          transition={
+            treeFallen
+              ? { duration: 0.3 }
+              : { duration: 1.6, times: [0, 0.45, 0.6, 0.7, 1], repeat: Infinity, ease: ['linear', 'easeIn', 'linear', 'easeOut'] }
           }
         >
-          {/* Arm */}
+          {/* Arm — vom Schulter-Pivot (46,52) zur Hand (64,56) */}
           <path d="M46 52 L 64 56" stroke="#a01818" strokeWidth="6" fill="none" strokeLinecap="round" />
           {/* Hand */}
           <circle cx="64" cy="56" r="4" fill="#ffd5aa" />
-          {/* Axtstiel */}
-          <rect x="62" y="40" width="3" height="36" fill="#7c4a1a" rx="1" transform="rotate(15 64 58)" />
-          {/* Axtklinge */}
-          <g transform="rotate(15 64 58)">
-            <polygon points="58,32 72,30 76,42 56,46" fill="#b8b8c0" stroke="#5a5a64" strokeWidth="0.8" />
-            <polygon points="58,32 72,30 70,36 60,38" fill="#dcdce0" />
-            {/* Schneide-Glanz */}
-            <line x1="76" y1="34" x2="78" y2="44" stroke="#fff" strokeWidth="0.6" opacity="0.7" />
-          </g>
+          {/* Axtstiel — verlängert nach oben hinter den Kopf */}
+          <rect x="62.5" y="22" width="3" height="38" fill="#7c4a1a" rx="1" />
+          {/* Axtkopf — sitzt am oberen Ende des Stiels */}
+          <polygon points="56,18 72,16 76,30 60,32" fill="#b8b8c0" stroke="#5a5a64" strokeWidth="0.8" />
+          <polygon points="56,18 72,16 70,22 60,24" fill="#dcdce0" />
+          <line x1="76" y1="20" x2="78" y2="30" stroke="#fff" strokeWidth="0.6" opacity="0.7" />
         </motion.g>
       </svg>
     </div>
