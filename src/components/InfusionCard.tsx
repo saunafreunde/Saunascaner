@@ -6,6 +6,7 @@ import { ATTR_BY_ID } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
 import BadgeChip from '@/components/BadgeChip';
 import type { BadgeDefinition } from '@/lib/badges';
+import { useTextFit } from '@/hooks/useTextFit';
 
 const IMMINENT_MIN = 10;
 
@@ -40,16 +41,12 @@ export function InfusionCard({
 
   const oils = (infusion.oils ?? []).filter(Boolean).slice(0, 3) as string[];
 
-  // Auto-Shrink: Schrift + Emoji passen sich der Anzahl an, damit nichts truncatet wird.
-  // TV ist immer 16:9, daher reine vw-Werte (kein clamp).
-  const attrCount = infusion.attributes.length;
-  const attrFontVw = attrCount <= 2 ? 1.0 : attrCount <= 4 ? 0.85 : attrCount <= 6 ? 0.72 : 0.62;
-  const oilCount = oils.length;
-  const oilFontVw = oilCount <= 1 ? 1.15 : oilCount === 2 ? 1.0 : 0.9;
-  // Titel skaliert mit der Länge: lange Titel werden automatisch kleiner
-  // damit die Box-Breite gleich bleibt und nichts truncatet.
-  const titleLen = (infusion.title ?? '').length;
-  const titleFontVw = Math.max(0.85, 2.0 - titleLen * 0.06);
+  // Echtes Shrink-to-Fit für den Titel via ResizeObserver — px-genau.
+  const titleText = `${infusion.title}${infusion.team_infusion ? '  👥' : ''}`;
+  const { containerRef: titleContainerRef, textRef: titleTextRef } = useTextFit<HTMLDivElement, HTMLHeadingElement>(
+    titleText,
+    { maxFontPx: 44, minFontPx: 14 },
+  );
 
   return (
     <motion.div
@@ -93,9 +90,9 @@ export function InfusionCard({
       {compact ? (
         <div className="flex flex-col flex-1 min-h-0 pl-2 gap-3">
           {/* Header-Zeile (full-width): Uhrzeit-Chip + Titel-Container bis zum Rand */}
-          <div className="flex items-stretch gap-3 flex-shrink-0">
+          <div className="flex items-stretch gap-3 flex-shrink-0 h-[12%] min-h-[44px]">
             <div
-              className="rounded-xl px-3 py-1.5 flex items-center justify-center backdrop-blur-md flex-shrink-0"
+              className="rounded-xl px-3 flex items-center justify-center backdrop-blur-md flex-shrink-0"
               style={{
                 background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
@@ -113,58 +110,74 @@ export function InfusionCard({
               </span>
             </div>
             <div
-              className="relative flex-1 rounded-xl px-4 flex items-center justify-center backdrop-blur-md min-w-0"
+              ref={titleContainerRef}
+              className="relative flex-1 rounded-xl px-4 flex items-center justify-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
                 background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
               <h3
-                className="font-bold text-slate-50 leading-tight text-center whitespace-nowrap overflow-hidden"
-                style={{ fontSize: `${titleFontVw}vw` }}
+                ref={titleTextRef}
+                className="font-bold text-slate-50 leading-tight text-center whitespace-nowrap"
               >
                 {infusion.title}
-                {infusion.team_infusion && <span className="ml-2 text-amber-300" style={{ fontSize: `${titleFontVw * 0.6}vw` }}>👥</span>}
+                {infusion.team_infusion && <span className="ml-2 text-amber-300">👥</span>}
               </h3>
             </div>
           </div>
 
-          {/* Body: Attribute-Box links + Öl-Box rechts */}
+          {/* Body: linke Spalte (Attribute + Christoph) + rechte Spalte (Öle volle Höhe) */}
           <div className="flex-1 flex gap-3 min-h-0">
-            {infusion.attributes.length > 0 && (
-              <div
-                className="flex-1 min-w-0 rounded-xl px-3 py-2 backdrop-blur flex flex-wrap items-center content-center gap-x-3 gap-y-1.5"
-                style={{
-                  background: `linear-gradient(135deg, ${sauna.accent_color}1a, rgba(8,18,12,0.45))`,
-                  boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
-                  fontSize: `${attrFontVw}vw`,
-                }}
-              >
-                {infusion.attributes.map((a) => {
-                  const meta = ATTR_BY_ID[a];
-                  if (!meta) return null;
-                  return (
-                    <span
-                      key={a}
-                      title={meta.label}
-                      className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-forest-100/95"
-                    >
-                      <span aria-hidden style={{ fontSize: `${attrFontVw * 1.2}vw`, lineHeight: 1 }}>
-                        {meta.emoji}
+            {/* Linke Spalte */}
+            <div className="flex-1 min-w-0 flex flex-col">
+              {infusion.attributes.length > 0 && (
+                <div
+                  className="rounded-xl px-3 py-2 backdrop-blur flex flex-wrap items-center content-center gap-x-3 gap-y-1.5"
+                  style={{
+                    background: `linear-gradient(135deg, ${sauna.accent_color}1a, rgba(8,18,12,0.45))`,
+                    boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
+                    containerType: 'inline-size',
+                  }}
+                >
+                  {infusion.attributes.map((a) => {
+                    const meta = ATTR_BY_ID[a];
+                    if (!meta) return null;
+                    return (
+                      <span
+                        key={a}
+                        title={meta.label}
+                        className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-forest-100/95"
+                        style={{ fontSize: 'clamp(11px, 7cqi, 20px)' }}
+                      >
+                        <span aria-hidden style={{ fontSize: 'clamp(13px, 9cqi, 24px)', lineHeight: 1 }}>
+                          {meta.emoji}
+                        </span>
+                        <span>{meta.label}</span>
                       </span>
-                      <span>{meta.label}</span>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
 
+              {/* Footer: Meister, ganz unten in der linken Spalte */}
+              <div className="mt-auto pt-2 text-forest-300/80 truncate" style={{ fontSize: 'clamp(11px, 0.9vw, 16px)' }}>
+                {meisterName ?? '—'}
+                {coNames && coNames.length > 0 && (
+                  <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Rechte Spalte: Öle über volle Body-Höhe (= bis Karten-Bottom) */}
             {oils.length > 0 && (
               <div
-                className="w-48 flex-shrink-0 rounded-xl p-1.5 backdrop-blur flex flex-col gap-1.5"
+                className="flex-shrink-0 rounded-xl p-1.5 backdrop-blur flex flex-col gap-1.5"
                 style={{
                   background: 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(120,75,20,0.32))',
                   boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.35)',
+                  width: '38%',
+                  maxWidth: '180px',
                 }}
               >
                 {oils.map((oilId, i) => {
@@ -173,17 +186,20 @@ export function InfusionCard({
                   return (
                     <div
                       key={`${i}-${oilId}`}
-                      className="flex-1 flex items-center gap-2 px-2 rounded-lg whitespace-nowrap min-h-0"
+                      className="flex-1 flex items-center gap-2 px-2 rounded-lg whitespace-nowrap min-h-0 overflow-hidden"
                       style={{
-                        fontSize: `${oilFontVw}vw`,
                         background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(120,75,20,0.45))',
                         boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.4)',
+                        containerType: 'inline-size',
                       }}
                     >
-                      <span aria-hidden style={{ fontSize: `${oilFontVw * 1.4}vw`, lineHeight: 1 }}>
+                      <span aria-hidden style={{ fontSize: 'clamp(14px, 22cqi, 28px)', lineHeight: 1 }}>
                         {o.emoji}
                       </span>
-                      <span className="font-semibold text-amber-100 min-w-0 truncate">
+                      <span
+                        className="font-semibold text-amber-100 min-w-0 truncate"
+                        style={{ fontSize: 'clamp(11px, 14cqi, 20px)' }}
+                      >
                         {o.name}
                       </span>
                     </div>
@@ -191,16 +207,6 @@ export function InfusionCard({
                 })}
               </div>
             )}
-          </div>
-
-          {/* Footer: nur Meister */}
-          <div className="pt-1 text-sm text-forest-300/80 flex-shrink-0">
-            <span className="truncate">
-              {meisterName ?? '—'}
-              {coNames && coNames.length > 0 && (
-                <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
-              )}
-            </span>
           </div>
         </div>
       ) : (
