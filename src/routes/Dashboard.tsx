@@ -55,7 +55,7 @@ function AdSidebar({ urls }: { urls: string[] }) {
 
 export default function Dashboard() {
   useWakeLock(true);
-  const now = useNow(20_000);
+  const now = useNow(5_000);
   const saunas = useSaunas();
   const infusions = useInfusions();
   const members = useMeisterDirectory();
