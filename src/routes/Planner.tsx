@@ -79,7 +79,7 @@ function slotToDate(day: 'today' | 'tomorrow', hhmm: string): Date {
   return setMinutes(setHours(base, h), m);
 }
 
-const DURATIONS = [10, 15, 20, 25, 30] as const;
+const FIXED_DURATION_MIN = 15;
 
 function Card({ title, icon, children, className = '', accent }: {
   title?: string;
@@ -237,8 +237,6 @@ export default function Planner() {
   const [saunaId, setSaunaId] = useState<string>('');
   const [slot, setSlot] = useState<string>('15:00');
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [duration, setDuration] = useState<number>(15);
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
   const [oils, setOils] = useState<(string | null)[]>([null, null, null]);
   const [showOilPicker, setShowOilPicker] = useState(false);
@@ -284,8 +282,6 @@ export default function Planner() {
 
   function applyTemplate(t: { title: string; description: string | null; duration_minutes: number; attributes: string[]; oils?: (string | null)[] | null }) {
     setTitle(t.title);
-    setDescription(t.description ?? '');
-    setDuration(t.duration_minutes);
     setAttrs(t.attributes as InfusionAttribute[]);
     setOils(normalizeOilSlots(t.oils));
   }
@@ -298,8 +294,8 @@ export default function Planner() {
       await addTpl.mutateAsync({
         member_id: m.id,
         title: title.trim(),
-        description: description.trim() || null,
-        duration_minutes: duration,
+        description: null,
+        duration_minutes: FIXED_DURATION_MIN,
         attributes: attrs,
         oils: oils.some(Boolean) ? oils : null,
       });
@@ -308,11 +304,9 @@ export default function Planner() {
 
   function clearForm() {
     setTitle('');
-    setDescription('');
     setAttrs([]);
     setCustomAttrIds([]);
     setOils([null, null, null]);
-    setDuration(15);
     setTeamInfusion(false);
   }
 
@@ -334,11 +328,11 @@ export default function Planner() {
         template_id: null,
         saunameister_id: m.id,
         title: title.trim(),
-        description: description.trim() || null,
+        description: null,
         attributes: attrs,
         oils: oils.some(Boolean) ? oils : null,
         start_time: start.toISOString(),
-        duration_minutes: duration,
+        duration_minutes: FIXED_DURATION_MIN,
         team_infusion: teamInfusion,
       });
       clearForm();
@@ -674,26 +668,10 @@ export default function Planner() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-[1fr_auto] gap-2">
-                  <div>
-                    <label className="text-xs text-forest-300">Titel</label>
-                    <input value={title} onChange={(e) => setTitle(e.target.value)}
-                      placeholder="z.B. Eukalyptus klassisch"
-                      className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-forest-300">Dauer</label>
-                    <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}
-                      className="mt-1.5 rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
-                      {DURATIONS.map((d) => <option key={d} value={d}>{d} Min</option>)}
-                    </select>
-                  </div>
-                </div>
-
                 <div>
-                  <label className="text-xs text-forest-300">Beschreibung (optional)</label>
-                  <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-                    rows={2} placeholder="z.B. Klärend & frisch"
+                  <label className="text-xs text-forest-300">Titel</label>
+                  <input value={title} onChange={(e) => setTitle(e.target.value)}
+                    placeholder="z.B. Eukalyptus klassisch"
                     className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
                 </div>
 
