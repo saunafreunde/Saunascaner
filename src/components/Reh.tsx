@@ -28,24 +28,34 @@ export function Reh({ scale = 1 }: Props) {
       <style>{`
         @keyframes r-tree-sway     { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(1.2deg); } }
         @keyframes r-deer-walk     {
-          0%   { transform: translate(155px, 15px); }
-          12%  { transform: translate(125px, 15px); }
-          20%  { transform: translate(110px, 15px); }
-          32%  { transform: translate(110px, 15px); }
-          44%  { transform: translate(80px, 15px);  }
-          50%  { transform: translate(55px, 15px);  }
-          62%  { transform: translate(55px, 15px);  }
+          0%, 4% { transform: translate(155px, 15px); }
+          14%  { transform: translate(125px, 15px); }
+          22%  { transform: translate(110px, 15px); }
+          34%  { transform: translate(110px, 15px); }
+          46%  { transform: translate(80px, 15px);  }
+          52%  { transform: translate(55px, 15px);  }
+          64%  { transform: translate(55px, 15px);  }
           75%  { transform: translate(20px, 15px);  }
           80%  { transform: translate(8px, 15px);   }
-          92%  { transform: translate(8px, 15px);   }
+          90%  { transform: translate(8px, 15px);   }
+          98%  { transform: translate(155px, 15px); }
           100% { transform: translate(155px, 15px); }
         }
+        @keyframes r-deer-face {
+          /* facing left while walking left + grazing (0-90%) */
+          0%, 90%   { transform: scaleX(1); }
+          /* flip um an der linken graze-Position */
+          92%       { transform: scaleX(0); }
+          /* facing right while walking back (93-99%) */
+          94%, 99%  { transform: scaleX(-1); }
+          /* re-flip an Start für nächsten Cycle */
+          100%      { transform: scaleX(1); }
+        }
         @keyframes r-deer-head {
-          /* Kopf gesenkt während graze-Phasen (20-32%, 80-92%) und kurz beim Pause-Schauen (50-62% leicht nach oben) */
-          0%, 19%, 33%, 49%, 63%, 79%, 93%, 100% { transform: rotate(0deg); }
-          22%, 30%                                { transform: rotate(50deg); }
-          54%, 60%                                { transform: rotate(-12deg); }
-          82%, 90%                                { transform: rotate(50deg); }
+          0%, 21%, 35%, 51%, 65%, 79%, 91%, 100% { transform: rotate(0deg); }
+          24%, 32%                                { transform: rotate(50deg); }
+          56%, 62%                                { transform: rotate(-12deg); }
+          82%, 89%                                { transform: rotate(50deg); }
         }
         @keyframes r-deer-bob      { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.2px); } }
         @keyframes r-blink         { 0%,93%,100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
@@ -100,10 +110,11 @@ export function Reh({ scale = 1 }: Props) {
           100% { transform: translate(45px, 30px) rotate(-8deg); }
         }
 
-        .r-tree     { transform-origin: bottom center; animation: r-tree-sway 4s infinite ease-in-out; }
-        .r-deer     { animation: r-deer-walk 36s infinite linear; }
-        .r-deer-bob { animation: r-deer-bob 0.5s infinite ease-in-out; }
-        .r-deer-head{ transform-origin: 8px 76px; animation: r-deer-head 36s infinite linear; }
+        .r-tree      { transform-origin: bottom center; animation: r-tree-sway 4s infinite ease-in-out; }
+        .r-deer      { animation: r-deer-walk 36s infinite linear; }
+        .r-deer-face { transform-origin: 28px 90px; animation: r-deer-face 36s infinite linear; }
+        .r-deer-bob  { animation: r-deer-bob 0.5s infinite ease-in-out; }
+        .r-deer-head { transform-origin: 8px 76px; animation: r-deer-head 36s infinite linear; }
         .r-blink    { transform-origin: -4px 48px; animation: r-blink 4.2s infinite; }
         .r-rabbit-hop   { animation: r-rabbit-hop 0.7s infinite ease-out; }
         .r-rabbit-cross { animation: r-rabbit-cross 22s infinite linear; transform-origin: center; }
@@ -123,7 +134,7 @@ export function Reh({ scale = 1 }: Props) {
         .r-skier    { transform-origin: center; animation: r-skier-slide 14s infinite linear; }
 
         @media (prefers-reduced-motion: reduce) {
-          .r-tree, .r-deer, .r-deer-bob, .r-deer-head, .r-blink,
+          .r-tree, .r-deer, .r-deer-face, .r-deer-bob, .r-deer-head, .r-blink,
           .r-rabbit-hop, .r-rabbit-cross, .r-owl-head, .r-owl-blink,
           .r-butterfly-fly, .r-butterfly-flutter, .r-squirrel, .r-bird,
           .r-creek, .r-sparkle, .r-mushroom, .r-firefly, .r-firefly-drift,
@@ -178,10 +189,22 @@ export function Reh({ scale = 1 }: Props) {
           <Butterfly />
         </g>
 
-        {/* ──── REH (zwischen den Tree-Ebenen, jetzt am Boden) ──── */}
+        {/* ──── REH-FAMILIE (Mama + 3 Kitze) — dreht sich beim Zurückgehen ──── */}
         <g className="r-deer">
           <g className="r-deer-bob">
-            <DeerSvg />
+            <g className="r-deer-face">
+              <DeerSvg />
+              {/* 3 Rehkitze hinter Mama */}
+              <g transform="translate(-13, 6)">
+                <FawnSvg />
+              </g>
+              <g transform="translate(-22, 6)">
+                <FawnSvg />
+              </g>
+              <g transform="translate(-31, 6)">
+                <FawnSvg />
+              </g>
+            </g>
           </g>
         </g>
 
@@ -357,6 +380,53 @@ function DeerSvg() {
         <ellipse cx="-7" cy="43" rx="2" ry="4" fill="#a87241" transform="rotate(-25 -7 43)" />
         <ellipse cx="-7" cy="43" rx="1" ry="2.5" fill="#e8b888" transform="rotate(-25 -7 43)" />
       </g>
+    </g>
+  );
+}
+
+// ── Rehkitz (kleiner als Mama, mehr weiße Punkte) ─────────────────────────
+function FawnSvg() {
+  // Skaliert auf ~60% der Mama-Größe, Kopf etwas niedriger
+  const groundY = 105;
+  return (
+    <g transform="translate(0, 0) scale(0.6)" style={{ transformOrigin: '28px 90px' }}>
+      <ellipse cx="28" cy={groundY + 1} rx="14" ry="1.8" fill="rgba(0,0,0,0.3)" />
+      {/* Beine */}
+      <rect x="18" y={groundY - 16} width="2.2" height="16" fill="#a87241" />
+      <rect x="24" y={groundY - 14} width="2.2" height="14" fill="#a87241" />
+      <rect x="32" y={groundY - 16} width="2.2" height="16" fill="#a87241" />
+      <rect x="38" y={groundY - 14} width="2.2" height="14" fill="#a87241" />
+      {/* Hufe */}
+      <rect x="17.5" y={groundY - 1} width="3" height="2" fill="#3a1808" rx="0.5" />
+      <rect x="23.5" y={groundY - 1} width="3" height="2" fill="#3a1808" rx="0.5" />
+      <rect x="31.5" y={groundY - 1} width="3" height="2" fill="#3a1808" rx="0.5" />
+      <rect x="37.5" y={groundY - 1} width="3" height="2" fill="#3a1808" rx="0.5" />
+      {/* Körper kleiner */}
+      <ellipse cx="28" cy={groundY - 18} rx="14" ry="7" fill="#b88052" />
+      <ellipse cx="28" cy={groundY - 14} rx="13" ry="4" fill="#d8a468" />
+      {/* Mehr weiße Bambi-Punkte */}
+      <circle cx="20" cy={groundY - 20} r="1.2" fill="#fff" />
+      <circle cx="24" cy={groundY - 22} r="1"   fill="#fff" />
+      <circle cx="28" cy={groundY - 21} r="1.2" fill="#fff" />
+      <circle cx="32" cy={groundY - 22} r="1"   fill="#fff" />
+      <circle cx="36" cy={groundY - 20} r="1.2" fill="#fff" />
+      <circle cx="22" cy={groundY - 16} r="0.9" fill="#fff" />
+      <circle cx="34" cy={groundY - 16} r="0.9" fill="#fff" />
+      {/* Schwänzchen */}
+      <ellipse cx="44" cy={groundY - 22} rx="2" ry="2.5" fill="#b88052" />
+      <ellipse cx="45" cy={groundY - 20} rx="1.4" ry="2" fill="#fff" />
+      {/* Hals + Kopf — kompakter, kein graze */}
+      <path d="M14 81 L 8 68 L 12 66 L 18 80 Z" fill="#b88052" />
+      <ellipse cx="6" cy="62" rx="5.5" ry="4.5" fill="#b88052" />
+      <ellipse cx="0" cy="64" rx="2.5" ry="2" fill="#8a5a2a" />
+      <ellipse cx="-1" cy="63" rx="1" ry="0.8" fill="#1a0e05" />
+      <ellipse cx="6" cy="60" rx="1" ry="1.2" fill="#1a0e05" />
+      <circle cx="6.4" cy="59.8" r="0.3" fill="#fff" />
+      {/* Größere Ohren — Bambi-Style */}
+      <ellipse cx="8" cy="55" rx="1.8" ry="3.5" fill="#b88052" transform="rotate(-15 8 55)" />
+      <ellipse cx="8" cy="55" rx="0.9" ry="2.4" fill="#e8b888" transform="rotate(-15 8 55)" />
+      <ellipse cx="3" cy="56" rx="1.8" ry="3.5" fill="#b88052" transform="rotate(-30 3 56)" />
+      <ellipse cx="3" cy="56" rx="0.9" ry="2.4" fill="#e8b888" transform="rotate(-30 3 56)" />
     </g>
   );
 }
