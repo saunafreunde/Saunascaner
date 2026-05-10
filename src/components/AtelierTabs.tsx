@@ -20,6 +20,8 @@ interface AtelierTabsProps {
   onLeaveTeam: (id: string) => void;
   onApplyTemplate: (t: Template) => void;
   onDeleteTemplate: (id: string) => void;
+  isAdmin?: boolean;
+  now?: Date;
 }
 
 export function AtelierTabs({
@@ -35,7 +37,17 @@ export function AtelierTabs({
   onLeaveTeam,
   onApplyTemplate,
   onDeleteTemplate,
+  isAdmin = false,
+  now,
 }: AtelierTabsProps) {
+  const currentTime = now ?? new Date();
+  const canDelete = (i: Infusion) => isAdmin && new Date(i.end_time) > currentTime;
+  const handleDelete = (i: Infusion) => {
+    const ok = window.confirm(
+      `Aufguss "${i.title}" am ${dayLabel(i.start_time)} ${fmtClock(i.start_time)} wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`,
+    );
+    if (ok) onDeleteInfusion(i.id);
+  };
   const [tab, setTab] = useState<TabId>('mine');
 
   const saunaColor = (id: string) => saunas.find((s) => s.id === id)?.accent_color ?? '#22c55e';
@@ -124,8 +136,11 @@ export function AtelierTabs({
                         </div>
                         {coNames.length > 0 && <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>}
                       </div>
-                      <button onClick={() => onDeleteInfusion(i.id)}
-                        className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 flex-shrink-0">Löschen</button>
+                      {canDelete(i) && (
+                        <button onClick={() => handleDelete(i)}
+                          title="Admin: Aufguss löschen"
+                          className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 flex-shrink-0 ring-1 ring-rose-500/20">🗑 Löschen</button>
+                      )}
                     </li>
                   );
                 })}
@@ -154,17 +169,24 @@ export function AtelierTabs({
                           {meisterName(i.saunameister_id)}{coNames.length > 0 && ` + ${coNames.join(', ')}`}
                         </div>
                       </div>
-                      {joined ? (
-                        <button onClick={() => onLeaveTeam(i.id)}
-                          className="rounded-md px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap flex-shrink-0 ring-1 ring-rose-500/30">
-                          Verlassen
-                        </button>
-                      ) : (
-                        <button onClick={() => onJoinTeam(i.id)}
-                          className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-950 whitespace-nowrap flex-shrink-0">
-                          Beitreten
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {joined ? (
+                          <button onClick={() => onLeaveTeam(i.id)}
+                            className="rounded-md px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap ring-1 ring-rose-500/30">
+                            Verlassen
+                          </button>
+                        ) : (
+                          <button onClick={() => onJoinTeam(i.id)}
+                            className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-950 whitespace-nowrap">
+                            Beitreten
+                          </button>
+                        )}
+                        {canDelete(i) && (
+                          <button onClick={() => handleDelete(i)}
+                            title="Admin: Aufguss löschen"
+                            className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 ring-1 ring-rose-500/20">🗑</button>
+                        )}
+                      </div>
                     </li>
                   );
                 })}

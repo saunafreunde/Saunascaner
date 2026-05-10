@@ -822,6 +822,7 @@ export default function Planner() {
               onLeaveTeam={(id) => m && leaveTeam.mutate({ infusion_id: id, member_id: m.id })}
               onApplyTemplate={(t) => applyTemplate(t)}
               onDeleteTemplate={(id) => delTpl.mutate(id)}
+              isAdmin={isAdmin}
             />
           </HubZone>
         )}
