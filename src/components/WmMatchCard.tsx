@@ -209,12 +209,10 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
           <div className="grid grid-cols-3 gap-1.5">
             {(['home', 'draw', 'away'] as const).map((opt) => {
               const active = outcome === opt;
-              const label =
+              const teamName =
                 opt === 'home' ? (home!.name || match.home_label || home!.code)
-                : opt === 'draw' ? 'Remis'
-                : (away!.name || match.away_label || away!.code);
-              const code = opt === 'home' ? home!.code : opt === 'away' ? away!.code : null;
-              const fallback = opt === 'home' ? home!.flag : opt === 'away' ? away!.flag : '🤝';
+                : opt === 'away' ? (away!.name || match.away_label || away!.code)
+                : null;
               return (
                 <button
                   key={opt}
@@ -228,14 +226,14 @@ export function WmMatchCard({ match, teamsById, myTip, jokerUsedInPhase }: Props
                         : 'bg-forest-900/70 text-forest-200 hover:bg-forest-800 ring-1 ring-forest-700/40'
                   }`}
                 >
-                  <span className="flex justify-center">
-                    {code ? (
-                      <TeamFlag code={code} fallbackEmoji={fallback} size="sm" showRankStar={false} />
-                    ) : (
-                      <span className="text-lg leading-none inline-grid place-items-center" style={{ width: 28, height: 28 }}>🤝</span>
-                    )}
-                  </span>
-                  <span className="block text-[11px] mt-1 truncate px-1">{label}</span>
+                  {opt === 'draw' ? (
+                    <span className="block text-sm tracking-wide">Remis</span>
+                  ) : (
+                    <>
+                      <span className="block text-[10px] uppercase tracking-[0.18em] opacity-70">Sieg</span>
+                      <span className="block text-[11px] mt-0.5 truncate px-1">{teamName}</span>
+                    </>
+                  )}
                 </button>
               );
             })}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { differenceInMinutes } from 'date-fns';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -27,6 +27,7 @@ import { unlockAudio } from '@/lib/evacuation';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { CuckooDoor, type ZwergMood } from '@/components/CuckooDoor';
+import { BlockhausScene } from '@/components/BlockhausScene';
 import { Holzfaeller } from '@/components/Holzfaeller';
 import { Reh } from '@/components/Reh';
 import { onDemo } from '@/lib/demoChannel';
@@ -240,23 +241,59 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* Header — Logo zentriert (ersetzt den Schriftzug), Wetter+Uhr rechts */}
+      {/* Header — Uhr links (+ 2. Uhr 10min vor Aufguss), Logo mittig, Wetter rechts */}
       <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-8 pb-3">
-        <div className="justify-self-start" />
+        <div className="justify-self-start flex items-center gap-3">
+          <span className="rounded-xl bg-forest-950/70 px-4 py-2 text-2xl font-semibold tabular-nums ring-1 ring-forest-800/60">
+            {fmtClock(now)}
+          </span>
+          <AnimatePresence>
+            {minutesUntilNext > 0 && minutesUntilNext <= 10 && nextInfusion && (
+              <motion.div
+                initial={{ width: 0, opacity: 0, scale: 0.85 }}
+                animate={{ width: 'auto', opacity: 1, scale: 1 }}
+                exit={{ width: 0, opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1] }}
+                style={{ overflow: 'hidden' }}
+              >
+                <div
+                  className="rounded-xl px-4 py-2 ring-1 backdrop-blur whitespace-nowrap"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(8,18,12,0.65))',
+                    boxShadow: 'inset 0 0 0 1px rgba(245,158,11,0.4), 0 0 22px rgba(245,158,11,0.18)',
+                  }}
+                >
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-amber-300/80 leading-none">
+                    Nächster Aufguss
+                  </div>
+                  <div className="mt-0.5 flex items-baseline gap-2">
+                    <span className="text-2xl font-semibold tabular-nums text-amber-200 leading-none">
+                      {fmtClock(nextInfusion.start_time)}
+                    </span>
+                    <motion.span
+                      animate={{ opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                      className="text-xs font-semibold text-amber-300 leading-none"
+                    >
+                      in {minutesUntilNext} Min
+                    </motion.span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <div className="justify-self-center">
           <img
             src={tv.data?.logo_path ? (publicAssetUrl(tv.data.logo_path) ?? '/icons/icon-512.png') : '/icons/icon-512.png'}
             alt="Saunafreunde Schwarzwald"
-            className="h-24 w-auto drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)]"
+            className="h-24 w-auto rounded-2xl drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)]"
           />
         </div>
 
         <div className="flex items-center gap-4 justify-self-end">
           <WeatherWidget />
-          <span className="rounded-xl bg-forest-950/70 px-4 py-2 text-2xl font-semibold tabular-nums ring-1 ring-forest-800/60">
-            {fmtClock(now)}
-          </span>
         </div>
       </header>
 
@@ -274,17 +311,19 @@ export default function Dashboard() {
             <Holzfaeller scale={1.0} />
           </div>
 
-          {/* Kuckuckhaus mittig + Connection-Indicator drüber */}
-          <div className="flex flex-col items-center gap-2 pointer-events-auto">
+          {/* Blockhaus-Szene mittig: Hütte + Teich + Bank + Angler + Bäume */}
+          <div className="flex flex-col items-center gap-2">
             <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
-            <CuckooDoor
-              isOpen={doorOpen}
-              mood={zwergMood}
-              minutesUntilNext={minutesUntilNext}
-              nextTitle={nextInfusion?.title ?? ''}
-              onClick={handleDoorToggle}
-              scale={1.3}
-            />
+            <BlockhausScene>
+              <CuckooDoor
+                isOpen={doorOpen}
+                mood={zwergMood}
+                minutesUntilNext={minutesUntilNext}
+                nextTitle={nextInfusion?.title ?? ''}
+                onClick={handleDoorToggle}
+                scale={1.0}
+              />
+            </BlockhausScene>
           </div>
 
           {/* Reh rechts */}
