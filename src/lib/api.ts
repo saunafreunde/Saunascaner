@@ -742,10 +742,14 @@ export type TvSettings = {
     dashboard?: string | null;
     guest?: string | null;
     planner?: string | null;
+    wm?: string | null;
   };
   badge?: {
     front_bg?: string | null;
     back_bg?: string | null;
+  };
+  tile_bgs?: {
+    [saunaId: string]: (string | null)[];
   };
 };
 

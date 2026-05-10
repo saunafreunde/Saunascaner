@@ -79,7 +79,7 @@ export default function Wm() {
   const visibleMatches = phase === 'pre' ? [] : (matchesByPhase[phase] ?? []);
 
   return (
-    <PageBackground page="planner" variant="strong" className="min-h-screen">
+    <PageBackground page="wm" variant="strong" className="min-h-screen">
       {/* Sticky header */}
       <header className="sticky top-0 z-30 border-b border-forest-800/40 bg-forest-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 py-2.5 sm:py-3">

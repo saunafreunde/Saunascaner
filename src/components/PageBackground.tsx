@@ -1,6 +1,6 @@
 import { useTvSettings, publicAssetUrl } from '@/lib/api';
 
-type Page = 'dashboard' | 'guest' | 'planner';
+type Page = 'dashboard' | 'guest' | 'planner' | 'wm';
 
 const FALLBACK = 'bg-schwarzwald-soft';
 const STRONG_FALLBACK = 'bg-schwarzwald';

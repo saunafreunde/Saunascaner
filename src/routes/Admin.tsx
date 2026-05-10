@@ -588,11 +588,14 @@ function PollsTab() {
 
 function BrandingTab() {
   const tvQ = useTvSettings();
+  const saunasQ = useSaunas();
   const update = useUpdateTvSettings();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [openSauna, setOpenSauna] = useState<string | null>(null);
 
   const tv: TvSettings = tvQ.data ?? { ads: [], logo_path: null };
+  const saunas = saunasQ.data ?? [];
 
   async function setSetting(updater: (cur: TvSettings) => TvSettings) {
     setBusy(true); setErr(null);
@@ -612,49 +615,145 @@ function BrandingTab() {
     finally { setBusy(false); }
   }
 
+  async function applyBgToAllPages(path: string) {
+    await setSetting((c) => ({
+      ...c,
+      backgrounds: { dashboard: path, guest: path, planner: path, wm: path },
+    }));
+  }
+
+  async function uploadTileBg(saunaId: string, slot: number, file: File) {
+    setBusy(true); setErr(null);
+    try {
+      const oldPath = tv.tile_bgs?.[saunaId]?.[slot] ?? null;
+      const path = await uploadAsset(file, `tile-bgs/${saunaId}`);
+      const slots = [...(tv.tile_bgs?.[saunaId] ?? [null, null, null, null, null])];
+      slots[slot] = path;
+      await update.mutateAsync({ ...tv, tile_bgs: { ...(tv.tile_bgs ?? {}), [saunaId]: slots } });
+      if (oldPath) await deleteAsset(oldPath).catch(() => {});
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function clearTileBg(saunaId: string, slot: number) {
+    setBusy(true); setErr(null);
+    try {
+      const oldPath = tv.tile_bgs?.[saunaId]?.[slot] ?? null;
+      const slots = [...(tv.tile_bgs?.[saunaId] ?? [null, null, null, null, null])];
+      slots[slot] = null;
+      await update.mutateAsync({ ...tv, tile_bgs: { ...(tv.tile_bgs ?? {}), [saunaId]: slots } });
+      if (oldPath) await deleteAsset(oldPath).catch(() => {});
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  const allPages = ['dashboard', 'guest', 'planner', 'wm'] as const;
+
   return (
     <section className="space-y-4">
       {err && <div className="rounded-md bg-rose-500/15 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-500/30">{err}</div>}
 
-      {/* Logo */}
+      {/* 🎨 Logo & Marke */}
       <ImageSlot
-        title="Logo"
-        hint="Erscheint auf Ausweis, Tafel-Header, Gäste-App."
+        title="🎨 Logo & Marke"
+        hint="Erscheint im Tafel-Header, auf dem Ausweis und in der Gäste-App."
         url={publicAssetUrl(tv.logo_path)}
         busy={busy}
         onUpload={(f) => uploadField(f, () => tv.logo_path, (p) => ({ ...tv, logo_path: p }), 'logo')}
         onClear={() => setSetting((c) => ({ ...c, logo_path: null }))}
       />
 
-      {/* Page backgrounds */}
+      {/* 🖼️ Seiten-Hintergründe */}
       <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-        <h2 className="text-base font-semibold text-forest-100">Hintergründe pro Seite</h2>
-        <p className="mt-1 text-xs text-forest-300/70">Schwarzwald-Foto pro Ansicht. Leerlassen = Wald-Verlauf-Fallback.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          {(['dashboard', 'guest', 'planner'] as const).map((page) => {
+        <h2 className="text-base font-semibold text-forest-100">🖼️ Seiten-Hintergründe</h2>
+        <p className="mt-1 text-xs text-forest-300/70">Ein Foto pro Ansicht. Leer lassen = Wald-Verlauf-Fallback. Ein Bild kann auf alle Seiten angewendet werden.</p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {allPages.map((page) => {
             const path = tv.backgrounds?.[page] ?? null;
             const url = publicAssetUrl(path);
             return (
-              <SubSlot key={page} title={pageLabel(page)} url={url} busy={busy}
-                onUpload={(f) => uploadField(
-                  f,
-                  () => tv.backgrounds?.[page],
-                  (p) => ({ ...tv, backgrounds: { ...(tv.backgrounds ?? {}), [page]: p } }),
-                  `bg/${page}`,
+              <div key={page} className="space-y-2">
+                <SubSlot title={pageLabel(page)} url={url} busy={busy}
+                  onUpload={(f) => uploadField(
+                    f,
+                    () => tv.backgrounds?.[page],
+                    (p) => ({ ...tv, backgrounds: { ...(tv.backgrounds ?? {}), [page]: p } }),
+                    `bg/${page}`,
+                  )}
+                  onClear={() => setSetting((c) => ({ ...c, backgrounds: { ...(c.backgrounds ?? {}), [page]: null } }))}
+                />
+                {path && (
+                  <button
+                    onClick={() => applyBgToAllPages(path)}
+                    disabled={busy}
+                    className="w-full rounded-lg bg-forest-700/60 px-2 py-1 text-xs text-forest-200 ring-1 ring-forest-600/40 hover:bg-forest-600/60 disabled:opacity-50"
+                    title="Dieses Bild auf alle Seiten anwenden"
+                  >
+                    🔗 Auf alle Seiten
+                  </button>
                 )}
-                onClear={() => setSetting((c) => ({ ...c, backgrounds: { ...(c.backgrounds ?? {}), [page]: null } }))}
-              />
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* Badge backgrounds */}
+      {/* 🟦 Aufguss-Kacheln Hintergründe */}
       <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-        <h2 className="text-base font-semibold text-forest-100">Mitgliedsausweis</h2>
+        <h2 className="text-base font-semibold text-forest-100">🟦 Aufguss-Kacheln</h2>
+        <p className="mt-1 text-xs text-forest-300/70">Individuelle Hintergrundbilder für jede der 15 Tile-Positionen (3 Saunen × 5 Slots). Slot 1 = oberstes Tile.</p>
+        {saunas.length === 0 ? (
+          <p className="mt-3 text-xs text-forest-300/50">Keine Saunen angelegt.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {saunas.map((sauna) => {
+              const isOpen = openSauna === sauna.id;
+              const slots = tv.tile_bgs?.[sauna.id] ?? [];
+              const filledCount = slots.filter(Boolean).length;
+              return (
+                <div key={sauna.id} className="rounded-xl ring-1 ring-forest-800/40 overflow-hidden">
+                  <button
+                    onClick={() => setOpenSauna(isOpen ? null : sauna.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-forest-900/40 transition-colors"
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ background: sauna.accent_color, boxShadow: `0 0 8px ${sauna.accent_color}` }}
+                    />
+                    <span className="flex-1 font-medium text-forest-100 text-sm">{sauna.name}</span>
+                    {filledCount > 0 && (
+                      <span className="text-xs text-forest-400/70">{filledCount}/5 Bilder</span>
+                    )}
+                    <span className="text-forest-500 text-xs">{isOpen ? '▲' : '▼'}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4 border-t border-forest-800/40">
+                      <div className="mt-3 grid grid-cols-5 gap-2">
+                        {[0, 1, 2, 3, 4].map((slot) => {
+                          const url = publicAssetUrl(slots[slot] ?? null);
+                          return (
+                            <SubSlot key={slot} title={`Slot ${slot + 1}`} url={url} busy={busy}
+                              onUpload={(f) => uploadTileBg(sauna.id, slot, f)}
+                              onClear={() => clearTileBg(sauna.id, slot)}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 🃏 Mitgliedsausweis */}
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <h2 className="text-base font-semibold text-forest-100">🃏 Mitgliedsausweis</h2>
         <p className="mt-1 text-xs text-forest-300/70">Hintergrund Vorderseite und Rückseite. Optional — ohne Bild greift ein Fallback.</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {([['front_bg','Vorderseite'],['back_bg','Rückseite']] as const).map(([key, label]) => {
+          {([['front_bg', 'Vorderseite'], ['back_bg', 'Rückseite']] as const).map(([key, label]) => {
             const path = tv.badge?.[key] ?? null;
             const url = publicAssetUrl(path);
             return (
@@ -672,9 +771,9 @@ function BrandingTab() {
         </div>
       </div>
 
-      {/* Ads */}
+      {/* 📺 Werbung auf der Tafel */}
       <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-        <h2 className="text-base font-semibold text-forest-100">Werbung auf der Tafel</h2>
+        <h2 className="text-base font-semibold text-forest-100">📺 Werbung auf der Tafel</h2>
         <p className="mt-1 text-xs text-forest-300/70">Bis zu 4 Bilder im Mittelblock (sichtbar wenn ≤ 2 Saunen aktiv).</p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[0, 1, 2, 3].map((slot) => {
@@ -712,8 +811,14 @@ function BrandingTab() {
   );
 }
 
-function pageLabel(p: 'dashboard' | 'guest' | 'planner') {
-  return p === 'dashboard' ? 'Tafel (TV)' : p === 'guest' ? 'Gäste-App' : 'Planner';
+function pageLabel(p: 'dashboard' | 'guest' | 'planner' | 'wm') {
+  const labels: Record<typeof p, string> = {
+    dashboard: 'Tafel (TV)',
+    guest: 'Gäste-App',
+    planner: 'Planner',
+    wm: 'WM-Tipspiel',
+  };
+  return labels[p];
 }
 
 function ImageSlot({ title, hint, url, busy, onUpload, onClear }: {

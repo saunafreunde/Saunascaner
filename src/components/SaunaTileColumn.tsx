@@ -15,6 +15,7 @@ interface SaunaTileColumnProps {
   meisterBadges: (id: string | null) => BadgeDefinition[];
   coNames: (infusionId: string) => string[];
   now: Date;
+  tileBgs?: (string | null)[];
 }
 
 export function SaunaTileColumn({
@@ -24,6 +25,7 @@ export function SaunaTileColumn({
   meisterBadges,
   coNames,
   now,
+  tileBgs = [],
 }: SaunaTileColumnProps) {
   const tiles = useMemo(() => {
     const cutoff = addMinutes(now, -HIDE_AFTER_END_MIN);
@@ -83,7 +85,7 @@ export function SaunaTileColumn({
           </motion.div>
         ) : (
           <AnimatePresence initial={false} mode="popLayout">
-            {tiles.map((inf) => (
+            {tiles.map((inf, slotIndex) => (
               <InfusionCard
                 key={inf.id}
                 infusion={inf}
@@ -94,6 +96,7 @@ export function SaunaTileColumn({
                 now={now}
                 compact
                 className="flex-1 min-h-0 overflow-hidden"
+                backgroundImage={tileBgs[slotIndex] ?? null}
               />
             ))}
           </AnimatePresence>

@@ -169,17 +169,21 @@ export default function Dashboard() {
       );
     }
 
-    const column = (idx: number) => (
-      <SaunaTileColumn
-        key={activeSaunas[idx].id}
-        sauna={activeSaunas[idx]}
-        infusions={allInfusions}
-        meisterName={meisterName}
-        meisterBadges={meisterBadges}
-        coNames={coNamesForInfusion}
-        now={now}
-      />
-    );
+    const column = (idx: number) => {
+      const saunaId = activeSaunas[idx].id;
+      return (
+        <SaunaTileColumn
+          key={saunaId}
+          sauna={activeSaunas[idx]}
+          infusions={allInfusions}
+          meisterName={meisterName}
+          meisterBadges={meisterBadges}
+          coNames={coNamesForInfusion}
+          now={now}
+          tileBgs={tv.data?.tile_bgs?.[saunaId] ?? []}
+        />
+      );
+    };
 
     if (activeSaunas.length === 1) {
       // 1 Sauna: [Werbung] [Sauna mittig] [Werbung]
@@ -245,9 +249,9 @@ export default function Dashboard() {
 
         <div className="justify-self-center">
           <img
-            src="/icons/icon-512.png"
+            src={tv.data?.logo_path ? (publicAssetUrl(tv.data.logo_path) ?? '/icons/icon-512.png') : '/icons/icon-512.png'}
             alt="Saunafreunde Logo"
-            className="h-14 w-14 rounded-xl ring-1 ring-forest-700/40 shadow-lg"
+            className="h-14 w-14 rounded-xl ring-1 ring-forest-700/40 shadow-lg object-contain"
           />
         </div>
 
@@ -265,8 +269,8 @@ export default function Dashboard() {
         {renderMain()}
       </main>
 
-      {/* Sauna-Zwerg / Kuckuckstür — schwebt unten rechts */}
-      <div className="fixed bottom-4 right-4 z-30 pointer-events-none">
+      {/* Sauna-Zwerg / Kuckuckstür — bei 2 Saunen mittig, sonst unten rechts */}
+      <div className={`fixed bottom-4 z-30 pointer-events-none ${activeSaunas.length === 2 ? 'left-1/2 -translate-x-1/2' : 'right-4'}`}>
         <div className="pointer-events-auto">
           <CuckooDoor
             isOpen={doorOpen}
