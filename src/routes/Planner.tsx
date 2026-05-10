@@ -388,8 +388,10 @@ export default function Planner() {
 
   // ─── Derived data ────────────────────────────────────────────────────────
   const myInfusions = useMemo(
-    () => infusions.filter((i) => i.saunameister_id === m?.id).sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time)),
-    [infusions, m?.id]
+    () => infusions
+      .filter((i) => isAdmin || i.saunameister_id === m?.id)
+      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time)),
+    [infusions, m?.id, isAdmin]
   );
 
   const joinableTeamInfusions = useMemo(

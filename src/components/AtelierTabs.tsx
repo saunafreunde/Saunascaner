@@ -134,6 +134,11 @@ export function AtelierTabs({
                             <span key={a} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
                           ))}
                         </div>
+                        {isAdmin && (
+                          <div className="text-xs text-forest-300/60 mt-0.5">
+                            Meister: {meisterName(i.saunameister_id) || '— nicht zugeordnet —'}
+                          </div>
+                        )}
                         {coNames.length > 0 && <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>}
                       </div>
                       {canDelete(i) && (
