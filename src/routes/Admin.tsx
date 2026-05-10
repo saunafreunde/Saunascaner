@@ -5,7 +5,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import {
   useSaunas, useToggleSauna,
-  useAllMembers, useAddMember, useUpdateMember,
+  useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
   usePendingMembers, useApproveMember,
   useTvSettings, useUpdateTvSettings,
   usePresentMembers,
@@ -207,6 +207,7 @@ function MembersTab() {
   const add = useAddMember();
   const update = useUpdateMember();
   const approve = useApproveMember();
+  const del = useDeleteMember();
   const tvQ = useTvSettings();
   const frontBgUrl = publicAssetUrl(tvQ.data?.badge?.front_bg);
   const backBgUrl  = publicAssetUrl(tvQ.data?.badge?.back_bg);
@@ -343,6 +344,32 @@ function MembersTab() {
                     }`}
                   >
                     {m.revoked_at ? 'Entsperren' : 'Sperren'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const numLabel = m.member_number ? `FDS-${String(m.member_number).padStart(3, '0')}` : '';
+                      const ok = window.confirm(
+                        `Mitglied "${m.name}" ${numLabel} wirklich endgültig löschen?\n\n` +
+                        `• Alle Tipps, Fotos, Bewertungen, Badges, Anwesenheit dieses Mitglieds werden gelöscht.\n` +
+                        `• Aufgüsse bleiben erhalten (Saunameister wird auf "unbekannt" gesetzt).\n` +
+                        `• Die Mitgliedsnummer wird beim nächsten Neuzugang neu vergeben.\n` +
+                        `• Die E-Mail-Adresse wird wieder frei für eine Neu-Registrierung.\n\n` +
+                        `Diese Aktion kann nicht rückgängig gemacht werden.`,
+                      );
+                      if (!ok) return;
+                      const ok2 = window.confirm(`Sicher? Tippe noch einmal OK, um "${m.name}" endgültig zu löschen.`);
+                      if (!ok2) return;
+                      try {
+                        await del.mutateAsync(m.id);
+                      } catch (e) {
+                        window.alert(`Löschen fehlgeschlagen: ${(e as Error).message}`);
+                      }
+                    }}
+                    disabled={del.isPending}
+                    title="Mitglied endgültig löschen"
+                    className="rounded-lg bg-rose-600/30 px-3 py-1.5 text-xs font-semibold text-rose-100 ring-1 ring-rose-500/40 hover:bg-rose-600/50 disabled:opacity-60"
+                  >
+                    {del.isPending ? '…' : '🗑 Löschen'}
                   </button>
                 </div>
               </div>

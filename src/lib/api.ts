@@ -524,6 +524,22 @@ export function useUpdateMember() {
   });
 }
 
+export function useDeleteMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (memberId: string) => {
+      const { error } = await need().rpc('delete_member', { p_member_id: memberId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['present'] });
+      qc.invalidateQueries({ queryKey: ['pending'] });
+      qc.invalidateQueries({ queryKey: ['members-directory'] });
+    },
+  });
+}
+
 export function usePresentMembers() {
   return useQuery({
     queryKey: ['present'],
