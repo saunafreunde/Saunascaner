@@ -27,6 +27,8 @@ import { unlockAudio } from '@/lib/evacuation';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { CuckooDoor, type ZwergMood } from '@/components/CuckooDoor';
+import { Holzfaeller } from '@/components/Holzfaeller';
+import { Reh } from '@/components/Reh';
 import { onDemo } from '@/lib/demoChannel';
 
 // ── Werbe-Sidebar: 3× 16:9 Tafeln ────────────────────────────────────────────
@@ -238,20 +240,15 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* Header — 3 Bereiche: links Schriftzug, mittig Logo, rechts Wetter + Uhr */}
-      <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-5 pb-3">
-        <div className="flex items-baseline gap-3 justify-self-start">
-          <h1 className="text-3xl font-semibold tracking-tight text-forest-100 drop-shadow">
-            Saunafreunde Schwarzwald
-          </h1>
-          <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
-        </div>
+      {/* Header — Logo zentriert (ersetzt den Schriftzug), Wetter+Uhr rechts */}
+      <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-8 pb-3">
+        <div className="justify-self-start" />
 
         <div className="justify-self-center">
           <img
             src={tv.data?.logo_path ? (publicAssetUrl(tv.data.logo_path) ?? '/icons/icon-512.png') : '/icons/icon-512.png'}
-            alt="Saunafreunde Logo"
-            className="h-14 w-14 rounded-xl ring-1 ring-forest-700/40 shadow-lg object-contain"
+            alt="Saunafreunde Schwarzwald"
+            className="h-24 w-auto drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)]"
           />
         </div>
 
@@ -265,20 +262,35 @@ export default function Dashboard() {
 
       <BirthdayBanner />
 
-      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-6 pb-6 flex gap-4">
+      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-6 pb-32 flex gap-4">
         {renderMain()}
       </main>
 
-      {/* Sauna-Zwerg / Kuckuckstür — bei 2 Saunen mittig, sonst unten rechts */}
-      <div className={`fixed bottom-4 z-30 pointer-events-none ${activeSaunas.length === 2 ? 'left-1/2 -translate-x-1/2' : 'right-4'}`}>
-        <div className="pointer-events-auto">
-          <CuckooDoor
-            isOpen={doorOpen}
-            mood={zwergMood}
-            minutesUntilNext={minutesUntilNext}
-            nextTitle={nextInfusion?.title ?? ''}
-            onClick={handleDoorToggle}
-          />
+      {/* Schwarzwald-Bühne unten: Holzfäller links · Kuckuckhaus mittig · Reh rechts */}
+      <div className="fixed inset-x-0 bottom-2 z-30 pointer-events-none">
+        <div className="relative mx-auto w-full max-w-[1920px] px-8 flex items-end justify-between">
+          {/* Holzfäller links */}
+          <div className="flex-shrink-0">
+            <Holzfaeller scale={1.0} />
+          </div>
+
+          {/* Kuckuckhaus mittig + Connection-Indicator drüber */}
+          <div className="flex flex-col items-center gap-2 pointer-events-auto">
+            <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
+            <CuckooDoor
+              isOpen={doorOpen}
+              mood={zwergMood}
+              minutesUntilNext={minutesUntilNext}
+              nextTitle={nextInfusion?.title ?? ''}
+              onClick={handleDoorToggle}
+              scale={1.3}
+            />
+          </div>
+
+          {/* Reh rechts */}
+          <div className="flex-shrink-0">
+            <Reh scale={1.0} />
+          </div>
         </div>
       </div>
     </PageBackground>

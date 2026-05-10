@@ -9,6 +9,7 @@ interface CuckooDoorProps {
   minutesUntilNext: number;
   nextTitle: string;
   onClick: () => void;
+  scale?: number;
 }
 
 // ── SVG Sauna-Zwerg ────────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ function ZwergSvg({ mood }: { mood: ZwergMood }) {
 }
 
 // ── Kuckuckstür ────────────────────────────────────────────────────────────
-export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick }: CuckooDoorProps) {
+export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick, scale = 1 }: CuckooDoorProps) {
   const [isHourlyTick, setIsHourlyTick] = useState(false);
 
   // Detect top of the hour independently
@@ -138,10 +139,40 @@ export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick 
   return (
     <div
       className="relative flex-shrink-0 cursor-pointer select-none"
-      style={{ width: 88, height: 110 }}
+      style={{ width: 88 * scale, height: 110 * scale, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: 'bottom center' }}
       onClick={onClick}
       title="Klicken für Zwerg-Besuch"
     >
+      {/* Schornstein — sitzt auf dem Dach oben rechts */}
+      <div
+        className="absolute z-10"
+        style={{
+          left: 56,
+          top: -16,
+          width: 14,
+          height: 22,
+          background: 'repeating-linear-gradient(0deg, #8a3a1a 0px, #6b2410 2px, #7a2f15 4px, #8a3a1a 6px)',
+          border: '2px solid #4a1a08',
+          borderRadius: '2px 2px 0 0',
+          boxShadow: 'inset -2px 0 4px rgba(0,0,0,0.4)',
+        }}
+      >
+        {/* Schornstein-Krone */}
+        <div
+          style={{
+            position: 'absolute',
+            left: -3,
+            top: -3,
+            right: -3,
+            height: 4,
+            background: '#3a1408',
+            borderRadius: 2,
+          }}
+        />
+        {/* Rauch */}
+        <Smoke />
+      </div>
+
       {/* Door frame — wood texture via gradient */}
       <div
         className="absolute inset-0 rounded-xl overflow-hidden"
@@ -245,6 +276,39 @@ export function CuckooDoor({ isOpen, mood, minutesUntilNext, nextTitle, onClick 
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Rauch aus dem Schornstein ─────────────────────────────────────────────
+function Smoke() {
+  return (
+    <div className="absolute pointer-events-none" style={{ left: '50%', top: -6, width: 0, height: 0 }}>
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            left: -5,
+            width: 10,
+            height: 10,
+            background: 'radial-gradient(circle, rgba(220,220,220,0.85) 0%, rgba(180,180,180,0.4) 60%, transparent 100%)',
+          }}
+          initial={{ opacity: 0, y: 0, scale: 0.6 }}
+          animate={{
+            opacity: [0, 0.85, 0.6, 0],
+            y: -38,
+            x: i % 2 === 0 ? -6 : 6,
+            scale: [0.6, 1.1, 1.6],
+          }}
+          transition={{
+            duration: 3.4,
+            repeat: Infinity,
+            delay: i * 1.1,
+            ease: 'easeOut',
+          }}
+        />
+      ))}
     </div>
   );
 }
