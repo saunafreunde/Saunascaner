@@ -5,11 +5,10 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import type { Template } from '@/lib/api';
 
-type TabId = 'mine' | 'team' | 'templates';
+type TabId = 'mine' | 'templates';
 
 interface AtelierTabsProps {
   myInfusions: Infusion[];
-  joinableTeamInfusions: Infusion[];
   templates: Template[];
   saunas: Sauna[];
   meisterName: (id: string | null) => string;
@@ -21,12 +20,12 @@ interface AtelierTabsProps {
   onApplyTemplate: (t: Template) => void;
   onDeleteTemplate: (id: string) => void;
   isAdmin?: boolean;
+  myMemberId?: string;
   now?: Date;
 }
 
 export function AtelierTabs({
   myInfusions,
-  joinableTeamInfusions,
   templates,
   saunas,
   meisterName,
@@ -38,13 +37,15 @@ export function AtelierTabs({
   onApplyTemplate,
   onDeleteTemplate,
   isAdmin = false,
+  myMemberId,
   now,
 }: AtelierTabsProps) {
   const currentTime = now ?? new Date();
   const isUpcoming = (i: Infusion) => new Date(i.end_time) > currentTime;
   const upcomingMine = myInfusions.filter(isUpcoming);
-  const upcomingTeam = joinableTeamInfusions.filter(isUpcoming);
   const canDelete = (i: Infusion) => isAdmin && isUpcoming(i);
+  const isOwn = (i: Infusion) => myMemberId !== undefined && i.saunameister_id === myMemberId;
+  const canJoinOrLeave = (i: Infusion) => i.team_infusion && !isOwn(i);
   const handleDelete = (i: Infusion) => {
     const ok = window.confirm(
       `Aufguss "${i.title}" am ${dayLabel(i.start_time)} ${fmtClock(i.start_time)} wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`,
@@ -56,10 +57,9 @@ export function AtelierTabs({
   const saunaColor = (id: string) => saunas.find((s) => s.id === id)?.accent_color ?? '#22c55e';
   const saunaName = (id: string) => saunas.find((s) => s.id === id)?.name ?? '?';
 
-  const tabs: { id: TabId; icon: string; label: string; count: number; pulse?: boolean }[] = [
-    { id: 'mine',      icon: '📋', label: 'Geplant',     count: upcomingMine.length },
-    { id: 'team',      icon: '🤝', label: 'Team',        count: upcomingTeam.length, pulse: upcomingTeam.length > 0 },
-    { id: 'templates', icon: '⚡', label: 'Vorlagen',    count: templates.length },
+  const tabs: { id: TabId; icon: string; label: string; count: number }[] = [
+    { id: 'mine',      icon: '📋', label: 'Geplant',  count: upcomingMine.length },
+    { id: 'templates', icon: '⚡', label: 'Vorlagen', count: templates.length },
   ];
 
   return (
@@ -85,17 +85,13 @@ export function AtelierTabs({
                 <span>{t.icon}</span>
                 <span className="hidden sm:inline">{t.label}</span>
                 {t.count > 0 && (
-                  <motion.span
-                    animate={t.pulse ? { scale: [1, 1.15, 1] } : {}}
-                    transition={{ duration: 1.5, repeat: Infinity }}
+                  <span
                     className={`text-[10px] font-bold tabular-nums rounded-full px-1.5 py-0.5 ${
-                      active
-                        ? 'bg-forest-950/30 text-forest-950'
-                        : t.pulse ? 'bg-amber-500 text-amber-950' : 'bg-forest-800 text-forest-200'
+                      active ? 'bg-forest-950/30 text-forest-950' : 'bg-forest-800 text-forest-200'
                     }`}
                   >
                     {t.count}
-                  </motion.span>
+                  </span>
                 )}
               </span>
             </button>
@@ -120,6 +116,8 @@ export function AtelierTabs({
               <ul className="space-y-2">
                 {upcomingMine.map((i) => {
                   const coNames = getCoNames(i.id);
+                  const joined = isJoined(i.id);
+                  const teamSlot = canJoinOrLeave(i);
                   return (
                     <li key={i.id}
                       className="flex items-center justify-between gap-3 rounded-xl bg-forest-900/60 px-3 py-2.5 ring-1 ring-forest-800/40 hover:ring-forest-600/40 transition"
@@ -137,57 +135,26 @@ export function AtelierTabs({
                             <span key={a} aria-hidden>{ATTR_BY_ID[a]?.emoji}</span>
                           ))}
                         </div>
-                        {isAdmin && (
+                        {(isAdmin || !isOwn(i)) && (
                           <div className="text-xs text-forest-300/60 mt-0.5">
                             Meister: {meisterName(i.saunameister_id) || '— nicht zugeordnet —'}
                           </div>
                         )}
                         {coNames.length > 0 && <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>}
                       </div>
-                      {canDelete(i) && (
-                        <button onClick={() => handleDelete(i)}
-                          title="Admin: Aufguss löschen"
-                          className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 flex-shrink-0 ring-1 ring-rose-500/20">🗑 Löschen</button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-          )}
-
-          {tab === 'team' && (
-            upcomingTeam.length === 0 ? (
-              <EmptyState emoji="🌿" title="Aktuell keine Team-Aufgüsse" subtitle="Wenn jemand einen 👥-Aufguss anlegt, kannst du beitreten." />
-            ) : (
-              <ul className="space-y-2">
-                {upcomingTeam.map((i) => {
-                  const joined = isJoined(i.id);
-                  const coNames = getCoNames(i.id);
-                  return (
-                    <li key={i.id}
-                      className="flex items-center justify-between gap-3 rounded-xl bg-amber-900/30 px-3 py-2.5 ring-1 ring-amber-800/40"
-                      style={{ borderLeft: `3px solid ${saunaColor(i.sauna_id)}` }}>
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate text-amber-50">{i.title}</div>
-                        <div className="mt-0.5 text-xs text-amber-200/70">
-                          {dayLabel(i.start_time)} · {fmtClock(i.start_time)} · {saunaName(i.sauna_id)}
-                        </div>
-                        <div className="text-xs text-amber-200/50 mt-0.5">
-                          {meisterName(i.saunameister_id)}{coNames.length > 0 && ` + ${coNames.join(', ')}`}
-                        </div>
-                      </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {joined ? (
-                          <button onClick={() => onLeaveTeam(i.id)}
-                            className="rounded-md px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap ring-1 ring-rose-500/30">
-                            Verlassen
-                          </button>
-                        ) : (
-                          <button onClick={() => onJoinTeam(i.id)}
-                            className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-950 whitespace-nowrap">
-                            Beitreten
-                          </button>
+                        {teamSlot && (
+                          joined ? (
+                            <button onClick={() => onLeaveTeam(i.id)}
+                              className="rounded-md px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap ring-1 ring-rose-500/30">
+                              Verlassen
+                            </button>
+                          ) : (
+                            <button onClick={() => onJoinTeam(i.id)}
+                              className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-950 whitespace-nowrap">
+                              Team-Aufguss teilnehmen
+                            </button>
+                          )
                         )}
                         {canDelete(i) && (
                           <button onClick={() => handleDelete(i)}

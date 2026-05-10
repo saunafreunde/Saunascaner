@@ -391,14 +391,16 @@ export default function Planner() {
   // ─── Derived data ────────────────────────────────────────────────────────
   const myInfusions = useMemo(
     () => infusions
-      .filter((i) => isAdmin || i.saunameister_id === m?.id)
+      .filter((i) => {
+        if (isAdmin) return true;
+        if (i.saunameister_id === m?.id) return true;
+        // Team-Aufgüsse anderer Meister sollen Aufgießern auch in 'Geplant'
+        // angezeigt werden, damit sie beitreten können.
+        if (i.team_infusion && i.saunameister_id !== m?.id) return true;
+        return false;
+      })
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time)),
     [infusions, m?.id, isAdmin]
-  );
-
-  const joinableTeamInfusions = useMemo(
-    () => infusions.filter((i) => i.team_infusion && i.saunameister_id !== m?.id).sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time)),
-    [infusions, m?.id]
   );
 
   function getCoNames(infusionId: string): string[] {
@@ -815,7 +817,7 @@ export default function Planner() {
           <HubZone icon="🧖" title="Mein Atelier" subtitle="Werkbank für Aufgüsse" accent="#22c55e">
             <AtelierTabs
               myInfusions={myInfusions}
-              joinableTeamInfusions={joinableTeamInfusions}
+              myMemberId={m?.id}
               templates={myTemplates}
               saunas={saunas}
               meisterName={meisterName}
