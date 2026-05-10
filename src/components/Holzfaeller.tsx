@@ -4,7 +4,12 @@ interface Props {
   scale?: number;
 }
 
+// Hintere Bäume — auch hinter dem Holzfäller (x < 65), damit links nicht leer wirkt
 const BACK_TREES = [
+  { x: 6,   h: 40, delay: '-1.1s' },
+  { x: 28,  h: 36, delay: '-2.7s' },
+  { x: 56,  h: 44, delay: '-0.6s' },
+  { x: 96,  h: 38, delay: '-3.4s' },
   { x: 115, h: 50, delay: '-0.5s' },
   { x: 158, h: 64, delay: '-2.4s' },
   { x: 184, h: 48, delay: '-1.6s' },

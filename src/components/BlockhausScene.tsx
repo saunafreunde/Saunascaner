@@ -374,8 +374,8 @@ export function BlockhausScene({ children }: Props) {
           </g>
         </g>
 
-        {/* EASTER 2: Maulwurfshügel + Maulwurf der periodisch rauspoppt */}
-        <g transform="translate(155, 192)">
+        {/* EASTER 2: Maulwurfshügel + Maulwurf der periodisch rauspoppt — vor der Bank */}
+        <g transform="translate(448, 192)">
           {/* Hügel */}
           <ellipse cx="0" cy="2" rx="6" ry="1.5" fill="#5a3a1c" />
           <ellipse cx="0" cy="1" rx="5" ry="1.8" fill="#6b4a2a" />
@@ -432,8 +432,8 @@ export function BlockhausScene({ children }: Props) {
           <text x="0" y="-9.8" textAnchor="middle" fontSize="2" fontWeight="800" fill="#1a0e05">SAUNA</text>
         </g>
 
-        {/* EASTER 5: Gartenzwerg versteckt zwischen Bienenstöcken */}
-        <g transform="translate(150, 192)">
+        {/* EASTER 5: Gartenzwerg ganz vorne links auf der Wiese */}
+        <g transform="translate(15, 192)">
           {/* Schatten */}
           <ellipse cx="0" cy="0" rx="2.5" ry="0.5" fill="rgba(0,0,0,0.4)" />
           {/* Beine */}
