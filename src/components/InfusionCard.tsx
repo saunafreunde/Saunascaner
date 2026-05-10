@@ -133,7 +133,7 @@ export function InfusionCard({
             <div className="flex-1 min-w-0 flex flex-col">
               {infusion.attributes.length > 0 && (
                 <div
-                  className="flex flex-wrap items-start content-start gap-x-2 gap-y-1.5 overflow-hidden"
+                  className="flex-1 min-h-0 flex flex-wrap items-start content-start gap-x-2.5 gap-y-1 overflow-hidden"
                   style={{ containerType: 'inline-size' }}
                 >
                   {infusion.attributes.map((a) => {
@@ -143,14 +143,10 @@ export function InfusionCard({
                       <span
                         key={a}
                         title={meta.label}
-                        className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-forest-100/95 rounded-full px-2.5 py-1 max-w-full"
-                        style={{
-                          fontSize: 'clamp(10px, 4.5cqi, 14px)',
-                          background: `linear-gradient(135deg, ${sauna.accent_color}24, rgba(8,18,12,0.35))`,
-                          boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
-                        }}
+                        className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-forest-100/95 max-w-full"
+                        style={{ fontSize: 'clamp(10px, 4.2cqi, 14px)' }}
                       >
-                        <span aria-hidden style={{ fontSize: 'clamp(11px, 5.5cqi, 16px)', lineHeight: 1 }}>
+                        <span aria-hidden style={{ fontSize: 'clamp(11px, 5cqi, 16px)', lineHeight: 1 }}>
                           {meta.emoji}
                         </span>
                         <span className="truncate">{meta.label}</span>
@@ -160,8 +156,8 @@ export function InfusionCard({
                 </div>
               )}
 
-              {/* Footer: Meister, ganz unten in der linken Spalte */}
-              <div className="mt-auto pt-2 text-forest-300/80 truncate" style={{ fontSize: 'clamp(11px, 0.9vw, 16px)' }}>
+              {/* Footer: Meister, immer fest unten in der linken Spalte */}
+              <div className="mt-auto pt-2 text-forest-300/80 truncate flex-shrink-0" style={{ fontSize: 'clamp(11px, 0.9vw, 16px)' }}>
                 {meisterName ?? '—'}
                 {coNames && coNames.length > 0 && (
                   <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
@@ -169,8 +165,7 @@ export function InfusionCard({
               </div>
             </div>
 
-            {/* Rechte Spalte: Öle als unsichtbarer Wrapper, einzelne Öle als
-                schlichte Icon+Text-Zeilen mit dezentem Akzent-Underline. */}
+            {/* Rechte Spalte: Öle als Pillen/Chips untereinander */}
             {oils.length > 0 && (
               <div
                 className="flex-shrink-0 flex flex-col justify-center gap-2"
@@ -185,15 +180,20 @@ export function InfusionCard({
                   return (
                     <div
                       key={`${i}-${oilId}`}
-                      className="flex items-center gap-2 whitespace-nowrap max-w-full overflow-hidden"
-                      style={{ containerType: 'inline-size' }}
+                      className="flex items-center gap-2 whitespace-nowrap max-w-full overflow-hidden box-border rounded-full"
+                      style={{
+                        containerType: 'inline-size',
+                        padding: '4px 12px',
+                        background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(120,75,20,0.4))',
+                        boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.4)',
+                      }}
                     >
-                      <span aria-hidden className="flex-shrink-0" style={{ fontSize: 'clamp(14px, 16cqi, 24px)', lineHeight: 1 }}>
+                      <span aria-hidden className="flex-shrink-0" style={{ fontSize: 'clamp(13px, 14cqi, 22px)', lineHeight: 1 }}>
                         {o.emoji}
                       </span>
                       <span
                         className="font-semibold text-amber-100/95 min-w-0 truncate"
-                        style={{ fontSize: 'clamp(11px, 10cqi, 16px)' }}
+                        style={{ fontSize: 'clamp(10px, 9cqi, 15px)' }}
                       >
                         {o.name}
                       </span>
