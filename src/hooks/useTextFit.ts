@@ -24,13 +24,21 @@ export function useTextFit<
     if (!c || !t) return;
 
     const fit = () => {
+      // Padding des Containers vom verfügbaren Platz abziehen — sonst klebt
+      // der Text in den Innenrand. clientWidth/Height enthalten Padding.
+      const cs = window.getComputedStyle(c);
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const availW = Math.max(0, c.clientWidth - padX);
+      const availH = Math.max(0, c.clientHeight - padY);
+
       let lo = minFontPx;
       let hi = maxFontPx;
       let best = minFontPx;
       while (lo <= hi) {
         const mid = Math.floor((lo + hi) / 2);
         t.style.fontSize = `${mid}px`;
-        const fits = t.scrollWidth <= c.clientWidth && t.scrollHeight <= c.clientHeight;
+        const fits = t.scrollWidth <= availW && t.scrollHeight <= availH;
         if (fits) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
       }
       t.style.fontSize = `${best}px`;

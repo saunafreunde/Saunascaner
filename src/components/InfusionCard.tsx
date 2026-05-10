@@ -111,7 +111,7 @@ export function InfusionCard({
             </div>
             <div
               ref={titleContainerRef}
-              className="relative flex-1 rounded-xl px-4 flex items-center justify-center backdrop-blur-md min-w-0 overflow-hidden"
+              className="relative flex-1 rounded-xl px-6 flex items-center justify-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
                 background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
@@ -133,7 +133,7 @@ export function InfusionCard({
             <div className="flex-1 min-w-0 flex flex-col">
               {infusion.attributes.length > 0 && (
                 <div
-                  className="rounded-xl px-3 py-2 backdrop-blur flex flex-wrap items-center content-center gap-x-3 gap-y-1.5"
+                  className="rounded-xl px-2 py-1.5 backdrop-blur flex flex-wrap items-center content-start gap-x-2 gap-y-1 overflow-hidden"
                   style={{
                     background: `linear-gradient(135deg, ${sauna.accent_color}1a, rgba(8,18,12,0.45))`,
                     boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
@@ -147,13 +147,13 @@ export function InfusionCard({
                       <span
                         key={a}
                         title={meta.label}
-                        className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-forest-100/95"
-                        style={{ fontSize: 'clamp(11px, 7cqi, 20px)' }}
+                        className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-forest-100/95 max-w-full"
+                        style={{ fontSize: 'clamp(10px, 4.5cqi, 14px)' }}
                       >
-                        <span aria-hidden style={{ fontSize: 'clamp(13px, 9cqi, 24px)', lineHeight: 1 }}>
+                        <span aria-hidden style={{ fontSize: 'clamp(11px, 5.5cqi, 16px)', lineHeight: 1 }}>
                           {meta.emoji}
                         </span>
-                        <span>{meta.label}</span>
+                        <span className="truncate">{meta.label}</span>
                       </span>
                     );
                   })}
@@ -186,19 +186,19 @@ export function InfusionCard({
                   return (
                     <div
                       key={`${i}-${oilId}`}
-                      className="flex-1 flex items-center gap-2 px-2 rounded-lg whitespace-nowrap min-h-0 overflow-hidden"
+                      className="flex-1 flex items-center gap-1.5 px-2 rounded-lg whitespace-nowrap min-h-0 max-w-full overflow-hidden box-border"
                       style={{
                         background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(120,75,20,0.45))',
                         boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.4)',
                         containerType: 'inline-size',
                       }}
                     >
-                      <span aria-hidden style={{ fontSize: 'clamp(14px, 22cqi, 28px)', lineHeight: 1 }}>
+                      <span aria-hidden className="flex-shrink-0" style={{ fontSize: 'clamp(12px, 14cqi, 20px)', lineHeight: 1 }}>
                         {o.emoji}
                       </span>
                       <span
                         className="font-semibold text-amber-100 min-w-0 truncate"
-                        style={{ fontSize: 'clamp(11px, 14cqi, 20px)' }}
+                        style={{ fontSize: 'clamp(10px, 9cqi, 14px)' }}
                       >
                         {o.name}
                       </span>
