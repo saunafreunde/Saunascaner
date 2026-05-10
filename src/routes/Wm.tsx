@@ -6,6 +6,7 @@ import { WmMatchCard } from '@/components/WmMatchCard';
 import { WmLeaderboard } from '@/components/WmLeaderboard';
 import { WmPreTournament } from '@/components/WmPreTournament';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   useWmTeams, useWmMatches, useMyWmTips, useWmLeaderboard,
@@ -106,9 +107,7 @@ export default function Wm() {
             {isAdmin ? (
               <AdminQuickNav variant="icons" />
             ) : (
-              <Link to="/planner" className="hidden sm:flex h-9 w-9 items-center justify-center rounded-lg text-base bg-forest-900/60 text-forest-300 ring-1 ring-forest-800/50 hover:bg-forest-800 transition" title="Mitgliederbereich">
-                🧖
-              </Link>
+              <MemberQuickNav myMemberId={m?.id} />
             )}
             <button
               onClick={() => signOut()}

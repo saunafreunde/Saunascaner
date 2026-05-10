@@ -14,6 +14,7 @@ import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { Avatar } from '@/components/Avatar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HubZone } from '@/components/HubZone';
@@ -521,17 +522,7 @@ export default function Planner() {
             {isAdmin ? (
               <AdminQuickNav variant="icons" />
             ) : (
-              <>
-                <Link to="/members" className="flex h-9 w-9 items-center justify-center rounded-lg text-base bg-forest-900/60 text-forest-300 ring-1 ring-forest-800/50 hover:bg-forest-800 transition" title="Mitglieder-Galerie">
-                  👥
-                </Link>
-                <Link to="/wm" className="flex h-9 w-9 items-center justify-center rounded-lg text-base bg-amber-900/40 text-amber-300 ring-1 ring-amber-700/40 hover:bg-amber-900/70 transition" title="WM-Tipspiel">
-                  🏆
-                </Link>
-                <Link to="/dashboard" className="hidden sm:flex h-9 w-9 items-center justify-center rounded-lg text-base bg-forest-900/60 text-forest-300 ring-1 ring-forest-800/50 hover:bg-forest-800 transition" title="Tafel">
-                  📺
-                </Link>
-              </>
+              <MemberQuickNav myMemberId={m?.id} />
             )}
             <button
               onClick={() => signOut()}

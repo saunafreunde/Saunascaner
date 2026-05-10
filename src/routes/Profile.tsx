@@ -5,6 +5,7 @@ import { de } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
 import { PageBackground } from '@/components/PageBackground';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { WmStandMini } from '@/components/WmStandMini';
 import BadgeShowcase from '@/components/BadgeShowcase';
@@ -90,7 +91,11 @@ export default function Profile() {
             <h1 className="text-sm sm:text-base font-semibold text-forest-100 truncate">Profil</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {isAdmin && <AdminQuickNav variant="icons" />}
+            {isAdmin ? (
+              <AdminQuickNav variant="icons" />
+            ) : (
+              <MemberQuickNav myMemberId={me.data?.id} />
+            )}
             <button
               onClick={() => signOut()}
               className="rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900 transition"

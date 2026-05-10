@@ -6,6 +6,7 @@ import Tilt from 'react-parallax-tilt';
 import { useReducedMotion } from 'framer-motion';
 import { PageBackground } from '@/components/PageBackground';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
+import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember, useMembersDirectory, type MemberDirectoryEntry } from '@/lib/api';
@@ -60,7 +61,11 @@ export default function Members() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <ThemeToggle compact />
-            {isAdmin && <AdminQuickNav variant="icons" />}
+            {isAdmin ? (
+              <AdminQuickNav variant="icons" />
+            ) : (
+              <MemberQuickNav myMemberId={me.data?.id} />
+            )}
             <button
               onClick={() => signOut()}
               className="rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900 transition"
