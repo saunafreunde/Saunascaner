@@ -27,6 +27,10 @@ const VERY_BACK_TREES = [
 // damit Bienenstöcke / Imker / Briefkasten nicht mehr verdeckt werden.
 const BACK_TREES = [
   { x: 22,  h: 60, dimmer: true,  delay: '-0.4s' },
+  // Drei zusätzliche Bäume zwischen Bergfuß und Bienen-Cluster für Tiefe
+  { x: 86,  h: 56, dimmer: true,  delay: '-1.3s' },
+  { x: 110, h: 68, dimmer: false, delay: '-3.1s' },
+  { x: 132, h: 52, dimmer: true,  delay: '-2.2s' },
   { x: 152, h: 78, dimmer: false, delay: '-2.5s' },
   { x: 200, h: 82, dimmer: false, delay: '-3.6s' },
   { x: 248, h: 70, dimmer: true,  delay: '-0.9s' },
@@ -227,12 +231,21 @@ export function BlockhausScene({ children }: Props) {
         {/* Teich */}
         <Pond cx={360} cy={175} rx={65} ry={16} />
 
-        {/* Schilf */}
+        {/* Schilf — links/rechts der Bank UND am vorderen Teichufer */}
         <g className="bs-reeds" style={{ animationDelay: '-0.2s' }}>
           <Reeds x={302} y={185} />
         </g>
         <g className="bs-reeds" style={{ animationDelay: '-1.5s' }}>
           <Reeds x={418} y={185} />
+        </g>
+        <g className="bs-reeds" style={{ animationDelay: '-0.7s' }}>
+          <Reeds x={318} y={191} />
+        </g>
+        <g className="bs-reeds" style={{ animationDelay: '-2.1s' }}>
+          <Reeds x={378} y={191} />
+        </g>
+        <g className="bs-reeds" style={{ animationDelay: '-1.0s' }}>
+          <Reeds x={400} y={189} />
         </g>
 
         {/* Frosch auf Seerose */}
