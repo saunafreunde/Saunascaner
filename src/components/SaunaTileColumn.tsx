@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { addMinutes, isBefore } from 'date-fns';
+import { AnimatePresence } from 'framer-motion';
 import type { Infusion, Sauna } from '@/types/database';
 import { InfusionCard } from '@/components/InfusionCard';
+import { EmptyTile } from '@/components/EmptyTile';
+import { getHourlyRotationBoundary } from '@/lib/time';
 import type { BadgeDefinition } from '@/lib/badges';
 
-const HIDE_AFTER_END_MIN = 5;
 const TILES_PER_COLUMN = 5;
 
 interface SaunaTileColumnProps {
@@ -27,21 +27,15 @@ export function SaunaTileColumn({
   now,
   tileBgs = [],
 }: SaunaTileColumnProps) {
-  const tiles = useMemo(() => {
-    const cutoff = addMinutes(now, -HIDE_AFTER_END_MIN);
+  const tiles = useMemo<(Infusion | null)[]>(() => {
+    const rotationBoundary = getHourlyRotationBoundary(now);
     const visible = infusions
-      .filter((i) => i.sauna_id === sauna.id && isBefore(cutoff, new Date(i.end_time)));
+      .filter((i) => i.sauna_id === sauna.id)
+      .filter((i) => new Date(i.end_time) > rotationBoundary)
+      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
+      .slice(0, TILES_PER_COLUMN);
 
-    const running = visible.filter((i) => {
-      const s = new Date(i.start_time);
-      const e = new Date(i.end_time);
-      return now >= s && now <= e;
-    });
-    const upcoming = visible
-      .filter((i) => new Date(i.start_time) > now)
-      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
-
-    return [...running, ...upcoming].slice(0, TILES_PER_COLUMN);
+    return Array.from({ length: TILES_PER_COLUMN }, (_, idx) => visible[idx] ?? null);
   }, [infusions, now, sauna.id]);
 
   return (
@@ -73,19 +67,11 @@ export function SaunaTileColumn({
         </span>
       </div>
 
-      {/* 5 tile slots */}
+      {/* 5 fixed tile slots */}
       <div className="flex-1 min-h-0 p-2 flex flex-col gap-2">
-        {tiles.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-1 items-center justify-center text-center text-forest-400/50 text-sm select-none"
-          >
-            Heute keine Aufgüsse
-          </motion.div>
-        ) : (
-          <AnimatePresence initial={false} mode="popLayout">
-            {tiles.map((inf, slotIndex) => (
+        <AnimatePresence initial={false} mode="popLayout">
+          {tiles.map((inf, slotIndex) =>
+            inf ? (
               <InfusionCard
                 key={inf.id}
                 infusion={inf}
@@ -98,9 +84,16 @@ export function SaunaTileColumn({
                 className="flex-1 min-h-0 overflow-hidden"
                 backgroundImage={tileBgs[slotIndex] ?? null}
               />
-            ))}
-          </AnimatePresence>
-        )}
+            ) : (
+              <EmptyTile
+                key={`empty-${slotIndex}`}
+                sauna={sauna}
+                className="flex-1 min-h-0 overflow-hidden"
+                backgroundImage={tileBgs[slotIndex] ?? null}
+              />
+            ),
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

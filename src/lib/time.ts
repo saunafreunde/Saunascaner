@@ -13,3 +13,17 @@ export function dayLabel(d: Date | string, now: Date = new Date()): 'heute' | 'm
   if (isSameDay(local, addDays(today, 1))) return 'morgen';
   return formatInTimeZone(d, TZ, 'EEEE');
 }
+
+// Letzter HH:05-Zeitpunkt <= now (Tafel-Rotationsgrenze).
+// now=14:30 -> 14:05; now=15:04 -> 14:05; now=15:05 -> 15:05.
+export function getHourlyRotationBoundary(now: Date): Date {
+  const b = new Date(now);
+  b.setSeconds(0, 0);
+  if (b.getMinutes() >= 5) {
+    b.setMinutes(5);
+  } else {
+    b.setHours(b.getHours() - 1);
+    b.setMinutes(5);
+  }
+  return b;
+}
