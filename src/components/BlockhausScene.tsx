@@ -11,6 +11,10 @@ const H = 200;
 
 // Sehr ferne Bäume (Wald-Tiefe)
 const VERY_BACK_TREES = [
+  // Drei zusätzliche Bäume hinter den Bienenstöcken/Imker für mehr Tiefe
+  { x: 70,  h: 46, delay: '-0.7s' },
+  { x: 95,  h: 42, delay: '-3.2s' },
+  { x: 125, h: 48, delay: '-1.4s' },
   { x: 165, h: 50, delay: '-1.9s' },
   { x: 188, h: 44, delay: '-2.4s' },
   { x: 215, h: 52, delay: '-0.5s' },
@@ -143,6 +147,21 @@ export function BlockhausScene({ children }: Props) {
           20%  { opacity: 0.7; }
           100% { opacity: 0; transform: translate(2px, -10px) scale(1.6); }
         }
+        @keyframes bs-balloon {
+          0%   { transform: translate(-40px, 20px); }
+          25%  { transform: translate(110px, 8px); }
+          50%  { transform: translate(240px, 16px); }
+          75%  { transform: translate(370px, 6px); }
+          100% { transform: translate(510px, 14px); }
+        }
+        @keyframes bs-balloon-flame {
+          0%, 88%, 100% { opacity: 0; transform: scaleY(0.6); }
+          90%, 95%      { opacity: 1; transform: scaleY(1.2); }
+        }
+        @keyframes bs-bush-sway {
+          0%, 100% { transform: scale(1, 1); }
+          50%      { transform: scale(1.03, 0.97); }
+        }
 
         .bs-tree            { transform-origin: bottom center; animation: bs-tree-sway 4s infinite ease-in-out; }
         .bs-reeds           { transform-origin: bottom center; animation: bs-reeds-sway 3s infinite ease-in-out; }
@@ -165,13 +184,17 @@ export function BlockhausScene({ children }: Props) {
         .bs-master-enter    { animation: bs-master-enter 6s ease-out forwards; animation-iteration-count: 1; }
         .bs-mole            { transform-origin: center; animation: bs-mole 18s infinite ease-in-out; }
         .bs-grill-smoke     { animation: bs-grill-smoke 4s infinite ease-out; }
+        .bs-balloon         { animation: bs-balloon 90s infinite linear; }
+        .bs-balloon-flame   { transform-origin: center bottom; animation: bs-balloon-flame 3s infinite ease-in-out; }
+        .bs-bush            { transform-origin: bottom center; animation: bs-bush-sway 5s infinite ease-in-out; }
 
         @media (prefers-reduced-motion: reduce) {
           .bs-tree, .bs-reeds, .bs-ripple, .bs-bird-1, .bs-bird-2,
           .bs-fisher, .bs-cloud, .bs-butterfly-fly, .bs-butterfly-flap,
           .bs-firefly, .bs-firefly-drift, .bs-climber, .bs-climber-step,
           .bs-duck, .bs-duck-bob, .bs-fox, .bs-specht, .bs-bee,
-          .bs-master-enter, .bs-mole, .bs-grill-smoke {
+          .bs-master-enter, .bs-mole, .bs-grill-smoke,
+          .bs-balloon, .bs-balloon-flame, .bs-bush {
             animation: none;
           }
         }
@@ -215,6 +238,11 @@ export function BlockhausScene({ children }: Props) {
           </g>
         ))}
 
+        {/* ÜBERRASCHUNG: Heißluftballon mit Saunafreunde-Banner zieht über die Tafel */}
+        <g className="bs-balloon">
+          <HotAirBalloon />
+        </g>
+
         {/* 2 Vögel */}
         <g className="bs-bird-1">
           <path d="M0,0 Q3,-3 6,0 Q9,-3 12,0" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="0.8" />
@@ -230,6 +258,23 @@ export function BlockhausScene({ children }: Props) {
 
         {/* Teich */}
         <Pond cx={360} cy={175} rx={65} ry={16} />
+
+        {/* Büsche rund um den Teich */}
+        <g className="bs-bush" style={{ animationDelay: '-0.4s', transformOrigin: '288px 192px' }}>
+          <Bush cx={288} cy={192} size={1.1} />
+        </g>
+        <g className="bs-bush" style={{ animationDelay: '-2.1s', transformOrigin: '335px 191px' }}>
+          <Bush cx={335} cy={191} size={0.8} dark />
+        </g>
+        <g className="bs-bush" style={{ animationDelay: '-1.3s', transformOrigin: '395px 191px' }}>
+          <Bush cx={395} cy={191} size={0.95} />
+        </g>
+        <g className="bs-bush" style={{ animationDelay: '-3.0s', transformOrigin: '425px 192px' }}>
+          <Bush cx={425} cy={192} size={1.0} dark />
+        </g>
+
+        {/* Felsen-Gruppe im rechten vorderen Eck */}
+        <Felsen x={300} y={193} />
 
         {/* Schilf — links/rechts der Bank UND am vorderen Teichufer */}
         <g className="bs-reeds" style={{ animationDelay: '-0.2s' }}>
@@ -724,6 +769,143 @@ function Fisher({ x, y }: { x: number; y: number }) {
       <path d={`M${x + 8} ${y + 10} Q${x + 11} ${y + 12} ${x + 14} ${y + 10}`} stroke="#333" strokeWidth="0.5" fill="none" />
       <circle cx={x + 9} cy={y + 7} r="0.4" fill="#1a1a1a" />
       <circle cx={x + 13} cy={y + 7} r="0.4" fill="#1a1a1a" />
+    </g>
+  );
+}
+
+// ── Heißluftballon mit Saunafreunde-Banner ────────────────────────────────
+function HotAirBalloon() {
+  return (
+    <g>
+      {/* Seile vom Korb zum Ballon */}
+      <line x1="-3" y1="34" x2="-5" y2="22" stroke="#3a2510" strokeWidth="0.5" />
+      <line x1="3"  y1="34" x2="5"  y2="22" stroke="#3a2510" strokeWidth="0.5" />
+      <line x1="-2" y1="34" x2="-2" y2="22" stroke="#3a2510" strokeWidth="0.4" />
+      <line x1="2"  y1="34" x2="2"  y2="22" stroke="#3a2510" strokeWidth="0.4" />
+
+      {/* Ballon-Hülle (Tropfen-Form, Saunafreunde-Farben: dunkelgrün + rot + creme) */}
+      <ellipse cx="0" cy="10" rx="12" ry="13" fill="#2d5a3f" />
+      {/* Senkrechte Farb-Segmente */}
+      <path d="M -8 8 Q -10 14 -5 22 L -2 22 Q -3 14 -2 4 Z" fill="#dc2626" />
+      <path d="M 2 4 Q 1 14 2 22 L 5 22 Q 10 14 8 8 Z" fill="#dc2626" />
+      <path d="M -2 4 Q -3 14 -2 22 L 2 22 Q 1 14 2 4 Z" fill="#f5e6c8" />
+      {/* Highlight links */}
+      <ellipse cx="-5" cy="6" rx="3" ry="6" fill="rgba(255,255,255,0.25)" />
+      {/* Aufdruck-Stern auf der Front */}
+      <polygon
+        points="0,12 1.2,15.3 4.5,15.3 1.9,17.4 3,20.6 0,18.7 -3,20.6 -1.9,17.4 -4.5,15.3 -1.2,15.3"
+        fill="#fbbf24"
+      />
+      {/* Ballon-Naht unten (Öffnung) */}
+      <ellipse cx="0" cy="22" rx="5" ry="0.8" fill="#1a3a25" />
+
+      {/* Brenner-Flamme im Ballon-Mund (CSS-Pulse) */}
+      <g className="bs-balloon-flame" style={{ transformOrigin: '0px 23px' }}>
+        <ellipse cx="0" cy="22" rx="1.8" ry="2.5" fill="#fbbf24" />
+        <ellipse cx="0" cy="22.5" rx="1.2" ry="1.8" fill="#dc2626" opacity="0.85" />
+      </g>
+
+      {/* Korb (Weidengeflecht) */}
+      <rect x="-3.5" y="34" width="7" height="5" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.4" rx="0.4" />
+      <line x1="-3.5" y1="36" x2="3.5" y2="36" stroke="#3a1808" strokeWidth="0.3" />
+      <line x1="-3.5" y1="38" x2="3.5" y2="38" stroke="#3a1808" strokeWidth="0.3" />
+      <line x1="-2"   y1="34" x2="-2"  y2="39" stroke="#3a1808" strokeWidth="0.3" />
+      <line x1="0"    y1="34" x2="0"   y2="39" stroke="#3a1808" strokeWidth="0.3" />
+      <line x1="2"    y1="34" x2="2"   y2="39" stroke="#3a1808" strokeWidth="0.3" />
+
+      {/* Banner unter dem Korb */}
+      <path d="M -8 40 L 8 40 L 6 44 L -6 44 Z" fill="#f5e6c8" stroke="#5a3010" strokeWidth="0.3" />
+      <text
+        x="0"
+        y="43"
+        textAnchor="middle"
+        fontSize="3"
+        fontWeight="800"
+        fill="#2d5a3f"
+        fontFamily="Inter, sans-serif"
+      >
+        SAUNAFREUNDE
+      </text>
+
+      {/* Mini-Winker im Korb */}
+      <circle cx="0" cy="33.5" r="0.9" fill="#ffd5aa" />
+      <line x1="0" y1="33" x2="1.2" y2="30" stroke="#ffd5aa" strokeWidth="0.5" strokeLinecap="round" />
+    </g>
+  );
+}
+
+// ── Busch / Strauch — kompakte runde Blattform ────────────────────────────
+function Bush({ cx, cy, size = 1, dark = false }: { cx: number; cy: number; size?: number; dark?: boolean }) {
+  const base = dark ? '#1f4d2f' : '#2a6e44';
+  const mid  = dark ? '#2a5e3a' : '#326c44';
+  const hi   = dark ? '#326c44' : '#4a8a5a';
+  const w = 8 * size;
+  return (
+    <g>
+      {/* Bodenschatten */}
+      <ellipse cx={cx} cy={cy + 0.5} rx={w * 0.7} ry={1.2} fill="rgba(0,0,0,0.35)" />
+      {/* Drei überlappende Blattklumpen */}
+      <ellipse cx={cx - w * 0.35} cy={cy - w * 0.35} rx={w * 0.55} ry={w * 0.55} fill={base} />
+      <ellipse cx={cx + w * 0.30} cy={cy - w * 0.30} rx={w * 0.55} ry={w * 0.55} fill={base} />
+      <ellipse cx={cx}            cy={cy - w * 0.55} rx={w * 0.55} ry={w * 0.55} fill={mid} />
+      {/* Highlights */}
+      <ellipse cx={cx - w * 0.10} cy={cy - w * 0.70} rx={w * 0.22} ry={w * 0.18} fill={hi} opacity="0.75" />
+      <ellipse cx={cx + w * 0.40} cy={cy - w * 0.45} rx={w * 0.18} ry={w * 0.15} fill={hi} opacity="0.6" />
+      {/* Vereinzelte Beeren-Tupfer (nur bei dunklem Busch) */}
+      {dark && (
+        <>
+          <circle cx={cx - w * 0.20} cy={cy - w * 0.45} r={w * 0.06} fill="#dc2626" />
+          <circle cx={cx + w * 0.25} cy={cy - w * 0.60} r={w * 0.06} fill="#dc2626" />
+        </>
+      )}
+    </g>
+  );
+}
+
+// ── Felsen-Gruppe (3 Steine mit Moos) ─────────────────────────────────────
+function Felsen({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      {/* Bodenschatten */}
+      <ellipse cx={x} cy={y + 2} rx="11" ry="1.6" fill="rgba(0,0,0,0.4)" />
+      {/* Großer Stein hinten */}
+      <path
+        d={`M ${x - 8} ${y + 2} Q ${x - 9} ${y - 5} ${x - 3} ${y - 8} Q ${x + 3} ${y - 9} ${x + 6} ${y - 4} Q ${x + 7} ${y + 1} ${x + 5} ${y + 2} Z`}
+        fill="#7a7a82"
+        stroke="#3a3a42"
+        strokeWidth="0.5"
+      />
+      {/* Highlight oben */}
+      <path
+        d={`M ${x - 5} ${y - 5} Q ${x - 2} ${y - 8} ${x + 2} ${y - 8} Q ${x} ${y - 6} ${x - 4} ${y - 4} Z`}
+        fill="#a8a8b0"
+        opacity="0.7"
+      />
+      {/* Moos oben drauf */}
+      <ellipse cx={x - 2} cy={y - 7} rx="3" ry="0.9" fill="#326c44" opacity="0.85" />
+      <ellipse cx={x + 2} cy={y - 6.5} rx="1.4" ry="0.5" fill="#4a8a5a" opacity="0.7" />
+      {/* Rissen */}
+      <path d={`M ${x - 3} ${y - 4} L ${x - 1} ${y}`} stroke="#3a3a42" strokeWidth="0.4" fill="none" />
+      <path d={`M ${x + 2} ${y - 3} L ${x + 3} ${y + 1}`} stroke="#3a3a42" strokeWidth="0.4" fill="none" />
+      {/* Kleiner Stein links davor */}
+      <path
+        d={`M ${x - 12} ${y + 2} Q ${x - 13} ${y - 1} ${x - 10} ${y - 3} Q ${x - 6} ${y - 3} ${x - 5} ${y} Q ${x - 6} ${y + 2} ${x - 9} ${y + 2} Z`}
+        fill="#8a8a92"
+        stroke="#3a3a42"
+        strokeWidth="0.5"
+      />
+      <ellipse cx={x - 9} cy={y - 2.4} rx="1.6" ry="0.5" fill="#326c44" opacity="0.7" />
+      {/* Kleiner Stein rechts davor */}
+      <path
+        d={`M ${x + 5} ${y + 2} Q ${x + 5} ${y - 1} ${x + 8} ${y - 2} Q ${x + 11} ${y - 2} ${x + 12} ${y + 1} Q ${x + 11} ${y + 2} ${x + 7} ${y + 2} Z`}
+        fill="#7a7a82"
+        stroke="#3a3a42"
+        strokeWidth="0.5"
+      />
+      <ellipse cx={x + 9} cy={y - 1.5} rx="1.4" ry="0.4" fill="#4a8a5a" opacity="0.7" />
+      {/* Mini-Sprenkel */}
+      <circle cx={x - 4} cy={y - 1} r="0.4" fill="#5a5a62" />
+      <circle cx={x + 3} cy={y - 5} r="0.3" fill="#5a5a62" />
     </g>
   );
 }
