@@ -34,7 +34,7 @@ export function EmptyTile({ sauna, className = '', backgroundImage = null }: Emp
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center select-none px-2">
         <span className="text-2xl mb-1 opacity-70">🧖</span>
         <span className="text-sm font-semibold tracking-wide text-white/85">
-          Aktuell kein Aufguss geplant
+          Es findet kein Aufguss statt
         </span>
         <span
           className="mt-1 text-[10px] uppercase tracking-[0.2em] font-medium"

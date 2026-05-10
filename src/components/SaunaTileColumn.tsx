@@ -3,10 +3,9 @@ import { AnimatePresence } from 'framer-motion';
 import type { Infusion, Sauna } from '@/types/database';
 import { InfusionCard } from '@/components/InfusionCard';
 import { EmptyTile } from '@/components/EmptyTile';
-import { getHourlyRotationBoundary } from '@/lib/time';
 import type { BadgeDefinition } from '@/lib/badges';
 
-const TILES_PER_COLUMN = 5;
+const TILES_PER_COLUMN = 3;
 
 interface SaunaTileColumnProps {
   sauna: Sauna;
@@ -28,10 +27,9 @@ export function SaunaTileColumn({
   tileBgs = [],
 }: SaunaTileColumnProps) {
   const tiles = useMemo<(Infusion | null)[]>(() => {
-    const rotationBoundary = getHourlyRotationBoundary(now);
     const visible = infusions
       .filter((i) => i.sauna_id === sauna.id)
-      .filter((i) => new Date(i.end_time) > rotationBoundary)
+      .filter((i) => new Date(i.end_time) > now)
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
       .slice(0, TILES_PER_COLUMN);
 
