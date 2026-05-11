@@ -584,12 +584,18 @@ export async function checkEntryCodeAvailable(code: string): Promise<boolean> {
 export function useUpdateEntryCode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, entry_code }: { id: string; entry_code: string | null }) => {
-      const { error } = await need().from('members').update({ entry_code }).eq('id', id);
+    // Nutzt set_my_entry_code RPC (Migration 0026) — der direkte UPDATE auf
+    // members hat wegen members_write_admin-RLS für Nicht-Admins silent
+    // versagt. Die RPC läuft mit SECURITY DEFINER und findet den Member
+    // über auth_user_id = auth.uid(). Das id-Argument wird ignoriert.
+    mutationFn: async ({ entry_code }: { id?: string; entry_code: string | null }) => {
+      const { error } = await need().rpc('set_my_entry_code', { p_code: entry_code });
       if (error) {
-        // Eindeutigkeits-Verletzung: PIN ist bereits an ein anderes Mitglied vergeben
         if ((error as { code?: string }).code === '23505') {
           throw new Error('Dieser PIN ist schon vergeben — bitte einen anderen wählen.');
+        }
+        if ((error as { message?: string }).message?.includes('invalid_code_length')) {
+          throw new Error('Code muss 4–8 Zeichen lang sein.');
         }
         throw error;
       }
