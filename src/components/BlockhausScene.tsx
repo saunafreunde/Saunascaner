@@ -9,59 +9,37 @@ const H = 200;
 
 // ──── BÄUME — bilden zusammen die hinterste Schicht (Z-Order-Regel) ────
 
-// Sehr ferne Bäume (Wald-Tiefe)
-const VERY_BACK_TREES = [
-  // Drei zusätzliche Bäume hinter den Bienenstöcken/Imker für mehr Tiefe
-  { x: 70,  h: 46, delay: '-0.7s' },
-  { x: 95,  h: 42, delay: '-3.2s' },
-  { x: 125, h: 48, delay: '-1.4s' },
-  { x: 165, h: 50, delay: '-1.9s' },
-  { x: 188, h: 44, delay: '-2.4s' },
-  { x: 215, h: 52, delay: '-0.5s' },
-  { x: 242, h: 46, delay: '-3.5s' },
-  { x: 295, h: 48, delay: '-2.6s' },
-  { x: 322, h: 44, delay: '-0.8s' },
-  { x: 350, h: 50, delay: '-1.7s' },
-  { x: 378, h: 42, delay: '-2.9s' },
-  { x: 405, h: 48, delay: '-0.3s' },
-  { x: 432, h: 44, delay: '-2.1s' },
+// Drei Tiefen-Ebenen für realistische Wald-Perspektive
+
+// Ebene 1: Horizont-Bäume (Silhouette, sehr dunst-blass)
+const FAR_TREES = [
+  { x: 75,  h: 36, delay: '-1.9s' },
+  { x: 160, h: 38, delay: '-2.4s' },
+  { x: 230, h: 34, delay: '-0.5s' },
+  { x: 305, h: 36, delay: '-2.6s' },
+  { x: 380, h: 38, delay: '-1.7s' },
 ];
 
-// Mittel-ferne Bäume — verschoben aus den Foreground-Zonen heraus,
-// damit Bienenstöcke / Imker / Briefkasten nicht mehr verdeckt werden.
+// Ebene 2: Mittel-ferne Bäume
 const BACK_TREES = [
-  { x: 22,  h: 60, dimmer: true,  delay: '-0.4s' },
-  // Drei zusätzliche Bäume zwischen Bergfuß und Bienen-Cluster für Tiefe
-  { x: 86,  h: 56, dimmer: true,  delay: '-1.3s' },
-  { x: 110, h: 68, dimmer: false, delay: '-3.1s' },
-  { x: 132, h: 52, dimmer: true,  delay: '-2.2s' },
-  { x: 152, h: 78, dimmer: false, delay: '-2.5s' },
-  { x: 200, h: 82, dimmer: false, delay: '-3.6s' },
-  { x: 248, h: 70, dimmer: true,  delay: '-0.9s' },
-  { x: 305, h: 60, dimmer: true,  delay: '-2.0s' },
-  { x: 410, h: 86, dimmer: false, delay: '-1.6s' },
+  { x: 30,  h: 58, dimmer: true,  delay: '-0.4s' },
+  { x: 122, h: 64, dimmer: false, delay: '-3.1s' },
+  { x: 200, h: 78, dimmer: false, delay: '-3.6s' },
+  { x: 332, h: 60, dimmer: true,  delay: '-2.0s' },
+  { x: 410, h: 76, dimmer: false, delay: '-1.6s' },
 ];
 
-// Größere Bäume in der zweiten Reihe — keine FRONT_TREES mehr,
-// alles in derselben Hintergrund-Schicht.
+// Ebene 3: Vordere Baumkulisse (rahmt die Szene links + rechts)
 const MID_TREES = [
-  { x: 268, h: 60, delay: '-2.8s' },
-  { x: 440, h: 68, delay: '-0.6s' },
+  { x: 6,   h: 70, delay: '-2.8s' },
+  { x: 448, h: 80, delay: '-0.6s' },
 ];
 
 const CLOUDS = [
-  { cx: 30,  cy: 14, w: 22, delay: '0s'   },
-  { cx: 75,  cy: 22, w: 18, delay: '-12s' },
-  { cx: 120, cy: 16, w: 24, delay: '-25s' },
-  { cx: 165, cy: 12, w: 20, delay: '-38s' },
-  { cx: 205, cy: 24, w: 22, delay: '-5s'  },
-  { cx: 245, cy: 14, w: 18, delay: '-44s' },
-  { cx: 285, cy: 20, w: 26, delay: '-18s' },
-  { cx: 325, cy: 12, w: 20, delay: '-30s' },
-  { cx: 365, cy: 22, w: 22, delay: '-8s'  },
-  { cx: 400, cy: 14, w: 24, delay: '-50s' },
-  { cx: 432, cy: 20, w: 18, delay: '-22s' },
-  { cx: 18,  cy: 26, w: 16, delay: '-40s' },
+  { cx: 60,  cy: 18, w: 22, delay: '0s'   },
+  { cx: 170, cy: 14, w: 20, delay: '-25s' },
+  { cx: 275, cy: 22, w: 26, delay: '-12s' },
+  { cx: 380, cy: 16, w: 22, delay: '-38s' },
 ];
 
 export function BlockhausScene({ children }: Props) {
@@ -284,8 +262,21 @@ export function BlockhausScene({ children }: Props) {
       `}</style>
 
       <svg className="absolute inset-0" viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ overflow: 'visible' }}>
+        <defs>
+          {/* Atmosphärischer Dunst am Horizont für Tiefe */}
+          <linearGradient id="bs-haze" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stopColor="rgba(180,200,210,0.0)" />
+            <stop offset="50%" stopColor="rgba(160,180,195,0.45)" />
+            <stop offset="100%" stopColor="rgba(120,150,170,0.0)" />
+          </linearGradient>
+        </defs>
+
         {/* Bodensaum */}
         <ellipse cx={W / 2} cy={H - 4} rx={W / 2 - 6} ry="6" fill="rgba(20,40,25,0.45)" />
+
+        {/* Tiefen-Layer: Fern-Berg + Horizont-Dunst */}
+        <DistantMountain />
+        <rect x="0" y="115" width={W} height="35" fill="url(#bs-haze)" opacity="0.55" />
 
         {/* Berg links + Bergsteiger */}
         <Mountain />
@@ -297,9 +288,9 @@ export function BlockhausScene({ children }: Props) {
           </g>
         </g>
 
-        {/* ──────── BÄUME — alle in einer Schicht ganz hinten ──────── */}
-        {VERY_BACK_TREES.map((t, i) => (
-          <g key={`vbt-${i}`} className="bs-tree" style={{ animationDelay: t.delay }}>
+        {/* ──────── BÄUME — drei Tiefen-Ebenen ──────── */}
+        {FAR_TREES.map((t, i) => (
+          <g key={`fr-${i}`} className="bs-tree" style={{ animationDelay: t.delay }}>
             <BackTree x={t.x} h={t.h} dimmer veryFar />
           </g>
         ))}
@@ -357,69 +348,41 @@ export function BlockhausScene({ children }: Props) {
           <ellipse cx={400} cy={176} rx="5" ry="0.4" fill="rgba(255,255,255,0.5)" />
         </g>
 
-        {/* Eisvogel flitzt schnell und tief über den Teich */}
-        <g className="bs-kingfisher">
-          <Kingfisher />
+        {/* Zwei Büsche an den Teich-Ufern (reduziert von 4) */}
+        <g className="bs-bush" style={{ animationDelay: '-0.4s', transformOrigin: '305px 191px' }}>
+          <Bush cx={305} cy={191} size={0.9} />
+        </g>
+        <g className="bs-bush" style={{ animationDelay: '-2.1s', transformOrigin: '410px 191px' }}>
+          <Bush cx={410} cy={191} size={0.95} dark />
         </g>
 
-        {/* Büsche rund um den Teich */}
-        <g className="bs-bush" style={{ animationDelay: '-0.4s', transformOrigin: '288px 192px' }}>
-          <Bush cx={288} cy={192} size={1.1} />
-        </g>
-        <g className="bs-bush" style={{ animationDelay: '-2.1s', transformOrigin: '335px 191px' }}>
-          <Bush cx={335} cy={191} size={0.8} dark />
-        </g>
-        <g className="bs-bush" style={{ animationDelay: '-1.3s', transformOrigin: '395px 191px' }}>
-          <Bush cx={395} cy={191} size={0.95} />
-        </g>
-        <g className="bs-bush" style={{ animationDelay: '-3.0s', transformOrigin: '425px 192px' }}>
-          <Bush cx={425} cy={192} size={1.0} dark />
-        </g>
-
-        {/* Felsen-Gruppe im rechten vorderen Eck */}
-        <Felsen x={300} y={193} />
-
-        {/* Marienkäfer auf dem großen Felsen (Easter-Egg) */}
-        <g className="bs-ladybug" style={{ transformOrigin: '298px 188px' }}>
-          <Ladybug cx={298} cy={188} />
-        </g>
-
-        {/* Schwarzwald-Wegweiser zwischen Sauna-Vorplatz und Teich */}
-        <Wegweiser x={283} y={193} />
+        {/* Wegweiser direkt vor dem Teich, klar rechts von Sauna */}
+        <Wegweiser x={310} y={193} />
 
         {/* Fischreiher steht im hinteren Teich */}
-        <g transform="translate(400, 170)">
+        <g transform="translate(395, 170)">
           <Heron />
         </g>
 
-        {/* Zwei Libellen über dem Teich */}
+        {/* Eine Libelle über dem Teich (reduziert von 2) */}
         <g className="bs-dragonfly">
           <Dragonfly />
         </g>
-        <g className="bs-dragonfly-2">
-          <Dragonfly tint="#7dd3fc" />
-        </g>
 
         {/* Vogelhäuschen am rechten Hinterbaum */}
-        <g transform="translate(412, 170)">
+        <g transform="translate(415, 168)">
           <Vogelhaus />
         </g>
 
-        {/* Schilf — links/rechts der Bank UND am vorderen Teichufer */}
+        {/* Schilf am Teichufer (reduziert von 5 auf 3) */}
         <g className="bs-reeds" style={{ animationDelay: '-0.2s' }}>
           <Reeds x={302} y={185} />
         </g>
         <g className="bs-reeds" style={{ animationDelay: '-1.5s' }}>
           <Reeds x={418} y={185} />
         </g>
-        <g className="bs-reeds" style={{ animationDelay: '-0.7s' }}>
-          <Reeds x={318} y={191} />
-        </g>
-        <g className="bs-reeds" style={{ animationDelay: '-2.1s' }}>
-          <Reeds x={378} y={191} />
-        </g>
         <g className="bs-reeds" style={{ animationDelay: '-1.0s' }}>
-          <Reeds x={400} y={189} />
+          <Reeds x={388} y={189} />
         </g>
 
         {/* Frosch auf Seerose */}
@@ -449,25 +412,17 @@ export function BlockhausScene({ children }: Props) {
           </g>
         </g>
 
-        {/* Bienenstöcke + Imker — links der Sauna, beide klar sichtbar */}
-        <g transform="translate(72, 195) scale(2)">
+        {/* Bienenstand — EIN großer Stock + Imker, ruhig komponiert */}
+        <g transform="translate(80, 195) scale(1.9)">
           <Beehive x={0} y={0} />
         </g>
-        <g transform="translate(108, 195) scale(1.7)">
-          <Beehive x={0} y={0} small />
-        </g>
-        <g transform="translate(135, 195) scale(2)">
+        <g transform="translate(115, 195) scale(1.9)">
           <Imker />
         </g>
-        {/* 8 Bienen schwirren um die Stöcke */}
-        <Bee cx={72}  cy={175} delay="0s" />
-        <Bee cx={66}  cy={180} delay="-0.4s" />
-        <Bee cx={82}  cy={182} delay="-0.8s" />
-        <Bee cx={100} cy={172} delay="-1.2s" />
-        <Bee cx={112} cy={178} delay="-1.6s" />
-        <Bee cx={125} cy={174} delay="-2.0s" />
-        <Bee cx={92}  cy={170} delay="-1.8s" />
-        <Bee cx={78}  cy={188} delay="-2.4s" />
+        {/* 3 Bienen schwirren ums Nest (statt 8) */}
+        <Bee cx={80}  cy={178} delay="0s" />
+        <Bee cx={95}  cy={172} delay="-0.8s" />
+        <Bee cx={105} cy={180} delay="-1.6s" />
 
         {/* Bank + Angler — rechts vom Teich */}
         <Bench x={427} y={148} />
@@ -475,77 +430,27 @@ export function BlockhausScene({ children }: Props) {
           <Fisher x={428} y={116} />
         </g>
 
-        {/* Sonnenblumen-Reihe links vor dem Bienenstand */}
+        {/* 2 Sonnenblumen-Gruppen links */}
         <g className="bs-sunflower" style={{ animationDelay: '0s', transformOrigin: '50px 188px' }}>
-          <Sunflower x={50} y={188} h={15} />
+          <Sunflower x={50} y={188} h={14} />
         </g>
         <g className="bs-sunflower" style={{ animationDelay: '-1.4s', transformOrigin: '57px 188px' }}>
-          <Sunflower x={57} y={188} h={12} />
-        </g>
-        <g className="bs-sunflower" style={{ animationDelay: '-0.7s', transformOrigin: '147px 188px' }}>
-          <Sunflower x={147} y={188} h={14} />
-        </g>
-        <g className="bs-sunflower" style={{ animationDelay: '-2.1s', transformOrigin: '258px 188px' }}>
-          <Sunflower x={258} y={188} h={13} />
+          <Sunflower x={57} y={188} h={11} />
         </g>
 
-        {/* Wiesenblumen verstreut auf der Wiese (statisch) */}
-        <Flower cx={8}   cy={195} color="#ec4899" />
-        <Flower cx={48}  cy={196} color="#fbbf24" />
-        <Flower cx={120} cy={196} color="#a78bfa" />
-        <Flower cx={250} cy={196} color="#fbbf24" />
-        <Flower cx={282} cy={195} color="#ec4899" />
-        <Flower cx={425} cy={193} color="#fbbf24" />
-        <Flower cx={460} cy={196} color="#a78bfa" />
-        <Flower cx={92}  cy={194} color="#fbbf24" />
+        {/* Wiesenblumen — nur 3, sparsam verteilt */}
+        <Flower cx={42}  cy={196} color="#fbbf24" />
+        <Flower cx={140} cy={196} color="#a78bfa" />
+        <Flower cx={430} cy={193} color="#ec4899" />
 
-        {/* Waescheleine zwischen den Bäumen oben — 3 Saunatücher trocknen */}
-        <Waescheleine x1={32} y1={138} x2={158} y2={130} />
-
-        {/* Lichterkette vom Sauna-Dach zum rechten Hinterbaum (warmer Glow) */}
-        <Lichterkette />
-
-        {/* Igel wandert auf der Wiese vor der Sauna */}
-        <g transform="translate(210, 193)">
-          <g className="bs-hedgehog">
-            <g className="bs-hedgehog-bob">
-              <Hedgehog />
-            </g>
-          </g>
-        </g>
-
-        {/* Bratwurst-Grill links vorne */}
-        <g transform="translate(35, 192)">
-          <line x1="-3" y1="0" x2="-4" y2="3" stroke="#2a2a2a" strokeWidth="0.7" />
-          <line x1="3"  y1="0" x2="4"  y2="3" stroke="#2a2a2a" strokeWidth="0.7" />
-          <ellipse cx="0" cy="0" rx="5" ry="1.5" fill="#1a1a1a" stroke="#5a5a5a" strokeWidth="0.3" />
-          <ellipse cx="0" cy="-0.3" rx="4.5" ry="1.2" fill="#2a2a2a" />
-          <circle cx="-2" cy="-0.3" r="0.5" fill="#dc2626" opacity="0.85" />
-          <circle cx="0.5"  cy="-0.5" r="0.5" fill="#f97316" opacity="0.85" />
-          <circle cx="2.5"  cy="-0.3" r="0.4" fill="#dc2626" opacity="0.85" />
-          <ellipse cx="-2.5" cy="-1.3" rx="2.5" ry="0.6" fill="#a04510" stroke="#5a2010" strokeWidth="0.2" />
-          <ellipse cx="1.5"  cy="-1.5" rx="2.8" ry="0.6" fill="#c45a1c" stroke="#5a2010" strokeWidth="0.2" />
-          <g className="bs-grill-smoke" style={{ animationDelay: '0s' }}>
-            <circle cx="-1" cy="-3" r="1.2" fill="rgba(220,220,220,0.7)" />
-          </g>
-          <g className="bs-grill-smoke" style={{ animationDelay: '-1.4s' }}>
-            <circle cx="0.5" cy="-3" r="1.2" fill="rgba(220,220,220,0.7)" />
-          </g>
-          <g className="bs-grill-smoke" style={{ animationDelay: '-2.6s' }}>
-            <circle cx="2"   cy="-3" r="1" fill="rgba(220,220,220,0.6)" />
-          </g>
-        </g>
-
-        {/* Briefkasten zwischen Sauna und Teich */}
-        <g transform="translate(270, 195)">
-          <rect x="-0.7" y="-15" width="1.4" height="15" fill="#5a3010" />
-          <rect x="-4" y="-22" width="8" height="6" fill="#dc2626" stroke="#7c2d12" strokeWidth="0.4" rx="0.5" />
-          <rect x="-4" y="-22" width="8" height="1.5" fill="#7c2d12" rx="0.5" />
-          <rect x="-2.5" y="-20" width="5" height="0.6" fill="#1a0e05" />
-          <line x1="3" y1="-22" x2="3" y2="-25" stroke="#5a3010" strokeWidth="0.4" />
-          <polygon points="3,-25 6,-24 3,-23" fill="#fbbf24" />
-          <rect x="-7" y="-12" width="14" height="3" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.3" rx="0.3" />
-          <text x="0" y="-9.8" textAnchor="middle" fontSize="2" fontWeight="800" fill="#1a0e05">SAUNA</text>
+        {/* Briefkasten rechts der Sauna, vor dem Wegweiser */}
+        <g transform="translate(295, 195)">
+          <rect x="-0.7" y="-13" width="1.4" height="13" fill="#5a3010" />
+          <rect x="-4" y="-20" width="8" height="6" fill="#dc2626" stroke="#7c2d12" strokeWidth="0.4" rx="0.5" />
+          <rect x="-4" y="-20" width="8" height="1.5" fill="#7c2d12" rx="0.5" />
+          <rect x="-2.5" y="-18" width="5" height="0.6" fill="#1a0e05" />
+          <line x1="3" y1="-20" x2="3" y2="-23" stroke="#5a3010" strokeWidth="0.4" />
+          <polygon points="3,-23 6,-22 3,-21" fill="#fbbf24" />
         </g>
 
         {/* Gartenzwerg ganz vorne links */}
@@ -565,7 +470,7 @@ export function BlockhausScene({ children }: Props) {
         </g>
 
         {/* Maulwurfshügel vor der Bank rechts */}
-        <g transform="translate(450, 192)">
+        <g transform="translate(452, 192)">
           <ellipse cx="0" cy="2" rx="6" ry="1.5" fill="#5a3a1c" />
           <ellipse cx="0" cy="1" rx="5" ry="1.8" fill="#6b4a2a" />
           <g className="bs-mole">
@@ -573,13 +478,6 @@ export function BlockhausScene({ children }: Props) {
             <circle cx="-0.8" cy="-1.4" r="0.3" fill="#fff" />
             <circle cx="0.8"  cy="-1.4" r="0.3" fill="#fff" />
             <ellipse cx="0" cy="-0.4" rx="0.7" ry="0.5" fill="#ffd5aa" />
-          </g>
-        </g>
-
-        {/* Specht am rechten Hinterbaum (Bäume sind hinten, Specht davor) */}
-        <g transform="translate(412, 152)">
-          <g className="bs-specht">
-            <Specht />
           </g>
         </g>
       </svg>
@@ -696,13 +594,26 @@ export function BlockhausScene({ children }: Props) {
           </g>
         )}
 
-        {/* Glühwürmchen */}
-        <Firefly cx={30}  cy={130} driftDelay="-3s"  glowDelay="-1s" />
+        {/* Glühwürmchen — auf 2 reduziert für ruhigere Atmosphäre */}
         <Firefly cx={235} cy={150} driftDelay="-9s"  glowDelay="-3s" />
-        <Firefly cx={290} cy={130} driftDelay="-15s" glowDelay="-5s" />
         <Firefly cx={400} cy={140} driftDelay="-21s" glowDelay="-7s" />
       </svg>
     </div>
+  );
+}
+
+// ── Ferner Berg-Schatten ganz hinten (Tiefen-Layer) ───────────────────────
+function DistantMountain() {
+  return (
+    <g opacity="0.35">
+      {/* Sehr ferne Bergkette, blau-grau, niedrig */}
+      <polygon points="0,138 80,108 145,128 220,98 305,118 380,105 460,125 460,140 0,140" fill="#5a7080" />
+      <polygon points="80,108 105,118 145,128" fill="#4a6070" />
+      <polygon points="220,98 250,112 305,118" fill="#4a6070" />
+      <polygon points="380,105 410,116 460,125" fill="#4a6070" />
+      {/* Schneekappen-Andeutung */}
+      <polygon points="220,98 232,108 220,106" fill="#dde3e8" opacity="0.6" />
+    </g>
   );
 }
 
@@ -795,21 +706,6 @@ function Bee({ cx, cy, delay }: { cx: number; cy: number; delay: string }) {
     <g className="bs-bee" style={{ animationDelay: delay }}>
       <circle cx={cx} cy={cy} r="1.1" fill="#1a1a1a" />
       <ellipse cx={cx} cy={cy} rx="2.2" ry="0.8" fill="rgba(252,211,77,0.85)" />
-    </g>
-  );
-}
-
-function Specht() {
-  return (
-    <g>
-      <ellipse cx="0" cy="0" rx="2.5" ry="3" fill="#1a1a1a" />
-      <ellipse cx="0.6" cy="1" rx="1.5" ry="2.2" fill="#f5f5f5" />
-      <circle cx="2.2" cy="-2" r="1.6" fill="#1a1a1a" />
-      <path d="M2 -3.5 Q3 -4 3.5 -2.5" fill="#dc2626" />
-      <polygon points="3.8,-2 5.6,-1.7 3.8,-1.4" fill="#5a3a18" />
-      <circle cx="2.4" cy="-2.2" r="0.3" fill="#fff" />
-      <circle cx="2.4" cy="-2.2" r="0.15" fill="#1a0e05" />
-      <polygon points="-2,1 -3.5,2 -2,2.5" fill="#1a1a1a" />
     </g>
   );
 }
@@ -1111,54 +1007,6 @@ function Bush({ cx, cy, size = 1, dark = false }: { cx: number; cy: number; size
   );
 }
 
-// ── Felsen-Gruppe (3 Steine mit Moos) ─────────────────────────────────────
-function Felsen({ x, y }: { x: number; y: number }) {
-  return (
-    <g>
-      {/* Bodenschatten */}
-      <ellipse cx={x} cy={y + 2} rx="11" ry="1.6" fill="rgba(0,0,0,0.4)" />
-      {/* Großer Stein hinten */}
-      <path
-        d={`M ${x - 8} ${y + 2} Q ${x - 9} ${y - 5} ${x - 3} ${y - 8} Q ${x + 3} ${y - 9} ${x + 6} ${y - 4} Q ${x + 7} ${y + 1} ${x + 5} ${y + 2} Z`}
-        fill="#7a7a82"
-        stroke="#3a3a42"
-        strokeWidth="0.5"
-      />
-      {/* Highlight oben */}
-      <path
-        d={`M ${x - 5} ${y - 5} Q ${x - 2} ${y - 8} ${x + 2} ${y - 8} Q ${x} ${y - 6} ${x - 4} ${y - 4} Z`}
-        fill="#a8a8b0"
-        opacity="0.7"
-      />
-      {/* Moos oben drauf */}
-      <ellipse cx={x - 2} cy={y - 7} rx="3" ry="0.9" fill="#326c44" opacity="0.85" />
-      <ellipse cx={x + 2} cy={y - 6.5} rx="1.4" ry="0.5" fill="#4a8a5a" opacity="0.7" />
-      {/* Rissen */}
-      <path d={`M ${x - 3} ${y - 4} L ${x - 1} ${y}`} stroke="#3a3a42" strokeWidth="0.4" fill="none" />
-      <path d={`M ${x + 2} ${y - 3} L ${x + 3} ${y + 1}`} stroke="#3a3a42" strokeWidth="0.4" fill="none" />
-      {/* Kleiner Stein links davor */}
-      <path
-        d={`M ${x - 12} ${y + 2} Q ${x - 13} ${y - 1} ${x - 10} ${y - 3} Q ${x - 6} ${y - 3} ${x - 5} ${y} Q ${x - 6} ${y + 2} ${x - 9} ${y + 2} Z`}
-        fill="#8a8a92"
-        stroke="#3a3a42"
-        strokeWidth="0.5"
-      />
-      <ellipse cx={x - 9} cy={y - 2.4} rx="1.6" ry="0.5" fill="#326c44" opacity="0.7" />
-      {/* Kleiner Stein rechts davor */}
-      <path
-        d={`M ${x + 5} ${y + 2} Q ${x + 5} ${y - 1} ${x + 8} ${y - 2} Q ${x + 11} ${y - 2} ${x + 12} ${y + 1} Q ${x + 11} ${y + 2} ${x + 7} ${y + 2} Z`}
-        fill="#7a7a82"
-        stroke="#3a3a42"
-        strokeWidth="0.5"
-      />
-      <ellipse cx={x + 9} cy={y - 1.5} rx="1.4" ry="0.4" fill="#4a8a5a" opacity="0.7" />
-      {/* Mini-Sprenkel */}
-      <circle cx={x - 4} cy={y - 1} r="0.4" fill="#5a5a62" />
-      <circle cx={x + 3} cy={y - 5} r="0.3" fill="#5a5a62" />
-    </g>
-  );
-}
-
 // ── Schwarzwald-Wegweiser ─────────────────────────────────────────────────
 function Wegweiser({ x, y }: { x: number; y: number }) {
   return (
@@ -1293,27 +1141,6 @@ function Vogelhaus() {
   );
 }
 
-// ── Marienkäfer ───────────────────────────────────────────────────────────
-function Ladybug({ cx, cy }: { cx: number; cy: number }) {
-  return (
-    <g>
-      {/* Körper */}
-      <ellipse cx={cx} cy={cy} rx="1.2" ry="0.9" fill="#dc2626" />
-      {/* Mitte schwarz */}
-      <line x1={cx} y1={cy - 0.9} x2={cx} y2={cy + 0.9} stroke="#0a0a0a" strokeWidth="0.3" />
-      {/* Punkte */}
-      <circle cx={cx - 0.45} cy={cy - 0.25} r="0.18" fill="#0a0a0a" />
-      <circle cx={cx + 0.45} cy={cy - 0.25} r="0.18" fill="#0a0a0a" />
-      <circle cx={cx - 0.45} cy={cy + 0.35} r="0.18" fill="#0a0a0a" />
-      <circle cx={cx + 0.45} cy={cy + 0.35} r="0.18" fill="#0a0a0a" />
-      {/* Kopf */}
-      <ellipse cx={cx - 1.1} cy={cy - 0.05} rx="0.45" ry="0.55" fill="#0a0a0a" />
-      {/* Augen-Highlights */}
-      <circle cx={cx - 1.2} cy={cy - 0.2} r="0.1" fill="#fff" />
-    </g>
-  );
-}
-
 // ── Sonnenblume ───────────────────────────────────────────────────────────
 function Sunflower({ x, y, h }: { x: number; y: number; h: number }) {
   return (
@@ -1357,163 +1184,6 @@ function Flower({ cx, cy, color }: { cx: number; cy: number; color: string }) {
       <circle cx={cx - 0.6} cy={cy - 3.2} r="0.5" fill={color} />
       <circle cx={cx + 0.6} cy={cy - 3.2} r="0.5" fill={color} />
       <circle cx={cx}       cy={cy - 2.7} r="0.35" fill="#fbbf24" />
-    </g>
-  );
-}
-
-// ── Waescheleine mit Saunatüchern ──────────────────────────────────────────
-function Waescheleine({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: number }) {
-  // Mittlerer Durchhang
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2 + 6;
-  // Drei Tuch-Positionen entlang der Leine (parametrisch)
-  const tuch = (t: number) => {
-    // Quadratische Bezier-Approximation
-    const x = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * midX + t * t * x2;
-    const y = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * midY + t * t * y2;
-    return { x, y };
-  };
-  const t1 = tuch(0.28);
-  const t2 = tuch(0.5);
-  const t3 = tuch(0.72);
-  return (
-    <g>
-      {/* Befestigungspunkt am linken Baum */}
-      <circle cx={x1} cy={y1} r="0.7" fill="#1a1a1a" />
-      <circle cx={x2} cy={y2} r="0.7" fill="#1a1a1a" />
-      {/* Seil als Bezier-Kurve */}
-      <path
-        d={`M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`}
-        stroke="#1a1a1a"
-        strokeWidth="0.4"
-        fill="none"
-      />
-      {/* Saunatuch 1 — rot-weiß gestreift */}
-      <g className="bs-towel" style={{ transformOrigin: `${t1.x}px ${t1.y}px`, animationDelay: '0s' }}>
-        <rect x={t1.x - 3} y={t1.y - 0.5} width="6" height="8" fill="#fff" stroke="#5a5a5a" strokeWidth="0.2" />
-        <rect x={t1.x - 3} y={t1.y + 1}   width="6" height="1" fill="#dc2626" />
-        <rect x={t1.x - 3} y={t1.y + 3}   width="6" height="1" fill="#dc2626" />
-        <rect x={t1.x - 3} y={t1.y + 5}   width="6" height="1" fill="#dc2626" />
-        {/* Wäscheklammer */}
-        <rect x={t1.x - 0.6} y={t1.y - 1.2} width="1.2" height="1.4" fill="#7c4a1a" />
-      </g>
-      {/* Saunatuch 2 — Saunafreunde-grün */}
-      <g className="bs-towel" style={{ transformOrigin: `${t2.x}px ${t2.y}px`, animationDelay: '-1s' }}>
-        <rect x={t2.x - 3.2} y={t2.y - 0.5} width="6.4" height="9" fill="#2d5a3f" stroke="#1a3a25" strokeWidth="0.2" />
-        <rect x={t2.x - 3.2} y={t2.y - 0.5} width="6.4" height="1.2" fill="#1a3a25" />
-        <rect x={t2.x - 3.2} y={t2.y + 7}   width="6.4" height="1"   fill="#1a3a25" />
-        {/* Aufdruck */}
-        <text x={t2.x} y={t2.y + 5} textAnchor="middle" fontSize="2" fontWeight="800" fill="#f5e6c8" fontFamily="Inter, sans-serif">SF</text>
-        <rect x={t2.x - 0.6} y={t2.y - 1.2} width="1.2" height="1.4" fill="#7c4a1a" />
-      </g>
-      {/* Saunatuch 3 — blau */}
-      <g className="bs-towel" style={{ transformOrigin: `${t3.x}px ${t3.y}px`, animationDelay: '-2s' }}>
-        <rect x={t3.x - 2.8} y={t3.y - 0.5} width="5.6" height="7" fill="#3b82f6" stroke="#1e3a8a" strokeWidth="0.2" />
-        <rect x={t3.x - 2.8} y={t3.y + 2} width="5.6" height="0.7" fill="#1e3a8a" />
-        <rect x={t3.x - 2.8} y={t3.y + 4} width="5.6" height="0.7" fill="#1e3a8a" />
-        <rect x={t3.x - 0.6} y={t3.y - 1.2} width="1.2" height="1.4" fill="#7c4a1a" />
-      </g>
-    </g>
-  );
-}
-
-// ── Lichterkette vom Sauna-Dach zum Hinterbaum ───────────────────────────
-function Lichterkette() {
-  // Befestigungspunkte: Sauna-Dach (x=200, y=80) → Baum (x=405, y=115)
-  // Bezier-Kurve mit Durchhang
-  const x1 = 200, y1 = 80, x2 = 405, y2 = 115;
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2 + 18;
-  const lights = [0.15, 0.3, 0.45, 0.55, 0.7, 0.85];
-  const colors = ['#fbbf24', '#fef3c7', '#fbbf24', '#fb923c', '#fef3c7', '#fbbf24'];
-  return (
-    <g>
-      {/* Seil */}
-      <path
-        d={`M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`}
-        stroke="#1a1a1a"
-        strokeWidth="0.4"
-        fill="none"
-        opacity="0.7"
-      />
-      {/* Lampions / Glühbirnen */}
-      {lights.map((t, i) => {
-        const px = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * midX + t * t * x2;
-        const py = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * midY + t * t * y2;
-        return (
-          <g key={i} className="bs-string-light" style={{ animationDelay: `${-i * 0.3}s`, transformOrigin: `${px}px ${py}px` }}>
-            <circle cx={px} cy={py + 2.5} r="2.2" fill={colors[i]} opacity="0.4" />
-            <circle cx={px} cy={py + 2.5} r="1.3" fill={colors[i]} />
-            <circle cx={px} cy={py + 2.2} r="0.5" fill="#fff" opacity="0.9" />
-          </g>
-        );
-      })}
-    </g>
-  );
-}
-
-// ── Igel ──────────────────────────────────────────────────────────────────
-function Hedgehog() {
-  return (
-    <g>
-      {/* Bodenschatten */}
-      <ellipse cx="0" cy="1" rx="3.5" ry="0.5" fill="rgba(0,0,0,0.35)" />
-      {/* Körper (stachelig) */}
-      <ellipse cx="0" cy="-1.5" rx="3.2" ry="2" fill="#5a3a1c" />
-      {/* Stacheln als kleine Dreiecke */}
-      {[-2.6, -1.8, -1, -0.2, 0.6, 1.4, 2.2].map((dx, i) => (
-        <polygon
-          key={i}
-          points={`${dx},${-2.5} ${dx + 0.4},${-3.5} ${dx + 0.7},${-2.5}`}
-          fill="#3a1808"
-        />
-      ))}
-      {[-2.2, -1.4, -0.6, 0.2, 1, 1.8].map((dx, i) => (
-        <polygon
-          key={`b-${i}`}
-          points={`${dx},${-1.8} ${dx + 0.4},${-3} ${dx + 0.7},${-1.8}`}
-          fill="#7c4a1a"
-        />
-      ))}
-      {/* Kopf */}
-      <ellipse cx="2.8" cy="-1" rx="1.4" ry="1.1" fill="#ffd5aa" />
-      {/* Schnauze */}
-      <ellipse cx="4" cy="-0.8" rx="0.5" ry="0.4" fill="#1a0e05" />
-      {/* Auge */}
-      <circle cx="3.2" cy="-1.3" r="0.25" fill="#1a0e05" />
-      <circle cx="3.25" cy="-1.4" r="0.08" fill="#fff" />
-      {/* Beinchen */}
-      <ellipse cx="-1.5" cy="0.5" rx="0.4" ry="0.5" fill="#3a1808" />
-      <ellipse cx="1.5"  cy="0.5" rx="0.4" ry="0.5" fill="#3a1808" />
-      {/* Mini-Apfel auf dem Rücken (Easter Egg) */}
-      <circle cx="-0.5" cy="-2.5" r="0.5" fill="#dc2626" />
-      <line x1="-0.5" y1="-2.9" x2="-0.5" y2="-3.3" stroke="#2d5a3f" strokeWidth="0.3" />
-    </g>
-  );
-}
-
-// ── Eisvogel ──────────────────────────────────────────────────────────────
-function Kingfisher() {
-  return (
-    <g>
-      {/* Körper türkis-blau */}
-      <ellipse cx="0" cy="0" rx="3.2" ry="1.6" fill="#0891b2" />
-      <ellipse cx="0" cy="0.3" rx="2.4" ry="1" fill="#22d3ee" />
-      {/* Bauch orange-rost */}
-      <ellipse cx="0.5" cy="0.8" rx="2" ry="0.8" fill="#c2410c" />
-      {/* Kopf */}
-      <circle cx="2.6" cy="-0.3" r="1.3" fill="#0e7490" />
-      <circle cx="2.5" cy="-0.1" r="0.8" fill="#22d3ee" />
-      {/* Auge */}
-      <circle cx="3" cy="-0.5" r="0.3" fill="#fff" />
-      <circle cx="3.1" cy="-0.5" r="0.15" fill="#1a0e05" />
-      {/* Schnabel — lang und schwarz */}
-      <polygon points="3.6,-0.3 6.5,0 3.6,0.3" fill="#1a0e05" />
-      {/* Flügel oben (Bewegungs-Andeutung) */}
-      <path d="M -1.5 -1.2 Q 0 -2.5 2 -1.5" fill="#0e7490" />
-      <path d="M -1.5 -1.2 Q 0 -2.5 2 -1.5" stroke="#155e75" strokeWidth="0.3" fill="none" />
-      {/* Schwanz */}
-      <polygon points="-3.2,0 -4.8,0.4 -3.2,0.8" fill="#0e7490" />
     </g>
   );
 }
