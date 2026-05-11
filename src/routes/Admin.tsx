@@ -5,6 +5,8 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
+import { PostfachDialog } from '@/components/admin/PostfachDialog';
+import { useAdminEmailAccounts } from '@/lib/api';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
@@ -210,6 +212,7 @@ function MemberBadgesRow({ memberId }: { memberId: string }) {
 function MembersTab() {
   const membersQ = useAllMembers();
   const pendingQ = usePendingMembers();
+  const accountsQ = useAdminEmailAccounts();
   const add = useAddMember();
   const update = useUpdateMember();
   const approve = useApproveMember();
@@ -224,6 +227,9 @@ function MembersTab() {
   const [email, setEmail] = useState('');
   const [newRole, setNewRole] = useState<Member['role']>('member');
   const [error, setError] = useState<string | null>(null);
+  const [postfachMember, setPostfachMember] = useState<Member | null>(null);
+
+  const emailAccountFor = (memberId: string) => accountsQ.data?.find((a) => a.member_id === memberId);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -340,6 +346,23 @@ function MembersTab() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {/* Postfach-Vergabe */}
+                  {(() => {
+                    const acc = emailAccountFor(m.id);
+                    return (
+                      <button
+                        onClick={() => setPostfachMember(m)}
+                        title={acc ? `Postfach: ${acc.email_address}` : 'Postfach vergeben'}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
+                          acc
+                            ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-500/30 hover:bg-emerald-500/30'
+                            : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
+                        }`}
+                      >
+                        {acc ? '📧 Postfach' : '+ 📧'}
+                      </button>
+                    );
+                  })()}
                   {/* Aufgieser-Toggle */}
                   <button
                     onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
@@ -425,6 +448,14 @@ function MembersTab() {
           ))}
         </ul>
       </div>
+
+      {postfachMember && (
+        <PostfachDialog
+          member={postfachMember}
+          existing={emailAccountFor(postfachMember.id) ?? null}
+          onClose={() => setPostfachMember(null)}
+        />
+      )}
     </section>
   );
 }

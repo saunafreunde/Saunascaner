@@ -563,6 +563,153 @@ export function useRevokeInvitation() {
   });
 }
 
+// ─── Email-Versand (Stufe 1) ─────────────────────────────────────────────
+export function useSendInviteEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { invitation_id: string; recipient_email: string; recipient_name?: string | null }) => {
+      const r = await fetch('/api/email?action=send-invite', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify(p),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? 'send failed');
+      return data as { ok: true; sent_via: 'admin_account' | 'system_fallback'; sender_email: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations'] }),
+  });
+}
+
+export function useSendWelcomeEmail() {
+  return useMutation({
+    mutationFn: async (p: { member_id: string; role_label: string }) => {
+      const r = await fetch('/api/email?action=send-welcome', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify(p),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? 'send failed');
+      return data;
+    },
+  });
+}
+
+// ─── Email-Konten (Stufe 2) ──────────────────────────────────────────────
+export type EmailAccount = {
+  id: string;
+  member_id: string;
+  email_address: string;
+  imap_host: string;
+  imap_port: number;
+  smtp_host: string;
+  smtp_port: number;
+  display_name: string | null;
+  active: boolean;
+  granted_by: string | null;
+  granted_at: string;
+  last_sync_at: string | null;
+  unread_count: number;
+  created_at: string;
+};
+
+export function useMyEmailAccount() {
+  return useQuery({
+    queryKey: ['my-email-account'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('my_email_account');
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return (row ?? null) as EmailAccount | null;
+    },
+  });
+}
+
+export function useAdminEmailAccounts() {
+  return useQuery({
+    queryKey: ['admin-email-accounts'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_email_accounts_admin');
+      if (error) throw error;
+      return (data ?? []) as EmailAccount[];
+    },
+  });
+}
+
+export function useGrantEmailAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      member_id: string;
+      email: string;
+      password: string;
+      imap_host?: string;
+      imap_port?: number;
+      smtp_host?: string;
+      smtp_port?: number;
+      display_name?: string | null;
+    }) => {
+      const { data, error } = await need().rpc('grant_email_account', {
+        p_member_id: p.member_id,
+        p_email: p.email,
+        p_password: p.password,
+        p_imap_host: p.imap_host ?? 'w01b00df.kasserver.com',
+        p_imap_port: p.imap_port ?? 993,
+        p_smtp_host: p.smtp_host ?? 'w01b00df.kasserver.com',
+        p_smtp_port: p.smtp_port ?? 465,
+        p_display_name: p.display_name ?? null,
+      });
+      if (error) {
+        const msg = (error as { message?: string }).message ?? '';
+        if (msg.includes('not_admin')) throw new Error('Nur Admins können Postfächer vergeben.');
+        if (msg.includes('invalid_email')) throw new Error('Ungültige E-Mail-Adresse.');
+        if (msg.includes('password_required')) throw new Error('Passwort fehlt.');
+        throw error;
+      }
+      return data as EmailAccount;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-email-accounts'] });
+      qc.invalidateQueries({ queryKey: ['my-email-account'] });
+    },
+  });
+}
+
+export function useRevokeEmailAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('revoke_email_account', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-email-accounts'] });
+      qc.invalidateQueries({ queryKey: ['my-email-account'] });
+    },
+  });
+}
+
+export function useTestEmailConnection() {
+  return useMutation({
+    mutationFn: async (member_id: string) => {
+      const r = await fetch('/api/email?action=test-connection', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ member_id }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? 'test failed');
+      return data as {
+        ok: boolean;
+        imap: { ok: boolean; error?: string };
+        smtp: { ok: boolean; error?: string };
+        email: string;
+      };
+    },
+  });
+}
+
 export function useSetHomeGroup() {
   const qc = useQueryClient();
   return useMutation({

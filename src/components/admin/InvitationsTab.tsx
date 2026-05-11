@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { useInvitations, useCreateInvitation, useRevokeInvitation } from '@/lib/api';
+import { useInvitations, useCreateInvitation, useRevokeInvitation, useSendInviteEmail } from '@/lib/api';
 import type { MemberRole } from '@/types/database';
 
 const ROLE_OPTIONS: { value: MemberRole; label: string; emoji: string; description: string }[] = [
@@ -16,12 +16,16 @@ export function InvitationsTab() {
   const invQ = useInvitations();
   const create = useCreateInvitation();
   const revoke = useRevokeInvitation();
+  const sendInvite = useSendInviteEmail();
 
   const [targetRole, setTargetRole] = useState<MemberRole>('guest_aufgieser');
   const [targetIsAufgieser, setTargetIsAufgieser] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientName, setRecipientName] = useState('');
   const [note, setNote] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const { open, used, expired } = useMemo(() => {
     const now = new Date();
@@ -35,17 +39,49 @@ export function InvitationsTab() {
 
   async function handleCreate() {
     try {
-      await create.mutateAsync({
+      const inv = await create.mutateAsync({
         target_role: targetRole,
         target_is_aufgieser: targetRole === 'member' ? targetIsAufgieser : false,
         note: note.trim() || null,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
       });
+
+      // Wenn Empfänger-Email angegeben → sofort versenden
+      const trimmedEmail = recipientEmail.trim();
+      if (trimmedEmail && /\S+@\S+\.\S+/.test(trimmedEmail)) {
+        try {
+          const result = await sendInvite.mutateAsync({
+            invitation_id: inv.id,
+            recipient_email: trimmedEmail,
+            recipient_name: recipientName.trim() || null,
+          });
+          window.alert(`✓ Einladung an ${trimmedEmail} gesendet (über ${result.sender_email}).`);
+        } catch (e) {
+          window.alert(`Einladung wurde erstellt, aber Versand fehlgeschlagen: ${(e as Error).message}\n\nDu kannst den Link manuell teilen.`);
+        }
+      }
+
       setNote('');
       setExpiresAt('');
+      setRecipientEmail('');
+      setRecipientName('');
       setTargetIsAufgieser(false);
     } catch (e) {
       window.alert((e as Error).message);
+    }
+  }
+
+  async function handleResend(invitationId: string, email: string | null) {
+    const target = email || window.prompt('Empfänger-Email für erneuten Versand:');
+    if (!target || !/\S+@\S+\.\S+/.test(target)) return;
+    setResendingId(invitationId);
+    try {
+      const result = await sendInvite.mutateAsync({ invitation_id: invitationId, recipient_email: target });
+      window.alert(`✓ Erneut gesendet an ${target} (über ${result.sender_email}).`);
+    } catch (e) {
+      window.alert((e as Error).message);
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -112,6 +148,27 @@ export function InvitationsTab() {
               </label>
             )}
             <div>
+              <label className="text-[10px] text-forest-300 uppercase tracking-wider">
+                Empfänger-Email <span className="text-emerald-300/80">(✉️ wenn gesetzt: sofort versenden)</span>
+              </label>
+              <input
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="empfaenger@example.com"
+                className="mt-1 w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-forest-300 uppercase tracking-wider">Empfänger-Name (optional)</label>
+              <input
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+                placeholder="Vorname Nachname"
+                className="mt-1 w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+            <div>
               <label className="text-[10px] text-forest-300 uppercase tracking-wider">Notiz (optional)</label>
               <input
                 value={note}
@@ -134,10 +191,16 @@ export function InvitationsTab() {
 
         <button
           onClick={handleCreate}
-          disabled={create.isPending}
+          disabled={create.isPending || sendInvite.isPending}
           className="mt-3 w-full sm:w-auto rounded-lg bg-amber-500 hover:bg-amber-400 px-4 py-2 text-sm font-semibold text-amber-950 disabled:opacity-50"
         >
-          {create.isPending ? 'Erzeuge…' : '+ Einladung generieren'}
+          {create.isPending
+            ? 'Erzeuge…'
+            : sendInvite.isPending
+              ? 'Sende E-Mail…'
+              : recipientEmail.trim()
+                ? '✉️ Einladung erstellen & senden'
+                : '+ Einladung generieren'}
         </button>
       </section>
 
@@ -168,20 +231,33 @@ export function InvitationsTab() {
                         Erstellt: {format(new Date(inv.created_at), 'dd.MM.yyyy HH:mm')}
                         {inv.expires_at && <> · Läuft ab: {format(new Date(inv.expires_at), 'dd.MM.yyyy')}</>}
                       </div>
+                      {inv.sent_at && inv.sent_to_email && (
+                        <div className="text-[11px] text-emerald-300/80 mt-0.5 truncate">
+                          ✉️ Gesendet an {inv.sent_to_email} · {format(new Date(inv.sent_at), 'dd.MM.yyyy HH:mm')}
+                          {inv.sent_via === 'system_fallback' && <span className="text-amber-300/70"> · via info@</span>}
+                        </div>
+                      )}
                       <div className="font-mono text-[10px] text-forest-400/80 mt-0.5 truncate">{url}</div>
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
                       <button
+                        onClick={() => handleResend(inv.id, inv.sent_to_email)}
+                        disabled={resendingId === inv.id}
+                        className="rounded-md bg-amber-500/20 hover:bg-amber-500/30 px-3 py-1.5 text-xs font-semibold text-amber-200 ring-1 ring-amber-500/30 whitespace-nowrap disabled:opacity-50"
+                      >
+                        {resendingId === inv.id ? '…' : inv.sent_at ? '📧 Erneut' : '📧 Senden'}
+                      </button>
+                      <button
                         onClick={() => copyLink(inv.code)}
                         className="rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-500/30 whitespace-nowrap"
                       >
-                        {copiedCode === inv.code ? '✓ Kopiert' : '📋 Link kopieren'}
+                        {copiedCode === inv.code ? '✓' : '📋 Link'}
                       </button>
                       <button
                         onClick={() => handleRevoke(inv.id, inv.code)}
                         className="rounded-md bg-rose-500/15 hover:bg-rose-500/25 px-2.5 py-1.5 text-xs text-rose-200 ring-1 ring-rose-500/30"
                       >
-                        Widerrufen
+                        ✕
                       </button>
                     </div>
                   </div>

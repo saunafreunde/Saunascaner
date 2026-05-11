@@ -18,7 +18,11 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "framer-motion": "^11.11.0",
+    "imapflow": "^1.0.171",
+    "isomorphic-dompurify": "^2.16.0",
     "jspdf": "^2.5.2",
+    "mailparser": "^3.7.2",
+    "nodemailer": "^6.9.16",
     "qr-scanner": "^1.4.2",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
@@ -30,7 +34,9 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.4.5",
     "@types/node": "^22.7.4",
+    "@types/nodemailer": "^6.4.16",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",

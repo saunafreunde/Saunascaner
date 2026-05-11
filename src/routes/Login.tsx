@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
-type Mode = 'signin' | 'signup' | 'bootstrap';
+type Mode = 'magic' | 'signin' | 'signup' | 'bootstrap';
 
 export default function Login() {
   const { user, ready, signIn, signUp } = useAuth();
@@ -16,7 +16,7 @@ export default function Login() {
   // Invite-Code aus URL — wenn vorhanden, startet das Formular im Signup-Mode
   const inviteCode = new URLSearchParams(loc.search).get('invite');
 
-  const [mode, setMode] = useState<Mode>(inviteCode ? 'signup' : 'signin');
+  const [mode, setMode] = useState<Mode>(inviteCode ? 'signup' : 'magic');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -44,7 +44,19 @@ export default function Login() {
     e.preventDefault();
     setBusy(true); setError(null); setInfo(null);
     try {
-      if (mode === 'signin') {
+      if (mode === 'magic') {
+        if (!supabase) throw new Error('Supabase nicht verfügbar');
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/login?next=${encodeURIComponent(next)}`,
+            data: inviteCode ? { invite_code: inviteCode.toUpperCase() } : undefined,
+            shouldCreateUser: true,
+          },
+        });
+        if (error) throw error;
+        setInfo('✨ Login-Link wurde an deine E-Mail geschickt. Bitte den Link aus der Mail klicken.');
+      } else if (mode === 'signin') {
         const { error } = await signIn(email, password);
         if (error) throw error;
       } else if (mode === 'signup') {
@@ -75,7 +87,13 @@ export default function Login() {
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl bg-forest-950/80 p-6 ring-1 ring-forest-800/50 backdrop-blur">
         <div>
           <h1 className="text-2xl font-semibold text-forest-100">
-            {showBootstrap ? 'Erste Einrichtung' : mode === 'signin' ? 'Anmelden' : 'Konto anlegen'}
+            {showBootstrap
+              ? 'Erste Einrichtung'
+              : mode === 'magic'
+                ? '✨ Anmelden per E-Mail'
+                : mode === 'signin'
+                  ? 'Anmelden'
+                  : 'Konto anlegen'}
           </h1>
           <p className="mt-1 text-sm text-forest-300/80">Saunafreunde Schwarzwald</p>
         </div>
@@ -126,35 +144,84 @@ export default function Login() {
               placeholder="E-Mail"
               className="w-full rounded-lg bg-forest-900/80 px-4 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
             />
-            <input
-              type="password"
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Passwort"
-              className="w-full rounded-lg bg-forest-900/80 px-4 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
-            />
+            {mode !== 'magic' && (
+              <input
+                type="password"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Passwort"
+                className="w-full rounded-lg bg-forest-900/80 px-4 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+              />
+            )}
+            {mode === 'magic' && (
+              <p className="text-xs text-forest-300/70 leading-relaxed">
+                Wir schicken dir einen Anmelde-Link per E-Mail — einfach klicken und du bist drin. Kein Passwort nötig.
+              </p>
+            )}
             <button
               type="submit"
               disabled={busy}
               className="w-full rounded-lg bg-forest-500 px-4 py-3 text-base font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60"
             >
-              {busy ? 'Bitte warten…' : mode === 'signin' ? 'Anmelden' : 'Konto anlegen'}
+              {busy
+                ? 'Bitte warten…'
+                : mode === 'magic'
+                  ? '✨ Login-Link schicken'
+                  : mode === 'signin'
+                    ? 'Anmelden'
+                    : 'Konto anlegen'}
             </button>
             <div className="flex flex-col gap-2 text-center">
-              <button
-                type="button"
-                onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setInfo(null); }}
-                className="text-xs text-forest-300/70 hover:text-forest-200 underline"
-              >
-                {mode === 'signin' ? 'Noch kein Konto? Hier anlegen' : 'Schon ein Konto? Anmelden'}
-              </button>
+              {mode === 'magic' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('signin'); setError(null); setInfo(null); }}
+                    className="text-xs text-forest-300/70 hover:text-forest-200 underline"
+                  >
+                    Lieber mit Passwort anmelden
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('signup'); setError(null); setInfo(null); }}
+                    className="text-xs text-forest-300/70 hover:text-forest-200 underline"
+                  >
+                    Neu hier? Konto anlegen
+                  </button>
+                </>
+              )}
               {mode === 'signin' && (
-                <Link to="/forgot" className="text-xs text-forest-300/60 hover:text-forest-200 underline">
-                  Passwort vergessen?
-                </Link>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('magic'); setError(null); setInfo(null); }}
+                    className="text-xs text-amber-300/80 hover:text-amber-200 underline"
+                  >
+                    ✨ Login-Link statt Passwort
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('signup'); setError(null); setInfo(null); }}
+                    className="text-xs text-forest-300/70 hover:text-forest-200 underline"
+                  >
+                    Noch kein Konto? Hier anlegen
+                  </button>
+                  <Link to="/forgot" className="text-xs text-forest-300/60 hover:text-forest-200 underline">
+                    Passwort vergessen?
+                  </Link>
+                </>
+              )}
+              {mode === 'signup' && (
+                <button
+                  type="button"
+                  onClick={() => { setMode(inviteCode ? 'signup' : 'magic'); setError(null); setInfo(null); }}
+                  className="text-xs text-forest-300/70 hover:text-forest-200 underline"
+                >
+                  Schon ein Konto? Anmelden
+                </button>
               )}
             </div>
           </>

@@ -45,6 +45,10 @@ export type Invitation = {
   created_by: string | null;
   used_by: string | null;
   used_at: string | null;
+  sent_to_email: string | null;
+  sent_at: string | null;
+  sent_by_member_id: string | null;
+  sent_via: 'admin_account' | 'system_fallback' | null;
   created_at: string;
 };
 

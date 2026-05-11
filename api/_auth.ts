@@ -6,7 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 export type AuthedMember = {
   id: string;
   auth_user_id: string;
-  role: 'member' | 'admin';
+  role: 'member' | 'guest_aufgieser' | 'staff' | 'admin';
   is_aufgieser: boolean;
   approved: boolean;
 };

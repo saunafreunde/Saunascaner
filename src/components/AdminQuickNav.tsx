@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useMyEmailAccount } from '@/lib/api';
 
-const NAV_ITEMS = [
+const NAV_ITEMS_BASE = [
   { path: '/dashboard', label: 'Tafel',     icon: '📺' },
   { path: '/planner',   label: 'Mitglied',  icon: '🧖' },
   { path: '/members',   label: 'Galerie',   icon: '👥' },
@@ -17,6 +18,12 @@ interface AdminQuickNavProps {
 
 export function AdminQuickNav({ variant = 'pills' }: AdminQuickNavProps) {
   const { pathname } = useLocation();
+  const emailAccount = useMyEmailAccount();
+  const NAV_ITEMS: { path: string; label: string; icon: string }[] = [...NAV_ITEMS_BASE];
+  if (emailAccount.data) {
+    // Postfach zwischen Galerie und Admin einfügen
+    NAV_ITEMS.splice(3, 0, { path: '/postfach', label: 'Postfach', icon: '📬' });
+  }
 
   if (variant === 'icons') {
     return (
