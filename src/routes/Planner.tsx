@@ -543,6 +543,10 @@ export default function Planner() {
   const myInfusions = useMemo(
     () => infusions
       .filter((i) => {
+        // Personal-Fallbacks (Garantie-Aufgüsse vom Cron) NIE im Atelier
+        // anzeigen — die sind System-Generierte Platzhalter, keine
+        // geplanten Aufgüsse. Übernehmen läuft via Slot-Matrix oben.
+        if (i.is_personal_fallback) return false;
         if (isAdmin) return true;
         if (i.saunameister_id === m?.id) return true;
         // Team-Aufgüsse anderer Meister sollen Aufgießern auch in 'Geplant'
