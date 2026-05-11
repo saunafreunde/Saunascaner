@@ -28,7 +28,7 @@ import { unlockAudio } from '@/lib/evacuation';
 // stillschweigend bei jeder Interaktion zu entsperren, ohne sichtbaren Button.
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
-import { CuckooDoor, type ZwergMood } from '@/components/CuckooDoor';
+import { CuckooDoor } from '@/components/CuckooDoor';
 import { BlockhausScene } from '@/components/BlockhausScene';
 import { Holzfaeller } from '@/components/Holzfaeller';
 import { Reh } from '@/components/Reh';
@@ -68,8 +68,6 @@ export default function Dashboard() {
   const birthdays = useBirthdaysToday();
 
   const [audioReady, setAudioReady] = useState(false);
-  const [doorOpen, setDoorOpen] = useState(false);
-  const [zwergMood, setZwergMood] = useState<ZwergMood>('idle');
 
   const teamInfusionIds = useMemo(
     () => (infusions.data ?? []).filter((i) => i.team_infusion).map((i) => i.id),
@@ -127,32 +125,12 @@ export default function Dashboard() {
 
   const hasBirthday = (birthdays.data ?? []).length > 0;
 
-  useEffect(() => {
-    if (evac.data) { setZwergMood('fleeing'); setDoorOpen(true); return; }
-    setZwergMood(hasBirthday ? 'birthday' : 'waving');
-    setDoorOpen(!isRunning && minutesUntilNext > 20);
-  }, [isRunning, minutesUntilNext, evac.data, hasBirthday]);
-
-  const handleDoorToggle = () => setDoorOpen((prev) => !prev);
-
-  // ── Demo-Channel Listener ──────────────────────────────────────────────
+  // ── Demo-Channel Listener — Tür/Zwerg-Funktion entfernt, nur noch Konfetti
   useEffect(() => {
     return onDemo(async (e) => {
-      switch (e.type) {
-        case 'door_open':  setDoorOpen(true);  break;
-        case 'door_close': setDoorOpen(false); break;
-        case 'mood':
-          setZwergMood(e.mood);
-          setDoorOpen(true);
-          break;
-        case 'confetti': {
-          const { fireBadgeUnlock } = await import('@/lib/confetti');
-          fireBadgeUnlock();
-          break;
-        }
-        case 'reset':
-          setZwergMood('waving');
-          break;
+      if (e.type === 'confetti') {
+        const { fireBadgeUnlock } = await import('@/lib/confetti');
+        fireBadgeUnlock();
       }
     });
   }, []);
@@ -320,14 +298,7 @@ export default function Dashboard() {
           <div className="flex flex-col items-center gap-2 flex-shrink-0">
             <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
             <BlockhausScene>
-              <CuckooDoor
-                isOpen={doorOpen}
-                mood={zwergMood}
-                minutesUntilNext={minutesUntilNext}
-                nextTitle={nextInfusion?.title ?? ''}
-                onClick={handleDoorToggle}
-                scale={0.8}
-              />
+              <CuckooDoor scale={0.72} />
             </BlockhausScene>
           </div>
 

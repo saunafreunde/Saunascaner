@@ -584,8 +584,89 @@ export function BlockhausScene({ children }: Props) {
         </g>
       </svg>
 
-      {/* Sauna (HTML-Overlay) — 20 % kleiner, mittig auf Bodenlinie */}
-      <div className="absolute" style={{ left: 144, top: 71, pointerEvents: 'auto' }}>
+      {/* Sauna-Veranda — Holzdeck unter der Sauna, lässt sie in die Szene eintauchen */}
+      <svg
+        className="absolute inset-0"
+        viewBox={`0 0 ${W} ${H}`}
+        width={W}
+        height={H}
+        style={{ overflow: 'visible', pointerEvents: 'none' }}
+      >
+        {/* Steinfundament hinter dem Deck */}
+        <rect x="170" y="163" width="120" height="6" fill="#5a5a62" />
+        <rect x="170" y="163" width="120" height="1.5" fill="#7a7a82" />
+        {[180, 200, 220, 240, 260, 280].map((sx) => (
+          <line key={sx} x1={sx} y1="163" x2={sx} y2="169" stroke="#3a3a42" strokeWidth="0.4" />
+        ))}
+
+        {/* Hauptdeck — Holzplanken horizontal */}
+        <rect x="168" y="167" width="124" height="22" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.5" rx="1" />
+        <rect x="168" y="167" width="124" height="1.5" fill="#a06530" />
+        {[171, 175, 179, 183, 187].map((py) => (
+          <line key={py} x1="168" y1={py} x2="292" y2={py} stroke="#5a3010" strokeWidth="0.3" />
+        ))}
+        {/* Brett-Trennlinien vertikal (Plankenkanten) */}
+        {[195, 220, 245, 270].map((px) => (
+          <line key={px} x1={px} y1="167" x2={px} y2="189" stroke="#3a1808" strokeWidth="0.4" />
+        ))}
+        {/* Astknoten in den Planken */}
+        <ellipse cx="185" cy="178" rx="1.2" ry="0.7" fill="#3a1808" />
+        <ellipse cx="260" cy="174" rx="1" ry="0.6" fill="#3a1808" />
+        <ellipse cx="232" cy="183" rx="0.9" ry="0.5" fill="#3a1808" />
+
+        {/* Untere Deck-Kante mit Schatten zum Boden */}
+        <rect x="168" y="189" width="124" height="2" fill="#3a1808" />
+        <ellipse cx="230" cy="193" rx="58" ry="2" fill="rgba(0,0,0,0.45)" />
+
+        {/* Mittlere Treppe vom Deck zum Boden */}
+        <g>
+          <rect x="218" y="189" width="24" height="2" fill="#a06530" stroke="#3a1808" strokeWidth="0.3" />
+          <rect x="216" y="191" width="28" height="2" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.3" />
+          <rect x="214" y="193" width="32" height="2" fill="#5a3010" stroke="#3a1808" strokeWidth="0.3" />
+        </g>
+
+        {/* Grasbüschel an den Deck-Ecken (weiche Verzahnung mit Boden) */}
+        <g>
+          {[167, 170, 173, 287, 290, 293].map((gx, i) => (
+            <g key={`gt-${i}`}>
+              <line x1={gx} y1="195" x2={gx - 1} y2="191" stroke="#326c44" strokeWidth="0.6" strokeLinecap="round" />
+              <line x1={gx + 1} y1="195" x2={gx + 1.5} y2="191.5" stroke="#2a5e3a" strokeWidth="0.5" strokeLinecap="round" />
+              <line x1={gx + 0.4} y1="195" x2={gx - 0.4} y2="192" stroke="#4a8a5a" strokeWidth="0.5" strokeLinecap="round" />
+            </g>
+          ))}
+        </g>
+
+        {/* Mini-Holzgeländer links/rechts vom Deck */}
+        <g>
+          {/* Links */}
+          <rect x="168" y="158" width="1.2" height="10" fill="#5a3010" />
+          <rect x="178" y="158" width="1.2" height="10" fill="#5a3010" />
+          <rect x="167" y="158" width="13" height="1.4" fill="#7c4a1a" />
+          {/* Rechts */}
+          <rect x="280.8" y="158" width="1.2" height="10" fill="#5a3010" />
+          <rect x="290.8" y="158" width="1.2" height="10" fill="#5a3010" />
+          <rect x="280" y="158" width="13" height="1.4" fill="#7c4a1a" />
+        </g>
+
+        {/* Blumenkasten neben der Treppe */}
+        <g transform="translate(195, 187)">
+          <rect x="0" y="0" width="14" height="3" fill="#5a3010" stroke="#3a1808" strokeWidth="0.3" rx="0.4" />
+          <rect x="0" y="0" width="14" height="0.6" fill="#7c4a1a" rx="0.4" />
+          {/* Erde */}
+          <rect x="0.6" y="0.7" width="12.8" height="0.8" fill="#3a2010" />
+          {/* Blümchen */}
+          {[2, 5, 8, 11].map((bx, i) => (
+            <g key={`fl-${i}`}>
+              <line x1={bx} y1="0.7" x2={bx} y2="-2" stroke="#326c44" strokeWidth="0.4" />
+              <circle cx={bx} cy="-2.4" r="0.7" fill={['#dc2626', '#fbbf24', '#ec4899', '#a78bfa'][i]} />
+              <circle cx={bx} cy="-2.4" r="0.25" fill="#fbbf24" />
+            </g>
+          ))}
+        </g>
+      </svg>
+
+      {/* Sauna (HTML-Overlay) — 28 % kleiner, höher, mittig auf der Veranda */}
+      <div className="absolute" style={{ left: 180, top: 55, pointerEvents: 'auto' }}>
         {children}
       </div>
 

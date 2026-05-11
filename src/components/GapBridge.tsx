@@ -30,12 +30,12 @@ export function GapBridge({ variant }: Props) {
           }
           @keyframes gb-step        { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
           @keyframes gb-swing       {
-            0%, 100% { transform: rotate(-22deg); }
-            50%      { transform: rotate(22deg); }
+            0%, 100% { transform: rotate(-9deg); }
+            50%      { transform: rotate(9deg); }
           }
           @keyframes gb-seesaw      {
-            0%, 100% { transform: rotate(-8deg); }
-            50%      { transform: rotate(8deg); }
+            0%, 100% { transform: rotate(-3.5deg); }
+            50%      { transform: rotate(3.5deg); }
           }
           @keyframes gb-slide-kid {
             0%, 12%, 100% { transform: translate(0, 0); opacity: 1; }
@@ -61,8 +61,8 @@ export function GapBridge({ variant }: Props) {
           .gb-bush         { transform-origin: bottom center; animation: gb-bush-sway 5s infinite ease-in-out; }
           .gb-walk         { animation: gb-walk 60s infinite linear; }
           .gb-step         { animation: gb-step 0.55s infinite ease-in-out; }
-          .gb-swing        { transform-origin: 160px 158px; animation: gb-swing 2.4s infinite ease-in-out; }
-          .gb-seesaw       { transform-origin: 265px 184px; animation: gb-seesaw 3s infinite ease-in-out; }
+          .gb-swing        { animation: gb-swing 2.6s infinite ease-in-out; }
+          .gb-seesaw       { animation: gb-seesaw 3.2s infinite ease-in-out; }
           .gb-slide-kid    { animation: gb-slide-kid 6s infinite ease-in-out; }
           .gb-spring-rider { transform-origin: bottom center; animation: gb-spring-rider 1.6s infinite ease-in-out; }
           .gb-creek        { animation: gb-creek 3s infinite linear; }
@@ -305,8 +305,8 @@ function Playground() {
         <line x1="13"  y1="-1" x2="3"  y2="-30" stroke="#3a1808" strokeWidth="1.4" strokeLinecap="round" />
         {/* Querbalken */}
         <rect x="-20" y="-32" width="40" height="2.5" fill="#5a3010" stroke="#3a1808" strokeWidth="0.4" rx="0.5" />
-        {/* Schaukel-Seile + Sitz + Kind */}
-        <g className="gb-swing">
+        {/* Schaukel-Seile + Sitz + Kind — Drehpunkt am Querbalken (lokale Koordinaten) */}
+        <g className="gb-swing" style={{ transformOrigin: '0px -30px' }}>
           <line x1="-3" y1="-30" x2="-3" y2="-13" stroke="#1a1a1a" strokeWidth="0.5" />
           <line x1="3"  y1="-30" x2="3"  y2="-13" stroke="#1a1a1a" strokeWidth="0.5" />
           {/* Sitz */}
@@ -367,8 +367,8 @@ function Playground() {
         {/* Drehpunkt */}
         <polygon points="0,-9 -3,-2 3,-2" fill="#5a3010" stroke="#3a1808" strokeWidth="0.4" />
         <rect x="-4" y="-2" width="8" height="2" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.4" rx="0.3" />
-        {/* Planke + 2 Kinder */}
-        <g className="gb-seesaw">
+        {/* Planke + 2 Kinder — Drehpunkt an der Wippen-Spitze */}
+        <g className="gb-seesaw" style={{ transformOrigin: '0px -9px' }}>
           <rect x="-22" y="-10" width="44" height="2" fill="#a06530" stroke="#3a1808" strokeWidth="0.4" rx="0.4" />
           {/* Holzmaserung */}
           <line x1="-22" y1="-9" x2="22" y2="-9" stroke="#7c4a1a" strokeWidth="0.3" />
