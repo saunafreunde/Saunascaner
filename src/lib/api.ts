@@ -571,6 +571,16 @@ export async function togglePresenceByEntryCode(code: string) {
   return row as { member_id: string; name: string; is_present: boolean };
 }
 
+// Pre-Check ob ein Einlass-Code frei ist (Migration 0025).
+// true = frei (oder gehört mir bereits selbst — beim Re-Edit kein Konflikt).
+export async function checkEntryCodeAvailable(code: string): Promise<boolean> {
+  const trimmed = code.trim();
+  if (!trimmed) return true;
+  const { data, error } = await need().rpc('entry_code_available', { p_code: trimmed });
+  if (error) throw error;
+  return data === true;
+}
+
 export function useUpdateEntryCode() {
   const qc = useQueryClient();
   return useMutation({

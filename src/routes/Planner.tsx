@@ -35,7 +35,7 @@ import {
   useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
   useCoAufgieser, useJoinTeamInfusion, useLeaveTeamInfusion,
   useMeisterDirectory,
-  useMyPolls, useSubmitPollResponse, useUpdateEntryCode,
+  useMyPolls, useSubmitPollResponse, useUpdateEntryCode, checkEntryCodeAvailable,
   useMyCustomAttrs,
   useRatableInfusions, type RatableInfusion,
   togglePresenceByCode, type MyPoll,
@@ -214,6 +214,46 @@ export default function Planner() {
   const [codeInput, setCodeInput] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
   const [codeSaved, setCodeSaved] = useState(false);
+  // Live-Verfügbarkeits-Check (Migration 0025): debounced 300ms während Tippen
+  type CodeStatus = 'idle' | 'tooShort' | 'checking' | 'available' | 'taken';
+  const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle');
+
+  useEffect(() => {
+    if (!editingCode) { setCodeStatus('idle'); return; }
+    const trimmed = codeInput.trim();
+    if (!trimmed) { setCodeStatus('idle'); return; }
+    if (trimmed.length < 4 || trimmed.length > 8) { setCodeStatus('tooShort'); return; }
+    setCodeStatus('checking');
+    const handle = setTimeout(async () => {
+      try {
+        const free = await checkEntryCodeAvailable(trimmed);
+        // Race-Guard: nur anwenden wenn der Input sich nicht weiter geändert hat
+        setCodeInput((current) => {
+          if (current.trim() === trimmed) setCodeStatus(free ? 'available' : 'taken');
+          return current;
+        });
+      } catch {
+        // Wenn Check fehlschlägt: idle (Server validiert beim Save final)
+        setCodeStatus('idle');
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [codeInput, editingCode]);
+
+  async function generateRandomCode() {
+    // 4-stellige numerische PIN — bis zu 30 Versuche bis frei
+    for (let i = 0; i < 30; i++) {
+      const pin = String(Math.floor(1000 + Math.random() * 9000));
+      try {
+        if (await checkEntryCodeAvailable(pin)) {
+          setCodeInput(pin);
+          setCodeError(null);
+          return;
+        }
+      } catch { /* nächster Versuch */ }
+    }
+    setCodeError('Konnte keinen freien Zufalls-PIN finden — bitte selbst wählen.');
+  }
 
   async function saveEntryCode() {
     setCodeError(null);
@@ -933,13 +973,65 @@ export default function Planner() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <input type="text" value={codeInput} onChange={(e) => setCodeInput(e.target.value)}
-                      placeholder="4–8 Zeichen, z.B. sonne7" maxLength={8} autoFocus
-                      className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400" />
-                    {codeError && <p className="text-xs text-rose-300">{codeError}</p>}
                     <div className="flex gap-2">
-                      <button onClick={saveEntryCode} disabled={updateEntryCode.isPending}
-                        className="flex-1 rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-60">
+                      <input
+                        type="text"
+                        value={codeInput}
+                        onChange={(e) => setCodeInput(e.target.value)}
+                        placeholder="4–8 Zeichen, z.B. sonne7"
+                        maxLength={8}
+                        autoFocus
+                        className={`flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 focus:outline-none focus:ring-2 transition-colors ${
+                          codeStatus === 'taken'     ? 'ring-rose-500/50 focus:ring-rose-400'
+                          : codeStatus === 'available' ? 'ring-emerald-500/50 focus:ring-emerald-400'
+                          : 'ring-violet-700/30 focus:ring-violet-400'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={generateRandomCode}
+                        title="Zufalls-PIN generieren (4-stellig, garantiert frei)"
+                        className="rounded-lg bg-violet-500/15 px-3 py-2 text-sm text-violet-200 ring-1 ring-violet-500/30 hover:bg-violet-500/25 whitespace-nowrap"
+                      >
+                        🎲
+                      </button>
+                    </div>
+
+                    {/* Live-Status-Zeile */}
+                    {codeStatus === 'checking' && (
+                      <p className="text-xs text-forest-300/70 flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-forest-400 animate-pulse" />
+                        Prüfe Verfügbarkeit…
+                      </p>
+                    )}
+                    {codeStatus === 'available' && (
+                      <p className="text-xs text-emerald-300 flex items-center gap-1.5">
+                        <span>✓</span> Code ist verfügbar
+                      </p>
+                    )}
+                    {codeStatus === 'taken' && (
+                      <p className="text-xs text-rose-300 flex items-center gap-1.5">
+                        <span>✕</span> Dieser Code ist bereits vergeben — bitte einen anderen wählen
+                      </p>
+                    )}
+                    {codeStatus === 'tooShort' && codeInput.trim() && (
+                      <p className="text-xs text-amber-300/80 flex items-center gap-1.5">
+                        <span>⚠</span> Code muss 4–8 Zeichen lang sein
+                      </p>
+                    )}
+                    {codeError && <p className="text-xs text-rose-300">{codeError}</p>}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveEntryCode}
+                        disabled={
+                          updateEntryCode.isPending
+                          || codeStatus === 'taken'
+                          || codeStatus === 'tooShort'
+                          || codeStatus === 'checking'
+                        }
+                        className="flex-1 rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
                         {updateEntryCode.isPending ? 'Speichere…' : 'Speichern'}
                       </button>
                       {m.entry_code && (
