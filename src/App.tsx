@@ -1,5 +1,5 @@
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
@@ -30,7 +30,7 @@ export default function App() {
   return (
     <Suspense fallback={<Splash />}>
       <Routes>
-        <Route path="/" element={<Guest />} />
+        <Route path="/" element={<RootEntry />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/scanner"   element={<Scanner />} />
         <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
@@ -49,6 +49,26 @@ export default function App() {
       </Routes>
     </Suspense>
   );
+}
+
+// Root-Eintrag bei "/": wenn die App im PWA-Standalone-Modus läuft
+// (Home-Bildschirm-Icon angetippt), direkt zum Planner weiterleiten.
+// iOS ignoriert das `start_url` aus dem Manifest weitgehend — diese
+// Runtime-Erkennung schließt die Lücke. Im normalen Browser bleibt
+// der Gast-Auftritt aktiv.
+function RootEntry() {
+  const isStandalone = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    // iOS Safari setzt navigator.standalone === true bei Home-Screen-Start
+    const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    // Android/Chromium und neuere iOS-Versionen melden display-mode: standalone
+    const displayStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.matchMedia('(display-mode: minimal-ui)').matches
+      || window.matchMedia('(display-mode: fullscreen)').matches;
+    return iosStandalone || displayStandalone;
+  }, []);
+  if (isStandalone) return <Navigate to="/planner" replace />;
+  return <Guest />;
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
