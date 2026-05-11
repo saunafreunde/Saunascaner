@@ -42,6 +42,7 @@ export type RecurringSlot = {
   status: 'pending' | 'active' | 'revoked';
   active_from: string;
   note: string | null;
+  template_id: string | null;
   created_at: string;
   approved_at: string | null;
   approved_by: string | null;

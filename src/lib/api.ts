@@ -1633,12 +1633,13 @@ export function useMyRecurringSlots(memberId: string | null | undefined) {
 export function useApplyRecurringSlot() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { weekday: number; hour: number; sauna_id: string; note?: string | null }) => {
+    mutationFn: async (p: { weekday: number; hour: number; sauna_id: string; note?: string | null; template_id?: string | null }) => {
       const { data, error } = await need().rpc('apply_recurring_slot', {
         p_weekday: p.weekday,
         p_hour: p.hour,
         p_sauna_id: p.sauna_id,
         p_note: p.note ?? null,
+        p_template_id: p.template_id ?? null,
       });
       if (error) {
         const msg = (error as { message?: string }).message ?? '';
@@ -1647,11 +1648,45 @@ export function useApplyRecurringSlot() {
         if (msg.includes('invalid_weekday_mo')) throw new Error('Montag ist Ruhetag — kein Stamm-Slot möglich.');
         if (msg.includes('invalid_hour')) throw new Error('Ungültige Stunde — nur 11:00 bis 20:00.');
         if (msg.includes('invalid_sauna')) throw new Error('Die gewählte Sauna ist nicht aktiv.');
+        if (msg.includes('invalid_template')) throw new Error('Die gewählte Vorlage existiert nicht oder gehört einem anderen Aufgießer.');
         throw error;
       }
       return data as string;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recurring-slots'] }),
+  });
+}
+
+// ─── Personal-Fallback übernehmen (Migration 0034) ───────────────────────
+export function useTakeoverPersonalFallback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      infusion_id: string;
+      title: string;
+      description?: string | null;
+      attributes?: string[];
+      oils?: (string | null)[] | null;
+      team_infusion?: boolean;
+    }) => {
+      const { error } = await need().rpc('takeover_personal_fallback', {
+        p_infusion_id: p.infusion_id,
+        p_title: p.title,
+        p_description: p.description ?? null,
+        p_attributes: p.attributes ?? [],
+        p_oils: p.oils ?? null,
+        p_team_infusion: p.team_infusion ?? false,
+      });
+      if (error) {
+        const msg = (error as { message?: string }).message ?? '';
+        if (msg.includes('not_aufgieser')) throw new Error('Nur Aufgießer können Personal-Aufgüsse übernehmen.');
+        if (msg.includes('not_a_fallback')) throw new Error('Dieser Aufguss ist kein Personal-Aufguss.');
+        if (msg.includes('slot_in_past')) throw new Error('Slot liegt in der Vergangenheit.');
+        if (msg.includes('title_required')) throw new Error('Titel fehlt.');
+        throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
   });
 }
 

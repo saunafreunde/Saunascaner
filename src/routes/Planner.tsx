@@ -42,9 +42,10 @@ import {
   sendBroadcastPush,
   useMyRecurringSlots, useApplyRecurringSlot, useRevokeMyRecurringSlot,
   useAbsences, useAddAbsence, useDeleteAbsence,
+  useTakeoverPersonalFallback, type Template,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
-import type { RecurringSlot, AufgieserAbsence, Sauna } from '@/types/database';
+import type { RecurringSlot, AufgieserAbsence, Sauna, Infusion } from '@/types/database';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,14 @@ function slotToDate(day: 'today' | 'tomorrow', hhmm: string): Date {
 
 const FIXED_DURATION_MIN = 15;
 
+// Slot-Status pro (sauna, hhmm) für SlotMatrix
+type SlotStatus =
+  | { kind: 'past' }
+  | { kind: 'free' }
+  | { kind: 'fallback'; infusion: Infusion }   // Personal-Aufguss → übernehmbar
+  | { kind: 'mine'; infusion: Infusion }       // eigener Aufguss
+  | { kind: 'taken'; infusion: Infusion };     // anderer Aufgießer
+
 function Card({ title, icon, children, className = '', accent }: {
   title?: string;
   icon?: string;
@@ -123,6 +132,7 @@ export default function Planner() {
   const meisterDir = useMeisterDirectory();
 
   const addInf = useAddInfusion();
+  const takeoverFallback = useTakeoverPersonalFallback();
   const delInf = useDeleteInfusion();
   const addTpl = useAddTemplate();
   const delTpl = useDeleteTemplate();
@@ -315,17 +325,41 @@ export default function Planner() {
     }
   }, [availableSlots, slot]);
 
-  const occupiedKeys = useMemo(() => {
-    const keys = new Set<string>();
+  const infusionByKey = useMemo(() => {
+    const map = new Map<string, Infusion>();
     for (const i of infusions) {
-      keys.add(`${i.sauna_id}|${format(new Date(i.start_time), 'yyyy-MM-dd HH:mm')}`);
+      map.set(`${i.sauna_id}|${format(new Date(i.start_time), 'yyyy-MM-dd HH:mm')}`, i);
     }
-    return keys;
+    return map;
   }, [infusions]);
 
-  function isSlotTaken(hhmm: string) {
+  function getInfusionAt(saunaIdLookup: string, hhmm: string): Infusion | undefined {
     const start = slotToDate(day, hhmm);
-    return occupiedKeys.has(`${saunaId}|${format(start, 'yyyy-MM-dd HH:mm')}`);
+    return infusionByKey.get(`${saunaIdLookup}|${format(start, 'yyyy-MM-dd HH:mm')}`);
+  }
+
+  function slotStatus(saunaIdLookup: string, hhmm: string): SlotStatus {
+    const start = slotToDate(day, hhmm);
+    if (day === 'today' && isBefore(start, new Date())) return { kind: 'past' };
+    const inf = infusionByKey.get(`${saunaIdLookup}|${format(start, 'yyyy-MM-dd HH:mm')}`);
+    if (!inf) return { kind: 'free' };
+    if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
+    if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
+    return { kind: 'taken', infusion: inf };
+  }
+
+  // ID des aktuell gewählten Personal-Fallbacks (für Submit-Branch)
+  const selectedFallbackId = useMemo(() => {
+    const inf = getInfusionAt(saunaId, slot);
+    return inf?.is_personal_fallback ? inf.id : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saunaId, slot, day, infusionByKey]);
+
+  function isSlotTaken(hhmm: string) {
+    const inf = getInfusionAt(saunaId, hhmm);
+    if (!inf) return false;
+    // Personal-Fallback ist NICHT "taken" — er ist übernehmbar
+    return !inf.is_personal_fallback;
   }
 
   // ─── Garantie-Sperre: Sauna 2 erst, wenn alle Garantie-Slots des Tages
@@ -408,13 +442,25 @@ export default function Planner() {
     const start = slotToDate(day, slot);
     if (day === 'today' && isBefore(start, new Date())) return setFormError('Slot liegt in der Vergangenheit.');
     if (isSlotTaken(slot)) return setFormError('Slot bereits belegt.');
-    if (secondarySaunaBlocked) {
+    // Sperrregel gilt NICHT, wenn der gewählte Slot ein Personal-Fallback ist
+    // (übernehmen bringt die Garantie-Sauna ja erst zum vollständigen Besetzt-Status)
+    if (!selectedFallbackId && secondarySaunaBlocked) {
       const list = garantieSlotsOpenToday.map((g) => `${String(g.hour).padStart(2,'0')}:00 ${g.saunaName}`).join(', ');
       return setFormError(`⛔ Zuerst Garantie-Slots durch Aufgießer belegen. Offen: ${list}`);
     }
 
     try {
-      await addInf.mutateAsync({
+      if (selectedFallbackId) {
+        await takeoverFallback.mutateAsync({
+          infusion_id: selectedFallbackId,
+          title: title.trim(),
+          description: null,
+          attributes: attrs,
+          oils: oils.some(Boolean) ? oils : null,
+          team_infusion: teamInfusion,
+        });
+      } else {
+        await addInf.mutateAsync({
         sauna_id: saunaId,
         template_id: null,
         saunameister_id: m.id,
@@ -426,6 +472,7 @@ export default function Planner() {
         duration_minutes: FIXED_DURATION_MIN,
         team_infusion: teamInfusion,
       });
+      }
       // Push an alle Mitglieder wenn TEAM-Aufguss veröffentlicht
       if (teamInfusion) {
         const saunaLabel = saunas.find((s) => s.id === saunaId)?.name ?? '';
@@ -799,54 +846,53 @@ export default function Planner() {
               </div>
             ) : (
               <>
+                {/* SLOT-MATRIX: 2 Sauna-Zeilen, ein Klick wählt Sauna+Uhrzeit gleichzeitig */}
                 <div>
-                  <label className="text-xs text-forest-300">Sauna</label>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {saunas.map((s) => (
-                      <button key={s.id} type="button" onClick={() => setSaunaId(s.id)}
-                        className="rounded-xl px-2 py-3 text-sm ring-1 transition"
-                        style={saunaId === s.id
-                          ? { background: s.accent_color, color: '#0b1f10', boxShadow: `0 0 0 2px ${s.accent_color}66` }
-                          : { background: 'rgba(20, 83, 45, 0.55)' }}>
-                        <div className="font-semibold truncate">{s.name}</div>
-                        <div className="text-xs opacity-80">{s.temperature_label}</div>
-                      </button>
+                  <div className="flex items-baseline justify-between">
+                    <label className="text-xs text-forest-300">Sauna & Uhrzeit auswählen</label>
+                    <div className="flex items-center gap-3 text-[10px] text-forest-400">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" /> frei</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" /> Personal — übernehmen</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70" /> belegt</span>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[10px] text-forest-400/80">
+                    Tipp: leere (grüne) Slots = neuer Aufguss · gelbe Slots = Personal-Aufguss übernehmen · rote = von einem anderen Aufgießer belegt
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {saunas.filter((s) => s.is_active).map((s) => (
+                      <SaunaSlotRow
+                        key={s.id}
+                        sauna={s}
+                        slots={availableSlots}
+                        selectedSaunaId={saunaId}
+                        selectedSlot={slot}
+                        slotStatus={slotStatus}
+                        secondarySaunaBlocked={secondarySaunaBlocked}
+                        garantieSlotsOpenToday={garantieSlotsOpenToday}
+                        onPick={(picked) => { setSaunaId(s.id); setSlot(picked); }}
+                      />
                     ))}
                   </div>
                 </div>
 
-                {secondarySaunaBlocked && (
+                {selectedFallbackId && (
                   <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
-                    <p className="font-semibold">⛔ Zweit-Sauna-Planung gesperrt.</p>
+                    <p className="font-semibold">🔄 Du übernimmst einen Personal-Aufguss.</p>
                     <p className="mt-0.5 text-amber-200/80">
-                      Solange Garantie-Slots in der dran-Sauna ohne Aufgießer sind, kann nicht in der anderen Sauna geplant werden. Offen:{' '}
-                      {garantieSlotsOpenToday.map((g) => `${String(g.hour).padStart(2,'0')}:00 ${g.saunaName}`).join(', ')}
+                      Trage deinen Titel/Eigenschaften/Öle unten ein — der Standard-Personal-Aufguss wird durch deinen ersetzt.
                     </p>
                   </div>
                 )}
 
-                <div>
-                  <label className="text-xs text-forest-300">Uhrzeit (11–20 Uhr)</label>
-                  <div className="mt-2 grid grid-cols-5 gap-1.5">
-                    {availableSlots.map((s) => {
-                      const taken = isSlotTaken(s);
-                      const past = day === 'today' && isBefore(slotToDate('today', s), new Date());
-                      const disabled = taken || past;
-                      return (
-                        <button key={s} type="button" disabled={disabled} onClick={() => setSlot(s)}
-                          className={`rounded-md px-1 py-2.5 text-xs font-mono tabular-nums ring-1 transition ${
-                            slot === s && !disabled
-                              ? 'bg-forest-500 text-forest-950 ring-forest-400 font-bold'
-                              : disabled
-                                ? 'bg-forest-950/40 text-forest-300/30 ring-forest-900/40 cursor-not-allowed line-through'
-                                : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
-                          }`}>
-                          {s}
-                        </button>
-                      );
-                    })}
+                {!selectedFallbackId && secondarySaunaBlocked && (
+                  <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
+                    <p className="font-semibold">⛔ Zweit-Sauna-Planung gesperrt.</p>
+                    <p className="mt-0.5 text-amber-200/80">
+                      Solange in der „dran"-Sauna noch Personal-Aufgüsse stehen, kann in der anderen Sauna nicht zusätzlich geplant werden. Erst die gelben Slots oben übernehmen.
+                    </p>
                   </div>
-                </div>
+                )}
 
                 <div>
                   <label className="text-xs text-forest-300">Titel</label>
@@ -1002,6 +1048,7 @@ export default function Planner() {
               <StammSlotPanel
                 slots={myRecurringQ.data ?? []}
                 saunas={saunas}
+                templates={myTemplates}
                 onApply={async (p) => {
                   try {
                     await applyRecurring.mutateAsync(p);
@@ -1186,17 +1233,123 @@ export default function Planner() {
   );
 }
 
+// ─── Sauna-Slot-Zeile (Matrix-Layout) ─────────────────────────────────────────
+
+function SaunaSlotRow({
+  sauna,
+  slots,
+  selectedSaunaId,
+  selectedSlot,
+  slotStatus,
+  secondarySaunaBlocked,
+  garantieSlotsOpenToday,
+  onPick,
+}: {
+  sauna: Sauna;
+  slots: string[];
+  selectedSaunaId: string;
+  selectedSlot: string;
+  slotStatus: (saunaId: string, hhmm: string) => SlotStatus;
+  secondarySaunaBlocked: boolean;
+  garantieSlotsOpenToday: { hour: number; saunaName: string; tempC: 80 | 100 }[];
+  onPick: (hhmm: string) => void;
+}) {
+  return (
+    <div className="rounded-xl bg-forest-900/40 p-2 ring-1 ring-forest-800/40">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ background: sauna.accent_color, boxShadow: `0 0 6px ${sauna.accent_color}` }}
+        />
+        <span className="text-xs font-bold text-forest-100 tracking-wide">{sauna.name}</span>
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+          style={{ background: `${sauna.accent_color}22`, color: sauna.accent_color }}
+        >
+          {sauna.temperature_label}
+        </span>
+      </div>
+      <div className="grid grid-cols-5 sm:grid-cols-10 gap-1">
+        {slots.map((hhmm) => {
+          const hour = Number(hhmm.split(':')[0]);
+          const status = slotStatus(sauna.id, hhmm);
+          const isSelected = selectedSaunaId === sauna.id && selectedSlot === hhmm;
+          // Ist diese Sauna die Garantie-Sauna für diesen Slot?
+          const isGarantieSauna = garantieSlotsOpenToday.some((g) => g.hour === hour && g.saunaName === sauna.name);
+          // Ist Klick in der Zweit-Sauna blockiert? Nur wenn nicht Garantie-Sauna und nicht Fallback (Fallback ist übernehmbar)
+          const blockedBySecondary = secondarySaunaBlocked && !isGarantieSauna && status.kind === 'free';
+
+          let bg = 'bg-forest-950/40';
+          let text = 'text-forest-200';
+          let ring = 'ring-forest-800/40';
+          let label: React.ReactNode = hhmm;
+          let extra: React.ReactNode = null;
+          let disabled = false;
+          let title = '';
+
+          if (status.kind === 'past') {
+            bg = 'bg-forest-950/30'; text = 'text-forest-300/30'; ring = 'ring-forest-900/30';
+            disabled = true; title = 'Vergangenheit';
+          } else if (status.kind === 'taken') {
+            bg = 'bg-rose-500/15'; text = 'text-rose-200/80'; ring = 'ring-rose-500/30';
+            disabled = true; title = `Belegt — ${status.infusion.title}`;
+            extra = <span className="absolute -bottom-0.5 right-0.5 text-[8px] text-rose-300/80">🧖</span>;
+          } else if (status.kind === 'mine') {
+            bg = 'bg-violet-500/20'; text = 'text-violet-100'; ring = 'ring-violet-500/40';
+            disabled = true; title = `Dein Aufguss — ${status.infusion.title}`;
+            extra = <span className="absolute -bottom-0.5 right-0.5 text-[8px] text-violet-300">✓</span>;
+          } else if (status.kind === 'fallback') {
+            bg = 'bg-amber-500/20'; text = 'text-amber-100'; ring = 'ring-amber-500/40';
+            title = 'Personal-Aufguss übernehmen';
+            extra = <span className="absolute -bottom-0.5 right-0.5 text-[8px]">👨‍🍳</span>;
+          } else if (status.kind === 'free') {
+            if (blockedBySecondary) {
+              bg = 'bg-forest-950/40'; text = 'text-forest-300/40'; ring = 'ring-forest-800/30';
+              disabled = true; title = 'Erst Garantie-Slots übernehmen';
+            } else {
+              bg = 'bg-emerald-500/15'; text = 'text-emerald-100'; ring = 'ring-emerald-500/30';
+              title = 'Frei — neuer Aufguss';
+            }
+          }
+
+          if (isSelected) {
+            bg = 'bg-forest-500';
+            text = 'text-forest-950';
+            ring = 'ring-forest-400 ring-2';
+          }
+
+          return (
+            <button
+              key={hhmm}
+              type="button"
+              disabled={disabled}
+              onClick={() => onPick(hhmm)}
+              title={title}
+              className={`relative rounded-md py-2 text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${disabled ? 'cursor-not-allowed' : 'hover:brightness-125'} ${isSelected ? 'font-bold' : ''}`}
+            >
+              {label}
+              {extra}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Stamm-Slot Panel ─────────────────────────────────────────────────────────
 
 function StammSlotPanel({
   slots,
   saunas,
+  templates,
   onApply,
   onRevoke,
 }: {
   slots: RecurringSlot[];
   saunas: Sauna[];
-  onApply: (p: { weekday: number; hour: number; sauna_id: string; note?: string | null }) => Promise<void>;
+  templates: Template[];
+  onApply: (p: { weekday: number; hour: number; sauna_id: string; note?: string | null; template_id?: string | null }) => Promise<void>;
   onRevoke: (id: string) => Promise<void>;
 }) {
   const activeSaunas = useMemo(() => saunas.filter((s) => s.is_active), [saunas]);
@@ -1204,6 +1357,7 @@ function StammSlotPanel({
   const [hour, setHour] = useState<number>(18);
   const [saunaId, setSaunaId] = useState<string>(activeSaunas[0]?.id ?? '');
   const [note, setNote] = useState('');
+  const [templateId, setTemplateId] = useState<string>('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -1220,8 +1374,13 @@ function StammSlotPanel({
   async function submit() {
     setBusy(true);
     try {
-      await onApply({ weekday, hour, sauna_id: saunaId, note: note.trim() || null });
+      await onApply({
+        weekday, hour, sauna_id: saunaId,
+        note: note.trim() || null,
+        template_id: templateId || null,
+      });
       setNote('');
+      setTemplateId('');
     } finally { setBusy(false); }
   }
 
@@ -1246,11 +1405,13 @@ function StammSlotPanel({
         <ul className="space-y-1.5">
           {slots.map((s) => {
             const saunaName = saunas.find((x) => x.id === s.sauna_id)?.name ?? '?';
+            const tplName = templates.find((t) => t.id === s.template_id)?.title;
             return (
               <li key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-forest-900/50 px-3 py-2 ring-1 ring-forest-800/40">
                 <div className="min-w-0">
                   <div className="text-sm text-amber-100">
                     {WEEKDAY_LABEL_DE_SHORT[s.weekday]} {String(s.slot_hour).padStart(2,'0')}:00 · {saunaName}
+                    {tplName && <span className="ml-1.5 text-[10px] text-emerald-300/80">📋 {tplName}</span>}
                   </div>
                   <div className="text-[10px] text-forest-400 truncate">{s.note || '—'}</div>
                 </div>
@@ -1305,6 +1466,24 @@ function StammSlotPanel({
               <option key={s.id} value={s.id}>{s.name} · {s.temperature_label}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="text-[10px] text-forest-300">
+            Vorlage (optional)
+            {templates.length === 0 && <span className="text-forest-400/60"> — keine vorhanden, du kannst eine im Atelier anlegen</span>}
+          </label>
+          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} disabled={templates.length === 0}
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50">
+            <option value="">— keine Vorlage (Standard „Stamm-Aufguss") —</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>{t.title}</option>
+            ))}
+          </select>
+          {templateId && (
+            <p className="mt-1 text-[10px] text-emerald-300/70">
+              ✓ Diese Vorlage wird bei jedem Stamm-Aufguss automatisch übernommen (Titel, Eigenschaften, Öle).
+            </p>
+          )}
         </div>
         <div>
           <label className="text-[10px] text-forest-300">Begründung / Notiz (optional)</label>
