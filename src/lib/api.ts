@@ -625,7 +625,17 @@ export function useJoinTeamInfusion() {
   return useMutation({
     mutationFn: async ({ infusion_id, member_id }: { infusion_id: string; member_id: string }) => {
       const { error } = await need().from('infusion_co_aufgieser').insert({ infusion_id, member_id });
-      if (error) throw error;
+      if (error) {
+        // Trigger aus Migration 0024 → max 2 Co-Aufgießer pro Team-Aufguss
+        if (error.message?.includes('team_aufguss_voll')) {
+          throw new Error('Team-Aufguss ist voll — beide Slots sind bereits vergeben.');
+        }
+        // Unique-Constraint: schon dabei
+        if (error.code === '23505') {
+          throw new Error('Du bist bereits in diesem Team-Aufguss eingebucht.');
+        }
+        throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['co-aufgieser'] }),
   });

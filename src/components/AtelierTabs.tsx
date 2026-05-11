@@ -140,21 +140,16 @@ export function AtelierTabs({
                             Meister: {meisterName(i.saunameister_id) || '— nicht zugeordnet —'}
                           </div>
                         )}
-                        {coNames.length > 0 && <div className="text-xs text-amber-300/80 mt-0.5">+ {coNames.join(', ')}</div>}
+                        {/* Co-Aufgießer-Namen werden jetzt direkt in den Slot-Buttons rechts angezeigt */}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {teamSlot && (
-                          joined ? (
-                            <button onClick={() => onLeaveTeam(i.id)}
-                              className="rounded-md px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 whitespace-nowrap ring-1 ring-rose-500/30">
-                              Verlassen
-                            </button>
-                          ) : (
-                            <button onClick={() => onJoinTeam(i.id)}
-                              className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-950 whitespace-nowrap">
-                              Team-Aufguss teilnehmen
-                            </button>
-                          )
+                          <TeamSlots
+                            names={coNames}
+                            joined={joined}
+                            onJoin={() => onJoinTeam(i.id)}
+                            onLeave={() => onLeaveTeam(i.id)}
+                          />
                         )}
                         {canDelete(i) && (
                           <button onClick={() => handleDelete(i)}
@@ -195,6 +190,66 @@ export function AtelierTabs({
         </motion.div>
       </AnimatePresence>
     </div>
+  );
+}
+
+// Zwei Slot-Buttons für Co-Aufgießer eines Team-Aufgusses.
+// names = bereits beigetretene Aufgießer (max 2 wegen Migration 0024).
+// joined = bin ich selbst dabei?
+function TeamSlots({
+  names,
+  joined,
+  onJoin,
+  onLeave,
+}: {
+  names: string[];
+  joined: boolean;
+  onJoin: () => void;
+  onLeave: () => void;
+}) {
+  const slot1 = names[0];
+  const slot2 = names[1];
+  const isFull = names.length >= 2;
+
+  return (
+    <div className="flex flex-col items-end gap-1 min-w-[150px]">
+      <div className="flex gap-1">
+        <SlotPill name={slot1} idx={1} />
+        <SlotPill name={slot2} idx={2} />
+      </div>
+      {joined ? (
+        <button
+          onClick={onLeave}
+          className="rounded-md px-2.5 py-1 text-[11px] text-rose-300 hover:bg-rose-500/15 ring-1 ring-rose-500/30 whitespace-nowrap"
+        >
+          ← Mein Slot verlassen
+        </button>
+      ) : isFull ? (
+        <span className="text-[10px] text-forest-400/70 italic px-1">Team voll</span>
+      ) : (
+        <button
+          onClick={onJoin}
+          className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1 text-[11px] font-semibold text-amber-950 whitespace-nowrap"
+        >
+          👥 Slot {names.length + 1} · Beitreten
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SlotPill({ name, idx }: { name: string | undefined; idx: 1 | 2 }) {
+  if (name) {
+    return (
+      <span className="rounded-md bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-100 ring-1 ring-amber-500/30 max-w-[80px] truncate" title={name}>
+        🔥 {name}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-md bg-forest-900/60 px-2 py-0.5 text-[10px] font-medium text-forest-400 ring-1 ring-forest-700/40 italic">
+      Slot {idx} · frei
+    </span>
   );
 }
 

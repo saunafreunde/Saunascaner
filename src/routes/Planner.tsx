@@ -335,6 +335,17 @@ export default function Planner() {
         duration_minutes: FIXED_DURATION_MIN,
         team_infusion: teamInfusion,
       });
+      // Push an alle Mitglieder wenn TEAM-Aufguss veröffentlicht
+      if (teamInfusion) {
+        const saunaLabel = saunas.find((s) => s.id === saunaId)?.name ?? '';
+        const dayLabel = day === 'today' ? 'heute' : 'morgen';
+        sendBroadcastPush({
+          title: '👥 Neuer Team-Aufguss',
+          body: `${m.name} sucht 2 Co-Aufgießer · ${title.trim()} · ${dayLabel} ${format(start, 'HH:mm')}${saunaLabel ? ' · ' + saunaLabel : ''}`,
+          url: '/planner',
+          tag: `team-aufguss-${start.toISOString()}`,
+        }).catch(() => { /* push ist optional */ });
+      }
       clearForm();
       // 🎉 Konfetti beim ersten eigenen Aufguss des Tages
       fireFirstInfusionOfDay(m.id).catch(() => {});
@@ -404,6 +415,18 @@ export default function Planner() {
   function isJoined(infusionId: string): boolean {
     return (coAufgieserQ.data ?? []).some((c) => c.infusion_id === infusionId && c.member_id === m?.id);
   }
+
+  // Offene Team-Aufgüsse (fremd + zukünftig + noch nicht 2 Co-Aufgießer eingebucht)
+  const openTeamInfusions = useMemo(
+    () => infusions.filter((i) => {
+      if (!i.team_infusion) return false;
+      if (i.saunameister_id === m?.id) return false;
+      if (new Date(i.end_time) <= new Date()) return false;
+      const coCount = (coAufgieserQ.data ?? []).filter((c) => c.infusion_id === i.id).length;
+      return coCount < 2;
+    }),
+    [infusions, m?.id, coAufgieserQ.data],
+  );
 
   const meisterName = (id: string | null) => (id && meisterDir.data?.find((x) => x.id === id)?.name) || '—';
   const evacuation = evacQ.data;
@@ -607,6 +630,62 @@ export default function Planner() {
           )}
         </div>
 
+        {/* ══ OFFENE TEAM-AUFGÜSSE — Quick-Liste über der Eingabe ═══ */}
+        {isAufgieser && openTeamInfusions.length > 0 && (
+          <div className="rounded-2xl bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">👥</span>
+              <h2 className="text-sm font-semibold text-amber-100 uppercase tracking-wider">
+                Offene Team-Plätze ({openTeamInfusions.length})
+              </h2>
+            </div>
+            <p className="text-[11px] text-amber-200/70">Klick auf „Beitreten" um dich als Co-Aufgießer einzubuchen — max 2 pro Aufguss.</p>
+            <ul className="space-y-1.5">
+              {openTeamInfusions.map((i) => {
+                const coCount = (coAufgieserQ.data ?? []).filter((c) => c.infusion_id === i.id).length;
+                const meIn = isJoined(i.id);
+                const accent = saunas.find((s) => s.id === i.sauna_id)?.accent_color ?? '#fbbf24';
+                const saunaLabel = saunas.find((s) => s.id === i.sauna_id)?.name ?? '?';
+                return (
+                  <li
+                    key={i.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-amber-950/40 px-3 py-2 ring-1 ring-amber-500/20"
+                    style={{ borderLeft: `3px solid ${accent}` }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-amber-50 truncate">{i.title}</div>
+                      <div className="text-[11px] text-amber-200/70">
+                        {format(new Date(i.start_time), 'EEE HH:mm')} · {saunaLabel} · Meister: {meisterName(i.saunameister_id)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="text-[10px] font-bold text-amber-300/90 tabular-nums">{coCount}/2</span>
+                      {meIn ? (
+                        <button
+                          onClick={() => m && leaveTeam.mutate({ infusion_id: i.id, member_id: m.id })}
+                          className="rounded-md px-2.5 py-1 text-[11px] text-rose-200 hover:bg-rose-500/15 ring-1 ring-rose-500/30 whitespace-nowrap"
+                        >
+                          Verlassen
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => m && joinTeam.mutate(
+                            { infusion_id: i.id, member_id: m.id },
+                            { onError: (e) => window.alert((e as Error).message) },
+                          )}
+                          className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1 text-[11px] font-bold text-amber-950 whitespace-nowrap"
+                        >
+                          + Beitreten
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         {/* ══ AUFGUSS-FORMULAR: Volle Breite ═══════════════════════ */}
         {isAufgieser && (
           <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
@@ -802,7 +881,10 @@ export default function Planner() {
               getCoNames={getCoNames}
               isJoined={isJoined}
               onDeleteInfusion={(id) => delInf.mutate(id)}
-              onJoinTeam={(id) => m && joinTeam.mutate({ infusion_id: id, member_id: m.id })}
+              onJoinTeam={(id) => m && joinTeam.mutate(
+                { infusion_id: id, member_id: m.id },
+                { onError: (e) => window.alert((e as Error).message) },
+              )}
               onLeaveTeam={(id) => m && leaveTeam.mutate({ infusion_id: id, member_id: m.id })}
               onApplyTemplate={(t) => applyTemplate(t)}
               onDeleteTemplate={(id) => delTpl.mutate(id)}
