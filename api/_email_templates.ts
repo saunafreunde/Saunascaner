@@ -15,6 +15,11 @@ const COLORS = {
   forest: '#22c55e',
 };
 
+// Logo aus dem Supabase Storage. URL ist stabil (logo_path im system_config).
+// Bei Bedarf via Env-Var SAUNA_LOGO_URL override-bar.
+const LOGO_URL = process.env.SAUNA_LOGO_URL
+  ?? 'https://tbjptybrtsmqyqmbiley.supabase.co/storage/v1/object/public/assets/logo/34eef79d-02e8-4c2a-9ba6-5cf13245801b.png';
+
 function wrap(title: string, bodyHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="de">
@@ -28,12 +33,12 @@ function wrap(title: string, bodyHtml: string): string {
     <tr>
       <td align="center">
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width:600px;background:${COLORS.panel};border-radius:16px;overflow:hidden;border:1px solid ${COLORS.accentDark}33;">
-          <!-- Header -->
+          <!-- Header mit Logo -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1a2f1f 0%,#0f2418 100%);padding:32px 32px 24px;text-align:center;border-bottom:2px solid ${COLORS.accent}33;">
-              <div style="font-size:42px;line-height:1;margin-bottom:8px;">🧖</div>
-              <h1 style="margin:0;font-size:22px;color:${COLORS.accent};font-weight:700;letter-spacing:0.5px;">Saunafreunde Schwarzwald</h1>
-              <p style="margin:4px 0 0;font-size:12px;color:${COLORS.textSecondary};letter-spacing:1px;text-transform:uppercase;">Freudenstadt</p>
+            <td style="background:linear-gradient(135deg,#1a2f1f 0%,#0f2418 100%);padding:36px 32px 28px;text-align:center;border-bottom:2px solid ${COLORS.accent}33;">
+              <img src="${LOGO_URL}" alt="Saunafreunde Schwarzwald" width="120" height="120" style="display:block;margin:0 auto 12px;width:120px;height:120px;object-fit:contain;border-radius:24px;box-shadow:0 4px 24px rgba(251,191,36,0.25);" />
+              <h1 style="margin:0;font-size:24px;color:${COLORS.accent};font-weight:800;letter-spacing:0.5px;">Saunafreunde Schwarzwald</h1>
+              <p style="margin:4px 0 0;font-size:11px;color:${COLORS.textSecondary};letter-spacing:2px;text-transform:uppercase;">Freudenstadt</p>
             </td>
           </tr>
           <!-- Body -->
