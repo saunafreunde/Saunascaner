@@ -158,6 +158,9 @@ export type Member = {
   motto: string | null;
   avatar_path: string | null;
   home_group: string | null;
+  calendar_feed_token: string | null;
+  telegram_user_id: number | null;
+  telegram_link_token: string | null;
   created_at: string;
 };
 
@@ -1825,6 +1828,65 @@ export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
 
 export async function deleteAsset(path: string): Promise<void> {
   await need().storage.from('assets').remove([path]);
+}
+
+// ─── Calendar-Feed (iCal) + Telegram-Linking (Migration 0038) ───────────
+export function useMyCalendarToken() {
+  return useQuery({
+    queryKey: ['my-calendar-token'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('my_calendar_token');
+      if (error) throw error;
+      return (data ?? null) as string | null;
+    },
+  });
+}
+
+export function useRotateCalendarToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('rotate_my_calendar_token');
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-calendar-token'] }),
+  });
+}
+
+export function calendarFeedUrl(token: string): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://saunascaner.vercel.app';
+  return `${origin}/api/email?action=calendar&token=${token}`;
+}
+
+export function useGenerateTelegramLinkToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('generate_my_telegram_link_token');
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['current-member'] }),
+  });
+}
+
+export function useUnlinkTelegram() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await need().rpc('unlink_my_telegram');
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['current-member'] }),
+  });
+}
+
+export function telegramStartUrl(token: string): string {
+  const bot = (typeof window !== 'undefined' && window.localStorage)
+    ? (window.localStorage.getItem('TELEGRAM_BOT_USERNAME') ?? 'SaunaFDSBot')
+    : 'SaunaFDSBot';
+  return `https://t.me/${bot}?start=${token}`;
 }
 
 // ─── Stamm-Aufgießer-Slots (Migration 0027/0032) ─────────────────────────

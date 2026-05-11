@@ -28,13 +28,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'test-connection':   return await handleTestConnection(req, res);
       case 'send-welcome':      return await handleSendWelcome(req, res);
       case 'magic-link':        return await handleMagicLink(req, res);
+      case 'calendar':          return await handleCalendarFeed(req, res);
       default:
-        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome', 'magic-link'] });
+        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome', 'magic-link', 'calendar'] });
     }
   } catch (e) {
     const msg = (e as Error).message;
     return res.status(500).json({ error: msg });
   }
+}
+
+// ─── calendar (public iCal-Feed via Token) ───────────────────────────────
+async function handleCalendarFeed(req: VercelRequest, res: VercelResponse) {
+  const token = String(req.query.token ?? '');
+  if (!token || !/^[0-9a-f-]{36}$/i.test(token)) {
+    res.setHeader('Content-Type', 'text/plain');
+    return res.status(400).send('Invalid token');
+  }
+
+  const svc = makeServiceClient();
+  const { data: memberRows } = await svc.rpc('get_calendar_member_by_token', { p_token: token });
+  const member = Array.isArray(memberRows) ? memberRows[0] : memberRows;
+  if (!member) {
+    res.setHeader('Content-Type', 'text/plain');
+    return res.status(404).send('Token not found or revoked');
+  }
+
+  const { data: events } = await svc.rpc('get_member_calendar_events', { p_member_id: member.member_id });
+  const list = (events ?? []) as Array<{
+    id: string; sauna_name: string; sauna_temp: string;
+    title: string; description: string | null;
+    start_time: string; end_time: string;
+    team_infusion: boolean; is_co_aufgieser: boolean; is_personal_fallback: boolean;
+  }>;
+
+  const ics = buildICS(list, member.member_name);
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', 'inline; filename="saunafreunde.ics"');
+  res.setHeader('Cache-Control', 'private, max-age=300'); // 5 Min Cache
+  return res.status(200).send(ics);
+}
+
+function buildICS(events: Array<{
+  id: string; sauna_name: string; sauna_temp: string;
+  title: string; description: string | null;
+  start_time: string; end_time: string;
+  team_infusion: boolean; is_co_aufgieser: boolean; is_personal_fallback: boolean;
+}>, memberName: string): string {
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    const Y = d.getUTCFullYear();
+    const M = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const D = String(d.getUTCDate()).padStart(2, '0');
+    const h = String(d.getUTCHours()).padStart(2, '0');
+    const m = String(d.getUTCMinutes()).padStart(2, '0');
+    const s = String(d.getUTCSeconds()).padStart(2, '0');
+    return `${Y}${M}${D}T${h}${m}${s}Z`;
+  };
+  const escape = (s: string) => s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Saunafreunde Schwarzwald//Saunascaner//DE',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:Saunafreunde — ${escape(memberName)}`,
+    'X-WR-CALDESC:Deine Aufgüsse bei Saunafreunde Schwarzwald',
+    'X-WR-TIMEZONE:Europe/Berlin',
+  ];
+
+  for (const e of events) {
+    const role = e.is_co_aufgieser ? '👥 Co-Aufgießer' : e.is_personal_fallback ? '👨‍🍳 Personal' : e.team_infusion ? '🧖 Aufgießer (Team)' : '🧖 Aufgießer';
+    const summary = `${e.title} — ${e.sauna_name} ${e.sauna_temp}`;
+    const description = `${role}\\nSauna: ${e.sauna_name} (${e.sauna_temp})${e.description ? '\\n\\n' + escape(e.description) : ''}`;
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${e.id}@saunascaner.vercel.app`);
+    lines.push(`DTSTAMP:${fmt(new Date().toISOString())}`);
+    lines.push(`DTSTART:${fmt(e.start_time)}`);
+    lines.push(`DTEND:${fmt(e.end_time)}`);
+    lines.push(`SUMMARY:${escape(summary)}`);
+    lines.push(`DESCRIPTION:${description}`);
+    lines.push(`LOCATION:Saunafreunde Schwarzwald, Freudenstadt`);
+    lines.push(`URL:https://saunascaner.vercel.app/planner`);
+    lines.push('END:VEVENT');
+  }
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
 }
 
 // ─── magic-link (öffentlich, keine Auth nötig) ───────────────────────────

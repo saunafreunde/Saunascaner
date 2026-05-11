@@ -24,6 +24,7 @@ import { IdentityCard } from '@/components/IdentityCard';
 import { TrophyWall } from '@/components/TrophyWall';
 import { WmStandMini } from '@/components/WmStandMini';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
+import { ProfileIntegrations } from '@/components/ProfileIntegrations';
 import { fireBadgeUnlock, fireFirstInfusionOfDay } from '@/lib/confetti';
 import { useAuth } from '@/hooks/useAuth';
 import { useNow } from '@/hooks/useNow';
@@ -1253,6 +1254,9 @@ export default function Planner() {
                 </div>
                 <TrophyWall memberId={m.id} />
               </div>
+
+              {/* Kalender-Abo + Telegram-Verknüpfung */}
+              <ProfileIntegrations member={m} />
 
               {/* PWA-Install (Android/iOS-Hinweis) */}
               <PWAInstallButton />
