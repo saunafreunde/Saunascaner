@@ -11,14 +11,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { ImapFlow } from 'imapflow';
 import nodemailer from 'nodemailer';
-import { authenticate } from './_auth';
+import { authenticate } from './_auth.js';
 import {
   sendSystemMail,
   sendFromAdmin,
   makeServiceClient,
   logEmailSend,
-} from './_email_helpers';
-import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail } from './_email_templates';
+} from './_email_helpers.js';
+import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail } from './_email_templates.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '');

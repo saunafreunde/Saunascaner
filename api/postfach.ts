@@ -14,8 +14,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
-import { authenticate } from './_auth';
-import { makeServiceClient } from './_email_helpers';
+import { authenticate } from './_auth.js';
+import { makeServiceClient } from './_email_helpers.js';
 
 // ─── Credentials-Helper ──────────────────────────────────────────────────
 async function getCredsForCurrentUser(memberId: string) {

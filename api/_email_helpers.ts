@@ -1,7 +1,6 @@
 // Server-side Helpers für Mail-Versand. Nicht für Client-Imports gedacht.
 // Templates kommen aus _email_templates.ts (inline TS-Module).
 import nodemailer, { type Transporter } from 'nodemailer';
-import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // ─── SMTP-Transporter ────────────────────────────────────────────────────
@@ -9,7 +8,11 @@ function makeTransporter(opts: {
   host: string; port: number; secure: boolean;
   user: string; pass: string; fromName?: string;
 }): Transporter {
-  const config: SMTPTransport.Options = {
+  // nodemailer.createTransport akzeptiert ein generisches Options-Objekt;
+  // wir bauen es Schritt für Schritt um TS6133 / Type-Mismatch-Probleme
+  // mit deep imports zu vermeiden.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return nodemailer.createTransport({
     host: opts.host,
     port: opts.port,
     secure: opts.secure,
@@ -17,8 +20,8 @@ function makeTransporter(opts: {
     pool: false,
     connectionTimeout: 15_000,
     greetingTimeout: 10_000,
-  };
-  return nodemailer.createTransport(config);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 }
 
 // ─── System-Mail (info@sauna-fds.de) ─────────────────────────────────────
