@@ -1,6 +1,7 @@
 // Server-side Helpers für Mail-Versand. Nicht für Client-Imports gedacht.
 // Templates kommen aus _email_templates.ts (inline TS-Module).
 import nodemailer, { type Transporter } from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // ─── SMTP-Transporter ────────────────────────────────────────────────────
@@ -8,7 +9,7 @@ function makeTransporter(opts: {
   host: string; port: number; secure: boolean;
   user: string; pass: string; fromName?: string;
 }): Transporter {
-  return nodemailer.createTransport({
+  const config: SMTPTransport.Options = {
     host: opts.host,
     port: opts.port,
     secure: opts.secure,
@@ -16,7 +17,8 @@ function makeTransporter(opts: {
     pool: false,
     connectionTimeout: 15_000,
     greetingTimeout: 10_000,
-  });
+  };
+  return nodemailer.createTransport(config);
 }
 
 // ─── System-Mail (info@sauna-fds.de) ─────────────────────────────────────
