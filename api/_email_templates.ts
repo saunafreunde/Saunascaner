@@ -135,6 +135,37 @@ export function renderInviteEmail(vars: {
   return { html, text, subject };
 }
 
+// ─── Magic-Link-Template ─────────────────────────────────────────────────
+export function renderMagicLinkEmail(vars: {
+  magicLink: string;
+  isSignup: boolean;
+}): { html: string; text: string; subject: string } {
+  const headline = vars.isSignup ? 'Willkommen bei Saunafreunde! 🧖' : '✨ Login-Link für Saunafreunde';
+  const lead = vars.isSignup
+    ? 'Klicke auf den Button, um dein Konto zu aktivieren und in die App einzusteigen.'
+    : 'Klicke auf den Button, um dich anzumelden. Kein Passwort nötig.';
+
+  const body = `
+    <h2 style="margin:0 0 16px;font-size:24px;color:${COLORS.textPrimary};">${headline}</h2>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${COLORS.textPrimary};">
+      ${lead}
+    </p>
+    ${button(vars.magicLink, '🌲 Jetzt einloggen')}
+    <p style="margin:16px 0;font-size:12px;color:${COLORS.textSecondary};text-align:center;">
+      Falls der Button nicht funktioniert, kopiere diesen Link:<br/>
+      <a href="${vars.magicLink}" style="color:${COLORS.accent};word-break:break-all;text-decoration:underline;">${vars.magicLink}</a>
+    </p>
+    <div style="margin-top:32px;padding-top:24px;border-top:1px solid ${COLORS.accentDark}33;">
+      <p style="margin:0;font-size:11px;color:${COLORS.textSecondary};line-height:1.5;">
+        Der Link ist für 1 Stunde gültig und nur einmal verwendbar. Wenn du dich nicht selbst angemeldet hast, ignoriere diese E-Mail einfach.
+      </p>
+    </div>
+  `;
+  const html = wrap(headline, body);
+  const text = `${headline}\n\n${lead}\n\nLogin-Link:\n${vars.magicLink}\n\nGültig 1 Stunde. — Saunafreunde Schwarzwald`;
+  return { html, text, subject: headline };
+}
+
 // ─── Welcome-Template ────────────────────────────────────────────────────
 export function renderWelcomeEmail(vars: {
   recipientName: string;

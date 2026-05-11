@@ -18,7 +18,7 @@ import {
   makeServiceClient,
   logEmailSend,
 } from './_email_helpers';
-import { renderInviteEmail, renderWelcomeEmail } from './_email_templates';
+import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail } from './_email_templates';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '');
@@ -27,13 +27,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'send-invite':       return await handleSendInvite(req, res);
       case 'test-connection':   return await handleTestConnection(req, res);
       case 'send-welcome':      return await handleSendWelcome(req, res);
+      case 'magic-link':        return await handleMagicLink(req, res);
       default:
-        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome'] });
+        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome', 'magic-link'] });
     }
   } catch (e) {
     const msg = (e as Error).message;
     return res.status(500).json({ error: msg });
   }
+}
+
+// ─── magic-link (öffentlich, keine Auth nötig) ───────────────────────────
+// Generiert via Supabase Admin-API einen Magic-Link UND versendet ihn
+// selbst über info@sauna-fds.de mit eigenem Schwarzwald-Template.
+async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  const { email, redirect_to, invite_code } = req.body as {
+    email: string;
+    redirect_to?: string;
+    invite_code?: string;
+  };
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+
+  const svc = makeServiceClient();
+
+  // Prüfen ob User existiert — entscheidet ob magiclink (für Existing) oder invite (für Neue)
+  const { data: existingUser } = await svc.auth.admin.listUsers();
+  const userExists = existingUser?.users.some((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? false;
+
+  const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+  const redirectTo = redirect_to ?? `${origin}/planner`;
+
+  // Magic-Link generieren (KEIN Auto-Send durch Supabase!)
+  const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
+    type: userExists ? 'magiclink' : 'signup',
+    email,
+    password: !userExists ? cryptoRandomPassword() : undefined,
+    options: {
+      redirectTo,
+      data: invite_code ? { invite_code: invite_code.toUpperCase() } : undefined,
+    },
+  });
+  if (linkErr || !linkData?.properties?.action_link) {
+    return res.status(500).json({ error: linkErr?.message ?? 'could not generate link' });
+  }
+
+  const { html, text, subject } = renderMagicLinkEmail({
+    magicLink: linkData.properties.action_link,
+    isSignup: !userExists,
+  });
+
+  try {
+    await sendSystemMail({ to: email, subject, html, text });
+  } catch (e) {
+    return res.status(500).json({ error: 'send failed: ' + (e as Error).message });
+  }
+
+  return res.status(200).json({ ok: true, is_signup: !userExists });
+}
+
+function cryptoRandomPassword(): string {
+  // 24-Zeichen Zufalls-Passwort für Neu-User. User braucht es nie zu sehen — Login geht via Magic-Link.
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!#=*';
+  const bytes = new Uint8Array(24);
+  // @ts-expect-error — Node 18+ hat globalThis.crypto
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes).map((n) => charset[n % charset.length]).join('');
 }
 
 // ─── send-invite ──────────────────────────────────────────────────────────

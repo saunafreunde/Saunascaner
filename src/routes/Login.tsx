@@ -45,17 +45,21 @@ export default function Login() {
     setBusy(true); setError(null); setInfo(null);
     try {
       if (mode === 'magic') {
-        if (!supabase) throw new Error('Supabase nicht verfügbar');
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/login?next=${encodeURIComponent(next)}`,
-            data: inviteCode ? { invite_code: inviteCode.toUpperCase() } : undefined,
-            shouldCreateUser: true,
-          },
+        // Eigener Endpoint statt Supabase-Standard-SMTP — Schwarzwald-Template + info@-Absender
+        const r = await fetch('/api/email?action=magic-link', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            redirect_to: `${window.location.origin}${next}`,
+            invite_code: inviteCode ?? undefined,
+          }),
         });
-        if (error) throw error;
-        setInfo('✨ Login-Link wurde an deine E-Mail geschickt. Bitte den Link aus der Mail klicken.');
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error ?? 'Magic-Link konnte nicht gesendet werden');
+        setInfo(data.is_signup
+          ? '✨ Wir haben dir einen Aktivierungs-Link geschickt. Bitte den Link aus der Mail klicken.'
+          : '✨ Login-Link wurde an deine E-Mail geschickt. Bitte den Link aus der Mail klicken.');
       } else if (mode === 'signin') {
         const { error } = await signIn(email, password);
         if (error) throw error;
