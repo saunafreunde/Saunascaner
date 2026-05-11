@@ -56,17 +56,37 @@ export function GapBridge({ variant }: Props) {
             50%      { transform: translate(10px, -16px); }
             95%      { transform: translate(18px, 0); }
           }
+          /* Perspektivischer Ball — kleiner wenn hinten, größer wenn vorne */
           @keyframes gb-soccer-ball {
-            0%   { transform: translate(90px, 150px); }
-            12%  { transform: translate(45px, 144px); }
-            18%  { transform: translate(45px, 144px); }
-            30%  { transform: translate(165px, 138px); }
-            42%  { transform: translate(220px, 152px); }
-            55%  { transform: translate(270px, 142px); }
-            62%  { transform: translate(270px, 142px); }
-            75%  { transform: translate(130px, 156px); }
-            88%  { transform: translate(80px, 145px); }
-            100% { transform: translate(90px, 150px); }
+            0%   { transform: translate(70px, 138px)  scale(1.0); }
+            10%  { transform: translate(30px, 130px)  scale(0.8); }
+            18%  { transform: translate(30px, 130px)  scale(0.8); }
+            28%  { transform: translate(135px, 100px) scale(0.55); }
+            40%  { transform: translate(205px, 122px) scale(0.8); }
+            52%  { transform: translate(258px, 138px) scale(1.0); }
+            62%  { transform: translate(258px, 138px) scale(1.0); }
+            72%  { transform: translate(180px, 118px) scale(0.75); }
+            85%  { transform: translate(100px, 128px) scale(0.85); }
+            100% { transform: translate(70px, 138px)  scale(1.0); }
+          }
+          /* Schwarzwald-Bähnle dampft durch die hinteren Hügel */
+          @keyframes gb-train {
+            0%   { transform: translate(-90px, 0); }
+            100% { transform: translate(420px, 0); }
+          }
+          @keyframes gb-train-wheels { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
+          @keyframes gb-steam {
+            0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
+            15%  { opacity: 0.95; }
+            100% { opacity: 0; transform: translate(-6px, -22px) scale(2.2); }
+          }
+          @keyframes gb-passenger-wave {
+            0%, 100% { transform: rotate(0); }
+            50%      { transform: rotate(25deg); }
+          }
+          @keyframes gb-board-pulse {
+            0%, 100% { opacity: 0.85; }
+            50%      { opacity: 1; }
           }
           @keyframes gb-ball-spin   { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
           @keyframes gb-player-run  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
@@ -118,12 +138,18 @@ export function GapBridge({ variant }: Props) {
           .gb-kite         { transform-origin: 50% 0%; animation: gb-kite-bob 5s infinite ease-in-out; }
           .gb-tail         { transform-origin: top center; animation: gb-tail-wave 2.5s infinite ease-in-out; }
           .gb-flag         { transform-origin: left center; animation: gb-flag-wave 2.5s infinite ease-in-out; }
+          .gb-train          { animation: gb-train 75s infinite linear; }
+          .gb-train-wheels   { transform-origin: center; animation: gb-train-wheels 0.8s infinite linear; }
+          .gb-steam          { animation: gb-steam 2.6s infinite ease-out; }
+          .gb-passenger-wave { transform-origin: bottom center; animation: gb-passenger-wave 1.8s infinite ease-in-out; }
+          .gb-board-pulse    { animation: gb-board-pulse 1.5s infinite ease-in-out; }
 
           @media (prefers-reduced-motion: reduce) {
             .gb-tree, .gb-bush, .gb-walk, .gb-step, .gb-swing, .gb-seesaw,
             .gb-slide-kid, .gb-spring-rider, .gb-creek, .gb-bird, .gb-firefly, .gb-ball,
             .gb-soccer-ball, .gb-ball-spin, .gb-player-run, .gb-keeper-1, .gb-keeper-2,
-            .gb-cheer, .gb-kite, .gb-tail, .gb-flag {
+            .gb-cheer, .gb-kite, .gb-tail, .gb-flag,
+            .gb-train, .gb-train-wheels, .gb-steam, .gb-passenger-wave, .gb-board-pulse {
               animation: none;
             }
           }
@@ -160,6 +186,14 @@ export function GapBridge({ variant }: Props) {
 function ForestPath() {
   return (
     <g>
+      {/* ── HINTERSTE EBENE: Schwarzwald-Bähnle dampft durch die Hügel ──── */}
+      <g className="gb-train">
+        <Baehnle />
+      </g>
+
+      {/* ── HINTERGRUND: Isometrischer Fußballplatz mit laufendem Spiel ── */}
+      <PerspectiveSoccerField />
+
       {/* Geschwungener Sandpfad quer durch */}
       <path
         d="M -10 195 Q 80 185 160 190 Q 240 195 330 188"
@@ -306,8 +340,8 @@ function Wanderer() {
 function Playground() {
   return (
     <g>
-      {/* ── HINTERGRUND: Fußballplatz mit laufendem Spiel ────────────────── */}
-      <SoccerField />
+      {/* ── HINTERGRUND: Vereinshaus rahmt die Spielwiese ─────────────────── */}
+      <Vereinshaus />
 
       {/* Gepflasterter Bereich (heller Sand-/Kiesboden) */}
       <ellipse cx={160} cy={195} rx={155} ry={5} fill="#c8a16a" opacity="0.45" />
@@ -556,131 +590,141 @@ function Playground() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// FUSSBALLPLATZ — kleines Spiel hinter dem Spielplatz
+// ISOMETRISCHER FUSSBALLPLATZ — perspektivisch, im Forest-Gap zwischen
+// Holzfäller und Sauna. Trapez-Feld: hinten schmal, vorn breit.
+// Geometrie:
+//   far-left  = (85, 98)    far-right  = (235, 98)
+//   near-left = (20, 158)   near-right = (300, 158)
+// Spieler skaliert mit Tiefe (hinten klein, vorn groß).
 // ════════════════════════════════════════════════════════════════════════
-function SoccerField() {
+function PerspectiveSoccerField() {
   return (
     <g>
-      {/* Spielfeld-Rasen mit Mähstreifen */}
-      <rect x="18" y="125" width="284" height="38" fill="#326c44" stroke="#1f4d2f" strokeWidth="0.6" rx="1" />
-      <rect x="18" y="125" width="284" height="5" fill="#2a5e3a" />
-      <rect x="18" y="135" width="284" height="5" fill="#4a8a5a" opacity="0.5" />
-      <rect x="18" y="145" width="284" height="5" fill="#326c44" />
-      <rect x="18" y="155" width="284" height="5" fill="#4a8a5a" opacity="0.45" />
+      {/* Boden-Schatten unter dem Feld */}
+      <polygon points="22,160 298,160 250,99 90,99" fill="rgba(0,0,0,0.18)" />
 
-      {/* Weiße Spielfeld-Linien */}
-      <rect x="18" y="125" width="284" height="38" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.85" />
-      {/* Mittellinie */}
-      <line x1="160" y1="125" x2="160" y2="163" stroke="#fff" strokeWidth="0.6" opacity="0.85" />
-      {/* Mittelkreis */}
-      <circle cx="160" cy="144" r="10" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.85" />
-      <circle cx="160" cy="144" r="0.8" fill="#fff" opacity="0.85" />
-      {/* Strafraum links */}
-      <rect x="18" y="135" width="24" height="18" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
+      {/* Vier Mähstreifen als Trapeze (perspektivisch verjüngt nach hinten) */}
+      <polygon points="85,98 235,98 251.25,113 68.75,113"     fill="#2a5e3a" />
+      <polygon points="68.75,113 251.25,113 267.5,128 52.5,128" fill="#4a8a5a" opacity="0.85" />
+      <polygon points="52.5,128 267.5,128 283.75,143 36.25,143" fill="#326c44" />
+      <polygon points="36.25,143 283.75,143 300,158 20,158"     fill="#4a8a5a" opacity="0.8" />
+
+      {/* Außenlinie — Trapez-Outline */}
+      <polygon points="85,98 235,98 300,158 20,158" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.9" />
+
+      {/* Mittellinie (verläuft von far-center zu near-center, leicht V-förmig) */}
+      <line x1="160" y1="98" x2="160" y2="158" stroke="#fff" strokeWidth="0.6" opacity="0.9" />
+
+      {/* Mittelkreis als perspektivisches Oval (gestaucht) */}
+      <ellipse cx="160" cy="128" rx="20" ry="6.5" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.9" />
+      <circle cx="160" cy="128" r="0.9" fill="#fff" opacity="0.9" />
+
+      {/* Strafraum links — perspektivisches Trapez */}
+      <polygon points="85,107 110,107 125,148 56,148" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
       {/* Strafraum rechts */}
-      <rect x="278" y="135" width="24" height="18" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
+      <polygon points="210,107 235,107 264,148 195,148" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
+      {/* Elfmeter-Punkte */}
+      <circle cx="105" cy="128" r="0.6" fill="#fff" opacity="0.85" />
+      <circle cx="215" cy="128" r="0.6" fill="#fff" opacity="0.85" />
 
-      {/* Tor links */}
+      {/* Tor LINKS — perspektivisches Tor an der linken Trapez-Kante */}
       <g>
-        <rect x="12" y="139" width="6" height="11" fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth="0.5" />
-        <line x1="13" y1="140" x2="17.5" y2="140" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
-        <line x1="13" y1="143" x2="17.5" y2="143" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
-        <line x1="13" y1="146" x2="17.5" y2="146" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
-        <line x1="14" y1="139" x2="14" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
-        <line x1="16" y1="139" x2="16" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
+        {/* Tor-Tiefe (Netz hinten) */}
+        <polygon points="85,98 73,93 8,154 20,158" fill="rgba(255,255,255,0.1)" stroke="#fff" strokeWidth="0.4" />
+        {/* Querbalken oben */}
+        <line x1="85" y1="98" x2="73" y2="93" stroke="#fff" strokeWidth="0.5" />
+        <line x1="73" y1="93" x2="8"  y2="154" stroke="#fff" strokeWidth="0.5" />
+        {/* Netz-Linien */}
+        <line x1="78" y1="96" x2="14" y2="156" stroke="#fff" strokeWidth="0.25" opacity="0.6" />
+        <line x1="50" y1="120" x2="46" y2="130" stroke="#fff" strokeWidth="0.25" opacity="0.5" />
+        {/* Vorderpfosten leicht angehoben */}
+        <line x1="85" y1="98" x2="85" y2="92" stroke="#fff" strokeWidth="0.5" />
+        <line x1="20" y1="158" x2="20" y2="146" stroke="#fff" strokeWidth="0.6" />
+        <line x1="85" y1="92" x2="20" y2="146" stroke="#fff" strokeWidth="0.5" />
       </g>
 
-      {/* Tor rechts */}
+      {/* Tor RECHTS */}
       <g>
-        <rect x="302" y="139" width="6" height="11" fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth="0.5" />
-        <line x1="302.5" y1="140" x2="307" y2="140" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
-        <line x1="302.5" y1="143" x2="307" y2="143" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
-        <line x1="302.5" y1="146" x2="307" y2="146" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
-        <line x1="304" y1="139" x2="304" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
-        <line x1="306" y1="139" x2="306" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
+        <polygon points="235,98 247,93 312,154 300,158" fill="rgba(255,255,255,0.1)" stroke="#fff" strokeWidth="0.4" />
+        <line x1="235" y1="98" x2="247" y2="93" stroke="#fff" strokeWidth="0.5" />
+        <line x1="247" y1="93" x2="312" y2="154" stroke="#fff" strokeWidth="0.5" />
+        <line x1="242" y1="96" x2="306" y2="156" stroke="#fff" strokeWidth="0.25" opacity="0.6" />
+        <line x1="270" y1="120" x2="274" y2="130" stroke="#fff" strokeWidth="0.25" opacity="0.5" />
+        <line x1="235" y1="98" x2="235" y2="92" stroke="#fff" strokeWidth="0.5" />
+        <line x1="300" y1="158" x2="300" y2="146" stroke="#fff" strokeWidth="0.6" />
+        <line x1="235" y1="92" x2="300" y2="146" stroke="#fff" strokeWidth="0.5" />
       </g>
 
-      {/* Eck-Fähnchen */}
-      {[{x:19,y:125},{x:301,y:125},{x:19,y:163},{x:301,y:163}].map((c,i) => (
+      {/* Vier Eck-Fähnchen */}
+      {[
+        { x: 85,  y: 98 },   // far-left
+        { x: 235, y: 98 },   // far-right
+        { x: 20,  y: 158 },  // near-left
+        { x: 300, y: 158 },  // near-right
+      ].map((c, i) => (
         <g key={i}>
-          <line x1={c.x} y1={c.y} x2={c.x} y2={c.y + (c.y === 125 ? -3 : 3) * -1} stroke="#1a1a1a" strokeWidth="0.4" />
-          <line x1={c.x} y1={c.y - 3} x2={c.x} y2={c.y} stroke="#1a1a1a" strokeWidth="0.4" />
-          <g className="gb-flag" style={{ transformOrigin: `${c.x}px ${c.y - 3}px`, animationDelay: `${-i * 0.5}s` }}>
-            <polygon points={`${c.x},${c.y - 3} ${c.x + 2.2},${c.y - 2.2} ${c.x},${c.y - 1.5}`} fill="#fbbf24" />
+          <line x1={c.x} y1={c.y - 4} x2={c.x} y2={c.y} stroke="#1a1a1a" strokeWidth="0.4" />
+          <g className="gb-flag" style={{ transformOrigin: `${c.x}px ${c.y - 4}px`, animationDelay: `${-i * 0.5}s` }}>
+            <polygon points={`${c.x},${c.y - 4} ${c.x + 2.2},${c.y - 3.2} ${c.x},${c.y - 2.5}`} fill="#fbbf24" />
           </g>
         </g>
       ))}
 
-      {/* Anzeigetafel oben links auf dem Feld */}
-      <g transform="translate(70, 127)">
-        <rect x="-12" y="-4" width="24" height="6" fill="#1a1a1a" stroke="#5a5a5a" strokeWidth="0.3" rx="0.5" />
-        <text x="0" y="-0.2" textAnchor="middle" fontSize="3" fontWeight="800" fill="#22c55e" fontFamily="Inter, sans-serif">2 : 1</text>
-        <line x1="-12" y1="-1.5" x2="12" y2="-1.5" stroke="#5a5a5a" strokeWidth="0.2" />
-        <text x="0" y="1.7" textAnchor="middle" fontSize="1.8" fontWeight="700" fill="#fbbf24" fontFamily="Inter, sans-serif">SAUNA CUP</text>
+      {/* Anzeigetafel — schwebt über dem Feld auf Pfahl */}
+      <g transform="translate(160, 80)">
+        {/* Pfahl */}
+        <line x1="0" y1="9" x2="0" y2="16" stroke="#3a3a3a" strokeWidth="0.5" />
+        <line x1="-13" y1="9" x2="13" y2="9" stroke="#3a3a3a" strokeWidth="0.4" />
+        {/* Anzeigetafel */}
+        <rect x="-15" y="-6" width="30" height="14" fill="#1a1a1a" stroke="#5a5a5a" strokeWidth="0.4" rx="0.6" />
+        <rect x="-14" y="-5" width="28" height="3" fill="#0a0a0a" />
+        <text x="-9" y="-2.4" fontSize="2.4" fontWeight="700" fill="#dc2626" fontFamily="Inter, sans-serif">ROT</text>
+        <text x="9"  y="-2.4" fontSize="2.4" fontWeight="700" fill="#3b82f6" fontFamily="Inter, sans-serif" textAnchor="middle">BLAU</text>
+        <g className="gb-board-pulse">
+          <text x="-9" y="3.2" fontSize="4.5" fontWeight="800" fill="#22c55e" fontFamily="Inter, sans-serif" textAnchor="middle">2</text>
+          <text x="0"  y="3.2" fontSize="4" fontWeight="700" fill="#fbbf24" fontFamily="Inter, sans-serif" textAnchor="middle">:</text>
+          <text x="9"  y="3.2" fontSize="4.5" fontWeight="800" fill="#22c55e" fontFamily="Inter, sans-serif" textAnchor="middle">1</text>
+        </g>
+        <text x="0" y="6.8" fontSize="1.5" fontWeight="800" fill="#fbbf24" fontFamily="Inter, sans-serif" textAnchor="middle">SAUNA CUP</text>
       </g>
 
-      {/* Schiedsrichter (gelb-schwarz) in der Mitte */}
-      <g transform="translate(190, 152)">
-        <g className="gb-player-run" style={{ animationDelay: '-0.15s' }}>
-          <ellipse cx="0" cy="1" rx="1.4" ry="0.4" fill="rgba(0,0,0,0.4)" />
-          <rect x="-1.3" y="-3.5" width="2.6" height="3" fill="#fbbf24" rx="0.3" />
-          <rect x="-1.3" y="-3.5" width="2.6" height="0.6" fill="#1a1a1a" />
-          <rect x="-1.3" y="-2"   width="2.6" height="0.4" fill="#1a1a1a" />
-          <line x1="-1.5" y1="-3" x2="-2.4" y2="-1" stroke="#fbbf24" strokeWidth="0.6" strokeLinecap="round" />
-          <line x1="1.5"  y1="-3" x2="2.4"  y2="-1" stroke="#fbbf24" strokeWidth="0.6" strokeLinecap="round" />
-          <line x1="-0.6" y1="-0.5" x2="-0.6" y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
-          <line x1="0.6"  y1="-0.5" x2="0.6"  y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
-          <circle cx="0" cy="-5" r="1.2" fill="#ffd5aa" />
-          <path d="M-1.2 -5.7 Q0 -6.5 1.2 -5.7 L 1.2 -5.3 L -1.2 -5.3 Z" fill="#3a1808" />
-          {/* Pfeife */}
-          <ellipse cx="2" cy="-1.5" rx="0.4" ry="0.3" fill="#1a1a1a" />
-        </g>
+      {/* ── SPIELER mit Tiefen-Skalierung ──────────────────────────────── */}
+      {/* HINTEN (klein, scale 0.55) — nah an far-Linie */}
+      <g transform="translate(125, 110) scale(0.55)" className="gb-player-run" style={{ animationDelay: '-0.1s' }}>
+        <SoccerPlayer color="#dc2626" />
+      </g>
+      <g transform="translate(195, 110) scale(0.55)" className="gb-player-run" style={{ animationDelay: '-0.3s' }}>
+        <SoccerPlayer color="#1d4ed8" />
       </g>
 
-      {/* Team ROT — 3 Spieler */}
-      <g transform="translate(60, 148)">
-        <g className="gb-player-run">
-          <SoccerPlayer color="#dc2626" />
-        </g>
+      {/* MITTE (scale 0.78) */}
+      <g transform="translate(105, 128) scale(0.78)" className="gb-player-run" style={{ animationDelay: '-0.05s' }}>
+        <SoccerPlayer color="#dc2626" />
       </g>
-      <g transform="translate(135, 154)">
-        <g className="gb-player-run" style={{ animationDelay: '-0.2s' }}>
-          <SoccerPlayer color="#dc2626" />
-        </g>
+      <g transform="translate(160, 128) scale(0.78)" className="gb-player-run" style={{ animationDelay: '-0.15s' }}>
+        <Referee />
       </g>
-      <g transform="translate(225, 138)">
-        <g className="gb-player-run" style={{ animationDelay: '-0.1s' }}>
-          <SoccerPlayer color="#dc2626" />
-        </g>
+      <g transform="translate(225, 132) scale(0.82)" className="gb-player-run" style={{ animationDelay: '-0.3s' }}>
+        <SoccerPlayer color="#1d4ed8" kicking />
       </g>
 
-      {/* Team BLAU — 3 Spieler */}
-      <g transform="translate(95, 138)">
-        <g className="gb-player-run" style={{ animationDelay: '-0.05s' }}>
-          <SoccerPlayer color="#1d4ed8" />
-        </g>
+      {/* VORNE (groß, scale 1.05) */}
+      <g transform="translate(70, 150) scale(1.05)" className="gb-player-run" style={{ animationDelay: '-0.2s' }}>
+        <SoccerPlayer color="#dc2626" />
       </g>
-      <g transform="translate(180, 145)">
-        <g className="gb-player-run" style={{ animationDelay: '-0.3s' }}>
-          <SoccerPlayer color="#1d4ed8" kicking />
-        </g>
-      </g>
-      <g transform="translate(255, 155)">
-        <g className="gb-player-run" style={{ animationDelay: '-0.25s' }}>
-          <SoccerPlayer color="#1d4ed8" />
-        </g>
+      <g transform="translate(255, 152) scale(1.05)" className="gb-player-run" style={{ animationDelay: '-0.25s' }}>
+        <SoccerPlayer color="#1d4ed8" />
       </g>
 
-      {/* Torwart links (rot) */}
-      <g transform="translate(28, 145)" className="gb-keeper-1">
+      {/* TORHÜTER — in den Tor-Mündern an der jeweiligen Seitenlinie */}
+      <g transform="translate(45, 130) scale(0.7)" className="gb-keeper-1">
         <SoccerPlayer color="#dc2626" keeper />
       </g>
-      {/* Torwart rechts (blau) */}
-      <g transform="translate(294, 145)" className="gb-keeper-2">
+      <g transform="translate(275, 130) scale(0.7)" className="gb-keeper-2">
         <SoccerPlayer color="#1d4ed8" keeper />
       </g>
 
-      {/* Ball — flitzt animiert über das Feld */}
+      {/* BALL — fliegt perspektivisch, kleiner wenn hinten */}
       <g className="gb-soccer-ball">
         <g className="gb-ball-spin">
           <circle cx="0" cy="0" r="1.4" fill="#fff" stroke="#1a1a1a" strokeWidth="0.3" />
@@ -689,20 +733,250 @@ function SoccerField() {
         </g>
       </g>
 
-      {/* Mini-Zuschauer-Tribüne oben rechts neben dem Feld */}
-      <g transform="translate(270, 122)">
-        {/* Bank */}
-        <rect x="-15" y="0" width="30" height="2" fill="#5a3010" stroke="#3a1808" strokeWidth="0.3" />
-        {/* 4 jubelnde Fans */}
-        {[-10, -3, 4, 11].map((dx, i) => (
-          <g key={`fan-${i}`} className="gb-cheer" style={{ animationDelay: `${-i * 0.25}s` }}>
-            <circle cx={dx} cy="-2.5" r="1.1" fill="#ffd5aa" />
-            <rect x={dx - 1} y="-1.4" width="2" height="1.4" fill={['#fbbf24','#a78bfa','#22c55e','#ec4899'][i]} rx="0.2" />
-            {/* Arme hoch */}
-            <line x1={dx - 0.8} y1="-1.2" x2={dx - 1.8} y2="-3.2" stroke="#ffd5aa" strokeWidth="0.5" strokeLinecap="round" />
-            <line x1={dx + 0.8} y1="-1.2" x2={dx + 1.8} y2="-3.2" stroke="#ffd5aa" strokeWidth="0.5" strokeLinecap="round" />
+      {/* Zuschauer-Tribüne hinter dem Feld (oben, schmal — perspektivisch entfernt) */}
+      <g transform="translate(160, 93)">
+        <rect x="-32" y="-2" width="64" height="2.5" fill="#5a3010" />
+        <rect x="-32" y="-3.4" width="64" height="1.4" fill="#7c4a1a" />
+        {/* Tiny fans als Punkte */}
+        {[-25, -18, -11, -4, 3, 10, 17, 24].map((dx, i) => (
+          <g key={`fan-${i}`} className="gb-cheer" style={{ animationDelay: `${-i * 0.18}s` }}>
+            <circle cx={dx} cy="-4.5" r="0.7" fill="#ffd5aa" />
+            <rect x={dx - 0.55} y="-4" width="1.1" height="1.2" fill={['#fbbf24','#a78bfa','#22c55e','#ec4899','#3b82f6','#dc2626','#f97316','#fde047'][i]} rx="0.1" />
           </g>
         ))}
+      </g>
+
+      {/* Zaun zwischen Spielfeld und Pfad davor */}
+      <g>
+        <line x1="20" y1="160" x2="300" y2="160" stroke="#5a5a62" strokeWidth="0.4" opacity="0.7" />
+        {[40, 80, 120, 160, 200, 240, 280].map((zx) => (
+          <line key={zx} x1={zx} y1="160" x2={zx} y2="164" stroke="#5a5a62" strokeWidth="0.3" opacity="0.7" />
+        ))}
+        <line x1="20" y1="162" x2="300" y2="162" stroke="#5a5a62" strokeWidth="0.3" opacity="0.6" />
+      </g>
+    </g>
+  );
+}
+
+// Schiedsrichter (gelb-schwarz) — Wrapper um SoccerPlayer-Body
+function Referee() {
+  return (
+    <g>
+      <ellipse cx="0" cy="1" rx="1.5" ry="0.4" fill="rgba(0,0,0,0.4)" />
+      <line x1="-0.6" y1="-0.5" x2="-0.6" y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
+      <line x1="0.6"  y1="-0.5" x2="0.6"  y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
+      <ellipse cx="-0.7" cy="1.1" rx="0.6" ry="0.25" fill="#1a0e05" />
+      <ellipse cx="0.7"  cy="1.1" rx="0.6" ry="0.25" fill="#1a0e05" />
+      <rect x="-1.4" y="-3.5" width="2.8" height="3" fill="#fbbf24" rx="0.3" />
+      <rect x="-1.4" y="-2.8" width="2.8" height="0.5" fill="#1a1a1a" />
+      <rect x="-1.4" y="-1.6" width="2.8" height="0.4" fill="#1a1a1a" />
+      <line x1="-1.5" y1="-3" x2="-2.5" y2="-1" stroke="#fbbf24" strokeWidth="0.7" strokeLinecap="round" />
+      <line x1="1.5"  y1="-3" x2="2.5"  y2="-1" stroke="#fbbf24" strokeWidth="0.7" strokeLinecap="round" />
+      <circle cx="0" cy="-5" r="1.2" fill="#ffd5aa" />
+      <path d="M-1.2 -5.7 Q0 -6.5 1.2 -5.7 L 1.2 -5.3 L -1.2 -5.3 Z" fill="#1a1a1a" />
+      <ellipse cx="2.2" cy="-1.5" rx="0.4" ry="0.3" fill="#1a1a1a" />
+    </g>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// SCHWARZWALD-BÄHNLE — Dampflok mit 2 Wagons zieht durch die Hügel
+// ════════════════════════════════════════════════════════════════════════
+function Baehnle() {
+  return (
+    <g transform="translate(0, 60)">
+      {/* Schienen-Andeutung als feine Linie quer durch (statisch, im Welt-Raum) */}
+      <line x1="-30" y1="14" x2="50" y2="14" stroke="#3a3a3a" strokeWidth="0.4" opacity="0.5" />
+      <line x1="-30" y1="14.6" x2="50" y2="14.6" stroke="#5a5a5a" strokeWidth="0.25" opacity="0.4" />
+
+      {/* Schornstein-Rauchwolken (steigen vom Lok-Schornstein) */}
+      <g className="gb-steam" style={{ animationDelay: '0s' }}>
+        <circle cx="36" cy="-1" r="2" fill="rgba(220,220,220,0.8)" />
+      </g>
+      <g className="gb-steam" style={{ animationDelay: '-0.9s' }}>
+        <circle cx="36" cy="-1" r="2.5" fill="rgba(220,220,220,0.7)" />
+      </g>
+      <g className="gb-steam" style={{ animationDelay: '-1.8s' }}>
+        <circle cx="36" cy="-1" r="2.2" fill="rgba(220,220,220,0.7)" />
+      </g>
+
+      {/* Lok (rot, Schwarzwaldbahn-Stil) */}
+      <g transform="translate(28, 0)">
+        {/* Hauptkessel */}
+        <rect x="0" y="3" width="14" height="8" fill="#a01818" stroke="#5a0808" strokeWidth="0.4" rx="0.5" />
+        <rect x="0" y="3" width="14" height="2" fill="#dc2626" />
+        {/* Schornstein */}
+        <rect x="6" y="-1" width="3" height="4" fill="#1a1a1a" />
+        <rect x="5.5" y="-1.5" width="4" height="0.8" fill="#3a3a3a" />
+        {/* Führerstand */}
+        <rect x="-7" y="1" width="7" height="10" fill="#5a0808" stroke="#3a0404" strokeWidth="0.4" />
+        <rect x="-6" y="2.5" width="5" height="3" fill="#fef3c7" opacity="0.85" />
+        <line x1="-3.5" y1="2.5" x2="-3.5" y2="5.5" stroke="#3a0404" strokeWidth="0.3" />
+        {/* Dach */}
+        <rect x="-7.5" y="0.4" width="8" height="1" fill="#1a1a1a" rx="0.2" />
+        {/* Lichter vorne */}
+        <circle cx="14" cy="6" r="0.8" fill="#fef3c7" />
+        <circle cx="14" cy="6" r="0.4" fill="#fbbf24" />
+        {/* Räder mit Speichen */}
+        <g className="gb-train-wheels" style={{ transformOrigin: '2px 12px' }}>
+          <circle cx="2" cy="12" r="2" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="0" y1="12" x2="4" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
+          <line x1="2" y1="10" x2="2" y2="14" stroke="#5a5a5a" strokeWidth="0.3" />
+        </g>
+        <g className="gb-train-wheels" style={{ transformOrigin: '11px 12px', animationDelay: '-0.2s' }}>
+          <circle cx="11" cy="12" r="2" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="9" y1="12" x2="13" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
+          <line x1="11" y1="10" x2="11" y2="14" stroke="#5a5a5a" strokeWidth="0.3" />
+        </g>
+      </g>
+
+      {/* Kupplung 1 */}
+      <line x1="20" y1="11" x2="22" y2="11" stroke="#1a1a1a" strokeWidth="0.4" />
+
+      {/* Wagon 1 (Personenwagen, grün) */}
+      <g transform="translate(7, 0)">
+        <rect x="0" y="3" width="14" height="8" fill="#2d5a3f" stroke="#1a3a25" strokeWidth="0.4" rx="0.3" />
+        <rect x="0" y="3" width="14" height="1.4" fill="#1a3a25" />
+        {/* 3 Fenster mit Mini-Passagieren */}
+        {[2, 6.5, 11].map((wx, i) => (
+          <g key={`w1-${i}`}>
+            <rect x={wx} y="4.4" width="2.5" height="2.6" fill="#fef3c7" opacity="0.95" />
+            <line x1={wx + 1.25} y1="4.4" x2={wx + 1.25} y2="7" stroke="#1a3a25" strokeWidth="0.2" />
+            <circle cx={wx + 1.25} cy="6" r="0.7" fill="#ffd5aa" />
+            <rect x={wx + 0.6} y="6.4" width="1.3" height="0.6" fill={['#dc2626','#a78bfa','#fbbf24'][i]} rx="0.1" />
+          </g>
+        ))}
+        {/* Mini-Winker im mittleren Fenster */}
+        <g className="gb-passenger-wave" style={{ transformOrigin: '7.75px 6.5px' }}>
+          <line x1="7.75" y1="6" x2="8.4" y2="4.6" stroke="#ffd5aa" strokeWidth="0.35" strokeLinecap="round" />
+        </g>
+        {/* Räder */}
+        <g className="gb-train-wheels" style={{ transformOrigin: '3px 12px' }}>
+          <circle cx="3" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="1.2" y1="12" x2="4.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
+        </g>
+        <g className="gb-train-wheels" style={{ transformOrigin: '11px 12px', animationDelay: '-0.4s' }}>
+          <circle cx="11" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="9.2" y1="12" x2="12.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
+        </g>
+      </g>
+
+      {/* Kupplung 2 */}
+      <line x1="-7" y1="11" x2="-9" y2="11" stroke="#1a1a1a" strokeWidth="0.4" />
+
+      {/* Wagon 2 (Personenwagen, gelb) — hinten */}
+      <g transform="translate(-22, 0)">
+        <rect x="0" y="3" width="13" height="8" fill="#d97706" stroke="#7c2d12" strokeWidth="0.4" rx="0.3" />
+        <rect x="0" y="3" width="13" height="1.4" fill="#7c2d12" />
+        {[2, 6, 10].map((wx, i) => (
+          <g key={`w2-${i}`}>
+            <rect x={wx} y="4.4" width="2.2" height="2.6" fill="#fef3c7" opacity="0.95" />
+            <circle cx={wx + 1.1} cy="6" r="0.6" fill="#ffd5aa" />
+            <rect x={wx + 0.5} y="6.4" width="1.2" height="0.6" fill={['#3b82f6','#22c55e','#ec4899'][i]} rx="0.1" />
+          </g>
+        ))}
+        <g className="gb-train-wheels" style={{ transformOrigin: '3px 12px', animationDelay: '-0.1s' }}>
+          <circle cx="3" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="1.2" y1="12" x2="4.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
+        </g>
+        <g className="gb-train-wheels" style={{ transformOrigin: '10px 12px', animationDelay: '-0.5s' }}>
+          <circle cx="10" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="8.2" y1="12" x2="11.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
+        </g>
+      </g>
+    </g>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// VEREINSHAUS — kleiner Schwarzwald-Pavillon hinter dem Spielplatz
+// ════════════════════════════════════════════════════════════════════════
+function Vereinshaus() {
+  return (
+    <g transform="translate(160, 158)">
+      {/* Boden-Schatten */}
+      <ellipse cx="0" cy="3" rx="55" ry="3" fill="rgba(0,0,0,0.25)" />
+
+      {/* Dachüberstand hinten */}
+      <polygon points="-52,-22 52,-22 50,-23 -50,-23" fill="#3a1808" />
+
+      {/* Spitzdach */}
+      <polygon points="-50,-23 50,-23 38,-42 -38,-42" fill="#5a0808" stroke="#3a0404" strokeWidth="0.5" />
+      <polygon points="-50,-23 50,-23 0,-46" fill="#7c1818" />
+      <line x1="-44" y1="-26" x2="44" y2="-26" stroke="rgba(0,0,0,0.45)" strokeWidth="0.4" />
+      <line x1="-38" y1="-31" x2="38" y2="-31" stroke="rgba(0,0,0,0.45)" strokeWidth="0.4" />
+      <line x1="-32" y1="-36" x2="32" y2="-36" stroke="rgba(0,0,0,0.45)" strokeWidth="0.4" />
+      {/* Glanz-Streifen */}
+      <polygon points="-50,-23 -22,-37 -28,-23" fill="rgba(255,255,255,0.07)" />
+
+      {/* Korpus aus hellem Schwarzwald-Holz */}
+      <rect x="-48" y="-22" width="96" height="24" fill="#c8a16a" stroke="#7c4a1a" strokeWidth="0.5" />
+      {/* Holzlatten-Linien */}
+      {[-14, -2, 10].map((y) => (
+        <line key={y} x1="-48" y1={y} x2="48" y2={y} stroke="#7c4a1a" strokeWidth="0.3" opacity="0.6" />
+      ))}
+
+      {/* Kreuzbalken (Fachwerk) */}
+      <line x1="-48" y1="-22" x2="-32" y2="2" stroke="#3a1808" strokeWidth="0.8" />
+      <line x1="-32" y1="-22" x2="-48" y2="2" stroke="#3a1808" strokeWidth="0.8" />
+      <line x1="32"  y1="-22" x2="48"  y2="2" stroke="#3a1808" strokeWidth="0.8" />
+      <line x1="48"  y1="-22" x2="32"  y2="2" stroke="#3a1808" strokeWidth="0.8" />
+      {/* Vertikale Balken */}
+      <line x1="-32" y1="-22" x2="-32" y2="2" stroke="#3a1808" strokeWidth="0.6" />
+      <line x1="32"  y1="-22" x2="32"  y2="2" stroke="#3a1808" strokeWidth="0.6" />
+      <line x1="-48" y1="-22" x2="-48" y2="2" stroke="#3a1808" strokeWidth="0.6" />
+      <line x1="48"  y1="-22" x2="48"  y2="2" stroke="#3a1808" strokeWidth="0.6" />
+
+      {/* Fenster links + rechts (Sprossen + warm-orange Innenglow) */}
+      <g>
+        <rect x="-27" y="-18" width="14" height="11" fill="#fb923c" stroke="#3a1808" strokeWidth="0.5" rx="0.3" />
+        <rect x="-27" y="-18" width="14" height="2.5" fill="rgba(0,0,0,0.4)" />
+        <line x1="-20" y1="-18" x2="-20" y2="-7" stroke="#3a1808" strokeWidth="0.5" />
+        <line x1="-27" y1="-12.5" x2="-13" y2="-12.5" stroke="#3a1808" strokeWidth="0.5" />
+        {/* Sims */}
+        <rect x="-28" y="-7" width="16" height="1.4" fill="#5a3010" rx="0.2" />
+        {/* Blumenkasten */}
+        <rect x="-27.5" y="-5.6" width="15" height="2.3" fill="#3a1808" />
+        <circle cx="-24" cy="-6.4" r="0.7" fill="#dc2626" />
+        <circle cx="-20" cy="-6.6" r="0.7" fill="#fbbf24" />
+        <circle cx="-16" cy="-6.5" r="0.7" fill="#a78bfa" />
+      </g>
+      <g>
+        <rect x="13" y="-18" width="14" height="11" fill="#fb923c" stroke="#3a1808" strokeWidth="0.5" rx="0.3" />
+        <rect x="13" y="-18" width="14" height="2.5" fill="rgba(0,0,0,0.4)" />
+        <line x1="20" y1="-18" x2="20" y2="-7" stroke="#3a1808" strokeWidth="0.5" />
+        <line x1="13" y1="-12.5" x2="27" y2="-12.5" stroke="#3a1808" strokeWidth="0.5" />
+        <rect x="12" y="-7" width="16" height="1.4" fill="#5a3010" rx="0.2" />
+        <rect x="12.5" y="-5.6" width="15" height="2.3" fill="#3a1808" />
+        <circle cx="16" cy="-6.4" r="0.7" fill="#ec4899" />
+        <circle cx="20" cy="-6.6" r="0.7" fill="#fbbf24" />
+        <circle cx="24" cy="-6.5" r="0.7" fill="#22c55e" />
+      </g>
+
+      {/* Tür mittig */}
+      <rect x="-7" y="-15" width="14" height="17" fill="#5a3010" stroke="#3a1808" strokeWidth="0.5" rx="0.4" />
+      <line x1="-3" y1="-15" x2="-3" y2="2" stroke="#3a1808" strokeWidth="0.3" />
+      <line x1="3"  y1="-15" x2="3"  y2="2" stroke="#3a1808" strokeWidth="0.3" />
+      <line x1="-7" y1="-7" x2="7" y2="-7" stroke="#3a1808" strokeWidth="0.4" />
+      <circle cx="4.5" cy="-6" r="0.5" fill="#fbbf24" />
+      {/* Bogen über Tür */}
+      <path d="M -8 -15 Q 0 -19 8 -15" stroke="#3a1808" strokeWidth="0.6" fill="none" />
+
+      {/* Holzschild „SAUNAFREUNDE VEREINSHAUS" über dem Dach */}
+      <g transform="translate(0, -47)">
+        <rect x="-26" y="-3" width="52" height="6" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.4" rx="0.5" />
+        <rect x="-26" y="-3" width="52" height="1.6" fill="#a06530" />
+        <text x="0" y="1.4" textAnchor="middle" fontSize="3.2" fontWeight="800" fill="#1a0e05" fontFamily="Inter, sans-serif" letterSpacing="0.2">SAUNAFREUNDE</text>
+        {/* Halterungen */}
+        <line x1="-15" y1="-3" x2="-15" y2="-5" stroke="#3a1808" strokeWidth="0.4" />
+        <line x1="15"  y1="-3" x2="15"  y2="-5" stroke="#3a1808" strokeWidth="0.4" />
+      </g>
+
+      {/* Schornstein hinten links mit kleinem Rauchpuff */}
+      <rect x="-30" y="-46" width="3.5" height="9" fill="#5a3010" stroke="#3a1808" strokeWidth="0.3" />
+      <rect x="-30.5" y="-46" width="4.5" height="1.5" fill="#3a1808" rx="0.2" />
+      <g className="gb-steam" style={{ animationDelay: '-1.2s' }}>
+        <circle cx="-28" cy="-48" r="1.4" fill="rgba(220,220,220,0.7)" />
       </g>
     </g>
   );
