@@ -5,6 +5,7 @@ import { InfusionCard } from '@/components/InfusionCard';
 import { EmptyTile } from '@/components/EmptyTile';
 import { PersonalTile } from '@/components/PersonalTile';
 import type { BadgeDefinition } from '@/lib/badges';
+import { slotHoursForWeekday } from '@/lib/garantie';
 
 const TILES_PER_COLUMN = 3;
 
@@ -18,6 +19,35 @@ interface SaunaTileColumnProps {
   tileBgs?: (string | null)[];
 }
 
+/**
+ * Liefert die nächsten N Slot-Start-Zeitpunkte ab `from` über die Slot-Tage
+ * (Mo wird übersprungen). So sind alle Sauna-Spalten synchron auf die
+ * gleiche Stunden-Achse ausgerichtet.
+ */
+function nextSlotStarts(n: number, from: Date): Date[] {
+  const result: Date[] = [];
+  const cursor = new Date(from);
+  cursor.setMinutes(0, 0, 0);
+  let dayOffset = 0;
+  const startHour = from.getHours();
+  while (result.length < n && dayOffset < 8) {
+    const weekday = (from.getDay() + dayOffset) % 7;
+    const hours = slotHoursForWeekday(weekday);
+    for (const h of hours) {
+      if (dayOffset === 0 && h < startHour) continue;
+      const slot = new Date(from);
+      slot.setDate(slot.getDate() + dayOffset);
+      slot.setHours(h, 0, 0, 0);
+      // Slot muss noch laufen oder in der Zukunft sein (Default 15 Min Aufguss)
+      if (slot.getTime() + 15 * 60_000 <= from.getTime()) continue;
+      result.push(slot);
+      if (result.length >= n) break;
+    }
+    dayOffset++;
+  }
+  return result;
+}
+
 export function SaunaTileColumn({
   sauna,
   infusions,
@@ -27,15 +57,19 @@ export function SaunaTileColumn({
   now,
   tileBgs = [],
 }: SaunaTileColumnProps) {
-  const tiles = useMemo<(Infusion | null)[]>(() => {
-    const visible = infusions
-      .filter((i) => i.sauna_id === sauna.id)
-      .filter((i) => new Date(i.end_time) > now)
-      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
-      .slice(0, TILES_PER_COLUMN);
+  // Wir rendern die nächsten 3 Slot-Stunden (synchron über alle Saunen).
+  // Pro Slot wird in DIESER Sauna geprüft, ob ein Aufguss vorhanden ist.
+  // Wenn nicht → EmptyTile mit Uhrzeit.
+  const slots = useMemo(() => nextSlotStarts(TILES_PER_COLUMN, now), [now]);
 
-    return Array.from({ length: TILES_PER_COLUMN }, (_, idx) => visible[idx] ?? null);
-  }, [infusions, now, sauna.id]);
+  const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date })[]>(() => {
+    return slots.map((slotStart) => {
+      const found = infusions.find(
+        (i) => i.sauna_id === sauna.id && new Date(i.start_time).getTime() === slotStart.getTime(),
+      ) ?? null;
+      return { infusion: found, slotTime: slotStart };
+    });
+  }, [slots, infusions, sauna.id]);
 
   return (
     <div
@@ -69,7 +103,7 @@ export function SaunaTileColumn({
       {/* 5 fixed tile slots */}
       <div className="flex-1 min-h-0 p-2 flex flex-col gap-2">
         <AnimatePresence initial={false} mode="popLayout">
-          {tiles.map((inf, slotIndex) =>
+          {tiles.map(({ infusion: inf, slotTime }, slotIndex) =>
             inf ? (
               inf.is_personal_fallback ? (
                 <PersonalTile
@@ -95,8 +129,9 @@ export function SaunaTileColumn({
               )
             ) : (
               <EmptyTile
-                key={`empty-${slotIndex}`}
+                key={`empty-${slotTime.toISOString()}`}
                 sauna={sauna}
+                slotTime={slotTime}
                 className="flex-1 min-h-0 overflow-hidden"
                 backgroundImage={tileBgs[slotIndex] ?? null}
               />

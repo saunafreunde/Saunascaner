@@ -1,13 +1,15 @@
 import { motion } from 'framer-motion';
 import type { Sauna } from '@/types/database';
+import { fmtClock } from '@/lib/time';
 
 interface EmptyTileProps {
   sauna: Sauna;
   className?: string;
   backgroundImage?: string | null;
+  slotTime?: Date | string | null;
 }
 
-export function EmptyTile({ sauna, className = '', backgroundImage = null }: EmptyTileProps) {
+export function EmptyTile({ sauna, className = '', backgroundImage = null, slotTime = null }: EmptyTileProps) {
   return (
     <motion.div
       layout
@@ -31,13 +33,21 @@ export function EmptyTile({ sauna, className = '', backgroundImage = null }: Emp
         className="absolute inset-y-0 left-0 w-1.5 opacity-50"
         style={{ backgroundColor: sauna.accent_color }}
       />
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center select-none px-2">
-        <span className="text-2xl mb-1 opacity-70">🧖</span>
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center select-none px-2 gap-1">
+        {slotTime && (
+          <span
+            className="font-bold tabular-nums leading-none"
+            style={{ color: `${sauna.accent_color}cc`, fontSize: '2.2vw' }}
+          >
+            {fmtClock(slotTime)}
+          </span>
+        )}
+        <span className="text-2xl opacity-70">🚫</span>
         <span className="text-sm font-semibold tracking-wide text-white/85">
-          Es findet kein Aufguss statt
+          Kein Aufguss
         </span>
         <span
-          className="mt-1 text-[10px] uppercase tracking-[0.2em] font-medium"
+          className="text-[10px] uppercase tracking-[0.2em] font-medium"
           style={{ color: `${sauna.accent_color}` }}
         >
           {sauna.name}
