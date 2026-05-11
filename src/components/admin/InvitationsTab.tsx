@@ -116,7 +116,7 @@ export function InvitationsTab() {
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="z.B. „Stuttgart Hannes" oder „Sommerhilfe 2026"
+                placeholder={'z.B. „Stuttgart Hannes" oder „Sommerhilfe 2026"'}
                 className="mt-1 w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
