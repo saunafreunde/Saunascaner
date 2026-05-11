@@ -24,6 +24,7 @@ export function MemberQuickNav({ myMemberId }: Props) {
   if (emailAccount.data) {
     items.push({ path: '/postfach', label: 'Postfach', icon: '📬' });
   }
+  items.push({ path: '/hilfe', label: 'Hilfe', icon: '📖' });
   if (myMemberId) {
     items.push({ path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' });
   }

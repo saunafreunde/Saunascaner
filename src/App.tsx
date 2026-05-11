@@ -21,6 +21,7 @@ const Wm              = lazy(() => import('@/routes/Wm'));
 const Profile         = lazy(() => import('@/routes/Profile'));
 const Members         = lazy(() => import('@/routes/Members'));
 const Postfach        = lazy(() => import('@/routes/Postfach'));
+const Help            = lazy(() => import('@/routes/Help'));
 const ForgotPassword  = lazy(() => import('@/routes/ForgotPassword'));
 const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
 const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/profile/:memberId" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/members"           element={<RequireAuth><Members /></RequireAuth>} />
         <Route path="/postfach"          element={<RequireAuth><Postfach /></RequireAuth>} />
+        <Route path="/hilfe"             element={<RequireAuth><Help /></RequireAuth>} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

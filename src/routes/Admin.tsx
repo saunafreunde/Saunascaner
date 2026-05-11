@@ -7,6 +7,7 @@ import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
 import { PostfachDialog } from '@/components/admin/PostfachDialog';
 import { BrandingTab } from '@/components/admin/BrandingTab';
+import { HandbookTab } from '@/components/admin/HandbookTab';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import {
   useSaunas, useToggleSauna,
@@ -26,7 +27,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'polls' | 'wm' | 'demo';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'handbook' | 'polls' | 'wm' | 'demo';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:      { label: 'Saunen',       icon: '🔥' },
@@ -36,6 +37,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   presence:    { label: 'Anwesenheit',  icon: '🟢' },
   stats:       { label: 'Statistik',    icon: '📊' },
   branding:    { label: 'Branding',     icon: '🎨' },
+  handbook:    { label: 'Handbuch',     icon: '📖' },
   polls:       { label: 'Abfragen',     icon: '📋' },
   wm:          { label: 'WM-Tipps',     icon: '🏆' },
   demo:        { label: 'Tafel-Demo',   icon: '🎭' },
@@ -104,6 +106,7 @@ export default function Admin() {
         {tab === 'presence' && <PresenceTab />}
         {tab === 'stats' && <StatsTab />}
         {tab === 'branding' && <BrandingTab />}
+        {tab === 'handbook' && <HandbookTab />}
         {tab === 'polls' && <PollsTab />}
         {tab === 'wm' && <WmAdminTab />}
         {tab === 'demo' && <DemoTab />}

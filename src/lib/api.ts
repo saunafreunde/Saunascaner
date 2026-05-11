@@ -585,6 +585,35 @@ export function useSendInviteEmail() {
   });
 }
 
+export function useSendHandbookEmail() {
+  return useMutation({
+    mutationFn: async (p: { recipients?: string[]; audience?: 'all' | 'aufgieser' | 'admins' }) => {
+      const r = await fetch('/api/email?action=send-handbook', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify(p),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? 'send failed');
+      return data as { ok: true; sent: number; failed: number; recipient_count: number };
+    },
+  });
+}
+
+export function useBroadcastHandbookTelegram() {
+  return useMutation({
+    mutationFn: async () => {
+      const r = await fetch('/api/telegram-webhook?action=broadcast_handbook', {
+        method: 'POST',
+        headers: await authHeaders(),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? 'broadcast failed');
+      return data as { ok: true; sent: number; failed?: number; note?: string };
+    },
+  });
+}
+
 export function useSendWelcomeEmail() {
   return useMutation({
     mutationFn: async (p: { member_id: string; role_label: string }) => {

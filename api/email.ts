@@ -30,13 +30,99 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'send-welcome':      return await handleSendWelcome(req, res);
       case 'magic-link':        return await handleMagicLink(req, res);
       case 'calendar':          return await handleCalendarFeed(req, res);
+      case 'send-handbook':     return await handleSendHandbook(req, res);
       default:
-        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome', 'magic-link', 'calendar'] });
+        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome', 'magic-link', 'calendar', 'send-handbook'] });
     }
   } catch (e) {
     const msg = (e as Error).message;
     return res.status(500).json({ error: msg });
   }
+}
+
+// ─── send-handbook (Admin schickt Handbuch-Link an Empfänger) ───────────
+async function handleSendHandbook(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  const auth = await authenticate(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+  if (auth.member.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+
+  const { recipients, audience } = req.body as {
+    recipients?: string[];
+    audience?: 'all' | 'aufgieser' | 'admins';
+  };
+
+  // Empfänger zusammenstellen
+  let targetEmails: string[] = [];
+  if (Array.isArray(recipients) && recipients.length > 0) {
+    targetEmails = recipients.filter((e) => /\S+@\S+\.\S+/.test(e));
+  } else if (audience) {
+    let query = auth.service.from('members').select('email').not('email', 'is', null).eq('approved', true).is('revoked_at', null);
+    if (audience === 'aufgieser') query = query.or('is_aufgieser.eq.true,role.eq.guest_aufgieser');
+    if (audience === 'admins') query = query.eq('role', 'admin');
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    targetEmails = (data ?? []).map((m) => m.email as string).filter(Boolean);
+  }
+
+  if (targetEmails.length === 0) return res.status(400).json({ error: 'no recipients' });
+
+  const brand = await getBrandSettings(auth.service);
+  const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+  const handbookUrl = `${origin}/hilfe`;
+  const subject = `📖 Mitglieder-Handbuch — ${brand.org.short_name}`;
+
+  // Einfaches HTML-Mail via wrap-Template-Stil (inline, keine eigene Render-Funktion)
+  const COLORS = { bg: '#0a1810', panel: '#0f2418', panelLight: '#16321f', textPrimary: '#e8f5e8', textSecondary: '#a8c8a8', accent: '#fbbf24', accentDark: '#7c4a1a' };
+  const logoUrl = brand.logo.icon
+    ? `${process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL}/storage/v1/object/public/assets/${brand.logo.icon}`
+    : 'https://saunascaner.vercel.app/icons/icon-512.png';
+
+  const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8" /><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:${COLORS.bg};font-family:-apple-system,Segoe UI,sans-serif;color:${COLORS.textPrimary};">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding:32px 16px;"><tr><td align="center">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width:600px;background:${COLORS.panel};border-radius:16px;overflow:hidden;border:1px solid ${COLORS.accentDark}33;">
+<tr><td style="background:linear-gradient(135deg,#1a2f1f 0%,#0f2418 100%);padding:36px 32px 28px;text-align:center;border-bottom:2px solid ${COLORS.accent}33;">
+<img src="${logoUrl}" width="120" height="120" alt="${brand.org.name}" style="display:block;margin:0 auto 12px;width:120px;height:120px;object-fit:contain;border-radius:24px;" />
+<h1 style="margin:0;font-size:24px;color:${COLORS.accent};font-weight:800;">${brand.org.short_name}</h1>
+</td></tr>
+<tr><td style="padding:32px;">
+<h2 style="margin:0 0 16px;font-size:22px;color:${COLORS.textPrimary};">📖 Das Mitglieder-Handbuch</h2>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+Liebe Saunafreunde, wir haben das komplette Handbuch zu unserer App für euch zusammengestellt. Vom Anmelden über Aufguss-Planung bis zum WM-Tipspiel — alles auf einer Seite, immer aktuell.
+</p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:24px auto;">
+<tr><td style="background:${COLORS.accent};border-radius:12px;"><a href="${handbookUrl}" style="display:inline-block;padding:14px 32px;color:${COLORS.bg};text-decoration:none;font-weight:700;font-size:15px;">📖 Handbuch öffnen</a></td></tr>
+</table>
+<p style="margin:24px 0 0;font-size:13px;color:${COLORS.textSecondary};line-height:1.6;">
+Im Handbuch findest du u.a.: Anmelden mit Login-Link · Aufgüsse planen · Stamm-Slots beantragen · Mitglieder-Galerie · WM-Tipspiel · Kalender-Abo · Telegram-Bot · und vieles mehr.
+</p>
+</td></tr>
+<tr><td style="background:${COLORS.panelLight};padding:20px 32px;text-align:center;border-top:1px solid ${COLORS.accentDark}33;">
+<p style="margin:0 0 4px;font-size:12px;color:${COLORS.textPrimary};font-weight:600;">${brand.org.name}</p>
+<p style="margin:0;font-size:11px;color:${COLORS.textSecondary};">${brand.org.location}${brand.org.contact_email ? ` &middot; <a href="mailto:${brand.org.contact_email}" style="color:${COLORS.accent};text-decoration:none;">${brand.org.contact_email}</a>` : ''}</p>
+</td></tr>
+</table></td></tr></table></body></html>`;
+
+  const text = `📖 Mitglieder-Handbuch — ${brand.org.short_name}\n\nDas komplette Handbuch zu unserer App:\n${handbookUrl}\n\n— ${brand.org.name}`;
+
+  const results = await Promise.allSettled(
+    targetEmails.map((to) => sendSystemMail({ to, subject, html, text }))
+  );
+  const sent = results.filter((r) => r.status === 'fulfilled').length;
+  const failed = results.length - sent;
+
+  await logEmailSend(auth.service, {
+    recipient: `${sent} Empfänger`,
+    subject,
+    templateName: 'handbook',
+    status: failed === 0 ? 'sent' : 'failed',
+    error: failed > 0 ? `${failed} failed` : undefined,
+    senderEmail: process.env.SAUNA_SMTP_USER,
+    senderMemberId: auth.member.id,
+  });
+
+  return res.status(200).json({ ok: true, sent, failed, recipient_count: targetEmails.length });
 }
 
 // ─── calendar (public iCal-Feed via Token) ───────────────────────────────

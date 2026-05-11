@@ -69,6 +69,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, announced });
   }
 
+  // POST ?action=broadcast_handbook → Handbuch-Link an alle Chats
+  if (req.method === 'POST' && req.query.action === 'broadcast_handbook') {
+    // Auth via Bearer-Token: nur Admin darf broadcasten
+    const authHeader = req.headers.authorization ?? '';
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!bearerToken) return res.status(401).json({ error: 'missing bearer' });
+    const supaUrl2 = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
+    const anonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
+    if (!supaUrl2 || !anonKey) return res.status(500).json({ error: 'env missing' });
+    const userClient = createClient(supaUrl2, anonKey, {
+      global: { headers: { Authorization: `Bearer ${bearerToken}` } },
+    });
+    const { data: userData } = await userClient.auth.getUser(bearerToken);
+    if (!userData?.user) return res.status(401).json({ error: 'invalid token' });
+    const { data: m } = await sb.from('members').select('role').eq('auth_user_id', userData.user.id).maybeSingle();
+    if (m?.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+
+    const brand = await getBrandSettings(sb);
+    const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+    const text =
+      `📖 <b>Mitglieder-Handbuch</b>\n\n` +
+      `Liebe Saunafreunde, hier findet ihr das komplette Handbuch zu unserer App — Aufgüsse planen, WM-Tipspiel, Kalender-Abo, alles drin:\n\n` +
+      `🌲 ${origin}/hilfe\n\n` +
+      `— ${brand.org.name}`;
+
+    const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
+    const cfgVal = (cfg?.value as { chat_ids?: number[] } | null) ?? null;
+    const chatIds = cfgVal?.chat_ids ?? [];
+    if (chatIds.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no chats registered' });
+
+    const results = await Promise.allSettled(chatIds.map((id) => tgSend(token, id, text)));
+    const sent = results.filter((r) => r.status === 'fulfilled').length;
+    return res.status(200).json({ ok: true, sent, failed: results.length - sent });
+  }
+
   if (req.method !== 'POST') return res.status(405).end();
 
   const update = req.body as TelegramUpdate;
