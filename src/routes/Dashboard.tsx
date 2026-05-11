@@ -33,6 +33,7 @@ import { Holzfaeller } from '@/components/Holzfaeller';
 import { Reh } from '@/components/Reh';
 import { GapBridge } from '@/components/GapBridge';
 import { Gliders } from '@/components/Gliders';
+import { BackdropMountains } from '@/components/BackdropMountains';
 import { onDemo } from '@/lib/demoChannel';
 
 // ── Werbe-Sidebar: 3× 16:9 Tafeln ────────────────────────────────────────────
@@ -273,6 +274,8 @@ export default function Dashboard() {
 
       {/* Schwarzwald-Bühne unten: Holzfäller · Wald-Pfad · Kuckuckhaus · Spielplatz · Reh */}
       <div className="fixed inset-x-0 bottom-2 z-30 pointer-events-none">
+        {/* Durchgängige Bergkette + Wald-Saum als globaler Backdrop hinter allen Szenen */}
+        <BackdropMountains />
         {/* Zwei Segelflieger ziehen leise über den ganzen Schwarzwald */}
         <Gliders />
         <div className="relative mx-auto w-full max-w-[1920px] px-8 flex items-end justify-center gap-0">

@@ -343,9 +343,98 @@ function Playground() {
       {/* ── HINTERGRUND: Vereinshaus rahmt die Spielwiese ─────────────────── */}
       <Vereinshaus />
 
-      {/* Gepflasterter Bereich (heller Sand-/Kiesboden) */}
-      <ellipse cx={160} cy={195} rx={155} ry={5} fill="#c8a16a" opacity="0.45" />
-      <ellipse cx={160} cy={194} rx={150} ry={3} fill="#d4b078" opacity="0.5" />
+      {/* ── PERSPEKTIV-SPIELWIESE: Trapez-Bodenfläche (hinten schmal, vorn breit) ── */}
+      {/* Sand/Kies-Belag, perspektivisch */}
+      <polygon points="80,158 240,158 315,195 5,195" fill="#c8a16a" opacity="0.5" />
+      <polygon points="85,160 235,160 305,193 15,193" fill="#d4b078" opacity="0.55" />
+      {/* Streifenmuster im Boden für Tiefen-Hinweis */}
+      <polygon points="80,158 240,158 250,170 70,170" fill="rgba(168,140,80,0.35)" />
+      <polygon points="70,170 250,170 265,183 55,183" fill="rgba(200,170,110,0.3)" />
+      <polygon points="55,183 265,183 305,193 15,193" fill="rgba(168,140,80,0.3)" />
+      {/* Pfad-Andeutung vom Vereinshaus zum Spielbereich */}
+      <polygon points="148,158 172,158 210,195 110,195" fill="rgba(140,110,70,0.4)" />
+
+      {/* ── BACK-LAYER (klein, weiter weg) ─────────────────────────────────── */}
+      {/* Klettergerüst — Holz-A-Frame mit Klettertau */}
+      <g transform="translate(195, 170) scale(0.7)">
+        {/* A-Frame Stützen */}
+        <line x1="-12" y1="0" x2="-4" y2="-22" stroke="#5a3010" strokeWidth="1.6" strokeLinecap="round" />
+        <line x1="12"  y1="0" x2="4"  y2="-22" stroke="#5a3010" strokeWidth="1.6" strokeLinecap="round" />
+        <line x1="-10" y1="0" x2="-2" y2="-22" stroke="#5a3010" strokeWidth="1.6" strokeLinecap="round" />
+        <line x1="10"  y1="0" x2="2"  y2="-22" stroke="#5a3010" strokeWidth="1.6" strokeLinecap="round" />
+        {/* Querbalken oben */}
+        <rect x="-7" y="-24" width="14" height="2.5" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.4" rx="0.3" />
+        {/* Klettertau hängt herab */}
+        <path d="M 0 -22 Q -2 -14 1 -6 Q -1 0 0 4" stroke="#5a3010" strokeWidth="0.7" fill="none" />
+        {/* Knoten im Tau */}
+        <ellipse cx="-1" cy="-13" rx="0.9" ry="0.6" fill="#3a1808" />
+        <ellipse cx="0.5" cy="-6" rx="0.9" ry="0.6" fill="#3a1808" />
+        {/* Strickleiter rechts */}
+        <line x1="3" y1="-22" x2="6" y2="0" stroke="#3a1808" strokeWidth="0.5" />
+        <line x1="5" y1="-22" x2="8" y2="0" stroke="#3a1808" strokeWidth="0.5" />
+        {[-19, -15, -11, -7, -3].map((dy) => (
+          <line key={dy} x1="3" y1={dy} x2="8" y2={dy + 0.6} stroke="#7c4a1a" strokeWidth="0.4" />
+        ))}
+      </g>
+
+      {/* Picknicktisch in der Mitte-Back (scale 0.75) */}
+      <g transform="translate(115, 173) scale(0.75)">
+        {/* Schatten */}
+        <ellipse cx="0" cy="2" rx="12" ry="1.2" fill="rgba(0,0,0,0.3)" />
+        {/* Beine */}
+        <line x1="-8" y1="0" x2="-6" y2="-3" stroke="#5a3010" strokeWidth="0.8" />
+        <line x1="8"  y1="0" x2="6"  y2="-3" stroke="#5a3010" strokeWidth="0.8" />
+        <line x1="-8" y1="0" x2="-10" y2="-3" stroke="#5a3010" strokeWidth="0.8" />
+        <line x1="8"  y1="0" x2="10" y2="-3" stroke="#5a3010" strokeWidth="0.8" />
+        {/* Tischplatte */}
+        <ellipse cx="0" cy="-3" rx="11" ry="2.5" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.4" />
+        <ellipse cx="0" cy="-3.5" rx="11" ry="2" fill="#a06530" />
+        {/* Bretter-Andeutung auf der Tischplatte */}
+        <line x1="-9" y1="-3.5" x2="9" y2="-3.5" stroke="#7c4a1a" strokeWidth="0.3" />
+        <line x1="-8" y1="-3.1" x2="8" y2="-3.1" stroke="#7c4a1a" strokeWidth="0.3" />
+        {/* Sonnenschirm */}
+        <line x1="0" y1="-3.5" x2="0" y2="-15" stroke="#5a3010" strokeWidth="0.7" />
+        <path d="M -8 -12 Q 0 -20 8 -12 Z" fill="#dc2626" stroke="#7c2d12" strokeWidth="0.4" />
+        <path d="M -8 -12 Q 0 -16 8 -12" fill="rgba(255,255,255,0.2)" />
+        <line x1="-5" y1="-13.2" x2="-5" y2="-12" stroke="#7c2d12" strokeWidth="0.3" />
+        <line x1="0" y1="-15" x2="0" y2="-12" stroke="#7c2d12" strokeWidth="0.3" />
+        <line x1="5" y1="-13.2" x2="5" y2="-12" stroke="#7c2d12" strokeWidth="0.3" />
+        <circle cx="0" cy="-15" r="0.4" fill="#fbbf24" />
+        {/* 2 Bierkrüge auf dem Tisch */}
+        <rect x="-4" y="-5" width="1.8" height="2" fill="#a06530" stroke="#5a3010" strokeWidth="0.2" rx="0.2" />
+        <ellipse cx="-3.1" cy="-5" rx="0.9" ry="0.3" fill="#fef3c7" />
+        <rect x="2" y="-5" width="1.8" height="2" fill="#a06530" stroke="#5a3010" strokeWidth="0.2" rx="0.2" />
+        <ellipse cx="2.9" cy="-5" rx="0.9" ry="0.3" fill="#fef3c7" />
+      </g>
+
+      {/* Eltern-Bank — ZURÜCK in den Mittel-Layer (scale 0.85) */}
+      <g transform="translate(258, 175) scale(0.85)">
+        <ellipse cx="0" cy="0" rx="10" ry="0.8" fill="rgba(0,0,0,0.3)" />
+        <rect x="-6" y="-3" width="1.2" height="3" fill="#5a3010" />
+        <rect x="4.8" y="-3" width="1.2" height="3" fill="#5a3010" />
+        <rect x="-7" y="-4.5" width="14" height="1.5" fill="#7c4a1a" rx="0.4" />
+        <rect x="-6.5" y="-6.5" width="13" height="0.7" fill="#5a3010" />
+        {/* 2 Latten im Rücken */}
+        <rect x="-6.5" y="-9" width="13" height="0.7" fill="#5a3010" />
+        <rect x="-6.5" y="-11.5" width="13" height="0.7" fill="#5a3010" />
+        {/* Sitzender Vater mit Kind */}
+        <g transform="translate(-2, -4.5)">
+          <rect x="-1.5" y="-3" width="3" height="3" fill="#3b82f6" rx="0.4" />
+          <circle cx="0" cy="-4.5" r="1.5" fill="#ffd5aa" />
+          <path d="M-1.5 -5.4 Q0 -6.4 1.5 -5.4 L 1.5 -5 L -1.5 -5 Z" fill="#7c4a1a" />
+          <circle cx="-0.4" cy="-4.5" r="0.18" fill="#1a0e05" />
+          <circle cx="0.4"  cy="-4.5" r="0.18" fill="#1a0e05" />
+          <path d="M-0.4 -3.9 Q0 -3.7 0.4 -3.9" stroke="#3a1808" strokeWidth="0.22" fill="none" />
+        </g>
+        {/* Mini-Kind rechts auf der Bank */}
+        <g transform="translate(3.5, -4.5)">
+          <rect x="-1" y="-2.2" width="2" height="2.2" fill="#ec4899" rx="0.3" />
+          <circle cx="0" cy="-3.6" r="1.1" fill="#ffd5aa" />
+          <path d="M-1.1 -4.3 Q0 -5.1 1.1 -4.3 L 1.1 -4 L -1.1 -4 Z" fill="#fbbf24" />
+          <circle cx="-0.3" cy="-3.6" r="0.15" fill="#1a0e05" />
+          <circle cx="0.3"  cy="-3.6" r="0.15" fill="#1a0e05" />
+        </g>
+      </g>
 
       {/* Sandkasten links */}
       <g transform="translate(40, 193)">
@@ -536,23 +625,6 @@ function Playground() {
         <line x1="0" y1="-4.4" x2="0" y2="0.4" stroke="#fff" strokeWidth="0.4" />
       </g>
 
-      {/* Eltern-Bank rechts daneben */}
-      <g transform="translate(305, 192)">
-        <rect x="-6" y="-3" width="1.2" height="3" fill="#5a3010" />
-        <rect x="4.8" y="-3" width="1.2" height="3" fill="#5a3010" />
-        <rect x="-7" y="-4.5" width="14" height="1.5" fill="#7c4a1a" rx="0.4" />
-        <rect x="-6.5" y="-6.5" width="13" height="0.7" fill="#5a3010" />
-        {/* Sitzende Mutter */}
-        <g transform="translate(-2, -4.5)">
-          <rect x="-1.5" y="-3" width="3" height="3" fill="#3b82f6" rx="0.4" />
-          <circle cx="0" cy="-4.5" r="1.5" fill="#ffd5aa" />
-          <path d="M-1.5 -5.4 Q0 -6.4 1.5 -5.4 L 1.5 -5 L -1.5 -5 Z" fill="#7c4a1a" />
-          <circle cx="-0.4" cy="-4.5" r="0.18" fill="#1a0e05" />
-          <circle cx="0.4"  cy="-4.5" r="0.18" fill="#1a0e05" />
-          <path d="M-0.4 -3.9 Q0 -3.7 0.4 -3.9" stroke="#3a1808" strokeWidth="0.22" fill="none" />
-        </g>
-      </g>
-
       {/* Bunte Wimpelkette über dem Spielplatz */}
       <path d="M 20 165 Q 160 178 305 162" stroke="#1a1a1a" strokeWidth="0.4" fill="none" opacity="0.6" />
       {[
@@ -598,74 +670,157 @@ function Playground() {
 // Spieler skaliert mit Tiefe (hinten klein, vorn groß).
 // ════════════════════════════════════════════════════════════════════════
 function PerspectiveSoccerField() {
+  // Feld-Trapez Ecken (bilineares Koordinatensystem)
+  //   far-left  (85, 98)    far-right  (235, 98)
+  //   near-left (20, 158)   near-right (300, 158)
+  // Linien werden mit der Hilfsfunktion bilin(u,v) gezeichnet:
+  //   u = 0…1 entlang der Längsachse (links→rechts)
+  //   v = 0…1 entlang der Breite (oben→unten)
+  // bilin(u,v) → { x: 85 + (-65)v + (150+130v)u, y: 98 + 60v }
   return (
     <g>
-      {/* Boden-Schatten unter dem Feld */}
-      <polygon points="22,160 298,160 250,99 90,99" fill="rgba(0,0,0,0.18)" />
+      {/* Sanfter Bodenschatten unter dem Feld */}
+      <polygon points="20,159 300,159 247,99 88,99" fill="rgba(0,0,0,0.22)" />
 
-      {/* Vier Mähstreifen als Trapeze (perspektivisch verjüngt nach hinten) */}
-      <polygon points="85,98 235,98 251.25,113 68.75,113"     fill="#2a5e3a" />
-      <polygon points="68.75,113 251.25,113 267.5,128 52.5,128" fill="#4a8a5a" opacity="0.85" />
-      <polygon points="52.5,128 267.5,128 283.75,143 36.25,143" fill="#326c44" />
-      <polygon points="36.25,143 283.75,143 300,158 20,158"     fill="#4a8a5a" opacity="0.8" />
+      {/* Mähstreifen — 5 perspektivische Trapeze, abwechselnd dunkler/heller */}
+      <polygon points="85,98 235,98 247.5,108 72.5,108" fill="#2d6240" />
+      <polygon points="72.5,108 247.5,108 261.25,123 58.75,123" fill="#4a8a5a" opacity="0.85" />
+      <polygon points="58.75,123 261.25,123 274,138 46,138" fill="#326c44" />
+      <polygon points="46,138 274,138 287.5,153 32.5,153" fill="#4a8a5a" opacity="0.85" />
+      <polygon points="32.5,153 287.5,153 300,158 20,158" fill="#326c44" />
 
-      {/* Außenlinie — Trapez-Outline */}
-      <polygon points="85,98 235,98 300,158 20,158" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.9" />
+      {/* Außenlinie */}
+      <polygon points="85,98 235,98 300,158 20,158" fill="none" stroke="#fff" strokeWidth="0.7" opacity="0.95" />
 
-      {/* Mittellinie (verläuft von far-center zu near-center, leicht V-förmig) */}
-      <line x1="160" y1="98" x2="160" y2="158" stroke="#fff" strokeWidth="0.6" opacity="0.9" />
+      {/* Mittellinie — vertikal zwischen far-mid und near-mid (beide bei x=160) */}
+      <line x1="160" y1="98" x2="160" y2="158" stroke="#fff" strokeWidth="0.7" opacity="0.95" />
 
-      {/* Mittelkreis als perspektivisches Oval (gestaucht) */}
-      <ellipse cx="160" cy="128" rx="20" ry="6.5" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.9" />
-      <circle cx="160" cy="128" r="0.9" fill="#fff" opacity="0.9" />
+      {/* Mittelkreis als perspektivisches Oval (gestaucht, mit gewölbten Linien) */}
+      <ellipse cx="160" cy="128" rx="22" ry="7.5" fill="none" stroke="#fff" strokeWidth="0.7" opacity="0.95" />
+      <circle cx="160" cy="128" r="1" fill="#fff" />
 
-      {/* Strafraum links — perspektivisches Trapez */}
-      <polygon points="85,107 110,107 125,148 56,148" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
-      {/* Strafraum rechts */}
-      <polygon points="210,107 235,107 264,148 195,148" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
-      {/* Elfmeter-Punkte */}
-      <circle cx="105" cy="128" r="0.6" fill="#fff" opacity="0.85" />
-      <circle cx="215" cy="128" r="0.6" fill="#fff" opacity="0.85" />
+      {/* Strafraum LINKS — exakte bilineare Trapez-Ecken
+          Goal-line-corners: u=0, v∈[0.164, 0.836]
+          Innen-Field-corners: u=0.165, v∈[0.164, 0.836] */}
+      <polygon
+        points="74.3,107.8 102.6,107.8 73.3,148.2 30.7,148.2"
+        fill="none" stroke="#fff" strokeWidth="0.55" opacity="0.9"
+      />
 
-      {/* Tor LINKS — perspektivisches Tor an der linken Trapez-Kante */}
+      {/* Strafraum RECHTS — gespiegelt: u=0.835 bis u=1 */}
+      <polygon
+        points="245.7,107.8 217.4,107.8 246.7,148.2 289.3,148.2"
+        fill="none" stroke="#fff" strokeWidth="0.55" opacity="0.9"
+      />
+
+      {/* Torraum LINKS (Goal box, 5.5m × 18m) — kleinere konzentrische Form */}
+      <polygon
+        points="64.8,117.1 75.4,117.1 53.8,138.9 40.7,138.9"
+        fill="none" stroke="#fff" strokeWidth="0.4" opacity="0.85"
+      />
+      {/* Torraum RECHTS */}
+      <polygon
+        points="255.2,117.1 244.6,117.1 266.2,138.9 279.3,138.9"
+        fill="none" stroke="#fff" strokeWidth="0.4" opacity="0.85"
+      />
+
+      {/* Elfmeter-Punkte — 11m von Tor entfernt, in der Mitte des Strafraums */}
+      <circle cx="76" cy="128" r="0.8" fill="#fff" />
+      <circle cx="244" cy="128" r="0.8" fill="#fff" />
+
+      {/* ════════ TOR LINKS ════════
+          Vorderpfosten sind an den Trapez-Ecken (85,98) und (20,158).
+          Höhe perspektivisch: hinten klein (9), vorne groß (18).
+          Goal extends LEFT of the field edge (out of play). */}
       <g>
-        {/* Tor-Tiefe (Netz hinten) */}
-        <polygon points="85,98 73,93 8,154 20,158" fill="rgba(255,255,255,0.1)" stroke="#fff" strokeWidth="0.4" />
-        {/* Querbalken oben */}
-        <line x1="85" y1="98" x2="73" y2="93" stroke="#fff" strokeWidth="0.5" />
-        <line x1="73" y1="93" x2="8"  y2="154" stroke="#fff" strokeWidth="0.5" />
-        {/* Netz-Linien */}
-        <line x1="78" y1="96" x2="14" y2="156" stroke="#fff" strokeWidth="0.25" opacity="0.6" />
-        <line x1="50" y1="120" x2="46" y2="130" stroke="#fff" strokeWidth="0.25" opacity="0.5" />
-        {/* Vorderpfosten leicht angehoben */}
-        <line x1="85" y1="98" x2="85" y2="92" stroke="#fff" strokeWidth="0.5" />
-        <line x1="20" y1="158" x2="20" y2="146" stroke="#fff" strokeWidth="0.6" />
-        <line x1="85" y1="92" x2="20" y2="146" stroke="#fff" strokeWidth="0.5" />
+        {/* Netz-Hintergrund — Polygon das die Goal-Tiefe füllt
+            Front: Pfosten-Linie der Außenkante (85,98)→(20,158)
+            Back: 12-15px nach LINKS versetzt (perspektivisch) */}
+        <polygon
+          points="85,89 73,92 5,144 20,140"
+          fill="rgba(255,255,255,0.08)"
+        />
+        <polygon
+          points="85,89 73,92 73,103 85,98"
+          fill="rgba(255,255,255,0.18)"
+        />
+        <polygon
+          points="20,140 5,144 5,162 20,158"
+          fill="rgba(255,255,255,0.2)"
+        />
+        <polygon
+          points="73,92 5,144 5,162 73,103"
+          fill="rgba(255,255,255,0.1)"
+        />
+
+        {/* Netz-Mesh: feine vertikale Linien hinten + diagonale Querstrebe */}
+        <line x1="64" y1="93" x2="64" y2="105" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        <line x1="50" y1="98" x2="50" y2="112" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        <line x1="35" y1="115" x2="35" y2="135" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        <line x1="20" y1="142" x2="20" y2="158" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        {/* Horizontale Mesh-Linien */}
+        <line x1="73" y1="98" x2="5" y2="153" stroke="#fff" strokeWidth="0.2" opacity="0.35" />
+
+        {/* Hintere Tor-Pfosten */}
+        <line x1="73" y1="92" x2="73" y2="103" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="5"  y1="144" x2="5" y2="162" stroke="#fff" strokeWidth="0.5" opacity="0.75" />
+        {/* Hintere obere Verbindung */}
+        <line x1="73" y1="92" x2="5" y2="144" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        {/* Hintere untere Verbindung (Bodenlinie des Netzes) */}
+        <line x1="73" y1="103" x2="5" y2="162" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+
+        {/* Vordere obere Pfosten + Querbalken (kräftiger weiß) */}
+        <line x1="85" y1="98" x2="85" y2="89" stroke="#ffffff" strokeWidth="0.9" />
+        <line x1="20" y1="158" x2="20" y2="140" stroke="#ffffff" strokeWidth="1.2" />
+        <line x1="85" y1="89" x2="20" y2="140" stroke="#ffffff" strokeWidth="0.9" />
+
+        {/* Verbinder Front → Back (Goal-Tiefe-Linien) */}
+        <line x1="85" y1="89" x2="73" y2="92" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
+        <line x1="20" y1="140" x2="5" y2="144" stroke="#fff" strokeWidth="0.55" opacity="0.85" />
       </g>
 
-      {/* Tor RECHTS */}
+      {/* ════════ TOR RECHTS ════════ — symmetrisch gespiegelt */}
       <g>
-        <polygon points="235,98 247,93 312,154 300,158" fill="rgba(255,255,255,0.1)" stroke="#fff" strokeWidth="0.4" />
-        <line x1="235" y1="98" x2="247" y2="93" stroke="#fff" strokeWidth="0.5" />
-        <line x1="247" y1="93" x2="312" y2="154" stroke="#fff" strokeWidth="0.5" />
-        <line x1="242" y1="96" x2="306" y2="156" stroke="#fff" strokeWidth="0.25" opacity="0.6" />
-        <line x1="270" y1="120" x2="274" y2="130" stroke="#fff" strokeWidth="0.25" opacity="0.5" />
-        <line x1="235" y1="98" x2="235" y2="92" stroke="#fff" strokeWidth="0.5" />
-        <line x1="300" y1="158" x2="300" y2="146" stroke="#fff" strokeWidth="0.6" />
-        <line x1="235" y1="92" x2="300" y2="146" stroke="#fff" strokeWidth="0.5" />
+        <polygon points="235,89 247,92 315,144 300,140" fill="rgba(255,255,255,0.08)" />
+        <polygon points="235,89 247,92 247,103 235,98" fill="rgba(255,255,255,0.18)" />
+        <polygon points="300,140 315,144 315,162 300,158" fill="rgba(255,255,255,0.2)" />
+        <polygon points="247,92 315,144 315,162 247,103" fill="rgba(255,255,255,0.1)" />
+
+        <line x1="256" y1="93" x2="256" y2="105" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        <line x1="270" y1="98" x2="270" y2="112" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        <line x1="285" y1="115" x2="285" y2="135" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        <line x1="300" y1="142" x2="300" y2="158" stroke="#fff" strokeWidth="0.2" opacity="0.45" />
+        <line x1="247" y1="98" x2="315" y2="153" stroke="#fff" strokeWidth="0.2" opacity="0.35" />
+
+        <line x1="247" y1="92" x2="247" y2="103" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="315" y1="144" x2="315" y2="162" stroke="#fff" strokeWidth="0.5" opacity="0.75" />
+        <line x1="247" y1="92" x2="315" y2="144" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="247" y1="103" x2="315" y2="162" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+
+        <line x1="235" y1="98" x2="235" y2="89" stroke="#ffffff" strokeWidth="0.9" />
+        <line x1="300" y1="158" x2="300" y2="140" stroke="#ffffff" strokeWidth="1.2" />
+        <line x1="235" y1="89" x2="300" y2="140" stroke="#ffffff" strokeWidth="0.9" />
+
+        <line x1="235" y1="89" x2="247" y2="92" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
+        <line x1="300" y1="140" x2="315" y2="144" stroke="#fff" strokeWidth="0.55" opacity="0.85" />
       </g>
 
-      {/* Vier Eck-Fähnchen */}
+      {/* Vier Eck-Fähnchen an den Trapez-Ecken */}
       {[
-        { x: 85,  y: 98 },   // far-left
-        { x: 235, y: 98 },   // far-right
-        { x: 20,  y: 158 },  // near-left
-        { x: 300, y: 158 },  // near-right
-      ].map((c, i) => (
-        <g key={i}>
-          <line x1={c.x} y1={c.y - 4} x2={c.x} y2={c.y} stroke="#1a1a1a" strokeWidth="0.4" />
-          <g className="gb-flag" style={{ transformOrigin: `${c.x}px ${c.y - 4}px`, animationDelay: `${-i * 0.5}s` }}>
-            <polygon points={`${c.x},${c.y - 4} ${c.x + 2.2},${c.y - 3.2} ${c.x},${c.y - 2.5}`} fill="#fbbf24" />
+        { x: 85,  y: 98,  i: 0 },
+        { x: 235, y: 98,  i: 1 },
+        { x: 20,  y: 158, i: 2 },
+        { x: 300, y: 158, i: 3 },
+      ].map((c) => (
+        <g key={c.i}>
+          <line x1={c.x} y1={c.y - 4.5} x2={c.x} y2={c.y} stroke="#1a1a1a" strokeWidth="0.4" />
+          <g className="gb-flag" style={{ transformOrigin: `${c.x}px ${c.y - 4.5}px`, animationDelay: `${-c.i * 0.5}s` }}>
+            <polygon
+              points={`${c.x},${c.y - 4.5} ${c.x + 2.4},${c.y - 3.7} ${c.x},${c.y - 2.9}`}
+              fill="#fbbf24"
+              stroke="#92400e"
+              strokeWidth="0.15"
+            />
           </g>
         </g>
       ))}
@@ -783,107 +938,162 @@ function Referee() {
 // SCHWARZWALD-BÄHNLE — Dampflok mit 2 Wagons zieht durch die Hügel
 // ════════════════════════════════════════════════════════════════════════
 function Baehnle() {
+  // Zug-Layout (alles in Lokalkoords, y=0 ist die Schienen-Höhe):
+  //   Lok          translate(50, 0)   inner -7…14 → abs 43…64   (Lok 21 wide)
+  //   Wagon 1 grün translate(26, 0)   inner 0…14  → abs 26…40   (gap 3 zu Lok)
+  //   Wagon 2 orng translate(8,  0)   inner 0…14  → abs 8…22    (gap 4)
+  //   Wagon 3 blau translate(-12, 0)  inner 0…14  → abs -12…2   (gap 6)
+  //   Gesamt-Span: -12 bis 64 = 76 Einheiten
+  const wagon = (x: number, body: string, head: string, windowFill: string[],
+                 hatColors: string[], waveIndex: number | null, delay: string) => (
+    <g transform={`translate(${x}, 0)`}>
+      {/* Korpus */}
+      <rect x="0" y="3" width="14" height="8" fill={body} stroke={head} strokeWidth="0.4" rx="0.3" />
+      <rect x="0" y="3" width="14" height="1.4" fill={head} />
+      {/* Dach-Glanz */}
+      <rect x="0.6" y="3.3" width="12.8" height="0.4" fill="rgba(255,255,255,0.2)" />
+      {/* 3 Fenster mit Mini-Passagieren */}
+      {[2, 6.25, 10.5].map((wx, i) => (
+        <g key={`win-${i}`}>
+          <rect x={wx} y="4.5" width="2.4" height="2.6" fill={windowFill[i]} opacity="0.95" />
+          <line x1={wx + 1.2} y1="4.5" x2={wx + 1.2} y2="7.1" stroke={head} strokeWidth="0.2" />
+          <circle cx={wx + 1.2} cy="6" r="0.7" fill="#ffd5aa" />
+          <rect x={wx + 0.55} y="6.4" width="1.3" height="0.6" fill={hatColors[i]} rx="0.1" />
+        </g>
+      ))}
+      {/* Mini-Winker im jeweils ausgewählten Fenster */}
+      {waveIndex !== null && (
+        <g
+          className="gb-passenger-wave"
+          style={{
+            transformOrigin: `${[3.2, 7.45, 11.7][waveIndex]}px 6px`,
+            animationDelay: delay,
+          }}
+        >
+          <line
+            x1={[3.2, 7.45, 11.7][waveIndex]}
+            y1="5.8"
+            x2={[3.2, 7.45, 11.7][waveIndex] + 1.1}
+            y2="4.2"
+            stroke="#ffd5aa"
+            strokeWidth="0.4"
+            strokeLinecap="round"
+          />
+        </g>
+      )}
+      {/* Räder */}
+      <g className="gb-train-wheels" style={{ transformOrigin: '3px 12px', animationDelay: delay }}>
+        <circle cx="3" cy="12" r="1.9" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+        <line x1="1.2" y1="12" x2="4.8" y2="12" stroke="#7a7a7a" strokeWidth="0.3" />
+        <line x1="3" y1="10.2" x2="3" y2="13.8" stroke="#7a7a7a" strokeWidth="0.3" />
+      </g>
+      <g className="gb-train-wheels" style={{ transformOrigin: '11px 12px', animationDelay: '-0.4s' }}>
+        <circle cx="11" cy="12" r="1.9" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+        <line x1="9.2" y1="12" x2="12.8" y2="12" stroke="#7a7a7a" strokeWidth="0.3" />
+        <line x1="11" y1="10.2" x2="11" y2="13.8" stroke="#7a7a7a" strokeWidth="0.3" />
+      </g>
+    </g>
+  );
+
   return (
     <g transform="translate(0, 60)">
-      {/* Schienen-Andeutung als feine Linie quer durch (statisch, im Welt-Raum) */}
-      <line x1="-30" y1="14" x2="50" y2="14" stroke="#3a3a3a" strokeWidth="0.4" opacity="0.5" />
-      <line x1="-30" y1="14.6" x2="50" y2="14.6" stroke="#5a5a5a" strokeWidth="0.25" opacity="0.4" />
+      {/* Schienen-Andeutung als feine Linie quer durch */}
+      <rect x="-15" y="14" width="80" height="0.6" fill="#5a5a62" opacity="0.7" />
+      <rect x="-15" y="14.6" width="80" height="0.3" fill="#3a3a42" opacity="0.6" />
+      {/* Schwellen */}
+      {[-12, -7, -2, 3, 8, 13, 18, 23, 28, 33, 38, 43, 48, 53, 58, 63].map((sx) => (
+        <rect key={sx} x={sx} y="14.6" width="3" height="0.9" fill="#5a3010" opacity="0.55" />
+      ))}
 
-      {/* Schornstein-Rauchwolken (steigen vom Lok-Schornstein) */}
+      {/* Rauchwolken aus dem Lok-Schornstein (Lok ist bei x=50, Schornstein bei +7 = x=57) */}
       <g className="gb-steam" style={{ animationDelay: '0s' }}>
-        <circle cx="36" cy="-1" r="2" fill="rgba(220,220,220,0.8)" />
+        <circle cx="57" cy="-2" r="2" fill="rgba(225,225,225,0.85)" />
       </g>
-      <g className="gb-steam" style={{ animationDelay: '-0.9s' }}>
-        <circle cx="36" cy="-1" r="2.5" fill="rgba(220,220,220,0.7)" />
+      <g className="gb-steam" style={{ animationDelay: '-0.85s' }}>
+        <circle cx="57" cy="-2" r="2.6" fill="rgba(215,215,215,0.75)" />
       </g>
-      <g className="gb-steam" style={{ animationDelay: '-1.8s' }}>
-        <circle cx="36" cy="-1" r="2.2" fill="rgba(220,220,220,0.7)" />
+      <g className="gb-steam" style={{ animationDelay: '-1.75s' }}>
+        <circle cx="57" cy="-2" r="2.3" fill="rgba(220,220,220,0.7)" />
       </g>
 
-      {/* Lok (rot, Schwarzwaldbahn-Stil) */}
-      <g transform="translate(28, 0)">
+      {/* ── LOK (rot, Schwarzwaldbahn-Stil) — vorne rechts ─────────────── */}
+      <g transform="translate(50, 0)">
         {/* Hauptkessel */}
-        <rect x="0" y="3" width="14" height="8" fill="#a01818" stroke="#5a0808" strokeWidth="0.4" rx="0.5" />
-        <rect x="0" y="3" width="14" height="2" fill="#dc2626" />
+        <rect x="0" y="3.5" width="14" height="7.5" fill="#a01818" stroke="#5a0808" strokeWidth="0.4" rx="0.5" />
+        <rect x="0" y="3.5" width="14" height="1.6" fill="#dc2626" />
+        <rect x="0.4" y="3.7" width="13.2" height="0.4" fill="rgba(255,255,255,0.25)" />
+        {/* Kessel-Bänder */}
+        <line x1="0" y1="6" x2="14" y2="6" stroke="#5a0808" strokeWidth="0.3" />
+        <line x1="0" y1="9" x2="14" y2="9" stroke="#5a0808" strokeWidth="0.3" />
         {/* Schornstein */}
-        <rect x="6" y="-1" width="3" height="4" fill="#1a1a1a" />
+        <rect x="6" y="-1" width="3" height="4.5" fill="#1a1a1a" />
         <rect x="5.5" y="-1.5" width="4" height="0.8" fill="#3a3a3a" />
+        {/* Glocken-Hütchen oben am Kessel */}
+        <ellipse cx="2" cy="3.4" rx="1.2" ry="0.6" fill="#fbbf24" stroke="#7c2d12" strokeWidth="0.2" />
         {/* Führerstand */}
-        <rect x="-7" y="1" width="7" height="10" fill="#5a0808" stroke="#3a0404" strokeWidth="0.4" />
-        <rect x="-6" y="2.5" width="5" height="3" fill="#fef3c7" opacity="0.85" />
-        <line x1="-3.5" y1="2.5" x2="-3.5" y2="5.5" stroke="#3a0404" strokeWidth="0.3" />
+        <rect x="-7" y="1.5" width="7" height="9.5" fill="#5a0808" stroke="#3a0404" strokeWidth="0.4" />
+        <rect x="-6.2" y="3" width="5.4" height="3.2" fill="#fef3c7" opacity="0.9" />
+        <line x1="-3.5" y1="3" x2="-3.5" y2="6.2" stroke="#3a0404" strokeWidth="0.3" />
+        <line x1="-6.2" y1="4.5" x2="-0.8" y2="4.5" stroke="#3a0404" strokeWidth="0.2" />
+        {/* Lokführer im Cockpit */}
+        <circle cx="-3" cy="5.2" r="0.7" fill="#ffd5aa" />
+        <rect x="-3.5" y="5.7" width="1" height="0.5" fill="#1d4ed8" rx="0.1" />
         {/* Dach */}
-        <rect x="-7.5" y="0.4" width="8" height="1" fill="#1a1a1a" rx="0.2" />
+        <rect x="-7.5" y="0.8" width="8" height="1.2" fill="#1a1a1a" rx="0.2" />
         {/* Lichter vorne */}
-        <circle cx="14" cy="6" r="0.8" fill="#fef3c7" />
-        <circle cx="14" cy="6" r="0.4" fill="#fbbf24" />
-        {/* Räder mit Speichen */}
-        <g className="gb-train-wheels" style={{ transformOrigin: '2px 12px' }}>
-          <circle cx="2" cy="12" r="2" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
-          <line x1="0" y1="12" x2="4" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
-          <line x1="2" y1="10" x2="2" y2="14" stroke="#5a5a5a" strokeWidth="0.3" />
+        <circle cx="14.3" cy="6.5" r="1" fill="#fef3c7" />
+        <circle cx="14.3" cy="6.5" r="0.5" fill="#fbbf24" />
+        {/* Stoßstange */}
+        <rect x="13.5" y="9.5" width="1.5" height="2" fill="#3a3a3a" rx="0.2" />
+        {/* Räder mit Speichen (große Antriebsräder) */}
+        <g className="gb-train-wheels" style={{ transformOrigin: '2.5px 12px' }}>
+          <circle cx="2.5" cy="12" r="2.2" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="0.3" y1="12" x2="4.7" y2="12" stroke="#7a7a7a" strokeWidth="0.3" />
+          <line x1="2.5" y1="9.8" x2="2.5" y2="14.2" stroke="#7a7a7a" strokeWidth="0.3" />
+          <line x1="1.05" y1="10.5" x2="3.95" y2="13.5" stroke="#5a5a5a" strokeWidth="0.25" />
         </g>
         <g className="gb-train-wheels" style={{ transformOrigin: '11px 12px', animationDelay: '-0.2s' }}>
-          <circle cx="11" cy="12" r="2" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
-          <line x1="9" y1="12" x2="13" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
-          <line x1="11" y1="10" x2="11" y2="14" stroke="#5a5a5a" strokeWidth="0.3" />
+          <circle cx="11" cy="12" r="2.2" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
+          <line x1="8.8" y1="12" x2="13.2" y2="12" stroke="#7a7a7a" strokeWidth="0.3" />
+          <line x1="11" y1="9.8" x2="11" y2="14.2" stroke="#7a7a7a" strokeWidth="0.3" />
+          <line x1="9.55" y1="10.5" x2="12.45" y2="13.5" stroke="#5a5a5a" strokeWidth="0.25" />
         </g>
+        {/* Lok-Schatten unter Räder */}
+        <ellipse cx="6" cy="14.3" rx="9" ry="0.4" fill="rgba(0,0,0,0.35)" />
       </g>
 
-      {/* Kupplung 1 */}
-      <line x1="20" y1="11" x2="22" y2="11" stroke="#1a1a1a" strokeWidth="0.4" />
+      {/* Kupplung Lok ↔ Wagon 1 */}
+      <line x1="40" y1="11.5" x2="50" y2="11.5" stroke="#1a1a1a" strokeWidth="0.5" />
 
-      {/* Wagon 1 (Personenwagen, grün) */}
-      <g transform="translate(7, 0)">
-        <rect x="0" y="3" width="14" height="8" fill="#2d5a3f" stroke="#1a3a25" strokeWidth="0.4" rx="0.3" />
-        <rect x="0" y="3" width="14" height="1.4" fill="#1a3a25" />
-        {/* 3 Fenster mit Mini-Passagieren */}
-        {[2, 6.5, 11].map((wx, i) => (
-          <g key={`w1-${i}`}>
-            <rect x={wx} y="4.4" width="2.5" height="2.6" fill="#fef3c7" opacity="0.95" />
-            <line x1={wx + 1.25} y1="4.4" x2={wx + 1.25} y2="7" stroke="#1a3a25" strokeWidth="0.2" />
-            <circle cx={wx + 1.25} cy="6" r="0.7" fill="#ffd5aa" />
-            <rect x={wx + 0.6} y="6.4" width="1.3" height="0.6" fill={['#dc2626','#a78bfa','#fbbf24'][i]} rx="0.1" />
-          </g>
-        ))}
-        {/* Mini-Winker im mittleren Fenster */}
-        <g className="gb-passenger-wave" style={{ transformOrigin: '7.75px 6.5px' }}>
-          <line x1="7.75" y1="6" x2="8.4" y2="4.6" stroke="#ffd5aa" strokeWidth="0.35" strokeLinecap="round" />
-        </g>
-        {/* Räder */}
-        <g className="gb-train-wheels" style={{ transformOrigin: '3px 12px' }}>
-          <circle cx="3" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
-          <line x1="1.2" y1="12" x2="4.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
-        </g>
-        <g className="gb-train-wheels" style={{ transformOrigin: '11px 12px', animationDelay: '-0.4s' }}>
-          <circle cx="11" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
-          <line x1="9.2" y1="12" x2="12.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
-        </g>
-      </g>
+      {/* ── WAGON 1 (Saunafreunde-grün) ───────────────────────────────── */}
+      {wagon(26, '#2d5a3f', '#1a3a25',
+        ['#fef3c7', '#fef3c7', '#fef3c7'],
+        ['#dc2626', '#a78bfa', '#fbbf24'],
+        1, '-0.3s')}
 
-      {/* Kupplung 2 */}
-      <line x1="-7" y1="11" x2="-9" y2="11" stroke="#1a1a1a" strokeWidth="0.4" />
+      {/* Kupplung Wagon 1 ↔ Wagon 2 */}
+      <line x1="22" y1="11.5" x2="26" y2="11.5" stroke="#1a1a1a" strokeWidth="0.5" />
 
-      {/* Wagon 2 (Personenwagen, gelb) — hinten */}
-      <g transform="translate(-22, 0)">
-        <rect x="0" y="3" width="13" height="8" fill="#d97706" stroke="#7c2d12" strokeWidth="0.4" rx="0.3" />
-        <rect x="0" y="3" width="13" height="1.4" fill="#7c2d12" />
-        {[2, 6, 10].map((wx, i) => (
-          <g key={`w2-${i}`}>
-            <rect x={wx} y="4.4" width="2.2" height="2.6" fill="#fef3c7" opacity="0.95" />
-            <circle cx={wx + 1.1} cy="6" r="0.6" fill="#ffd5aa" />
-            <rect x={wx + 0.5} y="6.4" width="1.2" height="0.6" fill={['#3b82f6','#22c55e','#ec4899'][i]} rx="0.1" />
-          </g>
-        ))}
-        <g className="gb-train-wheels" style={{ transformOrigin: '3px 12px', animationDelay: '-0.1s' }}>
-          <circle cx="3" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
-          <line x1="1.2" y1="12" x2="4.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
-        </g>
-        <g className="gb-train-wheels" style={{ transformOrigin: '10px 12px', animationDelay: '-0.5s' }}>
-          <circle cx="10" cy="12" r="1.8" fill="#1a1a1a" stroke="#3a3a3a" strokeWidth="0.3" />
-          <line x1="8.2" y1="12" x2="11.8" y2="12" stroke="#5a5a5a" strokeWidth="0.3" />
-        </g>
-      </g>
+      {/* ── WAGON 2 (Saunascaner-orange) ──────────────────────────────── */}
+      {wagon(8, '#d97706', '#7c2d12',
+        ['#fef3c7', '#fef3c7', '#fef3c7'],
+        ['#3b82f6', '#22c55e', '#ec4899'],
+        0, '-0.9s')}
+
+      {/* Kupplung Wagon 2 ↔ Wagon 3 */}
+      <line x1="2" y1="11.5" x2="8" y2="11.5" stroke="#1a1a1a" strokeWidth="0.5" />
+
+      {/* ── WAGON 3 (Schwarzwald-blau) ────────────────────────────────── */}
+      {wagon(-12, '#1d4ed8', '#1e3a8a',
+        ['#fef3c7', '#fef3c7', '#fef3c7'],
+        ['#fbbf24', '#dc2626', '#22c55e'],
+        2, '-1.5s')}
+
+      {/* Hinterer Puffer */}
+      <rect x="-13.5" y="9.5" width="1.5" height="2" fill="#3a3a3a" rx="0.2" />
+
+      {/* Zug-Gesamt-Schatten unter den Rädern */}
+      <ellipse cx="25" cy="14.5" rx="44" ry="0.5" fill="rgba(0,0,0,0.25)" />
     </g>
   );
 }
