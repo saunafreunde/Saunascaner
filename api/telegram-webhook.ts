@@ -11,6 +11,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { getBrandSettings } from './_email_helpers.js';
 
 const TG_API = (token: string) => `https://api.telegram.org/bot${token}`;
 
@@ -166,8 +167,9 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
   // Plain /start — Broadcast-Registrierung (Bestandsverhalten)
   if (text === '/start' || text.startsWith('/start@')) {
     await sb.rpc('register_telegram_chat', { p_chat_id: chatId });
+    const brand = await getBrandSettings(sb);
     await tgSend(token, chatId,
-      `🌲 <b>Willkommen bei Saunafreunde Schwarzwald!</b>\n\n` +
+      `🌲 <b>Willkommen bei ${brand.org.name}!</b>\n\n` +
       `Du bist für Benachrichtigungen registriert.\n\n` +
       `Wenn du dein Konto verknüpfen möchtest (um Aufgüsse zu sehen, Personal-Slots zu übernehmen, …):\n` +
       `<b>App öffnen → Profil → 🔗 Telegram verknüpfen</b> → den dort generierten Link klicken.`);

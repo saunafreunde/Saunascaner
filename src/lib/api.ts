@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence, MemberRole, Invitation } from '@/types/database';
 import type { InfusionAttribute } from './attributes';
+import { type BrandSettings, mergeBrandDefaults, defaultBrandSettings } from '@/types/branding';
 
 function need() {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -1018,6 +1019,46 @@ export type TvSettings = {
     [saunaId: string]: (string | null)[];
   };
 };
+
+// ─── brand_settings (zentrale Vereins-Identität, Migration 0039) ────────
+export function useBrandSettings() {
+  return useQuery({
+    queryKey: ['brand-settings'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('system_config')
+        .select('value')
+        .eq('key', 'brand_settings')
+        .maybeSingle();
+      if (error) throw error;
+      return mergeBrandDefaults(data?.value as Partial<BrandSettings> | undefined);
+    },
+  });
+}
+
+export function useUpdateBrandSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (next: BrandSettings) => {
+      const { error } = await need()
+        .from('system_config')
+        .upsert({ key: 'brand_settings', value: next });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['brand-settings'] });
+      qc.invalidateQueries({ queryKey: ['tv-settings'] });
+    },
+  });
+}
+
+/** Shortcut: Brand-Settings synchronisiert ohne Loading-State — Defaults wenn noch nicht geladen. */
+export function useBrandSync(): BrandSettings {
+  const q = useBrandSettings();
+  return q.data ?? defaultBrandSettings();
+}
+
+export const brandAssetUrl = publicAssetUrl; // Alias für klarere Semantik
 
 export function useTvSettings() {
   return useQuery({

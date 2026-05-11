@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useTvSettings, publicAssetUrl } from '@/lib/api';
+import { useCurrentMember, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 type Mode = 'magic' | 'signin' | 'signup' | 'bootstrap';
@@ -9,7 +9,7 @@ type Mode = 'magic' | 'signin' | 'signup' | 'bootstrap';
 export default function Login() {
   const { user, ready, signIn, signUp } = useAuth();
   const member = useCurrentMember();
-  const tv = useTvSettings();
+  const brand = useBrandSettings();
   const loc = useLocation();
   const nav = useNavigate();
   const rawNext = new URLSearchParams(loc.search).get('next') ?? '/planner';
@@ -78,9 +78,12 @@ export default function Login() {
   }
 
   const showBootstrap = needsBootstrap || mode === 'bootstrap';
-  const logoUrl = tv.data?.logo_path
-    ? publicAssetUrl(tv.data.logo_path) ?? '/icons/icon-512.png'
+  const logoUrl = brand.data?.logo?.icon
+    ? brandAssetUrl(brand.data.logo.icon) ?? '/icons/icon-512.png'
     : '/icons/icon-512.png';
+  const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
+  const shortName = brand.data?.org?.short_name ?? 'Saunafreunde';
+  const location = brand.data?.org?.location ?? 'Freudenstadt';
 
   return (
     <div className="login-stage min-h-full flex flex-col items-center justify-start sm:justify-center px-4 py-6 relative overflow-hidden">
@@ -96,10 +99,10 @@ export default function Login() {
             className="mx-auto mb-4 h-32 w-32 sm:h-40 sm:w-40 object-contain rounded-2xl drop-shadow-[0_8px_32px_rgba(251,191,36,0.45)]"
           />
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 bg-clip-text text-transparent drop-shadow-lg">
-            Saunafreunde
+            {shortName}
           </h1>
           <p className="mt-1 text-sm sm:text-base font-medium text-forest-200/90 uppercase tracking-[0.3em]">
-            Schwarzwald · Freudenstadt
+            Schwarzwald · {location}
           </p>
         </div>
 
@@ -206,10 +209,10 @@ export default function Login() {
         {/* Footer */}
         <div className="mt-6 text-center space-y-0.5">
           <p className="text-[11px] font-semibold text-forest-300/80 tracking-wider">
-            Saunafreunde Schwarzwald <span className="text-amber-300/80">e.V.</span>
+            {orgName}
           </p>
           <p className="text-[10px] text-forest-400/60 tracking-wider">
-            Freudenstadt · Made with 🔥
+            {location} · Made with 🔥
           </p>
         </div>
       </div>

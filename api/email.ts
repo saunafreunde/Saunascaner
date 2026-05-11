@@ -17,6 +17,7 @@ import {
   sendFromAdmin,
   makeServiceClient,
   logEmailSend,
+  getBrandSettings,
 } from './_email_helpers.js';
 import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail } from './_email_templates.js';
 
@@ -153,9 +154,11 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: linkErr?.message ?? 'could not generate link' });
   }
 
+  const brand = await getBrandSettings(svc);
   const { html, text, subject } = renderMagicLinkEmail({
     magicLink: linkData.properties.action_link,
     isSignup: !userExists,
+    brand,
   });
 
   try {
@@ -218,6 +221,7 @@ async function handleSendInvite(req: VercelRequest, res: VercelResponse) {
   const inviteLink = `${origin}/login?invite=${encodeURIComponent(inv.code)}`;
 
   // Template rendern
+  const brand = await getBrandSettings(auth.service);
   const { html, text, subject } = renderInviteEmail({
     recipientName: recipient_name,
     inviteLink,
@@ -226,6 +230,7 @@ async function handleSendInvite(req: VercelRequest, res: VercelResponse) {
     targetIsAufgieser: !!inv.target_is_aufgieser,
     adminName,
     note: inv.note ?? undefined,
+    brand,
   });
 
   // Versuche zunächst im Namen des Admins zu senden (falls Postfach vorhanden)
@@ -353,10 +358,12 @@ async function handleSendWelcome(req: VercelRequest, res: VercelResponse) {
   if (!m?.email) return res.status(404).json({ error: 'member or email not found' });
 
   const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+  const brand = await getBrandSettings(auth.service);
   const { html, text, subject } = renderWelcomeEmail({
     recipientName: m.name,
     loginLink: `${origin}/planner`,
     roleLabel: role_label ?? 'Mitglied',
+    brand,
   });
 
   try {

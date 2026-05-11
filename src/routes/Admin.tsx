@@ -6,19 +6,18 @@ import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
 import { PostfachDialog } from '@/components/admin/PostfachDialog';
-import { useAdminEmailAccounts } from '@/lib/api';
+import { BrandingTab } from '@/components/admin/BrandingTab';
+import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
   usePendingMembers, useApproveMember, useCurrentMember,
-  useTvSettings, useUpdateTvSettings,
   usePresentMembers,
   useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
   useAllPolls, useCreatePoll, useTogglePoll, fetchPollResults,
-  uploadAsset, deleteAsset, publicAssetUrl,
   useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
   useMyBadges,
-  type TvSettings, type PollAnswerType, type Member,
+  type PollAnswerType, type Member,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
 import BadgeChip from '@/components/BadgeChip';
@@ -218,10 +217,11 @@ function MembersTab() {
   const approve = useApproveMember();
   const del = useDeleteMember();
   const me = useCurrentMember();
-  const tvQ = useTvSettings();
-  const frontBgUrl = publicAssetUrl(tvQ.data?.badge?.front_bg);
-  const backBgUrl  = publicAssetUrl(tvQ.data?.badge?.back_bg);
-  const logoUrl    = publicAssetUrl(tvQ.data?.logo_path);
+  const brandQ = useBrandSettings();
+  const frontBgUrl = brandAssetUrl(brandQ.data?.badge?.front_bg);
+  const backBgUrl  = brandAssetUrl(brandQ.data?.badge?.back_bg);
+  const logoUrl    = brandAssetUrl(brandQ.data?.logo?.icon);
+  const orgName    = brandQ.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -377,7 +377,7 @@ function MembersTab() {
                   </button>
                   <button onClick={() => downloadBadge({
                     name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
-                    role: m.role, organization: 'Saunafreunde Schwarzwald',
+                    role: m.role, organization: orgName,
                     frontBgUrl, backBgUrl, logoUrl,
                   })}
                     className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
@@ -764,310 +764,6 @@ function PollsTab() {
           )}
         </section>
       )}
-    </div>
-  );
-}
-
-function BrandingTab() {
-  const tvQ = useTvSettings();
-  const saunasQ = useSaunas();
-  const update = useUpdateTvSettings();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [openSauna, setOpenSauna] = useState<string | null>(null);
-
-  const tv: TvSettings = tvQ.data ?? { ads: [], logo_path: null };
-  const saunas = saunasQ.data ?? [];
-
-  async function setSetting(updater: (cur: TvSettings) => TvSettings) {
-    setBusy(true); setErr(null);
-    try { await update.mutateAsync(updater(tv)); }
-    catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  async function uploadField(file: File, getPath: () => string | null | undefined, setPath: (path: string) => TvSettings, folder: string) {
-    setBusy(true); setErr(null);
-    try {
-      const oldPath = getPath();
-      const path = await uploadAsset(file, folder);
-      await update.mutateAsync(setPath(path));
-      if (oldPath) await deleteAsset(oldPath).catch(() => {});
-    } catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  async function applyBgToAllPages(path: string) {
-    await setSetting((c) => ({
-      ...c,
-      backgrounds: { dashboard: path, guest: path, planner: path, wm: path },
-    }));
-  }
-
-  // Stellt sicher, dass tile_bgs[saunaId] immer ein 5er-Array (Slots 0-4) ist.
-  function normalizedTileSlots(saunaId: string): (string | null)[] {
-    const existing = tv.tile_bgs?.[saunaId] ?? [];
-    return [
-      existing[0] ?? null,
-      existing[1] ?? null,
-      existing[2] ?? null,
-      existing[3] ?? null,
-      existing[4] ?? null,
-    ];
-  }
-
-  async function uploadTileBg(saunaId: string, slot: number, file: File) {
-    setBusy(true); setErr(null);
-    try {
-      const oldPath = tv.tile_bgs?.[saunaId]?.[slot] ?? null;
-      const path = await uploadAsset(file, `tile-bgs/${saunaId}`);
-      const slots = normalizedTileSlots(saunaId);
-      slots[slot] = path;
-      await update.mutateAsync({ ...tv, tile_bgs: { ...(tv.tile_bgs ?? {}), [saunaId]: slots } });
-      if (oldPath) await deleteAsset(oldPath).catch(() => {});
-    } catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  async function clearTileBg(saunaId: string, slot: number) {
-    setBusy(true); setErr(null);
-    try {
-      const oldPath = tv.tile_bgs?.[saunaId]?.[slot] ?? null;
-      const slots = normalizedTileSlots(saunaId);
-      slots[slot] = null;
-      await update.mutateAsync({ ...tv, tile_bgs: { ...(tv.tile_bgs ?? {}), [saunaId]: slots } });
-      if (oldPath) await deleteAsset(oldPath).catch(() => {});
-    } catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  const allPages = ['dashboard', 'guest', 'planner', 'wm'] as const;
-
-  return (
-    <section className="space-y-4">
-      {err && <div className="rounded-md bg-rose-500/15 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-500/30">{err}</div>}
-
-      {/* 🎨 Logo & Marke */}
-      <ImageSlot
-        title="🎨 Logo & Marke"
-        hint="Erscheint im Tafel-Header, auf dem Ausweis und in der Gäste-App."
-        url={publicAssetUrl(tv.logo_path)}
-        busy={busy}
-        onUpload={(f) => uploadField(f, () => tv.logo_path, (p) => ({ ...tv, logo_path: p }), 'logo')}
-        onClear={() => setSetting((c) => ({ ...c, logo_path: null }))}
-      />
-
-      {/* 🖼️ Seiten-Hintergründe */}
-      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-        <h2 className="text-base font-semibold text-forest-100">🖼️ Seiten-Hintergründe</h2>
-        <p className="mt-1 text-xs text-forest-300/70">Ein Foto pro Ansicht. Leer lassen = Wald-Verlauf-Fallback. Ein Bild kann auf alle Seiten angewendet werden.</p>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {allPages.map((page) => {
-            const path = tv.backgrounds?.[page] ?? null;
-            const url = publicAssetUrl(path);
-            return (
-              <div key={page} className="space-y-2">
-                <SubSlot title={pageLabel(page)} url={url} busy={busy}
-                  onUpload={(f) => uploadField(
-                    f,
-                    () => tv.backgrounds?.[page],
-                    (p) => ({ ...tv, backgrounds: { ...(tv.backgrounds ?? {}), [page]: p } }),
-                    `bg/${page}`,
-                  )}
-                  onClear={() => setSetting((c) => ({ ...c, backgrounds: { ...(c.backgrounds ?? {}), [page]: null } }))}
-                />
-                {path && (
-                  <button
-                    onClick={() => applyBgToAllPages(path)}
-                    disabled={busy}
-                    className="w-full rounded-lg bg-forest-700/60 px-2 py-1 text-xs text-forest-200 ring-1 ring-forest-600/40 hover:bg-forest-600/60 disabled:opacity-50"
-                    title="Dieses Bild auf alle Seiten anwenden"
-                  >
-                    🔗 Auf alle Seiten
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 🟦 Aufguss-Kacheln Hintergründe */}
-      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-        <h2 className="text-base font-semibold text-forest-100">🟦 Aufguss-Kacheln</h2>
-        <p className="mt-1 text-xs text-forest-300/70">Individuelle Hintergrundbilder für jede der 15 Tile-Positionen (3 Saunen × 5 Slots). Slot 1 = oberstes Tile.</p>
-        {saunas.length === 0 ? (
-          <p className="mt-3 text-xs text-forest-300/50">Keine Saunen angelegt.</p>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {saunas.map((sauna) => {
-              const isOpen = openSauna === sauna.id;
-              const slots = tv.tile_bgs?.[sauna.id] ?? [];
-              const filledCount = slots.filter(Boolean).length;
-              return (
-                <div key={sauna.id} className="rounded-xl ring-1 ring-forest-800/40 overflow-hidden">
-                  <button
-                    onClick={() => setOpenSauna(isOpen ? null : sauna.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-forest-900/40 transition-colors"
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ background: sauna.accent_color, boxShadow: `0 0 8px ${sauna.accent_color}` }}
-                    />
-                    <span className="flex-1 font-medium text-forest-100 text-sm">{sauna.name}</span>
-                    {filledCount > 0 && (
-                      <span className="text-xs text-forest-400/70">{filledCount}/5 Bilder</span>
-                    )}
-                    <span className="text-forest-500 text-xs">{isOpen ? '▲' : '▼'}</span>
-                  </button>
-                  {isOpen && (
-                    <div className="px-4 pb-4 border-t border-forest-800/40">
-                      <div className="mt-3 grid grid-cols-5 gap-2">
-                        {[0, 1, 2, 3, 4].map((slot) => {
-                          const url = publicAssetUrl(slots[slot] ?? null);
-                          return (
-                            <SubSlot key={slot} title={`Slot ${slot + 1}`} url={url} busy={busy}
-                              onUpload={(f) => uploadTileBg(sauna.id, slot, f)}
-                              onClear={() => clearTileBg(sauna.id, slot)}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 🃏 Mitgliedsausweis */}
-      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-        <h2 className="text-base font-semibold text-forest-100">🃏 Mitgliedsausweis</h2>
-        <p className="mt-1 text-xs text-forest-300/70">Hintergrund Vorderseite und Rückseite. Optional — ohne Bild greift ein Fallback.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {([['front_bg', 'Vorderseite'], ['back_bg', 'Rückseite']] as const).map(([key, label]) => {
-            const path = tv.badge?.[key] ?? null;
-            const url = publicAssetUrl(path);
-            return (
-              <SubSlot key={key} title={label} url={url} busy={busy}
-                onUpload={(f) => uploadField(
-                  f,
-                  () => tv.badge?.[key],
-                  (p) => ({ ...tv, badge: { ...(tv.badge ?? {}), [key]: p } }),
-                  `badge/${key}`,
-                )}
-                onClear={() => setSetting((c) => ({ ...c, badge: { ...(c.badge ?? {}), [key]: null } }))}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 📺 Werbung auf der Tafel */}
-      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-        <h2 className="text-base font-semibold text-forest-100">📺 Werbung auf der Tafel</h2>
-        <p className="mt-1 text-xs text-forest-300/70">Bis zu 4 Bilder im Mittelblock (sichtbar wenn ≤ 2 Saunen aktiv).</p>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[0, 1, 2, 3].map((slot) => {
-            const url = publicAssetUrl(tv.ads?.[slot]?.image_path);
-            return (
-              <SubSlot key={slot} title={`Slot ${slot + 1}`} url={url} busy={busy}
-                onUpload={async (f) => {
-                  setBusy(true); setErr(null);
-                  try {
-                    const path = await uploadAsset(f, 'ads');
-                    const next = [...(tv.ads ?? [])];
-                    const old = next[slot]?.image_path;
-                    next[slot] = { image_path: path };
-                    await update.mutateAsync({ ...tv, ads: next });
-                    if (old) await deleteAsset(old).catch(() => {});
-                  } catch (e) { setErr((e as Error).message); }
-                  finally { setBusy(false); }
-                }}
-                onClear={async () => {
-                  setBusy(true); setErr(null);
-                  try {
-                    const old = tv.ads?.[slot]?.image_path;
-                    const next = (tv.ads ?? []).filter((_, i) => i !== slot);
-                    await update.mutateAsync({ ...tv, ads: next });
-                    if (old) await deleteAsset(old).catch(() => {});
-                  } catch (e) { setErr((e as Error).message); }
-                  finally { setBusy(false); }
-                }}
-              />
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function pageLabel(p: 'dashboard' | 'guest' | 'planner' | 'wm') {
-  const labels: Record<typeof p, string> = {
-    dashboard: 'Tafel (TV)',
-    guest: 'Gäste-App',
-    planner: 'Planner',
-    wm: 'WM-Tipspiel',
-  };
-  return labels[p];
-}
-
-function ImageSlot({ title, hint, url, busy, onUpload, onClear }: {
-  title: string; hint?: string; url: string | null; busy: boolean;
-  onUpload: (f: File) => void | Promise<void>; onClear: () => void | Promise<void>;
-}) {
-  return (
-    <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-      <h2 className="text-base font-semibold text-forest-100">{title}</h2>
-      {hint && <p className="mt-1 text-xs text-forest-300/70">{hint}</p>}
-      <div className="mt-3 flex gap-3">
-        <div className="aspect-video w-48 overflow-hidden rounded-xl bg-forest-900/60 ring-1 ring-forest-800/40 grid place-items-center">
-          {url ? <img src={url} alt="" className="h-full w-full object-contain" /> : <span className="text-xs text-forest-300/50">Kein Bild</span>}
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="cursor-pointer rounded-lg bg-forest-600 px-3 py-1.5 text-center text-xs font-semibold text-white hover:bg-forest-500">
-            {url ? 'Ersetzen' : 'Hochladen'}
-            <input type="file" accept="image/*" hidden disabled={busy}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }} />
-          </label>
-          {url && (
-            <button onClick={() => onClear()} disabled={busy}
-              className="rounded-lg bg-rose-500/20 px-3 py-1.5 text-xs text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/30">
-              Entfernen
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SubSlot({ title, url, busy, onUpload, onClear }: {
-  title: string; url: string | null; busy: boolean;
-  onUpload: (f: File) => void | Promise<void>; onClear: () => void | Promise<void>;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="text-xs text-forest-200/85">{title}</div>
-      <div className="aspect-video overflow-hidden rounded-xl bg-forest-900/60 ring-1 ring-forest-800/40 grid place-items-center">
-        {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <span className="text-xs text-forest-300/50">—</span>}
-      </div>
-      <div className="flex gap-2">
-        <label className="flex-1 cursor-pointer rounded-lg bg-forest-600 px-3 py-1 text-center text-xs font-semibold text-white hover:bg-forest-500">
-          {url ? 'Ersetzen' : 'Hochladen'}
-          <input type="file" accept="image/*" hidden disabled={busy}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }} />
-        </label>
-        {url && (
-          <button onClick={() => onClear()} disabled={busy}
-            className="rounded-lg bg-rose-500/20 px-2 py-1 text-xs text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/30">
-            ✕
-          </button>
-        )}
-      </div>
     </div>
   );
 }

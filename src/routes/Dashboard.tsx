@@ -15,7 +15,7 @@ import {
   useInfusions,
   useMeisterDirectory,
   useActiveEvacuation,
-  useTvSettings,
+  useBrandSettings,
   publicAssetUrl,
   useCoAufgieser,
   useAllMembersBadges,
@@ -64,7 +64,7 @@ export default function Dashboard() {
   const infusions = useInfusions();
   const members = useMeisterDirectory();
   const evac = useActiveEvacuation();
-  const tv = useTvSettings();
+  const brand = useBrandSettings();
   const allBadgesQ = useAllMembersBadges();
 
   const [audioReady, setAudioReady] = useState(false);
@@ -141,7 +141,7 @@ export default function Dashboard() {
     return () => document.removeEventListener('pointerdown', tryUnlock);
   }, []);
 
-  const adImageUrls = (tv.data?.ads ?? [])
+  const adImageUrls = (brand.data?.ads ?? [])
     .map((a) => publicAssetUrl(a.image_path))
     .filter((u): u is string => Boolean(u));
 
@@ -169,7 +169,7 @@ export default function Dashboard() {
           meisterMeta={meisterMeta}
           coNames={coNamesForInfusion}
           now={now}
-          tileBgs={tv.data?.tile_bgs?.[saunaId] ?? []}
+          tileBgs={brand.data?.tile_bgs?.[saunaId] ?? []}
         />
       );
     };
@@ -262,7 +262,11 @@ export default function Dashboard() {
 
         <div className="justify-self-center">
           <img
-            src={tv.data?.logo_path ? (publicAssetUrl(tv.data.logo_path) ?? '/icons/icon-512.png') : '/icons/icon-512.png'}
+            src={(() => {
+              // Banner-Variante bevorzugt für Dashboard-Header, sonst Icon
+              const path = brand.data?.logo?.banner ?? brand.data?.logo?.icon;
+              return path ? (publicAssetUrl(path) ?? '/icons/icon-512.png') : '/icons/icon-512.png';
+            })()}
             alt="Saunafreunde Schwarzwald"
             className="h-24 w-auto rounded-2xl drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)]"
           />

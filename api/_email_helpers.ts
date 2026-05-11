@@ -3,6 +3,66 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+// ─── Brand-Settings server-side laden ───────────────────────────────────
+export type BrandData = {
+  org: {
+    name: string;
+    short_name: string;
+    location: string;
+    website: string | null;
+    contact_email: string | null;
+    mail_footer: string | null;
+  };
+  logo: {
+    icon: string | null;
+    banner: string | null;
+    favicon: string | null;
+    dark: string | null;
+  };
+};
+
+const DEFAULT_BRAND: BrandData = {
+  org: {
+    name: 'Saunafreunde Schwarzwald e.V.',
+    short_name: 'Saunafreunde',
+    location: 'Freudenstadt',
+    website: null,
+    contact_email: 'info@sauna-fds.de',
+    mail_footer: null,
+  },
+  logo: { icon: null, banner: null, favicon: null, dark: null },
+};
+
+let _brandCache: { data: BrandData; expiresAt: number } | null = null;
+
+export async function getBrandSettings(svc?: SupabaseClient): Promise<BrandData> {
+  if (_brandCache && _brandCache.expiresAt > Date.now()) return _brandCache.data;
+  const client = svc ?? makeServiceClient();
+  try {
+    const { data } = await client
+      .from('system_config')
+      .select('value')
+      .eq('key', 'brand_settings')
+      .maybeSingle();
+    const value = (data?.value ?? null) as Partial<BrandData> | null;
+    const merged: BrandData = {
+      org: { ...DEFAULT_BRAND.org, ...(value?.org ?? {}) },
+      logo: { ...DEFAULT_BRAND.logo, ...(value?.logo ?? {}) },
+    };
+    _brandCache = { data: merged, expiresAt: Date.now() + 60_000 };
+    return merged;
+  } catch {
+    return DEFAULT_BRAND;
+  }
+}
+
+export function publicAssetUrlServer(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const baseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  if (!baseUrl) return null;
+  return `${baseUrl}/storage/v1/object/public/assets/${path}`;
+}
+
 // ─── SMTP-Transporter ────────────────────────────────────────────────────
 function makeTransporter(opts: {
   host: string; port: number; secure: boolean;

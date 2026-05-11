@@ -1,6 +1,6 @@
-import { useTvSettings, publicAssetUrl } from '@/lib/api';
+import { useBrandSettings, publicAssetUrl } from '@/lib/api';
 
-type Page = 'dashboard' | 'guest' | 'planner' | 'wm';
+type Page = 'dashboard' | 'guest' | 'planner' | 'wm' | 'login';
 
 const FALLBACK = 'bg-schwarzwald-soft';
 const STRONG_FALLBACK = 'bg-schwarzwald';
@@ -16,8 +16,8 @@ export function PageBackground({
   className?: string;
   children: React.ReactNode;
 }) {
-  const tv = useTvSettings();
-  const path = tv.data?.backgrounds?.[page] ?? null;
+  const brand = useBrandSettings();
+  const path = brand.data?.backgrounds?.[page] ?? null;
   const url = publicAssetUrl(path);
 
   const overlay = variant === 'strong'
