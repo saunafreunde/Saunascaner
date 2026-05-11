@@ -14,7 +14,7 @@ import {
   uploadAsset, deleteAsset, publicAssetUrl,
   useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
   useMyBadges,
-  type TvSettings, type PollAnswerType,
+  type TvSettings, type PollAnswerType, type Member,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
 import BadgeChip from '@/components/BadgeChip';
@@ -297,7 +297,7 @@ function MembersTab() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{m.name}</span>
+                    <EditableName member={m} />
                     {m.sauna_name && <span className="text-xs text-forest-300/60">({m.sauna_name})</span>}
                     {m.role === 'admin' && (
                       <span className="rounded-full bg-forest-500/20 px-2 text-[10px] font-bold text-forest-200">Admin</span>
@@ -402,6 +402,84 @@ function MembersTab() {
         </ul>
       </div>
     </section>
+  );
+}
+
+// Inline-Edit für Mitgliedsnamen im Admin-Bereich.
+// Klick aufs ✏️ wechselt in den Edit-Modus; Enter speichert, Escape bricht ab.
+function EditableName({ member }: { member: Member }) {
+  const update = useUpdateMember();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(member.name);
+
+  async function save() {
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      window.alert('Name darf nicht leer sein.');
+      return;
+    }
+    if (trimmed === member.name) {
+      setEditing(false);
+      return;
+    }
+    try {
+      await update.mutateAsync({ id: member.id, name: trimmed });
+      setEditing(false);
+    } catch (e) {
+      window.alert(`Speichern fehlgeschlagen: ${(e as Error).message}`);
+    }
+  }
+
+  function cancel() {
+    setDraft(member.name);
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <span className="flex items-center gap-1.5">
+        <span className="text-sm font-semibold">{member.name}</span>
+        <button
+          onClick={() => { setDraft(member.name); setEditing(true); }}
+          title="Name bearbeiten"
+          className="text-[11px] text-forest-300/50 hover:text-forest-200 transition-colors"
+        >
+          ✏️
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1.5">
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); save(); }
+          if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        }}
+        disabled={update.isPending}
+        className="rounded-md bg-forest-900/80 px-2 py-0.5 text-sm font-semibold ring-1 ring-forest-600/50 focus:outline-none focus:ring-2 focus:ring-forest-400 min-w-[160px] disabled:opacity-60"
+      />
+      <button
+        onClick={save}
+        disabled={update.isPending}
+        title="Speichern (Enter)"
+        className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-200 ring-1 ring-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-60"
+      >
+        {update.isPending ? '…' : '✓'}
+      </button>
+      <button
+        onClick={cancel}
+        disabled={update.isPending}
+        title="Abbrechen (Escape)"
+        className="rounded-md bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-200 ring-1 ring-rose-500/40 hover:bg-rose-500/30 disabled:opacity-60"
+      >
+        ✕
+      </button>
+    </span>
   );
 }
 
