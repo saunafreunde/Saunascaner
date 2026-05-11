@@ -236,7 +236,7 @@ export function BlockhausScene({ children }: Props) {
         .bs-fisher          { transform-origin: bottom center; animation: bs-fisher-breath 3s infinite ease-in-out; }
         .bs-cloud           { animation: bs-cloud-drift 70s infinite alternate ease-in-out; }
         .bs-butterfly-fly   { animation: bs-butterfly-fly 22s infinite ease-in-out; }
-        .bs-butterfly-flap  { transform-origin: center; animation: bs-butterfly-flap 0.18s infinite linear; }
+        .bs-butterfly-flap  { transform-origin: center; animation: bs-butterfly-flap 0.55s infinite ease-in-out; }
         .bs-firefly         { animation: bs-firefly-glow 9s infinite ease-in-out; }
         .bs-firefly-drift   { animation: bs-firefly-drift 30s infinite ease-in-out; }
         .bs-climber         { animation: bs-climber-hike 18s infinite ease-in-out alternate; }
@@ -254,7 +254,7 @@ export function BlockhausScene({ children }: Props) {
         .bs-bush            { transform-origin: bottom center; animation: bs-bush-sway 5s infinite ease-in-out; }
         .bs-dragonfly       { animation: bs-dragonfly 9s infinite ease-in-out; }
         .bs-dragonfly-2     { animation: bs-dragonfly-2 11s infinite ease-in-out; }
-        .bs-wing-buzz       { transform-origin: center; animation: bs-wing-buzz 0.12s infinite linear; }
+        .bs-wing-buzz       { transform-origin: center; animation: bs-wing-buzz 0.32s infinite ease-in-out; }
         .bs-heron-head      { transform-origin: 0 0; animation: bs-heron-head 14s infinite ease-in-out; }
         .bs-shooting-star   { animation: bs-shooting-star 18s infinite ease-out; }
         .bs-ladybug         { animation: bs-ladybug-crawl 8s infinite ease-in-out; }

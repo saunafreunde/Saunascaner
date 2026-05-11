@@ -109,7 +109,7 @@ export function Holzfaeller({ scale = 1 }: Props) {
         .hfs-owl-head        { transform-origin: center; animation: hfs-owl-head 6s infinite ease-in-out; }
         .hfs-owl-blink       { transform-origin: center; animation: hfs-owl-blink 5s infinite ease-in-out; }
         .hfs-butterfly-fly   { animation: hfs-butterfly-fly 18s infinite ease-in-out; }
-        .hfs-butterfly-flap  { transform-origin: center; animation: hfs-butterfly-flap 0.18s infinite linear; }
+        .hfs-butterfly-flap  { transform-origin: center; animation: hfs-butterfly-flap 0.55s infinite ease-in-out; }
         .hfs-squirrel        { transform-origin: center; animation: hfs-squirrel-climb 12s infinite ease-in-out; }
         .hfs-bird            { animation: hfs-bird-glide 25s infinite linear; }
         .hfs-creek           { animation: hfs-creek-flow 3s infinite linear; }

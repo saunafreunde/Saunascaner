@@ -33,6 +33,7 @@ import { BlockhausScene } from '@/components/BlockhausScene';
 import { Holzfaeller } from '@/components/Holzfaeller';
 import { Reh } from '@/components/Reh';
 import { GapBridge } from '@/components/GapBridge';
+import { Gliders } from '@/components/Gliders';
 import { onDemo } from '@/lib/demoChannel';
 
 // ── Werbe-Sidebar: 3× 16:9 Tafeln ────────────────────────────────────────────
@@ -285,6 +286,8 @@ export default function Dashboard() {
 
       {/* Schwarzwald-Bühne unten: Holzfäller · Wald-Pfad · Kuckuckhaus · Spielplatz · Reh */}
       <div className="fixed inset-x-0 bottom-2 z-30 pointer-events-none">
+        {/* Zwei Segelflieger ziehen leise über den ganzen Schwarzwald */}
+        <Gliders />
         <div className="relative mx-auto w-full max-w-[1920px] px-8 flex items-end justify-center gap-0">
           {/* Holzfäller links */}
           <div className="flex-shrink-0">

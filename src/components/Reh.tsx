@@ -121,7 +121,7 @@ export function Reh({ scale = 1 }: Props) {
         .r-owl-head { transform-origin: center; animation: r-owl-head 6s infinite ease-in-out; }
         .r-owl-blink{ transform-origin: center; animation: r-owl-blink 5s infinite ease-in-out; }
         .r-butterfly-fly     { animation: r-butterfly-fly 18s infinite ease-in-out; }
-        .r-butterfly-flutter { transform-origin: center; animation: r-butterfly-flutter 0.18s infinite linear; }
+        .r-butterfly-flutter { transform-origin: center; animation: r-butterfly-flutter 0.55s infinite ease-in-out; }
         .r-squirrel { transform-origin: center; animation: r-squirrel-climb 12s infinite ease-in-out; }
         .r-bird     { animation: r-bird-glide 25s infinite linear; }
         .r-creek    { animation: r-creek-flow 3s infinite linear; }
