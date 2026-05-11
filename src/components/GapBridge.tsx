@@ -363,8 +363,11 @@ function Playground() {
         <line x1="13"  y1="-1" x2="3"  y2="-30" stroke="#3a1808" strokeWidth="1.4" strokeLinecap="round" />
         {/* Querbalken */}
         <rect x="-20" y="-32" width="40" height="2.5" fill="#5a3010" stroke="#3a1808" strokeWidth="0.4" rx="0.5" />
-        {/* Schaukel-Seile + Sitz + Kind — Drehpunkt am Querbalken (lokale Koordinaten) */}
-        <g className="gb-swing" style={{ transformOrigin: '0px -30px' }}>
+        {/* Schaukel-Seile + Sitz + Kind — Drehpunkt am Querbalken.
+            CSS transform-origin auf SVG-<g> nutzt SVG-Wurzel-Koords:
+            Schaukel-Wrapper translate(135,193), Ropes hängen bei lokal y=-30
+            → Wurzel-Koord (135, 163) */}
+        <g className="gb-swing" style={{ transformOrigin: '135px 163px' }}>
           <line x1="-3" y1="-30" x2="-3" y2="-13" stroke="#1a1a1a" strokeWidth="0.5" />
           <line x1="3"  y1="-30" x2="3"  y2="-13" stroke="#1a1a1a" strokeWidth="0.5" />
           {/* Sitz */}
@@ -425,8 +428,10 @@ function Playground() {
         {/* Drehpunkt */}
         <polygon points="0,-9 -3,-2 3,-2" fill="#5a3010" stroke="#3a1808" strokeWidth="0.4" />
         <rect x="-4" y="-2" width="8" height="2" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.4" rx="0.3" />
-        {/* Planke + 2 Kinder — Drehpunkt an der Wippen-Spitze */}
-        <g className="gb-seesaw" style={{ transformOrigin: '0px -9px' }}>
+        {/* Planke + 2 Kinder — Drehpunkt an der Dreieck-Spitze.
+            Wippe-Wrapper translate(265,193), Apex bei lokal y=-9
+            → Wurzel-Koord (265, 184) */}
+        <g className="gb-seesaw" style={{ transformOrigin: '265px 184px' }}>
           <rect x="-22" y="-10" width="44" height="2" fill="#a06530" stroke="#3a1808" strokeWidth="0.4" rx="0.4" />
           {/* Holzmaserung */}
           <line x1="-22" y1="-9" x2="22" y2="-9" stroke="#7c4a1a" strokeWidth="0.3" />
@@ -468,8 +473,8 @@ function Playground() {
           strokeWidth="0.5"
           fill="none"
         />
-        {/* Pferd-Korpus */}
-        <g className="gb-spring-rider" style={{ transformOrigin: '0px -7px' }}>
+        {/* Pferd-Korpus — Drehpunkt an der Feder-Oberseite (Wurzel-Koords) */}
+        <g className="gb-spring-rider" style={{ transformOrigin: '85px 186px' }}>
           <ellipse cx="0" cy="-9" rx="4" ry="2.4" fill="#dc2626" />
           {/* Kopf vorne */}
           <ellipse cx="3.6" cy="-10" rx="1.6" ry="1.6" fill="#dc2626" />
