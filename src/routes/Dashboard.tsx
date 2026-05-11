@@ -19,7 +19,6 @@ import {
   publicAssetUrl,
   useCoAufgieser,
   useAllMembersBadges,
-  useBirthdaysToday,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
 import type { BadgeDefinition } from '@/lib/badges';
@@ -66,7 +65,6 @@ export default function Dashboard() {
   const evac = useActiveEvacuation();
   const tv = useTvSettings();
   const allBadgesQ = useAllMembersBadges();
-  const birthdays = useBirthdaysToday();
 
   const [audioReady, setAudioReady] = useState(false);
 
@@ -114,17 +112,6 @@ export default function Dashboard() {
   const minutesUntilNext = nextInfusion
     ? differenceInMinutes(new Date(nextInfusion.start_time), now)
     : 999;
-
-  const isRunning = useMemo(() =>
-    (infusions.data ?? []).some((i) => {
-      const s = new Date(i.start_time);
-      const e = new Date(i.end_time);
-      return now >= s && now <= e;
-    }),
-    [infusions.data, now]
-  );
-
-  const hasBirthday = (birthdays.data ?? []).length > 0;
 
   // ── Demo-Channel Listener — Tür/Zwerg-Funktion entfernt, nur noch Konfetti
   useEffect(() => {
