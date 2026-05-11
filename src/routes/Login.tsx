@@ -90,13 +90,11 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-md">
         {/* Hero: Logo + Headline */}
         <div className="text-center mb-6 sm:mb-8">
-          <div className="inline-flex items-center justify-center rounded-3xl bg-gradient-to-br from-amber-400/15 via-amber-500/10 to-forest-950/40 backdrop-blur-md p-4 ring-1 ring-amber-500/30 shadow-2xl shadow-black/50 mb-4">
-            <img
-              src={logoUrl}
-              alt="Saunafreunde Schwarzwald"
-              className="h-24 w-24 sm:h-32 sm:w-32 object-contain drop-shadow-[0_4px_24px_rgba(251,191,36,0.35)]"
-            />
-          </div>
+          <img
+            src={logoUrl}
+            alt="Saunafreunde Schwarzwald"
+            className="mx-auto mb-4 h-32 w-32 sm:h-40 sm:w-40 object-contain rounded-2xl drop-shadow-[0_8px_32px_rgba(251,191,36,0.45)]"
+          />
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 bg-clip-text text-transparent drop-shadow-lg">
             Saunafreunde
           </h1>
@@ -206,9 +204,14 @@ export default function Login() {
         </form>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-[10px] text-forest-400/60 tracking-wider">
-          © Saunafreunde Schwarzwald · Made with 🔥 in Freudenstadt
-        </p>
+        <div className="mt-6 text-center space-y-0.5">
+          <p className="text-[11px] font-semibold text-forest-300/80 tracking-wider">
+            Saunafreunde Schwarzwald <span className="text-amber-300/80">e.V.</span>
+          </p>
+          <p className="text-[10px] text-forest-400/60 tracking-wider">
+            Freudenstadt · Made with 🔥
+          </p>
+        </div>
       </div>
     </div>
   );

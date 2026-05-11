@@ -50,10 +50,11 @@ function wrap(title: string, bodyHtml: string): string {
           <!-- Footer -->
           <tr>
             <td style="background:${COLORS.panelLight};padding:20px 32px;text-align:center;border-top:1px solid ${COLORS.accentDark}33;">
+              <p style="margin:0 0 4px;font-size:12px;color:${COLORS.textPrimary};font-weight:600;letter-spacing:0.5px;">
+                Saunafreunde Schwarzwald <span style="color:${COLORS.accent};">e.V.</span>
+              </p>
               <p style="margin:0;font-size:11px;color:${COLORS.textSecondary};line-height:1.6;">
-                Diese E-Mail wurde automatisch vom Saunascaner gesendet.<br/>
-                <a href="https://saunascaner.vercel.app" style="color:${COLORS.accent};text-decoration:none;">saunascaner.vercel.app</a>
-                &middot; <a href="mailto:info@sauna-fds.de" style="color:${COLORS.accent};text-decoration:none;">info@sauna-fds.de</a>
+                Freudenstadt &middot; <a href="https://saunascaner.vercel.app" style="color:${COLORS.accent};text-decoration:none;">saunascaner.vercel.app</a> &middot; <a href="mailto:info@sauna-fds.de" style="color:${COLORS.accent};text-decoration:none;">info@sauna-fds.de</a>
               </p>
             </td>
           </tr>
