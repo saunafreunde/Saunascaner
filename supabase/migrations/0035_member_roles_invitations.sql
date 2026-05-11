@@ -192,7 +192,7 @@ create or replace function public.create_invitation(
   p_note                text default null,
   p_expires_at          timestamptz default null
 ) returns public.invitations
-language plpgsql security definer set search_path = public, auth as $$
+language plpgsql security definer set search_path = public, auth, extensions as $$
 declare
   v_admin_id uuid;
   v_code text;
@@ -208,7 +208,7 @@ begin
   -- Generiere 8-stelligen alphanumerischen Code (ohne 0/O/1/I für Lesbarkeit)
   loop
     v_code := upper(substring(replace(replace(replace(replace(
-      encode(gen_random_bytes(6), 'base64'),
+      encode(extensions.gen_random_bytes(6), 'base64'),
       '/', ''), '+', ''), '=', ''), 'O', 'X'), 1, 8));
     -- Padding falls < 8 Zeichen
     if length(v_code) < 8 then v_code := v_code || repeat('A', 8 - length(v_code)); end if;
