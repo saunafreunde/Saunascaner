@@ -56,6 +56,46 @@ export function GapBridge({ variant }: Props) {
             50%      { transform: translate(10px, -16px); }
             95%      { transform: translate(18px, 0); }
           }
+          @keyframes gb-soccer-ball {
+            0%   { transform: translate(90px, 150px); }
+            12%  { transform: translate(45px, 144px); }
+            18%  { transform: translate(45px, 144px); }
+            30%  { transform: translate(165px, 138px); }
+            42%  { transform: translate(220px, 152px); }
+            55%  { transform: translate(270px, 142px); }
+            62%  { transform: translate(270px, 142px); }
+            75%  { transform: translate(130px, 156px); }
+            88%  { transform: translate(80px, 145px); }
+            100% { transform: translate(90px, 150px); }
+          }
+          @keyframes gb-ball-spin   { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
+          @keyframes gb-player-run  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+          @keyframes gb-keeper-jump {
+            0%, 30%, 100% { transform: translate(0, 0); }
+            45%, 60%      { transform: translate(-3px, -4px) rotate(-15deg); }
+          }
+          @keyframes gb-keeper-2 {
+            0%, 60%, 100% { transform: translate(0, 0); }
+            75%, 88%      { transform: translate(3px, -4px) rotate(15deg); }
+          }
+          @keyframes gb-cheer {
+            0%, 30%, 100% { transform: translateY(0); }
+            40%, 60%      { transform: translateY(-2px); }
+          }
+          @keyframes gb-kite-bob {
+            0%, 100% { transform: translate(0, 0) rotate(-4deg); }
+            25%      { transform: translate(2px, -3px) rotate(0deg); }
+            50%      { transform: translate(4px, 0) rotate(5deg); }
+            75%      { transform: translate(2px, -2px) rotate(2deg); }
+          }
+          @keyframes gb-tail-wave {
+            0%, 100% { transform: rotate(-6deg); }
+            50%      { transform: rotate(6deg); }
+          }
+          @keyframes gb-flag-wave {
+            0%, 100% { transform: scaleX(1); }
+            50%      { transform: scaleX(0.6); }
+          }
 
           .gb-tree         { transform-origin: bottom center; animation: gb-tree-sway 4s infinite ease-in-out; }
           .gb-bush         { transform-origin: bottom center; animation: gb-bush-sway 5s infinite ease-in-out; }
@@ -69,10 +109,21 @@ export function GapBridge({ variant }: Props) {
           .gb-bird         { animation: gb-bird-glide 24s infinite linear; }
           .gb-firefly      { animation: gb-firefly 7s infinite ease-in-out; }
           .gb-ball         { animation: gb-ball-bounce 4s infinite ease-in-out; }
+          .gb-soccer-ball  { animation: gb-soccer-ball 16s infinite cubic-bezier(.4,0,.6,1); }
+          .gb-ball-spin    { animation: gb-ball-spin 1.4s infinite linear; transform-origin: center; }
+          .gb-player-run   { animation: gb-player-run 0.4s infinite ease-in-out; }
+          .gb-keeper-1     { transform-origin: bottom center; animation: gb-keeper-jump 16s infinite ease-in-out; }
+          .gb-keeper-2     { transform-origin: bottom center; animation: gb-keeper-2 16s infinite ease-in-out; }
+          .gb-cheer        { animation: gb-cheer 1s infinite ease-in-out; }
+          .gb-kite         { transform-origin: 50% 0%; animation: gb-kite-bob 5s infinite ease-in-out; }
+          .gb-tail         { transform-origin: top center; animation: gb-tail-wave 2.5s infinite ease-in-out; }
+          .gb-flag         { transform-origin: left center; animation: gb-flag-wave 2.5s infinite ease-in-out; }
 
           @media (prefers-reduced-motion: reduce) {
             .gb-tree, .gb-bush, .gb-walk, .gb-step, .gb-swing, .gb-seesaw,
-            .gb-slide-kid, .gb-spring-rider, .gb-creek, .gb-bird, .gb-firefly, .gb-ball {
+            .gb-slide-kid, .gb-spring-rider, .gb-creek, .gb-bird, .gb-firefly, .gb-ball,
+            .gb-soccer-ball, .gb-ball-spin, .gb-player-run, .gb-keeper-1, .gb-keeper-2,
+            .gb-cheer, .gb-kite, .gb-tail, .gb-flag {
               animation: none;
             }
           }
@@ -180,6 +231,10 @@ function ForestPath() {
         <Bush cx={275} cy={193} size={0.85} />
       </g>
 
+      {/* ÜBERRASCHUNG OBEN: Schwarzwald-Drachen schwebt über dem Pfad,
+          Schnur geht runter zu einem kleinen Drachenkind am Pfadrand */}
+      <Drachen />
+
       {/* Wegweiser am Pfad */}
       <g transform="translate(100, 193)">
         <rect x="-0.5" y="-16" width="1" height="16" fill="#5a3010" />
@@ -251,6 +306,9 @@ function Wanderer() {
 function Playground() {
   return (
     <g>
+      {/* ── HINTERGRUND: Fußballplatz mit laufendem Spiel ────────────────── */}
+      <SoccerField />
+
       {/* Gepflasterter Bereich (heller Sand-/Kiesboden) */}
       <ellipse cx={160} cy={195} rx={155} ry={5} fill="#c8a16a" opacity="0.45" />
       <ellipse cx={160} cy={194} rx={150} ry={3} fill="#d4b078" opacity="0.5" />
@@ -488,6 +546,306 @@ function Playground() {
       <Flower cx={170} cy={197} color="#a78bfa" />
       <Flower cx={250} cy={197} color="#fbbf24" />
       <Flower cx={295} cy={197} color="#ec4899" />
+    </g>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// FUSSBALLPLATZ — kleines Spiel hinter dem Spielplatz
+// ════════════════════════════════════════════════════════════════════════
+function SoccerField() {
+  return (
+    <g>
+      {/* Spielfeld-Rasen mit Mähstreifen */}
+      <rect x="18" y="125" width="284" height="38" fill="#326c44" stroke="#1f4d2f" strokeWidth="0.6" rx="1" />
+      <rect x="18" y="125" width="284" height="5" fill="#2a5e3a" />
+      <rect x="18" y="135" width="284" height="5" fill="#4a8a5a" opacity="0.5" />
+      <rect x="18" y="145" width="284" height="5" fill="#326c44" />
+      <rect x="18" y="155" width="284" height="5" fill="#4a8a5a" opacity="0.45" />
+
+      {/* Weiße Spielfeld-Linien */}
+      <rect x="18" y="125" width="284" height="38" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.85" />
+      {/* Mittellinie */}
+      <line x1="160" y1="125" x2="160" y2="163" stroke="#fff" strokeWidth="0.6" opacity="0.85" />
+      {/* Mittelkreis */}
+      <circle cx="160" cy="144" r="10" fill="none" stroke="#fff" strokeWidth="0.6" opacity="0.85" />
+      <circle cx="160" cy="144" r="0.8" fill="#fff" opacity="0.85" />
+      {/* Strafraum links */}
+      <rect x="18" y="135" width="24" height="18" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
+      {/* Strafraum rechts */}
+      <rect x="278" y="135" width="24" height="18" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.85" />
+
+      {/* Tor links */}
+      <g>
+        <rect x="12" y="139" width="6" height="11" fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth="0.5" />
+        <line x1="13" y1="140" x2="17.5" y2="140" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="13" y1="143" x2="17.5" y2="143" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="13" y1="146" x2="17.5" y2="146" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="14" y1="139" x2="14" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
+        <line x1="16" y1="139" x2="16" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
+      </g>
+
+      {/* Tor rechts */}
+      <g>
+        <rect x="302" y="139" width="6" height="11" fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth="0.5" />
+        <line x1="302.5" y1="140" x2="307" y2="140" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="302.5" y1="143" x2="307" y2="143" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="302.5" y1="146" x2="307" y2="146" stroke="#fff" strokeWidth="0.4" opacity="0.7" />
+        <line x1="304" y1="139" x2="304" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
+        <line x1="306" y1="139" x2="306" y2="150" stroke="#fff" strokeWidth="0.3" opacity="0.7" />
+      </g>
+
+      {/* Eck-Fähnchen */}
+      {[{x:19,y:125},{x:301,y:125},{x:19,y:163},{x:301,y:163}].map((c,i) => (
+        <g key={i}>
+          <line x1={c.x} y1={c.y} x2={c.x} y2={c.y + (c.y === 125 ? -3 : 3) * -1} stroke="#1a1a1a" strokeWidth="0.4" />
+          <line x1={c.x} y1={c.y - 3} x2={c.x} y2={c.y} stroke="#1a1a1a" strokeWidth="0.4" />
+          <g className="gb-flag" style={{ transformOrigin: `${c.x}px ${c.y - 3}px`, animationDelay: `${-i * 0.5}s` }}>
+            <polygon points={`${c.x},${c.y - 3} ${c.x + 2.2},${c.y - 2.2} ${c.x},${c.y - 1.5}`} fill="#fbbf24" />
+          </g>
+        </g>
+      ))}
+
+      {/* Anzeigetafel oben links auf dem Feld */}
+      <g transform="translate(70, 127)">
+        <rect x="-12" y="-4" width="24" height="6" fill="#1a1a1a" stroke="#5a5a5a" strokeWidth="0.3" rx="0.5" />
+        <text x="0" y="-0.2" textAnchor="middle" fontSize="3" fontWeight="800" fill="#22c55e" fontFamily="Inter, sans-serif">2 : 1</text>
+        <line x1="-12" y1="-1.5" x2="12" y2="-1.5" stroke="#5a5a5a" strokeWidth="0.2" />
+        <text x="0" y="1.7" textAnchor="middle" fontSize="1.8" fontWeight="700" fill="#fbbf24" fontFamily="Inter, sans-serif">SAUNA CUP</text>
+      </g>
+
+      {/* Schiedsrichter (gelb-schwarz) in der Mitte */}
+      <g transform="translate(190, 152)">
+        <g className="gb-player-run" style={{ animationDelay: '-0.15s' }}>
+          <ellipse cx="0" cy="1" rx="1.4" ry="0.4" fill="rgba(0,0,0,0.4)" />
+          <rect x="-1.3" y="-3.5" width="2.6" height="3" fill="#fbbf24" rx="0.3" />
+          <rect x="-1.3" y="-3.5" width="2.6" height="0.6" fill="#1a1a1a" />
+          <rect x="-1.3" y="-2"   width="2.6" height="0.4" fill="#1a1a1a" />
+          <line x1="-1.5" y1="-3" x2="-2.4" y2="-1" stroke="#fbbf24" strokeWidth="0.6" strokeLinecap="round" />
+          <line x1="1.5"  y1="-3" x2="2.4"  y2="-1" stroke="#fbbf24" strokeWidth="0.6" strokeLinecap="round" />
+          <line x1="-0.6" y1="-0.5" x2="-0.6" y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
+          <line x1="0.6"  y1="-0.5" x2="0.6"  y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
+          <circle cx="0" cy="-5" r="1.2" fill="#ffd5aa" />
+          <path d="M-1.2 -5.7 Q0 -6.5 1.2 -5.7 L 1.2 -5.3 L -1.2 -5.3 Z" fill="#3a1808" />
+          {/* Pfeife */}
+          <ellipse cx="2" cy="-1.5" rx="0.4" ry="0.3" fill="#1a1a1a" />
+        </g>
+      </g>
+
+      {/* Team ROT — 3 Spieler */}
+      <g transform="translate(60, 148)">
+        <g className="gb-player-run">
+          <SoccerPlayer color="#dc2626" />
+        </g>
+      </g>
+      <g transform="translate(135, 154)">
+        <g className="gb-player-run" style={{ animationDelay: '-0.2s' }}>
+          <SoccerPlayer color="#dc2626" />
+        </g>
+      </g>
+      <g transform="translate(225, 138)">
+        <g className="gb-player-run" style={{ animationDelay: '-0.1s' }}>
+          <SoccerPlayer color="#dc2626" />
+        </g>
+      </g>
+
+      {/* Team BLAU — 3 Spieler */}
+      <g transform="translate(95, 138)">
+        <g className="gb-player-run" style={{ animationDelay: '-0.05s' }}>
+          <SoccerPlayer color="#1d4ed8" />
+        </g>
+      </g>
+      <g transform="translate(180, 145)">
+        <g className="gb-player-run" style={{ animationDelay: '-0.3s' }}>
+          <SoccerPlayer color="#1d4ed8" kicking />
+        </g>
+      </g>
+      <g transform="translate(255, 155)">
+        <g className="gb-player-run" style={{ animationDelay: '-0.25s' }}>
+          <SoccerPlayer color="#1d4ed8" />
+        </g>
+      </g>
+
+      {/* Torwart links (rot) */}
+      <g transform="translate(28, 145)" className="gb-keeper-1">
+        <SoccerPlayer color="#dc2626" keeper />
+      </g>
+      {/* Torwart rechts (blau) */}
+      <g transform="translate(294, 145)" className="gb-keeper-2">
+        <SoccerPlayer color="#1d4ed8" keeper />
+      </g>
+
+      {/* Ball — flitzt animiert über das Feld */}
+      <g className="gb-soccer-ball">
+        <g className="gb-ball-spin">
+          <circle cx="0" cy="0" r="1.4" fill="#fff" stroke="#1a1a1a" strokeWidth="0.3" />
+          <polygon points="0,-1.4 0.8,-0.4 0.5,0.6 -0.5,0.6 -0.8,-0.4" fill="#1a1a1a" />
+          <polygon points="0,-1.4 0.4,-0.6 -0.4,-0.6" fill="#fff" />
+        </g>
+      </g>
+
+      {/* Mini-Zuschauer-Tribüne oben rechts neben dem Feld */}
+      <g transform="translate(270, 122)">
+        {/* Bank */}
+        <rect x="-15" y="0" width="30" height="2" fill="#5a3010" stroke="#3a1808" strokeWidth="0.3" />
+        {/* 4 jubelnde Fans */}
+        {[-10, -3, 4, 11].map((dx, i) => (
+          <g key={`fan-${i}`} className="gb-cheer" style={{ animationDelay: `${-i * 0.25}s` }}>
+            <circle cx={dx} cy="-2.5" r="1.1" fill="#ffd5aa" />
+            <rect x={dx - 1} y="-1.4" width="2" height="1.4" fill={['#fbbf24','#a78bfa','#22c55e','#ec4899'][i]} rx="0.2" />
+            {/* Arme hoch */}
+            <line x1={dx - 0.8} y1="-1.2" x2={dx - 1.8} y2="-3.2" stroke="#ffd5aa" strokeWidth="0.5" strokeLinecap="round" />
+            <line x1={dx + 0.8} y1="-1.2" x2={dx + 1.8} y2="-3.2" stroke="#ffd5aa" strokeWidth="0.5" strokeLinecap="round" />
+          </g>
+        ))}
+      </g>
+    </g>
+  );
+}
+
+function SoccerPlayer({ color, kicking = false, keeper = false }: { color: string; kicking?: boolean; keeper?: boolean }) {
+  return (
+    <g>
+      {/* Schatten */}
+      <ellipse cx="0" cy="1" rx="1.5" ry="0.4" fill="rgba(0,0,0,0.4)" />
+      {/* Beine */}
+      {kicking ? (
+        <>
+          <line x1="-0.6" y1="-0.5" x2="-0.6" y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
+          <line x1="0.4"  y1="-0.5" x2="1.8"  y2="-1.2" stroke="#1a1a1a" strokeWidth="0.7" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <line x1="-0.6" y1="-0.5" x2="-0.7" y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
+          <line x1="0.6"  y1="-0.5" x2="0.7"  y2="1" stroke="#1a1a1a" strokeWidth="0.7" />
+        </>
+      )}
+      {/* Schuhe */}
+      <ellipse cx="-0.7" cy="1.1" rx="0.6" ry="0.25" fill="#1a0e05" />
+      <ellipse cx={kicking ? 1.8 : 0.7} cy={kicking ? -1.2 : 1.1} rx="0.6" ry="0.25" fill="#1a0e05" />
+      {/* Trikot */}
+      <rect x="-1.4" y="-3.5" width="2.8" height="3" fill={color} rx="0.3" />
+      {/* Streifen */}
+      <rect x="-1.4" y="-2.6" width="2.8" height="0.4" fill="rgba(255,255,255,0.7)" />
+      {keeper && (
+        <text x="0" y="-1.4" textAnchor="middle" fontSize="1.5" fontWeight="800" fill="#fff">1</text>
+      )}
+      {/* Arme */}
+      <line x1="-1.5" y1="-3" x2={keeper ? -2.6 : -2.2} y2={keeper ? -4.2 : -2} stroke={color} strokeWidth="0.7" strokeLinecap="round" />
+      <line x1="1.5"  y1="-3" x2={keeper ? 2.6 : 2.2} y2={keeper ? -4.2 : -2} stroke={color} strokeWidth="0.7" strokeLinecap="round" />
+      {/* Kopf */}
+      <circle cx="0" cy="-5" r="1.2" fill="#ffd5aa" />
+      {/* Haare */}
+      <path d="M-1.1 -5.7 Q0 -6.5 1.1 -5.7 L 1.1 -5.3 L -1.1 -5.3 Z" fill="#3a1808" />
+      {/* Mini-Augen */}
+      <circle cx="-0.3" cy="-5" r="0.12" fill="#1a0e05" />
+      <circle cx="0.3"  cy="-5" r="0.12" fill="#1a0e05" />
+    </g>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// SCHWARZWALD-DRACHEN — schwebt über dem Wald-Pfad,
+// Schnur geht runter zu einem kleinen Drachenkind
+// ════════════════════════════════════════════════════════════════════════
+function Drachen() {
+  return (
+    <g>
+      {/* Drachenkind am Pfadrand */}
+      <g transform="translate(135, 193)">
+        <ellipse cx="0" cy="0" rx="2.5" ry="0.6" fill="rgba(0,0,0,0.4)" />
+        {/* Beine */}
+        <line x1="-0.8" y1="-2" x2="-0.8" y2="0" stroke="#1e3a8a" strokeWidth="1" />
+        <line x1="0.8"  y1="-2" x2="0.8"  y2="0" stroke="#1e3a8a" strokeWidth="1" />
+        {/* Schuhe */}
+        <ellipse cx="-0.8" cy="0" rx="0.8" ry="0.3" fill="#1a0e05" />
+        <ellipse cx="0.8"  cy="0" rx="0.8" ry="0.3" fill="#1a0e05" />
+        {/* Hose */}
+        <rect x="-1.4" y="-4" width="2.8" height="2.2" fill="#1e3a8a" rx="0.3" />
+        {/* Pulli */}
+        <rect x="-1.8" y="-7" width="3.6" height="3.2" fill="#22c55e" rx="0.4" />
+        <rect x="-1.8" y="-7" width="3.6" height="0.5" fill="#15803d" rx="0.4" />
+        {/* Linker Arm (hält die Spule unten) */}
+        <line x1="-1.6" y1="-6" x2="-2.6" y2="-3.5" stroke="#22c55e" strokeWidth="1" strokeLinecap="round" />
+        {/* Rechter Arm hochgestreckt zum Drachen */}
+        <line x1="1.6" y1="-6" x2="3" y2="-9" stroke="#22c55e" strokeWidth="1" strokeLinecap="round" />
+        {/* Spule */}
+        <rect x="-3.4" y="-4" width="1.6" height="1.2" fill="#7c4a1a" stroke="#3a1808" strokeWidth="0.2" />
+        {/* Kopf */}
+        <circle cx="0" cy="-9" r="1.6" fill="#ffd5aa" />
+        {/* Haare blond */}
+        <path d="M-1.5 -9.8 Q0 -11 1.5 -9.8 L 1.5 -9.2 L -1.5 -9.2 Z" fill="#fbbf24" />
+        {/* Augen + Mund */}
+        <circle cx="-0.5" cy="-9" r="0.18" fill="#1a0e05" />
+        <circle cx="0.5"  cy="-9" r="0.18" fill="#1a0e05" />
+        <path d="M-0.6 -8.4 Q0 -8 0.6 -8.4" stroke="#3a1808" strokeWidth="0.3" fill="none" strokeLinecap="round" />
+      </g>
+
+      {/* Drachenschnur — vom Kind hoch zum Drachen */}
+      <path
+        d="M 138 184 Q 155 110 175 75"
+        stroke="#1a1a1a"
+        strokeWidth="0.4"
+        fill="none"
+        opacity="0.7"
+        strokeDasharray="0.5 0.6"
+      />
+
+      {/* Der eigentliche DRACHE — groß und bunt */}
+      <g className="gb-kite" style={{ transformOrigin: '175px 60px' }}>
+        <g transform="translate(175, 60)">
+          {/* Diamant-Hauptkörper (4 farbige Felder) */}
+          <polygon points="0,-25 18,0 0,25 -18,0" fill="#dc2626" stroke="#1a0808" strokeWidth="0.6" />
+          {/* Vertikales Spann-Holz */}
+          <line x1="0" y1="-25" x2="0" y2="25" stroke="#3a1808" strokeWidth="0.5" />
+          {/* Horizontales Spann-Holz */}
+          <line x1="-18" y1="0" x2="18" y2="0" stroke="#3a1808" strokeWidth="0.5" />
+          {/* Farbige Quadranten überlagert */}
+          <polygon points="0,-25 18,0 0,0" fill="#fbbf24" opacity="0.85" stroke="#1a0808" strokeWidth="0.3" />
+          <polygon points="0,0 -18,0 0,25" fill="#22c55e" opacity="0.85" stroke="#1a0808" strokeWidth="0.3" />
+          <polygon points="0,0 18,0 0,25" fill="#3b82f6" opacity="0.85" stroke="#1a0808" strokeWidth="0.3" />
+
+          {/* Aufdruck SF in der Mitte */}
+          <circle cx="0" cy="0" r="3" fill="#fff" stroke="#1a0808" strokeWidth="0.3" />
+          <text x="0" y="1.4" textAnchor="middle" fontSize="3.5" fontWeight="800" fill="#2d5a3f" fontFamily="Inter, sans-serif">SF</text>
+
+          {/* Glanzlicht */}
+          <polygon points="-6,-15 -3,-12 0,-19" fill="rgba(255,255,255,0.3)" />
+
+          {/* Schnur-Anknüpfung unten */}
+          <line x1="0" y1="25" x2="0" y2="28" stroke="#1a0808" strokeWidth="0.4" />
+
+          {/* Langer Regenbogen-Schweif mit Schleifen */}
+          <g className="gb-tail">
+            <path
+              d="M 0 28 Q -8 38 -4 48 Q 4 58 -2 68 Q -10 78 -4 88"
+              stroke="#1a0808"
+              strokeWidth="0.3"
+              fill="none"
+            />
+            {/* 7 Schleifen am Schweif (Regenbogen) */}
+            {[
+              { y: 32, color: '#dc2626' },
+              { y: 40, color: '#f97316' },
+              { y: 48, color: '#fbbf24' },
+              { y: 56, color: '#22c55e' },
+              { y: 64, color: '#3b82f6' },
+              { y: 72, color: '#a78bfa' },
+              { y: 80, color: '#ec4899' },
+            ].map((b, i) => {
+              const wave = i % 2 === 0 ? -1 : 1;
+              const dx = wave * (3 + (i % 3));
+              return (
+                <g key={i}>
+                  <ellipse cx={dx - 2.5} cy={b.y} rx="2" ry="1" fill={b.color} stroke="#1a0808" strokeWidth="0.2" />
+                  <ellipse cx={dx + 2.5} cy={b.y} rx="2" ry="1" fill={b.color} stroke="#1a0808" strokeWidth="0.2" />
+                  <circle cx={dx} cy={b.y} r="0.4" fill="#1a0808" />
+                </g>
+              );
+            })}
+          </g>
+        </g>
+      </g>
     </g>
   );
 }
