@@ -3,6 +3,7 @@ import { sendDemo } from '@/lib/demoChannel';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { WmAdminTab } from '@/components/admin/WmAdminTab';
+import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
@@ -23,17 +24,18 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'presence' | 'stats' | 'branding' | 'polls' | 'wm' | 'demo';
+type Tab = 'saunas' | 'members' | 'recurring' | 'presence' | 'stats' | 'branding' | 'polls' | 'wm' | 'demo';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
-  saunas:   { label: 'Saunen',      icon: '🔥' },
-  members:  { label: 'Mitglieder',  icon: '👥' },
-  presence: { label: 'Anwesenheit', icon: '🟢' },
-  stats:    { label: 'Statistik',   icon: '📊' },
-  branding: { label: 'Branding',    icon: '🎨' },
-  polls:    { label: 'Abfragen',    icon: '📋' },
-  wm:       { label: 'WM-Tipps',    icon: '🏆' },
-  demo:     { label: 'Tafel-Demo',  icon: '🎭' },
+  saunas:    { label: 'Saunen',       icon: '🔥' },
+  members:   { label: 'Mitglieder',   icon: '👥' },
+  recurring: { label: 'Stamm-Slots',  icon: '📅' },
+  presence:  { label: 'Anwesenheit',  icon: '🟢' },
+  stats:     { label: 'Statistik',    icon: '📊' },
+  branding:  { label: 'Branding',     icon: '🎨' },
+  polls:     { label: 'Abfragen',     icon: '📋' },
+  wm:        { label: 'WM-Tipps',     icon: '🏆' },
+  demo:      { label: 'Tafel-Demo',   icon: '🎭' },
 };
 
 export default function Admin() {
@@ -94,6 +96,7 @@ export default function Admin() {
       <div className="mx-auto max-w-6xl p-4 sm:p-6">
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}
+        {tab === 'recurring' && <RecurringAdminTab />}
         {tab === 'presence' && <PresenceTab />}
         {tab === 'stats' && <StatsTab />}
         {tab === 'branding' && <BrandingTab />}

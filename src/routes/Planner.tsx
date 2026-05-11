@@ -40,7 +40,11 @@ import {
   useRatableInfusions, type RatableInfusion,
   togglePresenceByCode, type MyPoll,
   sendBroadcastPush,
+  useMyRecurringSlots, useApplyRecurringSlot, useRevokeMyRecurringSlot,
+  useAbsences, useAddAbsence, useDeleteAbsence,
 } from '@/lib/api';
+import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
+import type { RecurringSlot, AufgieserAbsence, Sauna } from '@/types/database';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -124,6 +128,14 @@ export default function Planner() {
   const delTpl = useDeleteTemplate();
   const trigEvac = useTriggerEvacuation();
   const endEvac = useEndEvacuation();
+
+  // Stamm-Slot + Urlaub (Migrationen 0027/0028)
+  const myRecurringQ = useMyRecurringSlots(member.data?.id ?? null);
+  const myAbsencesQ = useAbsences(member.data?.id ?? null);
+  const applyRecurring = useApplyRecurringSlot();
+  const revokeRecurring = useRevokeMyRecurringSlot();
+  const addAbsence = useAddAbsence();
+  const deleteAbsence = useDeleteAbsence();
 
   const teamInfusionIds = useMemo(
     () => infusionsQ.data?.filter((i) => i.team_infusion).map((i) => i.id) ?? [],
@@ -316,6 +328,41 @@ export default function Planner() {
     return occupiedKeys.has(`${saunaId}|${format(start, 'yyyy-MM-dd HH:mm')}`);
   }
 
+  // ─── Garantie-Sperre: Sauna 2 erst, wenn alle Garantie-Slots des Tages
+  // ─── durch echte Aufgießer (nicht Personal-Fallback) belegt sind.
+  // Wir prüfen client-seitig anhand der bereits geladenen `infusions`-Liste,
+  // damit ohne zusätzlichen Server-Roundtrip Live-Feedback im Formular kommt.
+  const selectedDayDate = day === 'today' ? todayDate : tomorrowDate;
+  const isGarantieSauna = useMemo(() => {
+    const start = slotToDate(day, slot);
+    const temp = garantieTemperatureFor(start);
+    if (temp === null) return false;
+    const sauna = saunas.find((s) => s.id === saunaId);
+    if (!sauna) return false;
+    return sauna.temperature_label === `${temp}°C`;
+  }, [day, slot, saunaId, saunas]);
+
+  const garantieSlotsOpenToday = useMemo(() => {
+    // Liste aller Slot-Stunden des gewählten Tages, in denen die jeweilige
+    // Garantie-Sauna noch KEINEN echten Aufguss (nicht-Fallback) hat.
+    const open: { hour: number; saunaName: string; tempC: 80 | 100 }[] = [];
+    const weekday = selectedDayDate.getDay();
+    for (const h of slotHoursForWeekday(weekday)) {
+      const slotDate = setMinutes(setHours(selectedDayDate, h), 0);
+      const tempC = garantieTemperatureFor(slotDate);
+      if (tempC === null) continue;
+      const garantieSauna = saunas.find((s) => s.temperature_label === `${tempC}°C` && s.is_active);
+      if (!garantieSauna) continue;
+      const key = `${garantieSauna.id}|${format(slotDate, 'yyyy-MM-dd HH:mm')}`;
+      const inf = infusions.find((i) => `${i.sauna_id}|${format(new Date(i.start_time), 'yyyy-MM-dd HH:mm')}` === key);
+      const hasReal = inf && !inf.is_personal_fallback;
+      if (!hasReal) open.push({ hour: h, saunaName: garantieSauna.name, tempC });
+    }
+    return open;
+  }, [selectedDayDate, saunas, infusions]);
+
+  const secondarySaunaBlocked = !isGarantieSauna && garantieSlotsOpenToday.length > 0;
+
   function toggleAttr(a: InfusionAttribute) {
     setAttrs((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
   }
@@ -361,6 +408,10 @@ export default function Planner() {
     const start = slotToDate(day, slot);
     if (day === 'today' && isBefore(start, new Date())) return setFormError('Slot liegt in der Vergangenheit.');
     if (isSlotTaken(slot)) return setFormError('Slot bereits belegt.');
+    if (secondarySaunaBlocked) {
+      const list = garantieSlotsOpenToday.map((g) => `${String(g.hour).padStart(2,'0')}:00 ${g.saunaName}`).join(', ');
+      return setFormError(`⛔ Zuerst Garantie-Slots durch Aufgießer belegen. Offen: ${list}`);
+    }
 
     try {
       await addInf.mutateAsync({
@@ -764,6 +815,16 @@ export default function Planner() {
                   </div>
                 </div>
 
+                {secondarySaunaBlocked && (
+                  <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
+                    <p className="font-semibold">⛔ Zweit-Sauna-Planung gesperrt.</p>
+                    <p className="mt-0.5 text-amber-200/80">
+                      Solange Garantie-Slots in der dran-Sauna ohne Aufgießer sind, kann nicht in der anderen Sauna geplant werden. Offen:{' '}
+                      {garantieSlotsOpenToday.map((g) => `${String(g.hour).padStart(2,'0')}:00 ${g.saunaName}`).join(', ')}
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs text-forest-300">Uhrzeit (11–20 Uhr)</label>
                   <div className="mt-2 grid grid-cols-5 gap-1.5">
@@ -934,6 +995,64 @@ export default function Planner() {
           </HubZone>
         )}
 
+        {/* ══ ZONE 2.5: Stamm-Slot & Urlaub (nur Aufgießer) ═════════════════ */}
+        {isAufgieser && m && (
+          <HubZone icon="📅" title="Stamm-Slot & Urlaub" subtitle="Feste Wochenslots beantragen · Abwesenheit eintragen" accent="#fbbf24">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <StammSlotPanel
+                slots={myRecurringQ.data ?? []}
+                saunas={saunas}
+                onApply={async (p) => {
+                  try {
+                    await applyRecurring.mutateAsync(p);
+                    const saunaName = saunas.find((s) => s.id === p.sauna_id)?.name ?? '?';
+                    sendBroadcastPush({
+                      title: '🔔 Neuer Stamm-Slot-Antrag',
+                      body: `${m.name} möchte ${WEEKDAY_LABEL_DE[p.weekday] ?? '?'} ${String(p.hour).padStart(2,'0')}:00 ${saunaName}`,
+                      url: '/admin',
+                      tag: 'recurring-slot-apply',
+                    }).catch(() => {});
+                  } catch (e) {
+                    window.alert((e as Error).message);
+                  }
+                }}
+                onRevoke={async (id) => {
+                  if (!confirm('Stamm-Slot wirklich kündigen?')) return;
+                  try { await revokeRecurring.mutateAsync(id); }
+                  catch (e) { window.alert((e as Error).message); }
+                }}
+              />
+              <AbsencePanel
+                absences={myAbsencesQ.data ?? []}
+                onAdd={async (p) => {
+                  try {
+                    const result = await addAbsence.mutateAsync(p);
+                    if (result.freed_slots.length > 0) {
+                      const list = result.freed_slots.slice(0, 5).map((s) =>
+                        `${format(new Date(s.start_time), 'EEE dd.MM. HH:mm')} ${s.sauna_name}`
+                      ).join(' · ');
+                      sendBroadcastPush({
+                        title: '🏖️ Urlaubsslots frei',
+                        body: `${m.name} ist im Urlaub — ${result.freed_slots.length} Slot${result.freed_slots.length === 1 ? '' : 's'} verfügbar: ${list}${result.freed_slots.length > 5 ? '…' : ''}`,
+                        url: '/planner',
+                        tag: 'urlaubsslots',
+                      }).catch(() => {});
+                      window.alert(`${result.freed_slots.length} Slot${result.freed_slots.length === 1 ? '' : 's'} freigegeben — andere Aufgießer wurden benachrichtigt.`);
+                    } else {
+                      window.alert('Urlaub eingetragen. Keine Stamm-Slots in diesem Zeitraum betroffen.');
+                    }
+                  } catch (e) { window.alert((e as Error).message); }
+                }}
+                onDelete={async (id) => {
+                  if (!confirm('Urlaubseintrag löschen?')) return;
+                  try { await deleteAbsence.mutateAsync(id); }
+                  catch (e) { window.alert((e as Error).message); }
+                }}
+              />
+            </div>
+          </HubZone>
+        )}
+
         {/* ══ ZONE 3: Mein Profil & Erfolge ═════════════════════════════════ */}
         {m && (
           <HubZone icon="🏆" title="Mein Profil & Erfolge" subtitle="Identität · Bewertungen · Trophäen" accent="#a78bfa">
@@ -1064,6 +1183,225 @@ export default function Planner() {
         )}
       </div>
     </PageBackground>
+  );
+}
+
+// ─── Stamm-Slot Panel ─────────────────────────────────────────────────────────
+
+function StammSlotPanel({
+  slots,
+  saunas,
+  onApply,
+  onRevoke,
+}: {
+  slots: RecurringSlot[];
+  saunas: Sauna[];
+  onApply: (p: { weekday: number; hour: number; sauna_id: string; note?: string | null }) => Promise<void>;
+  onRevoke: (id: string) => Promise<void>;
+}) {
+  const activeSaunas = useMemo(() => saunas.filter((s) => s.is_active), [saunas]);
+  const [weekday, setWeekday] = useState<number>(2);
+  const [hour, setHour] = useState<number>(18);
+  const [saunaId, setSaunaId] = useState<string>(activeSaunas[0]?.id ?? '');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!saunaId && activeSaunas[0]) setSaunaId(activeSaunas[0].id);
+  }, [saunaId, activeSaunas]);
+
+  const slotHours = slotHoursForWeekday(weekday);
+  useEffect(() => {
+    if (slotHours.length > 0 && !slotHours.includes(hour)) {
+      setHour(slotHours[Math.floor(slotHours.length / 2)] ?? slotHours[0]);
+    }
+  }, [weekday, slotHours, hour]);
+
+  async function submit() {
+    setBusy(true);
+    try {
+      await onApply({ weekday, hour, sauna_id: saunaId, note: note.trim() || null });
+      setNote('');
+    } finally { setBusy(false); }
+  }
+
+  const statusColor = (s: RecurringSlot['status']) =>
+    s === 'pending' ? 'bg-amber-500/20 text-amber-200 ring-amber-500/30'
+    : s === 'active' ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-500/30'
+    : 'bg-zinc-500/20 text-zinc-300 ring-zinc-500/30';
+  const statusLabel = (s: RecurringSlot['status']) =>
+    s === 'pending' ? 'wartet auf Freigabe' : s === 'active' ? 'aktiv' : 'gekündigt';
+
+  return (
+    <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-amber-700/30 backdrop-blur space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-base">🪵</span>
+        <h3 className="text-sm font-semibold text-amber-100 uppercase tracking-wider">Mein Stamm-Slot</h3>
+      </div>
+      <p className="text-[11px] text-forest-300/70">
+        Feste wöchentliche Aufgusszeit beantragen. Admin gibt frei. Andere Aufgießer können dann nicht in diesen Slot planen.
+      </p>
+
+      {slots.length > 0 && (
+        <ul className="space-y-1.5">
+          {slots.map((s) => {
+            const saunaName = saunas.find((x) => x.id === s.sauna_id)?.name ?? '?';
+            return (
+              <li key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-forest-900/50 px-3 py-2 ring-1 ring-forest-800/40">
+                <div className="min-w-0">
+                  <div className="text-sm text-amber-100">
+                    {WEEKDAY_LABEL_DE_SHORT[s.weekday]} {String(s.slot_hour).padStart(2,'0')}:00 · {saunaName}
+                  </div>
+                  <div className="text-[10px] text-forest-400 truncate">{s.note || '—'}</div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ${statusColor(s.status)}`}>
+                    {statusLabel(s.status)}
+                  </span>
+                  {s.status !== 'revoked' && (
+                    <button onClick={() => onRevoke(s.id)}
+                      className="rounded-md px-2 py-0.5 text-[10px] text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/15">
+                      Kündigen
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="space-y-2 border-t border-forest-800/40 pt-3">
+        <p className="text-[11px] font-semibold text-amber-200 uppercase tracking-wider">Neuen Stamm-Slot beantragen</p>
+        <div>
+          <label className="text-[10px] text-forest-300">Wochentag</label>
+          <select value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400">
+            {[2,3,4,5,6,0].map((d) => (
+              <option key={d} value={d}>{WEEKDAY_LABEL_DE[d]}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] text-forest-300">Stunde</label>
+          <div className="mt-1 grid grid-cols-5 gap-1">
+            {slotHours.map((h) => (
+              <button key={h} type="button" onClick={() => setHour(h)}
+                className={`rounded-md px-1 py-1.5 text-xs font-mono tabular-nums ring-1 transition ${
+                  hour === h
+                    ? 'bg-amber-500 text-amber-950 ring-amber-400 font-bold'
+                    : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
+                }`}>
+                {String(h).padStart(2,'0')}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-forest-300">Sauna</label>
+          <select value={saunaId} onChange={(e) => setSaunaId(e.target.value)}
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400">
+            {activeSaunas.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} · {s.temperature_label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] text-forest-300">Begründung / Notiz (optional)</label>
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
+            placeholder="z.B. „mein Stamm-Slot seit 5 Jahren"
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+        </div>
+        <button onClick={submit} disabled={busy || !saunaId}
+          className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-2 text-sm font-semibold text-amber-950 disabled:opacity-50">
+          {busy ? 'Beantrage…' : 'Antrag stellen'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Absence (Urlaub) Panel ──────────────────────────────────────────────────
+
+function AbsencePanel({
+  absences,
+  onAdd,
+  onDelete,
+}: {
+  absences: AufgieserAbsence[];
+  onAdd: (p: { start: string; end: string; note?: string | null }) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [start, setStart] = useState(today);
+  const [end, setEnd] = useState(today);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!start || !end) return;
+    setBusy(true);
+    try {
+      await onAdd({ start, end, note: note.trim() || null });
+      setNote('');
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-amber-700/30 backdrop-blur space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-base">🏖️</span>
+        <h3 className="text-sm font-semibold text-amber-100 uppercase tracking-wider">Meine Abwesenheit</h3>
+      </div>
+      <p className="text-[11px] text-forest-300/70">
+        Urlaub eintragen. Deine Stamm-Slot-Aufgüsse in diesem Zeitraum werden automatisch freigegeben — Push geht an alle anderen Aufgießer.
+      </p>
+
+      {absences.length > 0 && (
+        <ul className="space-y-1.5">
+          {absences.map((a) => (
+            <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-forest-900/50 px-3 py-2 ring-1 ring-forest-800/40">
+              <div className="min-w-0">
+                <div className="text-sm text-amber-100 tabular-nums">
+                  {format(new Date(a.start_date), 'dd.MM.yyyy')} – {format(new Date(a.end_date), 'dd.MM.yyyy')}
+                </div>
+                <div className="text-[10px] text-forest-400 truncate">{a.note || '—'}</div>
+              </div>
+              <button onClick={() => onDelete(a.id)}
+                className="rounded-md px-2 py-0.5 text-[10px] text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/15">
+                Löschen
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="space-y-2 border-t border-forest-800/40 pt-3">
+        <p className="text-[11px] font-semibold text-amber-200 uppercase tracking-wider">Neue Abwesenheit</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-forest-300">Von</label>
+            <input type="date" value={start} min={today} onChange={(e) => setStart(e.target.value)}
+              className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+          </div>
+          <div>
+            <label className="text-[10px] text-forest-300">Bis</label>
+            <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)}
+              className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-forest-300">Notiz (optional)</label>
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
+            placeholder="z.B. „Urlaub Ostsee"
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+        </div>
+        <button onClick={submit} disabled={busy}
+          className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-2 text-sm font-semibold text-amber-950 disabled:opacity-50">
+          {busy ? 'Speichere…' : 'Abwesenheit speichern'}
+        </button>
+      </div>
+    </div>
   );
 }
 

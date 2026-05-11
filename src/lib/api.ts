@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
-import type { Sauna, Infusion, MemberCustomAttr } from '@/types/database';
+import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence } from '@/types/database';
 import type { InfusionAttribute } from './attributes';
 
 function need() {
@@ -1604,4 +1604,175 @@ export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
 
 export async function deleteAsset(path: string): Promise<void> {
   await need().storage.from('assets').remove([path]);
+}
+
+// ─── Stamm-Aufgießer-Slots (Migration 0027/0032) ─────────────────────────
+export function useRecurringSlots() {
+  return useQuery({
+    queryKey: ['recurring-slots'],
+    queryFn: async () => {
+      const { data, error } = await need().from('recurring_slots').select('*').order('weekday').order('slot_hour');
+      if (error) throw error;
+      return (data ?? []) as RecurringSlot[];
+    },
+  });
+}
+
+export function useMyRecurringSlots(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['recurring-slots', 'mine', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().from('recurring_slots').select('*').eq('member_id', memberId!).order('weekday').order('slot_hour');
+      if (error) throw error;
+      return (data ?? []) as RecurringSlot[];
+    },
+  });
+}
+
+export function useApplyRecurringSlot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { weekday: number; hour: number; sauna_id: string; note?: string | null }) => {
+      const { data, error } = await need().rpc('apply_recurring_slot', {
+        p_weekday: p.weekday,
+        p_hour: p.hour,
+        p_sauna_id: p.sauna_id,
+        p_note: p.note ?? null,
+      });
+      if (error) {
+        const msg = (error as { message?: string }).message ?? '';
+        if (msg.includes('duplicate_request')) throw new Error('Du hast für diesen Slot schon einen offenen oder aktiven Antrag.');
+        if (msg.includes('not_aufgieser')) throw new Error('Nur Aufgießer können Stamm-Slots beantragen.');
+        if (msg.includes('invalid_weekday_mo')) throw new Error('Montag ist Ruhetag — kein Stamm-Slot möglich.');
+        if (msg.includes('invalid_hour')) throw new Error('Ungültige Stunde — nur 11:00 bis 20:00.');
+        if (msg.includes('invalid_sauna')) throw new Error('Die gewählte Sauna ist nicht aktiv.');
+        throw error;
+      }
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['recurring-slots'] }),
+  });
+}
+
+export function useApproveRecurringSlot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('approve_recurring_slot', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['recurring-slots'] });
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+    },
+  });
+}
+
+export function useRejectRecurringSlot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('reject_recurring_slot', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['recurring-slots'] }),
+  });
+}
+
+export function useRevokeMyRecurringSlot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('revoke_my_recurring_slot', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['recurring-slots'] });
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+    },
+  });
+}
+
+// ─── Abwesenheit / Urlaub (Migration 0028) ───────────────────────────────
+export function useAbsences(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['absences', memberId ?? 'all'],
+    queryFn: async () => {
+      let q = need().from('aufgieser_absences').select('*').order('start_date', { ascending: false });
+      if (memberId) q = q.eq('member_id', memberId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as AufgieserAbsence[];
+    },
+  });
+}
+
+export type FreedSlot = {
+  infusion_id: string;
+  start_time: string;
+  sauna_id: string;
+  sauna_name: string;
+};
+
+export function useAddAbsence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { start: string; end: string; note?: string | null }) => {
+      const { data, error } = await need().rpc('add_absence', {
+        p_start: p.start,
+        p_end: p.end,
+        p_note: p.note ?? null,
+      });
+      if (error) {
+        const msg = (error as { message?: string }).message ?? '';
+        if (msg.includes('not_aufgieser')) throw new Error('Nur Aufgießer können Urlaub eintragen.');
+        if (msg.includes('invalid_range')) throw new Error('End-Datum muss nach Start-Datum liegen.');
+        throw error;
+      }
+      const result = data as { absence_id: string; freed_slots: FreedSlot[] };
+      return result;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['absences'] });
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+    },
+  });
+}
+
+export function useDeleteAbsence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('delete_absence', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['absences'] }),
+  });
+}
+
+// ─── Sperr-Check Sauna-2 (Migration 0033) ────────────────────────────────
+export function useCanPlanSecondary(dayIsoDate: string | null) {
+  return useQuery({
+    queryKey: ['can-plan-secondary', dayIsoDate ?? 'none'],
+    enabled: !!dayIsoDate,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('can_plan_secondary', { p_day: dayIsoDate });
+      if (error) throw error;
+      return data === true;
+    },
+  });
+}
+
+export function useMaterializeHorizon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (weeks = 8) => {
+      const { data, error } = await need().rpc('materialize_infusion_horizon', { p_weeks: weeks });
+      if (error) throw error;
+      return (data ?? 0) as number;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+  });
 }

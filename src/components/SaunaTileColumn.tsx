@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import type { Infusion, Sauna } from '@/types/database';
 import { InfusionCard } from '@/components/InfusionCard';
 import { EmptyTile } from '@/components/EmptyTile';
+import { PersonalTile } from '@/components/PersonalTile';
 import type { BadgeDefinition } from '@/lib/badges';
 
 const TILES_PER_COLUMN = 3;
@@ -70,18 +71,28 @@ export function SaunaTileColumn({
         <AnimatePresence initial={false} mode="popLayout">
           {tiles.map((inf, slotIndex) =>
             inf ? (
-              <InfusionCard
-                key={inf.id}
-                infusion={inf}
-                sauna={sauna}
-                meisterName={meisterName(inf.saunameister_id)}
-                meisterBadges={meisterBadges(inf.saunameister_id)}
-                coNames={coNames(inf.id)}
-                now={now}
-                compact
-                className="flex-1 min-h-0 overflow-hidden"
-                backgroundImage={tileBgs[slotIndex] ?? null}
-              />
+              inf.is_personal_fallback ? (
+                <PersonalTile
+                  key={inf.id}
+                  infusion={inf}
+                  sauna={sauna}
+                  className="flex-1 min-h-0 overflow-hidden"
+                  backgroundImage={tileBgs[slotIndex] ?? null}
+                />
+              ) : (
+                <InfusionCard
+                  key={inf.id}
+                  infusion={inf}
+                  sauna={sauna}
+                  meisterName={meisterName(inf.saunameister_id)}
+                  meisterBadges={meisterBadges(inf.saunameister_id)}
+                  coNames={coNames(inf.id)}
+                  now={now}
+                  compact
+                  className="flex-1 min-h-0 overflow-hidden"
+                  backgroundImage={tileBgs[slotIndex] ?? null}
+                />
+              )
             ) : (
               <EmptyTile
                 key={`empty-${slotIndex}`}

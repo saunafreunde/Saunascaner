@@ -27,6 +27,32 @@ export type Infusion = {
   duration_minutes: number;
   end_time: string;
   team_infusion: boolean;
+  is_personal_fallback: boolean;
+  recurring_slot_id: string | null;
+  temperature_c: number | null;
+  created_at: string;
+};
+
+export type RecurringSlot = {
+  id: string;
+  member_id: string;
+  weekday: number;        // 0=So, 1=Mo, ..., 6=Sa
+  slot_hour: number;
+  sauna_id: string;
+  status: 'pending' | 'active' | 'revoked';
+  active_from: string;
+  note: string | null;
+  created_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
+};
+
+export type AufgieserAbsence = {
+  id: string;
+  member_id: string;
+  start_date: string;
+  end_date: string;
+  note: string | null;
   created_at: string;
 };
 
