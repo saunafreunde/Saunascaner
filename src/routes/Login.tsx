@@ -13,8 +13,10 @@ export default function Login() {
   const nav = useNavigate();
   const rawNext = new URLSearchParams(loc.search).get('next') ?? '/planner';
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/planner';
+  // Invite-Code aus URL — wenn vorhanden, startet das Formular im Signup-Mode
+  const inviteCode = new URLSearchParams(loc.search).get('invite');
 
-  const [mode, setMode] = useState<Mode>('signin');
+  const [mode, setMode] = useState<Mode>(inviteCode ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -46,9 +48,11 @@ export default function Login() {
         const { error } = await signIn(email, password);
         if (error) throw error;
       } else if (mode === 'signup') {
-        const { error } = await signUp(email, password, name || email);
+        const { error } = await signUp(email, password, name || email, inviteCode);
         if (error) throw error;
-        setInfo('Konto angelegt. Du kannst dich jetzt anmelden. Falls Mail-Bestätigung aktiv ist: Postfach prüfen.');
+        setInfo(inviteCode
+          ? 'Konto mit Einladung angelegt — du bist direkt freigeschaltet. Bitte jetzt anmelden.'
+          : 'Konto angelegt. Du kannst dich jetzt anmelden. Falls Mail-Bestätigung aktiv ist: Postfach prüfen.');
         setMode('signin');
       } else if (mode === 'bootstrap') {
         if (!supabase) throw new Error('Supabase nicht verfügbar');
@@ -99,6 +103,12 @@ export default function Login() {
           </>
         ) : (
           <>
+            {mode === 'signup' && inviteCode && (
+              <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-100 ring-1 ring-amber-500/30">
+                <p className="font-semibold">✉️ Einladungs-Code: <span className="font-mono">{inviteCode.toUpperCase()}</span></p>
+                <p className="mt-0.5 text-amber-200/80">Du wirst automatisch mit der passenden Rolle freigeschaltet.</p>
+              </div>
+            )}
             {mode === 'signup' && (
               <input
                 value={name}

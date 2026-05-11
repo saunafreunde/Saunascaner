@@ -4,6 +4,7 @@ import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
+import { InvitationsTab } from '@/components/admin/InvitationsTab';
 import {
   useSaunas, useToggleSauna,
   useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
@@ -24,18 +25,19 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'recurring' | 'presence' | 'stats' | 'branding' | 'polls' | 'wm' | 'demo';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'polls' | 'wm' | 'demo';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
-  saunas:    { label: 'Saunen',       icon: '🔥' },
-  members:   { label: 'Mitglieder',   icon: '👥' },
-  recurring: { label: 'Stamm-Slots',  icon: '📅' },
-  presence:  { label: 'Anwesenheit',  icon: '🟢' },
-  stats:     { label: 'Statistik',    icon: '📊' },
-  branding:  { label: 'Branding',     icon: '🎨' },
-  polls:     { label: 'Abfragen',     icon: '📋' },
-  wm:        { label: 'WM-Tipps',     icon: '🏆' },
-  demo:      { label: 'Tafel-Demo',   icon: '🎭' },
+  saunas:      { label: 'Saunen',       icon: '🔥' },
+  members:     { label: 'Mitglieder',   icon: '👥' },
+  invitations: { label: 'Einladungen',  icon: '✉️' },
+  recurring:   { label: 'Stamm-Slots',  icon: '📅' },
+  presence:    { label: 'Anwesenheit',  icon: '🟢' },
+  stats:       { label: 'Statistik',    icon: '📊' },
+  branding:    { label: 'Branding',     icon: '🎨' },
+  polls:       { label: 'Abfragen',     icon: '📋' },
+  wm:          { label: 'WM-Tipps',     icon: '🏆' },
+  demo:        { label: 'Tafel-Demo',   icon: '🎭' },
 };
 
 export default function Admin() {
@@ -96,6 +98,7 @@ export default function Admin() {
       <div className="mx-auto max-w-6xl p-4 sm:p-6">
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}
+        {tab === 'invitations' && <InvitationsTab />}
         {tab === 'recurring' && <RecurringAdminTab />}
         {tab === 'presence' && <PresenceTab />}
         {tab === 'stats' && <StatsTab />}
@@ -219,7 +222,7 @@ function MembersTab() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [newRole, setNewRole] = useState<'member' | 'admin'>('member');
+  const [newRole, setNewRole] = useState<Member['role']>('member');
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -248,15 +251,23 @@ function MembersTab() {
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => approve.mutate({ id: m.id, role: 'member', is_aufgieser: false })}
                     className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs font-semibold text-forest-100 hover:bg-forest-700 ring-1 ring-forest-600/40">
-                    Als Mitglied freigeben
+                    ✅ Mitglied
                   </button>
                   <button onClick={() => approve.mutate({ id: m.id, role: 'member', is_aufgieser: true })}
                     className="rounded-lg bg-amber-600/20 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-600/30 ring-1 ring-amber-500/40">
-                    Als Aufgieser freigeben
+                    🧖 Aufgieser
+                  </button>
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'guest_aufgieser', is_aufgieser: false })}
+                    className="rounded-lg bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-600/30 ring-1 ring-emerald-500/40">
+                    🌍 Gast-Aufgießer
+                  </button>
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'staff', is_aufgieser: false })}
+                    className="rounded-lg bg-slate-600/20 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-600/30 ring-1 ring-slate-500/40">
+                    👨‍🍳 Personal
                   </button>
                   <button onClick={() => approve.mutate({ id: m.id, role: 'admin', is_aufgieser: false })}
-                    className="rounded-lg bg-forest-500 px-3 py-1.5 text-xs font-semibold text-forest-950 hover:bg-forest-400">
-                    Als Admin freigeben
+                    className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-semibold text-violet-950 hover:bg-violet-400">
+                    ⚙️ Admin
                   </button>
                 </div>
               </li>
@@ -273,9 +284,11 @@ function MembersTab() {
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-Mail (optional)"
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
-          <select value={newRole} onChange={(e) => setNewRole(e.target.value as 'member' | 'admin')}
+          <select value={newRole} onChange={(e) => setNewRole(e.target.value as Member['role'])}
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
             <option value="member">Mitglied</option>
+            <option value="guest_aufgieser">Gast-Aufgießer</option>
+            <option value="staff">Personal</option>
             <option value="admin">Admin</option>
           </select>
         </div>
@@ -303,10 +316,18 @@ function MembersTab() {
                     <EditableName member={m} />
                     {m.sauna_name && <span className="text-xs text-forest-300/60">({m.sauna_name})</span>}
                     {m.role === 'admin' && (
-                      <span className="rounded-full bg-forest-500/20 px-2 text-[10px] font-bold text-forest-200">Admin</span>
+                      <span className="rounded-full bg-violet-500/20 px-2 text-[10px] font-bold text-violet-200">⚙️ Admin</span>
                     )}
-                    {m.is_aufgieser && (
-                      <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">Aufgieser</span>
+                    {m.role === 'guest_aufgieser' && (
+                      <span className="rounded-full bg-emerald-500/20 px-2 text-[10px] font-bold text-emerald-200">
+                        🌍 Gast{m.home_group ? ` · ${m.home_group}` : ''}
+                      </span>
+                    )}
+                    {m.role === 'staff' && (
+                      <span className="rounded-full bg-slate-500/20 px-2 text-[10px] font-bold text-slate-200">👨‍🍳 Personal</span>
+                    )}
+                    {m.is_aufgieser && m.role === 'member' && (
+                      <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">🧖 Aufgieser</span>
                     )}
                   </div>
                   <div className="text-xs text-forest-300/70">

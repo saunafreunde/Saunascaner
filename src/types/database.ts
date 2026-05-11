@@ -33,6 +33,21 @@ export type Infusion = {
   created_at: string;
 };
 
+export type MemberRole = 'member' | 'guest_aufgieser' | 'staff' | 'admin';
+
+export type Invitation = {
+  id: string;
+  code: string;
+  target_role: MemberRole;
+  target_is_aufgieser: boolean;
+  note: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+  used_by: string | null;
+  used_at: string | null;
+  created_at: string;
+};
+
 export type RecurringSlot = {
   id: string;
   member_id: string;

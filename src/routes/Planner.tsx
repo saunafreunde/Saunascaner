@@ -45,6 +45,7 @@ import {
   useTakeoverPersonalFallback, type Template,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
+import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper } from '@/lib/roles';
 import type { RecurringSlot, AufgieserAbsence, Sauna, Infusion } from '@/types/database';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -156,8 +157,10 @@ export default function Planner() {
   const leaveTeam = useLeaveTeamInfusion();
 
   const m = member.data;
-  const isAufgieser = !!(m?.is_aufgieser || m?.role === 'admin');
-  const isAdmin = m?.role === 'admin';
+  // Kanonische Helper aus src/lib/roles.ts — bezieht Gast-Aufgießer + Admin ein
+  const isAufgieser = isAufgieserHelper(m);
+  const isAdmin = isAdminHelper(m);
+  const isStaff = isStaffHelper(m);
   const now = useNow(60_000);
 
   const [ratingFormInfusion, setRatingFormInfusion] = useState<RatableInfusion | null>(null);
@@ -442,6 +445,10 @@ export default function Planner() {
     const start = slotToDate(day, slot);
     if (day === 'today' && isBefore(start, new Date())) return setFormError('Slot liegt in der Vergangenheit.');
     if (isSlotTaken(slot)) return setFormError('Slot bereits belegt.');
+    // Staff darf NUR Personal-Fallbacks übernehmen
+    if (isStaff && !selectedFallbackId) {
+      return setFormError('Als Personal kannst du nur 👨‍🍳-Slots (Personal-Aufgüsse) übernehmen. Wähle einen gelben Slot in der Matrix.');
+    }
     // Sperrregel gilt NICHT, wenn der gewählte Slot ein Personal-Fallback ist
     // (übernehmen bringt die Garantie-Sauna ja erst zum vollständigen Besetzt-Status)
     if (!selectedFallbackId && secondarySaunaBlocked) {
@@ -751,7 +758,7 @@ export default function Planner() {
               </div>
             </Card>
 
-          {isAufgieser && (
+          {(isAufgieser || isStaff) && (
             <div className="rounded-2xl border-2 border-rose-600/60 bg-rose-950/40 p-4 ring-1 ring-rose-500/30 backdrop-blur">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -824,8 +831,26 @@ export default function Planner() {
           </div>
         )}
 
-        {/* ══ AUFGUSS-FORMULAR: Volle Breite ═══════════════════════ */}
-        {isAufgieser && (
+        {/* ══ STAFF-HINWEIS: Personal-Aufgüsse übernehmen ═══════════ */}
+        {isStaff && (
+          <div className="rounded-2xl bg-slate-900/40 p-4 ring-1 ring-slate-500/30 backdrop-blur">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">👨‍🍳</span>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">Hallo, Personal!</h2>
+                <p className="mt-0.5 text-sm text-slate-300/80">
+                  Du kannst Personal-Aufgüsse übernehmen — wähle einen 👨‍🍳-Slot in der Slot-Matrix unten und trage Titel/Eigenschaften ein.
+                </p>
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Du darfst außerdem: 🚨 Notfall-Alarm auslösen · 🏆 WM-Tipspiel mitspielen · 👥 Mitgliederübersicht einsehen.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ AUFGUSS-FORMULAR: Volle Breite (Aufgießer + Staff) ═══ */}
+        {(isAufgieser || isStaff) && (
           <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
             <h2 className="text-sm font-semibold text-forest-100 uppercase tracking-wider">Neuen Aufguss eintragen</h2>
 
@@ -985,14 +1010,20 @@ export default function Planner() {
                 )}
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
-                  <button type="submit" disabled={addInf.isPending}
+                  <button type="submit" disabled={addInf.isPending || takeoverFallback.isPending}
                     className="flex-1 rounded-xl bg-forest-500 px-4 py-3 text-sm font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60">
-                    {addInf.isPending ? 'Speichere …' : 'Aufguss eintragen'}
+                    {addInf.isPending || takeoverFallback.isPending
+                      ? 'Speichere …'
+                      : selectedFallbackId
+                        ? '🔄 Personal-Aufguss übernehmen'
+                        : 'Aufguss eintragen'}
                   </button>
-                  <button type="button" onClick={saveAsTemplate} disabled={addTpl.isPending}
-                    className="rounded-xl bg-forest-900/70 px-3 py-2.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-60">
-                    Als Vorlage
-                  </button>
+                  {!isStaff && (
+                    <button type="button" onClick={saveAsTemplate} disabled={addTpl.isPending}
+                      className="rounded-xl bg-forest-900/70 px-3 py-2.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-60">
+                      Als Vorlage
+                    </button>
+                  )}
                 </div>
               </>
             )}

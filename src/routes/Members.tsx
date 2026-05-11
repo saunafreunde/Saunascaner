@@ -199,7 +199,13 @@ function MemberCard({ m, todayMD }: { m: MemberDirectoryEntry; todayMD: string }
 
       <div className="flex items-start gap-3">
         <div style={tz(40)}>
-          <Avatar name={m.name} avatarPath={m.avatar_path} size="md" isAufgieser={m.is_aufgieser} />
+          <Avatar
+            name={m.name}
+            avatarPath={m.avatar_path}
+            size="md"
+            isAufgieser={m.is_aufgieser || m.role === 'guest_aufgieser'}
+            isGuest={m.role === 'guest_aufgieser'}
+          />
         </div>
         <div className="min-w-0 flex-1" style={tz(20)}>
           <h3 className="text-base font-bold text-forest-100 truncate">{m.name}</h3>
@@ -208,7 +214,10 @@ function MemberCard({ m, todayMD }: { m: MemberDirectoryEntry; todayMD: string }
           )}
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-forest-400">
             {m.member_number != null && <span>FDS-{String(m.member_number).padStart(3, '0')}</span>}
-            {m.is_aufgieser && <span className="text-amber-300">· Aufgieser</span>}
+            {m.role === 'guest_aufgieser' && (
+              <span className="text-emerald-300">· 🌍 Gast{m.home_group ? ` · ${m.home_group}` : ''}</span>
+            )}
+            {m.is_aufgieser && m.role !== 'guest_aufgieser' && <span className="text-amber-300">· Aufgieser</span>}
             {m.role === 'admin' && <span className="text-violet-300">· Admin</span>}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-forest-500">

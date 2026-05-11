@@ -29,11 +29,13 @@ export function useAuth() {
       if (!supabase) return { error: new Error('Supabase nicht konfiguriert') };
       return supabase.auth.signInWithPassword({ email, password });
     },
-    signUp: async (email: string, password: string, name?: string) => {
+    signUp: async (email: string, password: string, name?: string, inviteCode?: string | null) => {
       if (!supabase) return { error: new Error('Supabase nicht konfiguriert') };
+      const data: Record<string, string> = { name: name ?? email };
+      if (inviteCode && inviteCode.trim()) data.invite_code = inviteCode.trim().toUpperCase();
       return supabase.auth.signUp({
         email, password,
-        options: { data: { name: name ?? email } },
+        options: { data },
       });
     },
     signOut: async () => {

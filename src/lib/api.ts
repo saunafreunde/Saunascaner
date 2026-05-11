@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
-import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence } from '@/types/database';
+import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence, MemberRole, Invitation } from '@/types/database';
 import type { InfusionAttribute } from './attributes';
 
 function need() {
@@ -144,7 +144,7 @@ export type Member = {
   name: string;
   member_code: string;
   member_number: number | null;
-  role: 'member' | 'admin';
+  role: MemberRole;
   is_aufgieser: boolean;
   entry_code: string | null;
   sauna_name: string | null;
@@ -157,6 +157,7 @@ export type Member = {
   birthday: string | null;
   motto: string | null;
   avatar_path: string | null;
+  home_group: string | null;
   created_at: string;
 };
 
@@ -421,17 +422,19 @@ export function useCurrentMember() {
 }
 
 // Mitglieder-Verzeichnis für die Galerie-Seite (RPC umgeht RLS, gibt nur sichere Felder)
+// Staff wird serverseitig in list_members_directory bereits ausgeblendet.
 export type MemberDirectoryEntry = {
   id: string;
   name: string;
   sauna_name: string | null;
   member_number: number | null;
-  role: 'member' | 'admin';
+  role: MemberRole;
   is_aufgieser: boolean;
   is_present: boolean;
   birthday: string | null;
   motto: string | null;
   avatar_path: string | null;
+  home_group: string | null;
   created_at: string;
 };
 
@@ -447,13 +450,14 @@ export function useMembersDirectory() {
 }
 
 // Public directory of staff names for the TV/guest UI (callable as anon).
+export type MeisterDirectoryEntry = { id: string; name: string; role: MemberRole; home_group: string | null };
 export function useMeisterDirectory() {
   return useQuery({
     queryKey: ['meister-directory'],
     queryFn: async () => {
       const { data, error } = await need().rpc('list_meister_names');
       if (error) throw error;
-      return (data ?? []) as { id: string; name: string }[];
+      return (data ?? []) as MeisterDirectoryEntry[];
     },
   });
 }
@@ -494,7 +498,7 @@ export function usePendingMembers() {
 export function useApproveMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { id: string; role?: Member['role']; is_aufgieser?: boolean }) => {
+    mutationFn: async (p: { id: string; role?: MemberRole; is_aufgieser?: boolean }) => {
       const { error } = await need().rpc('approve_member', {
         p_member_id: p.id,
         p_role: p.role ?? 'member',
@@ -505,6 +509,76 @@ export function useApproveMember() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['members'] });
       qc.invalidateQueries({ queryKey: ['current-member'] });
+    },
+  });
+}
+
+// ─── Invitations (Migration 0035) ────────────────────────────────────────
+export function useInvitations() {
+  return useQuery({
+    queryKey: ['invitations'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_invitations');
+      if (error) throw error;
+      return (data ?? []) as Invitation[];
+    },
+  });
+}
+
+export function useCreateInvitation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      target_role: MemberRole;
+      target_is_aufgieser?: boolean;
+      note?: string | null;
+      expires_at?: string | null;
+    }) => {
+      const { data, error } = await need().rpc('create_invitation', {
+        p_target_role: p.target_role,
+        p_target_is_aufgieser: p.target_is_aufgieser ?? false,
+        p_note: p.note ?? null,
+        p_expires_at: p.expires_at ?? null,
+      });
+      if (error) throw error;
+      return data as Invitation;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations'] }),
+  });
+}
+
+export function useRevokeInvitation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('revoke_invitation', { p_id: id });
+      if (error) {
+        if ((error as { message?: string }).message?.includes('not_revocable')) {
+          throw new Error('Diese Einladung kann nicht mehr widerrufen werden (bereits eingelöst).');
+        }
+        throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations'] }),
+  });
+}
+
+export function useSetHomeGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (group: string | null) => {
+      const { error } = await need().rpc('set_my_home_group', { p_group: group ?? '' });
+      if (error) {
+        if ((error as { message?: string }).message?.includes('home_group_too_long')) {
+          throw new Error('Landesgruppe darf max. 80 Zeichen lang sein.');
+        }
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['members-directory'] });
     },
   });
 }

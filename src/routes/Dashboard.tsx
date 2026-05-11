@@ -88,6 +88,12 @@ export default function Dashboard() {
   const meisterName = (id: string | null) =>
     (id && members.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
 
+  const meisterMeta = (id: string | null) => {
+    const m = id ? members.data?.find((x) => x.id === id) : undefined;
+    if (!m) return undefined;
+    return { isGuest: m.role === 'guest_aufgieser', homeGroup: m.home_group };
+  };
+
   const tierOrder: Record<string, number> = { platinum: 4, gold: 3, silver: 2, bronze: 1, special: 0 };
 
   const meisterBadges = (id: string | null): BadgeDefinition[] => {
@@ -160,6 +166,7 @@ export default function Dashboard() {
           infusions={allInfusions}
           meisterName={meisterName}
           meisterBadges={meisterBadges}
+          meisterMeta={meisterMeta}
           coNames={coNamesForInfusion}
           now={now}
           tileBgs={tv.data?.tile_bgs?.[saunaId] ?? []}

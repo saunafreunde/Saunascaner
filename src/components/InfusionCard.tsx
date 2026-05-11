@@ -15,6 +15,7 @@ export function InfusionCard({
   sauna,
   meisterName,
   meisterBadges,
+  meisterMeta,
   coNames,
   now,
   compact = false,
@@ -25,6 +26,7 @@ export function InfusionCard({
   sauna: Sauna;
   meisterName?: string;
   meisterBadges?: BadgeDefinition[];
+  meisterMeta?: { isGuest: boolean; homeGroup: string | null };
   coNames?: string[];
   now: Date;
   compact?: boolean;
@@ -159,6 +161,9 @@ export function InfusionCard({
               {/* Footer: Meister, immer fest unten in der linken Spalte */}
               <div className="mt-auto pt-2 text-forest-300/80 truncate flex-shrink-0" style={{ fontSize: 'clamp(11px, 0.9vw, 16px)' }}>
                 {meisterName ?? '—'}
+                {meisterMeta?.isGuest && (
+                  <span className="text-emerald-300/90"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+                )}
                 {coNames && coNames.length > 0 && (
                   <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
                 )}
@@ -295,6 +300,9 @@ export function InfusionCard({
           <div className="relative mt-auto pt-1.5 pl-2 flex items-baseline justify-between gap-2 text-sm text-forest-300/70">
             <span className="truncate">
               {meisterName ?? '—'}
+              {meisterMeta?.isGuest && (
+                <span className="text-emerald-300/90"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+              )}
               {coNames && coNames.length > 0 && (
                 <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
               )}

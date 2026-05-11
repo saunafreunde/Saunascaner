@@ -14,6 +14,7 @@ interface SaunaTileColumnProps {
   infusions: Infusion[];
   meisterName: (id: string | null) => string;
   meisterBadges: (id: string | null) => BadgeDefinition[];
+  meisterMeta?: (id: string | null) => { isGuest: boolean; homeGroup: string | null } | undefined;
   coNames: (infusionId: string) => string[];
   now: Date;
   tileBgs?: (string | null)[];
@@ -53,6 +54,7 @@ export function SaunaTileColumn({
   infusions,
   meisterName,
   meisterBadges,
+  meisterMeta,
   coNames,
   now,
   tileBgs = [],
@@ -120,6 +122,7 @@ export function SaunaTileColumn({
                   sauna={sauna}
                   meisterName={meisterName(inf.saunameister_id)}
                   meisterBadges={meisterBadges(inf.saunameister_id)}
+                  meisterMeta={meisterMeta?.(inf.saunameister_id)}
                   coNames={coNames(inf.id)}
                   now={now}
                   compact
