@@ -17,13 +17,46 @@ export default defineConfig({
         background_color: '#050b08',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
+        // Vom Home-Bildschirm direkt in den Planner starten.
+        // Wenn nicht eingeloggt → RequireAuth leitet zu /login.
+        start_url: '/planner',
         scope: '/',
         id: '/',
         icons: [
           { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ],
+        // Long-Press auf das App-Icon (Android / Chrome) öffnet diese Shortcuts.
+        shortcuts: [
+          {
+            name: 'Aufgüsse planen',
+            short_name: 'Planner',
+            description: 'Aufgüsse anlegen, Team-Aufgüsse, Vorlagen',
+            url: '/planner',
+            icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'TV-Tafel',
+            short_name: 'Tafel',
+            description: 'Schwarzwald-Tafel mit Aufguss-Plan',
+            url: '/dashboard',
+            icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Mitglieder',
+            short_name: 'Members',
+            description: 'Mitglieder-Galerie',
+            url: '/members',
+            icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'WM-Tipspiel',
+            short_name: 'WM 2026',
+            description: 'Tipps abgeben',
+            url: '/wm',
+            icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
         ],
       },
       workbox: {
