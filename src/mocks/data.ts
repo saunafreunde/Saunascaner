@@ -27,6 +27,9 @@ const inf = (
   start_time: start, duration_minutes: duration,
   end_time: addMinutes(new Date(start), duration).toISOString(),
   team_infusion: false,
+  is_personal_fallback: false,
+  recurring_slot_id: null,
+  temperature_c: null,
   created_at: '',
 });
 

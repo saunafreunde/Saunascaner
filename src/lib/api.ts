@@ -1767,8 +1767,8 @@ export function useCanPlanSecondary(dayIsoDate: string | null) {
 
 export function useMaterializeHorizon() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (weeks = 8) => {
+  return useMutation<number, Error, number>({
+    mutationFn: async (weeks: number) => {
       const { data, error } = await need().rpc('materialize_infusion_horizon', { p_weeks: weeks });
       if (error) throw error;
       return (data ?? 0) as number;
