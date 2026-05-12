@@ -34,7 +34,6 @@ import { Reh } from '@/components/Reh';
 import { GapBridge } from '@/components/GapBridge';
 import { Gliders } from '@/components/Gliders';
 import { BackdropMountains } from '@/components/BackdropMountains';
-import { onDemo } from '@/lib/demoChannel';
 
 // ── Werbe-Sidebar: 3× 16:9 Tafeln ────────────────────────────────────────────
 function AdSidebar({ urls }: { urls: string[] }) {
@@ -119,16 +118,6 @@ export default function Dashboard() {
   const minutesUntilNext = nextInfusion
     ? differenceInMinutes(new Date(nextInfusion.start_time), now)
     : 999;
-
-  // ── Demo-Channel Listener — Tür/Zwerg-Funktion entfernt, nur noch Konfetti
-  useEffect(() => {
-    return onDemo(async (e) => {
-      if (e.type === 'confetti') {
-        const { fireBadgeUnlock } = await import('@/lib/confetti');
-        fireBadgeUnlock();
-      }
-    });
-  }, []);
 
   // Audio still beim ersten User-Klick irgendwo im Dokument entsperren —
   // ohne den nervenden 'Ton aktivieren'-Button.

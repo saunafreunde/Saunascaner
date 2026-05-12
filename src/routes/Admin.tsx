@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { sendDemo } from '@/lib/demoChannel';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { WmAdminTab } from '@/components/admin/WmAdminTab';
@@ -27,7 +26,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'handbook' | 'polls' | 'wm' | 'demo';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'handbook' | 'polls' | 'wm';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:      { label: 'Saunen',       icon: '🔥' },
@@ -40,7 +39,6 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   handbook:    { label: 'Handbuch',     icon: '📖' },
   polls:       { label: 'Abfragen',     icon: '📋' },
   wm:          { label: 'WM-Tipps',     icon: '🏆' },
-  demo:        { label: 'Tafel-Demo',   icon: '🎭' },
 };
 
 export default function Admin() {
@@ -109,7 +107,6 @@ export default function Admin() {
         {tab === 'handbook' && <HandbookTab />}
         {tab === 'polls' && <PollsTab />}
         {tab === 'wm' && <WmAdminTab />}
-        {tab === 'demo' && <DemoTab />}
       </div>
     </div>
   );
@@ -939,102 +936,3 @@ function StatsTab() {
   );
 }
 
-// ── 🎭 Demo-Tab ──────────────────────────────────────────────────────────
-function DemoTab() {
-  const [lastSent, setLastSent] = useState<string | null>(null);
-
-  const fire = (label: string, fn: () => void) => {
-    fn();
-    setLastSent(label);
-    setTimeout(() => setLastSent((p) => (p === label ? null : p)), 2000);
-  };
-
-  const Btn = ({
-    emoji, label, onClick, color = 'forest',
-  }: {
-    emoji: string; label: string; onClick: () => void; color?: 'forest' | 'orange' | 'red' | 'green' | 'purple';
-  }) => {
-    const colors: Record<string, string> = {
-      forest: 'bg-forest-800/70 hover:bg-forest-700 ring-forest-600/50',
-      orange: 'bg-amber-900/60 hover:bg-amber-800 ring-amber-600/40',
-      red:    'bg-red-900/60 hover:bg-red-800 ring-red-600/40',
-      green:  'bg-green-900/60 hover:bg-green-800 ring-green-600/40',
-      purple: 'bg-purple-900/60 hover:bg-purple-800 ring-purple-600/40',
-    };
-    return (
-      <button
-        onClick={() => fire(`${emoji} ${label}`, onClick)}
-        className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-white ring-1 transition active:scale-95 ${colors[color]}`}
-      >
-        <span className="text-lg leading-none">{emoji}</span>
-        <span>{label}</span>
-      </button>
-    );
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Info banner */}
-      <div className="flex items-start gap-3 rounded-xl bg-forest-900/50 p-4 ring-1 ring-forest-700/40 text-sm text-forest-200">
-        <span className="text-xl leading-none mt-0.5">💡</span>
-        <div>
-          <p className="font-semibold text-forest-100 mb-0.5">Tafel muss in einem anderen Tab offen sein</p>
-          <p className="text-forest-300 text-xs">
-            Öffne <code className="bg-forest-800 px-1 rounded">/dashboard</code> in einem neuen Browser-Tab.
-            Effekte werden via BroadcastChannel sofort dorthin übertragen.
-          </p>
-        </div>
-      </div>
-
-      {/* Last sent feedback */}
-      {lastSent && (
-        <div className="rounded-lg bg-green-900/40 px-4 py-2 text-sm text-green-300 ring-1 ring-green-700/40">
-          ✓ Gesendet: <strong>{lastSent}</strong>
-        </div>
-      )}
-
-      {/* Kuckuckstür */}
-      <section className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-forest-400">🚪 Kuckuckstür</h3>
-        <div className="flex flex-wrap gap-2">
-          <Btn emoji="🟢" label="Tür öffnen" onClick={() => sendDemo({ type: 'door_open' })} color="green" />
-          <Btn emoji="🔴" label="Tür schließen" onClick={() => sendDemo({ type: 'door_close' })} />
-        </div>
-      </section>
-
-      {/* Zwerg-Stimmungen */}
-      <section className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-forest-400">🧝 Zwerg-Stimmung</h3>
-        <div className="flex flex-wrap gap-2">
-          <Btn emoji="😊" label="Winken" onClick={() => sendDemo({ type: 'mood', mood: 'waving' })} />
-          <Btn emoji="🎂" label="Geburtstag" onClick={() => sendDemo({ type: 'mood', mood: 'birthday' })} color="orange" />
-          <Btn emoji="🔔" label="Volle Stunde" onClick={() => sendDemo({ type: 'mood', mood: 'hourly' })} color="orange" />
-          <Btn emoji="💪" label="Karte ziehen" onClick={() => sendDemo({ type: 'mood', mood: 'dragging' })} color="purple" />
-          <Btn emoji="😱" label="Fliehen!" onClick={() => sendDemo({ type: 'mood', mood: 'fleeing' })} color="red" />
-          <Btn emoji="😴" label="Idle (Tür zu)" onClick={() => sendDemo({ type: 'mood', mood: 'idle' })} />
-        </div>
-      </section>
-
-      {/* Karten-Exit */}
-      <section className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-forest-400">💥 Nächster Karten-Exit (einmalig)</h3>
-        <p className="mb-3 text-xs text-forest-400">
-          Sobald die nächste Karte das Ende ihres Aufgusses erreicht, wird diese Exit-Animation statt der zufälligen verwendet.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Btn emoji="🔥" label="Flammen erzwingen" onClick={() => sendDemo({ type: 'force_exit', mode: 'flames' })} color="red" />
-          <Btn emoji="🤏" label="Zwerg zieht erzwingen" onClick={() => sendDemo({ type: 'force_exit', mode: 'zwerg' })} color="purple" />
-        </div>
-      </section>
-
-      {/* Atmosphäre */}
-      <section className="rounded-2xl bg-forest-950/70 p-5 ring-1 ring-forest-800/50">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-forest-400">🎊 Atmosphäre</h3>
-        <div className="flex flex-wrap gap-2">
-          <Btn emoji="🎉" label="Konfetti" onClick={() => sendDemo({ type: 'confetti' })} color="orange" />
-          <Btn emoji="🔄" label="Reset (Auto-Modus)" onClick={() => sendDemo({ type: 'reset' })} />
-        </div>
-      </section>
-    </div>
-  );
-}
