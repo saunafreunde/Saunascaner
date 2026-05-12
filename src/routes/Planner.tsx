@@ -46,7 +46,7 @@ import {
   useTakeoverPersonalFallback, type Template,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
-import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper } from '@/lib/roles';
+import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
 import type { RecurringSlot, AufgieserAbsence, Sauna, Infusion } from '@/types/database';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -162,6 +162,9 @@ export default function Planner() {
   const isAufgieser = isAufgieserHelper(m);
   const isAdmin = isAdminHelper(m);
   const isStaff = isStaffHelper(m);
+  const isGuestAufgieser = isGuestAufgieserHelper(m);
+  // Stamm-Slot/Urlaub nur für VEREINS-Aufgießer (nicht Gast-Aufgießer, die helfen nur gelegentlich aus)
+  const canApplyStammSlot = isAufgieser && !isGuestAufgieser;
   const now = useNow(60_000);
 
   const [ratingFormInfusion, setRatingFormInfusion] = useState<RatableInfusion | null>(null);
@@ -1077,8 +1080,8 @@ export default function Planner() {
           </HubZone>
         )}
 
-        {/* ══ ZONE 2.5: Stamm-Slot & Urlaub (nur Aufgießer) ═════════════════ */}
-        {isAufgieser && m && (
+        {/* ══ ZONE 2.5: Stamm-Slot & Urlaub (nur Vereins-Aufgießer, NICHT Gast-Aufgießer) ═════════════════ */}
+        {canApplyStammSlot && m && (
           <HubZone icon="📅" title="Stamm-Slot & Urlaub" subtitle="Feste Wochenslots beantragen · Abwesenheit eintragen" accent="#fbbf24">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <StammSlotPanel

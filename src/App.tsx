@@ -31,6 +31,7 @@ const CheckinPin      = lazy(() => import('@/routes/CheckinPin'));
 const CheckinSignup   = lazy(() => import('@/routes/CheckinSignup'));
 const CheckinRate     = lazy(() => import('@/routes/CheckinRate'));
 const Unterstuetzer   = lazy(() => import('@/routes/Unterstuetzer'));
+const Mitarbeiter     = lazy(() => import('@/routes/Mitarbeiter'));
 const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
 const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/hilfe"             element={<RequireAuth><Help /></RequireAuth>} />
         <Route path="/gast"                  element={<RequireAuth><GastHome /></RequireAuth>} />
         <Route path="/unterstuetzer"         element={<RequireAuth><Unterstuetzer /></RequireAuth>} />
+        <Route path="/mitarbeiter"           element={<RequireAuth><Mitarbeiter /></RequireAuth>} />
         <Route path="/aufgieser"             element={<RequireAuth><AufgieserStars /></RequireAuth>} />
         <Route path="/aufgieser/:memberId"   element={<RequireAuth><StarProfile /></RequireAuth>} />
         <Route path="/login"          element={<Login />} />
@@ -95,12 +97,15 @@ function RootEntry() {
   // Eingeloggte Gäste → eigener Bereich /gast
   if (user && member.data?.role === 'gast') return <Navigate to="/gast" replace />;
 
+  // Mitarbeiter (Staff) → eigener Bereich /mitarbeiter
+  if (user && member.data?.role === 'staff') return <Navigate to="/mitarbeiter" replace />;
+
   // Nicht-Aufgießer-Mitglieder → Unterstützer-Bereich
   if (user && member.data?.role === 'member' && !member.data.is_aufgieser) {
     return <Navigate to="/unterstuetzer" replace />;
   }
 
-  // Standalone-PWA: eingeloggte Mitglieder (Aufgießer + Admin) → /planner
+  // Standalone-PWA: eingeloggte Aufgießer/Gast-Aufgießer/Admin → /planner
   if (isStandalone && user && member.data) return <Navigate to="/planner" replace />;
 
   // Sonst: öffentliche Aufguss-Tafel
@@ -127,6 +132,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     && loc.pathname === '/planner'
   ) {
     return <Navigate to="/unterstuetzer" replace />;
+  }
+  // Staff (Mitarbeiter) gehört in /mitarbeiter, nicht in /planner
+  if (member.data?.role === 'staff' && loc.pathname === '/planner') {
+    return <Navigate to="/mitarbeiter" replace />;
   }
   return <>{children}</>;
 }

@@ -12,14 +12,18 @@ export default function Login() {
   const brand = useBrandSettings();
   const loc = useLocation();
   const nav = useNavigate();
-  // Gäste → /gast, Nicht-Aufgießer-Mitglieder → /unterstuetzer, alle anderen → /planner
-  const isGastMember = member.data?.role === 'gast';
-  const isSupporterMember = member.data?.role === 'member' && !member.data.is_aufgieser;
-  const defaultNext = isGastMember
-    ? '/gast'
-    : isSupporterMember
-      ? '/unterstuetzer'
-      : '/planner';
+  // Default-Landing pro Rolle:
+  // - gast            → /gast
+  // - staff           → /mitarbeiter
+  // - member ohne is_aufgieser → /unterstuetzer
+  // - alle anderen (Aufgießer, Gast-Aufgießer, Admin) → /planner
+  const role = member.data?.role;
+  const isAufgieserFlag = member.data?.is_aufgieser;
+  const defaultNext =
+    role === 'gast'  ? '/gast' :
+    role === 'staff' ? '/mitarbeiter' :
+    role === 'member' && !isAufgieserFlag ? '/unterstuetzer' :
+    '/planner';
   const rawNext = new URLSearchParams(loc.search).get('next') ?? defaultNext;
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : defaultNext;
   const inviteCode = new URLSearchParams(loc.search).get('invite');

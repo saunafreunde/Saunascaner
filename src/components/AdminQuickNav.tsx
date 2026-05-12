@@ -19,12 +19,14 @@ const DIRECT_ITEMS: NavItem[] = [
 
 // Spezial-Sichten die man sonst nicht direkt sieht
 const VORSCHAU_ITEMS: NavItem[] = [
-  { path: '/unterstuetzer',   label: 'Unterstützer-Sicht',  icon: '🤝', hint: 'Helfer-Aufgaben für Nicht-Aufgießer' },
-  { path: '/gast?preview=1',  label: 'Gast-Bereich',        icon: '👋', hint: 'mit Preview-Banner' },
-  { path: '/checkin',         label: 'Tablet-PIN',          icon: '🔢', hint: 'Sauna-Tablet-Einstieg (öffnet neuer Tab)' },
-  { path: '/scanner',         label: 'Eingang-Scanner',     icon: '📷', hint: 'QR-Code-Einlass (öffnet neuer Tab)' },
-  { path: '/oil-room',        label: 'Aromen-Tablet',       icon: '🌿', hint: 'Öl-Raum-Bildschirm (öffnet neuer Tab)' },
-  { path: '/hilfe',           label: 'Hilfe / Handbuch',    icon: '📖', hint: 'Mitglieder-Handbuch' },
+  { path: '/unterstuetzer',   label: 'Unterstützer-Sicht',  icon: '🤝',   hint: 'Helfer-Aufgaben für Nicht-Aufgießer' },
+  { path: '/mitarbeiter',     label: 'Mitarbeiter-Sicht',   icon: '👨‍🍳', hint: 'Staff: Personal-Slots + Alarm' },
+  { path: '/planner',         label: 'Gast-Aufgießer-Sicht', icon: '🌍',  hint: 'Planner ohne Stamm-Slot/Urlaub' },
+  { path: '/gast?preview=1',  label: 'Gast-Bereich',        icon: '👋',   hint: 'mit Preview-Banner' },
+  { path: '/checkin',         label: 'Tablet-PIN',          icon: '🔢',   hint: 'Sauna-Tablet-Einstieg (öffnet neuer Tab)' },
+  { path: '/scanner',         label: 'Eingang-Scanner',     icon: '📷',   hint: 'QR-Code-Einlass (öffnet neuer Tab)' },
+  { path: '/oil-room',        label: 'Aromen-Tablet',       icon: '🌿',   hint: 'Öl-Raum-Bildschirm (öffnet neuer Tab)' },
+  { path: '/hilfe',           label: 'Hilfe / Handbuch',    icon: '📖',   hint: 'Mitglieder-Handbuch' },
 ];
 
 const TARGET_BLANK_PATHS = new Set(['/checkin', '/scanner', '/oil-room']);

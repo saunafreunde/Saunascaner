@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useCurrentMember, useMyEmailAccount } from '@/lib/api';
-import { isAufgieser, isGast } from '@/lib/roles';
+import { isAufgieser, isGast, isStaff } from '@/lib/roles';
 
 interface Props {
   /** Mitglieder-ID für den Profil-Link (eigenes Profil) */
@@ -17,22 +17,25 @@ export function MemberQuickNav({ myMemberId }: Props) {
   const me = useCurrentMember();
   const emailAccount = useMyEmailAccount();
   const gast = isGast(me.data);
+  const staff = isStaff(me.data);
   const isAufgieserMember = isAufgieser(me.data);
   // Nicht-Aufgießer-Vereinsmitglied = Unterstützer
-  const isSupporter = !gast && me.data?.role === 'member' && !isAufgieserMember;
+  const isSupporter = !gast && !staff && me.data?.role === 'member' && !isAufgieserMember;
 
   const items: { path: string; label: string; icon: string }[] = [];
   if (gast) {
     items.push({ path: '/gast', label: 'Mein Bereich', icon: '🏡' });
+  } else if (staff) {
+    items.push({ path: '/mitarbeiter', label: 'Mein Bereich', icon: '👨‍🍳' });
   } else if (isSupporter) {
     items.push({ path: '/unterstuetzer', label: 'Helfen', icon: '🤝' });
   }
   items.push({ path: '/dashboard', label: 'Tafel', icon: '📺' });
-  if (!gast && !isSupporter) {
-    items.push({ path: '/planner', label: 'Mitglied', icon: '🧖' });
+  if (!gast && !isSupporter && !staff) {
+    items.push({ path: '/planner', label: 'Planner', icon: '🧖' });
     items.push({ path: '/members', label: 'Galerie', icon: '👥' });
   }
-  if (isSupporter) {
+  if (isSupporter || staff) {
     items.push({ path: '/members', label: 'Galerie', icon: '👥' });
   }
   items.push({ path: '/aufgieser', label: 'Aufgießer', icon: '🌟' });
