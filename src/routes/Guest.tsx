@@ -1,19 +1,27 @@
 import { useMemo } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { addMinutes, isBefore, isSameDay, differenceInMinutes } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
+import { useAuth } from '@/hooks/useAuth';
 import { useNow } from '@/hooks/useNow';
 import { fmtClock, TZ } from '@/lib/time';
-import { useSaunas, useInfusions, useMeisterDirectory } from '@/lib/api';
+import { useSaunas, useInfusions, useMeisterDirectory, useCurrentMember } from '@/lib/api';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { PageBackground } from '@/components/PageBackground';
+import { isGast } from '@/lib/roles';
 
 const IMMINENT_MIN = 10;
 
 export default function Guest() {
+  const { user } = useAuth();
+  const me = useCurrentMember();
   const now = useNow(30_000);
   const saunasQ = useSaunas();
   const infusionsQ = useInfusions();
   const membersQ = useMeisterDirectory();
+
+  // Defensive: eingeloggter Gast soll niemals auf der öffentlichen Aufgussliste landen
+  if (user && isGast(me.data)) return <Navigate to="/gast" replace />;
 
   const saunas = saunasQ.data ?? [];
   const infusions = infusionsQ.data ?? [];
@@ -34,11 +42,34 @@ export default function Guest() {
   const meister = (id: string | null) =>
     (id && membersQ.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
 
+  const myArea = me.data?.role === 'gast'
+    ? '/gast'
+    : me.data?.role === 'admin'
+      ? '/admin'
+      : '/planner';
+
   return (
     <PageBackground page="guest">
-      <header className="sticky top-0 z-10 border-b border-forest-800/40 bg-forest-950/85 backdrop-blur px-5 py-4">
-        <h1 className="text-xl font-semibold text-forest-100">Aufgüsse heute</h1>
-        <p className="text-sm text-forest-300/80">Saunafreunde Schwarzwald · Freudenstadt</p>
+      <header className="sticky top-0 z-10 border-b border-forest-800/40 bg-forest-950/85 backdrop-blur px-5 py-4 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-semibold text-forest-100">Aufgüsse heute</h1>
+          <p className="text-sm text-forest-300/80">Saunafreunde Schwarzwald · Freudenstadt</p>
+        </div>
+        {user && me.data ? (
+          <Link
+            to={myArea}
+            className="rounded-xl bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/40 px-3 py-2 text-xs font-semibold hover:bg-amber-500/30 whitespace-nowrap"
+          >
+            🏡 Mein Bereich
+          </Link>
+        ) : (
+          <Link
+            to="/login"
+            className="rounded-xl bg-forest-900/80 text-forest-200 ring-1 ring-forest-700/50 px-3 py-2 text-xs font-semibold hover:bg-forest-800 whitespace-nowrap"
+          >
+            🔑 Anmelden
+          </Link>
+        )}
       </header>
 
       <ul className="space-y-3 p-4">
