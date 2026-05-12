@@ -8,6 +8,9 @@ import {
 import { StarTradingCard } from '@/components/StarTradingCard';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { PageBackground } from '@/components/PageBackground';
+import { MemberStatsCard } from '@/components/MemberStatsCard';
+import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
+import { MemberAttendanceChart } from '@/components/MemberAttendanceChart';
 import { isAdmin, isGast } from '@/lib/roles';
 import { fmtClock } from '@/lib/time';
 
@@ -95,6 +98,15 @@ export default function Gast() {
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-8">
+        {/* Stats-Dashboard — ganz oben */}
+        {me.data && <MemberStatsCard memberId={me.data.id} />}
+
+        {/* Aktivitäts-Chart */}
+        {me.data && <MemberAttendanceChart memberId={me.data.id} />}
+
+        {/* Achievement-Galerie */}
+        {me.data && <MemberAchievementsGallery memberId={me.data.id} />}
+
         {/* Begrüßungs-Block für brandneue Gäste */}
         {isReallyGast && followedStars.length === 0 && !previewMode && (
           <section className="rounded-3xl bg-gradient-to-br from-amber-900/30 via-forest-950/85 to-forest-950/85 ring-1 ring-amber-500/30 p-6 backdrop-blur">

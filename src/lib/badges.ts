@@ -1,6 +1,14 @@
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'special';
 
-export type BadgeCategory = 'infusion' | 'team' | 'special';
+export type BadgeCategory =
+  | 'infusion'    // Aufgießer-Badges (eigene Aufgüsse)
+  | 'team'        // Co-Aufgießer
+  | 'attendance'  // Anwesenheit (Sauna-Tage + Streaks)
+  | 'rating'      // Bewertungen abgegeben
+  | 'discovery'   // Aufgießer-/Sauna-Vielfalt
+  | 'community'   // Follows, Pioneer
+  | 'season'      // Saison + Geburtstag + Adlerauge
+  | 'special';    // sonstige (Pioneer-Aufgießer, WM, etc.)
 
 export type BadgeDefinition = {
   id: string;
@@ -211,7 +219,8 @@ export const SPECIAL_BADGES: BadgeDefinition[] = [
     label: 'Stammgast',
     description: '4 Wochen in Folge mindestens 1× anwesend — du hältst die Glut am Leben.',
     tier: 'bronze',
-    category: 'special',
+    category: 'attendance',
+    threshold: 4,
   },
   {
     id: 'streak_12w',
@@ -219,7 +228,8 @@ export const SPECIAL_BADGES: BadgeDefinition[] = [
     label: 'Sauna-Pflanze',
     description: '12 Wochen in Folge anwesend — du wurzelst hier tief.',
     tier: 'silver',
-    category: 'special',
+    category: 'attendance',
+    threshold: 12,
   },
   {
     id: 'streak_24w',
@@ -227,11 +237,235 @@ export const SPECIAL_BADGES: BadgeDefinition[] = [
     label: 'Halbjahres-Marathon',
     description: '24 Wochen in Folge anwesend — unermüdlich, unverwüstlich, unverzichtbar.',
     tier: 'gold',
-    category: 'special',
+    category: 'attendance',
+    threshold: 24,
   },
 ];
 
-export const ALL_BADGES: BadgeDefinition[] = [...MILESTONE_BADGES, ...SPECIAL_BADGES];
+// ─── Gäste-Badges (Migration 0045) ───────────────────────────────────────
+// Diese Badges gelten für ALLE Rollen (Gast, Mitglied, Aufgießer-as-Gast).
+// Vergabe automatisch via DB-Trigger.
+
+export const GAST_BADGES: BadgeDefinition[] = [
+  // Anwesenheit (Sauna-Tage)
+  {
+    id: 'first_sauna_day',
+    emoji: '🔥',
+    label: 'Erster Sauna-Tag',
+    description: 'Dein erster Tag in der Sauna — willkommen in der Wärme!',
+    tier: 'bronze',
+    category: 'attendance',
+    threshold: 1,
+  },
+  {
+    id: 'regular_5',
+    emoji: '🌡️',
+    label: 'Stamm-Gast',
+    description: '5 Sauna-Tage gesammelt — du wirst zum Gewohnheitstier.',
+    tier: 'bronze',
+    category: 'attendance',
+    threshold: 5,
+  },
+  {
+    id: 'regular_15',
+    emoji: '🌡️',
+    label: 'Treuer Gast',
+    description: '15 Sauna-Tage — die Sauna hat dich fest im Griff.',
+    tier: 'silver',
+    category: 'attendance',
+    threshold: 15,
+  },
+  {
+    id: 'regular_30',
+    emoji: '🌡️',
+    label: 'Sauna-Veteran',
+    description: '30 Sauna-Tage — die Schwarzwald-Schwitze ist deine zweite Heimat.',
+    tier: 'gold',
+    category: 'attendance',
+    threshold: 30,
+  },
+  {
+    id: 'regular_60',
+    emoji: '🏆',
+    label: 'Sauna-Legende',
+    description: '60 Sauna-Tage — du bist Teil des Inventars.',
+    tier: 'platinum',
+    category: 'attendance',
+    threshold: 60,
+  },
+
+  // Bewertungen
+  {
+    id: 'first_rating',
+    emoji: '⭐',
+    label: 'Erster Eindruck',
+    description: 'Erste Aufguss-Bewertung abgegeben — deine Stimme zählt.',
+    tier: 'bronze',
+    category: 'rating',
+    threshold: 1,
+  },
+  {
+    id: 'feedback_giver',
+    emoji: '📝',
+    label: 'Feedback-Geber',
+    description: '10 Aufgüsse bewertet — du hilfst Aufgießern besser zu werden.',
+    tier: 'silver',
+    category: 'rating',
+    threshold: 10,
+  },
+  {
+    id: 'feedback_pro',
+    emoji: '📋',
+    label: 'Bewertungs-Profi',
+    description: '50 Aufgüsse bewertet — du kennst die feinen Unterschiede.',
+    tier: 'gold',
+    category: 'rating',
+    threshold: 50,
+  },
+  {
+    id: 'feedback_top',
+    emoji: '🏆',
+    label: 'Top-Bewerter',
+    description: '100 Aufgüsse bewertet — eine echte Instanz.',
+    tier: 'platinum',
+    category: 'rating',
+    threshold: 100,
+  },
+
+  // Entdeckung
+  {
+    id: 'curious',
+    emoji: '🔍',
+    label: 'Neugier',
+    description: 'Aufgüsse von 3 verschiedenen Aufgießern bewertet.',
+    tier: 'bronze',
+    category: 'discovery',
+    threshold: 3,
+  },
+  {
+    id: 'vielsauner',
+    emoji: '🌍',
+    label: 'Vielsauner',
+    description: '10 verschiedene Aufgießer entdeckt — du suchst die Vielfalt.',
+    tier: 'silver',
+    category: 'discovery',
+    threshold: 10,
+  },
+  {
+    id: 'connaisseur',
+    emoji: '👑',
+    label: 'Connaisseur',
+    description: '25 verschiedene Aufgießer kennengelernt — Kenner par excellence.',
+    tier: 'gold',
+    category: 'discovery',
+    threshold: 25,
+  },
+  {
+    id: 'sauna_allrounder',
+    emoji: '🌐',
+    label: 'Sauna-Allrounder',
+    description: 'Bewertungen in allen 3 Saunen abgegeben — kein Schweiß-Grad zu heiß.',
+    tier: 'silver',
+    category: 'discovery',
+  },
+
+  // Community
+  {
+    id: 'first_fan',
+    emoji: '❤️',
+    label: 'Erster Fan',
+    description: 'Du folgst deinem ersten Aufgießer — der Anfang einer Freundschaft.',
+    tier: 'bronze',
+    category: 'community',
+    threshold: 1,
+  },
+  {
+    id: 'collector_5',
+    emoji: '🌟',
+    label: 'Sammler',
+    description: '5 Aufgießern gefolgt — dein Lieblings-Team wird größer.',
+    tier: 'bronze',
+    category: 'community',
+    threshold: 5,
+  },
+  {
+    id: 'collector_15',
+    emoji: '🌟',
+    label: 'Großer Sammler',
+    description: '15 Aufgießern gefolgt — du hast einen feinen Geschmack.',
+    tier: 'silver',
+    category: 'community',
+    threshold: 15,
+  },
+  {
+    id: 'collector_30',
+    emoji: '💖',
+    label: 'Mega-Fan',
+    description: '30 Aufgießern gefolgt — du liebst sie wirklich alle.',
+    tier: 'gold',
+    category: 'community',
+    threshold: 30,
+  },
+  {
+    id: 'pioneer_gast',
+    emoji: '🎖️',
+    label: 'Pioneer-Gast',
+    description: 'Unter den ersten 10 registrierten Gästen — du warst von Anfang an dabei.',
+    tier: 'special',
+    category: 'community',
+  },
+
+  // Saison + Besondere
+  {
+    id: 'birthday_visitor',
+    emoji: '🎂',
+    label: 'Geburtstags-Gast',
+    description: 'An deinem Geburtstag in der Sauna gewesen — beste Art zu feiern.',
+    tier: 'special',
+    category: 'season',
+  },
+  {
+    id: 'winter_guest',
+    emoji: '❄️',
+    label: 'Wintergast',
+    description: '10× im Winter (Dez–Feb) in der Sauna — du hasst die Kälte.',
+    tier: 'silver',
+    category: 'season',
+    threshold: 10,
+  },
+  {
+    id: 'summer_guest',
+    emoji: '☀️',
+    label: 'Sommergast',
+    description: '10× im Sommer (Jun–Aug) in der Sauna — Hitze ist Hitze.',
+    tier: 'silver',
+    category: 'season',
+    threshold: 10,
+  },
+  {
+    id: 'eagle_eye',
+    emoji: '🦅',
+    label: 'Adlerauge',
+    description: '10 Aufgüsse noch am selben Tag bewertet — du vergisst nichts.',
+    tier: 'gold',
+    category: 'season',
+    threshold: 10,
+  },
+];
+
+export const ALL_BADGES: BadgeDefinition[] = [...MILESTONE_BADGES, ...SPECIAL_BADGES, ...GAST_BADGES];
+
+// Labels für Galerie-Gruppen
+export const CATEGORY_LABEL: Record<BadgeCategory, { emoji: string; label: string }> = {
+  infusion:   { emoji: '🧖', label: 'Aufgießer' },
+  team:       { emoji: '👥', label: 'Team' },
+  attendance: { emoji: '🔥', label: 'Anwesenheit' },
+  rating:     { emoji: '⭐', label: 'Bewertungen' },
+  discovery:  { emoji: '🔍', label: 'Entdeckung' },
+  community:  { emoji: '❤️', label: 'Community' },
+  season:     { emoji: '🌟', label: 'Saison' },
+  special:    { emoji: '🏅', label: 'Spezial' },
+};
 
 // Nächster Meilenstein-Badge für einen gegebenen Zähler
 export function nextMilestone(

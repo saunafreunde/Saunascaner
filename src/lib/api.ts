@@ -2325,3 +2325,34 @@ export function useTopFans(memberId: string | null | undefined, limit = 20) {
   });
 }
 
+// ─── Voller Stats-Block für Dashboard (Migration 0045) ──────────────────
+
+export type MemberStatsFull = {
+  sauna_days: number;
+  streak_weeks: number;
+  ratings_given: number;
+  avg_rating_given: number | null;
+  aufgusse_attended: number;
+  unique_aufgieser: number;
+  follows_count: number;
+  member_since: string;
+  favorite_aufgieser: string | null;
+  favorite_sauna: string | null;
+  attendance_by_month: { month: string; count: number }[];
+};
+
+export function useMemberStatsFull(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['member-stats-full', memberId],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_member_stats_full', { p_member_id: memberId });
+      if (error) throw error;
+      return data as MemberStatsFull;
+    },
+    staleTime: 30_000,
+  });
+}
+
+// useMyBadges(memberId) gibt's bereits oben — verwenden wir wieder für Stats-Layer
+

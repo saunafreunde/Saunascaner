@@ -18,6 +18,13 @@ export function useRealtimeSync() {
         () => qc.invalidateQueries({ queryKey: ['tv-settings'] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evacuation_events' },
         () => qc.invalidateQueries({ queryKey: ['evacuation'] }))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'member_achievements' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['achievements'] });
+          qc.invalidateQueries({ queryKey: ['member-stats-full'] });
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'infusion_attendances' },
+        () => qc.invalidateQueries({ queryKey: ['member-stats-full'] }))
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);

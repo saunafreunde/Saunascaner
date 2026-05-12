@@ -9,6 +9,8 @@ import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
 import { WmStandMini } from '@/components/WmStandMini';
 import BadgeShowcase from '@/components/BadgeShowcase';
+import { MemberStatsCard } from '@/components/MemberStatsCard';
+import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
 import { PushPermission } from '@/components/PushPermission';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
 import {
@@ -314,6 +316,14 @@ export default function Profile() {
           </h3>
           <BadgeShowcase memberId={m.id} />
         </div>
+
+        {/* Stats + komplette Galerie nur beim eigenen Profil */}
+        {isMyself && (
+          <>
+            <MemberStatsCard memberId={m.id} />
+            <MemberAchievementsGallery memberId={m.id} />
+          </>
+        )}
 
         {/* PWA Install + Push (nur bei eigenem Profil) */}
         {isMyself && (
