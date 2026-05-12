@@ -87,6 +87,17 @@ function slotToDate(date: Date, hhmm: string): Date {
   return setMinutes(setHours(date, h), m);
 }
 
+// Hot-path-Formatter: `<saunaId>|YYYY-MM-DD HH:mm` ohne date-fns format()-Overhead.
+// Wird bei ~120 Slots pro Render aufgerufen — date-fns format() ist hier zu teuer.
+function infusionKey(saunaId: string, d: Date): string {
+  const y = d.getFullYear();
+  const mo = d.getMonth() + 1;
+  const da = d.getDate();
+  const h = d.getHours();
+  const mn = d.getMinutes();
+  return `${saunaId}|${y}-${mo < 10 ? '0' + mo : mo}-${da < 10 ? '0' + da : da} ${h < 10 ? '0' + h : h}:${mn < 10 ? '0' + mn : mn}`;
+}
+
 // Tuesday of the calendar week (Mo=1, Di=2 …). weekOffset=0 → aktuelle Woche.
 function tuesdayOfWeek(weekOffset: number): Date {
   const today = new Date();
@@ -370,7 +381,7 @@ export default function Planner() {
   const infusionByKey = useMemo(() => {
     const map = new Map<string, Infusion>();
     for (const i of infusions) {
-      map.set(`${i.sauna_id}|${format(new Date(i.start_time), 'yyyy-MM-dd HH:mm')}`, i);
+      map.set(infusionKey(i.sauna_id, new Date(i.start_time)), i);
     }
     return map;
   }, [infusions]);
@@ -398,8 +409,7 @@ export default function Planner() {
         if (tempC === null) continue;
         const garantieSauna = saunas.find((s) => s.temperature_label === `${tempC}°C` && s.is_active);
         if (!garantieSauna) continue;
-        const key = `${garantieSauna.id}|${format(slotDate, 'yyyy-MM-dd HH:mm')}`;
-        const inf = infusionByKey.get(key);
+        const inf = infusionByKey.get(infusionKey(garantieSauna.id, slotDate));
         const hasReal = inf && !inf.is_personal_fallback;
         if (!hasReal) garantieSlotsOpen.push({ hour: h, saunaName: garantieSauna.name, tempC });
       }
@@ -410,7 +420,7 @@ export default function Planner() {
   const slotStatusFor = useCallback((date: Date, saunaIdLookup: string, hhmm: string): SlotStatus => {
     const start = slotToDate(date, hhmm);
     if (isBefore(start, new Date())) return { kind: 'past' };
-    const inf = infusionByKey.get(`${saunaIdLookup}|${format(start, 'yyyy-MM-dd HH:mm')}`);
+    const inf = infusionByKey.get(infusionKey(saunaIdLookup, start));
     if (!inf) return { kind: 'free' };
     if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
     if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
@@ -418,12 +428,19 @@ export default function Planner() {
   }, [infusionByKey, m?.id]);
 
   function getInfusionAt(date: Date, saunaIdLookup: string, hhmm: string): Infusion | undefined {
-    const start = slotToDate(date, hhmm);
-    return infusionByKey.get(`${saunaIdLookup}|${format(start, 'yyyy-MM-dd HH:mm')}`);
+    return infusionByKey.get(infusionKey(saunaIdLookup, slotToDate(date, hhmm)));
   }
 
-  // Selected-Day-Context
-  const selectedDayCtx = useMemo(() => dayContextOf(selectedDate), [dayContextOf, selectedDate]);
+  // Wochen-Contexte einmal pro Render vorberechnen (6 Tage × ~10 Stunden Garantie-Logik)
+  const visibleDayContexts = useMemo(
+    () => visibleDays.map((d) => ({ date: d, ctx: dayContextOf(d) })),
+    [visibleDays, dayContextOf]
+  );
+  // Selected-Day-Context — bevorzugt aus Wochen-Liste, sonst fallback
+  const selectedDayCtx = useMemo(
+    () => visibleDayContexts.find((x) => isSameYMD(x.date, selectedDate))?.ctx ?? dayContextOf(selectedDate),
+    [visibleDayContexts, dayContextOf, selectedDate]
+  );
   const isMondaySelected = selectedDayCtx.isMonday;
 
   // ID des aktuell gewählten Personal-Fallbacks (für Submit-Branch)
@@ -952,8 +969,7 @@ export default function Planner() {
 
             {/* ── 6 TAGE STAPEL ──────────────────────────────────────── */}
             <div className="space-y-3">
-              {visibleDays.map((d) => {
-                const ctx = dayContextOf(d);
+              {visibleDayContexts.map(({ date: d, ctx }) => {
                 const isSelected = isSameYMD(d, selectedDate);
                 const isToday = isSameYMD(d, todayDate);
                 const weekdayLabel = WEEKDAY_LABEL_DE[d.getDay()] ?? '';
