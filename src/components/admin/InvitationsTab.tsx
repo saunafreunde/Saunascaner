@@ -3,12 +3,38 @@ import { format } from 'date-fns';
 import { useInvitations, useCreateInvitation, useRevokeInvitation, useSendInviteEmail } from '@/lib/api';
 import type { MemberRole } from '@/types/database';
 
-const ROLE_OPTIONS: { value: MemberRole; label: string; emoji: string; description: string }[] = [
-  { value: 'member', label: 'Mitglied', emoji: '✅', description: 'Vereinsmitglied ohne Aufgießer-Rechte.' },
-  { value: 'guest_aufgieser', label: 'Gast-Aufgießer', emoji: '🌍', description: 'Aufgießer von anderen Landesgruppen.' },
-  { value: 'staff', label: 'Personal', emoji: '👨‍🍳', description: 'Mitarbeiter (nicht-Verein). Darf Personal-Aufgüsse übernehmen.' },
-  { value: 'admin', label: 'Admin', emoji: '⚙️', description: 'Vollzugriff auf alle Bereiche.' },
+// UI-Rollen-Optionen — werden beim Erstellen auf (target_role, target_is_aufgieser) gemappt.
+type InviteRoleKind = 'aufgieser' | 'helfer' | 'guest_aufgieser' | 'staff' | 'gast' | 'admin';
+
+const ROLE_OPTIONS: { value: InviteRoleKind; label: string; emoji: string; description: string }[] = [
+  { value: 'aufgieser',       label: 'Aufgießer',       emoji: '🧖',    description: 'Vereinsmitglied mit Aufgießer-Rechten — darf Aufgüsse planen.' },
+  { value: 'helfer',          label: 'Helfer',          emoji: '🤝',    description: 'Vereinsmitglied ohne Aufgieser-Rechte — Helfer-/Unterstützer-Bereich.' },
+  { value: 'guest_aufgieser', label: 'Gast-Aufgießer',  emoji: '🌍',    description: 'Aufgießer von anderen Landesgruppen.' },
+  { value: 'staff',           label: 'Personal',        emoji: '👨‍🍳', description: 'Mitarbeiter (nicht-Verein). Übernimmt Personal-Aufgüsse.' },
+  { value: 'gast',            label: 'Gast',            emoji: '👋',    description: 'Sauna-Besucher mit Tablet-PIN, ohne Vereinszugehörigkeit.' },
+  { value: 'admin',           label: 'Admin',           emoji: '⚙️',    description: 'Vollzugriff auf alle Bereiche.' },
 ];
+
+// Mapping UI-Wert → DB-Felder
+function mapInviteRole(kind: InviteRoleKind): { target_role: MemberRole; target_is_aufgieser: boolean } {
+  switch (kind) {
+    case 'aufgieser':       return { target_role: 'member',          target_is_aufgieser: true };
+    case 'helfer':          return { target_role: 'member',          target_is_aufgieser: false };
+    case 'guest_aufgieser': return { target_role: 'guest_aufgieser', target_is_aufgieser: false };
+    case 'staff':           return { target_role: 'staff',           target_is_aufgieser: false };
+    case 'gast':            return { target_role: 'gast',            target_is_aufgieser: false };
+    case 'admin':           return { target_role: 'admin',           target_is_aufgieser: false };
+  }
+}
+
+// Reverse: DB-Felder → UI-Wert (für Anzeige bestehender Einladungen)
+function inviteRoleFromDb(role: MemberRole, isAufgieser: boolean): InviteRoleKind {
+  if (role === 'member') return isAufgieser ? 'aufgieser' : 'helfer';
+  if (role === 'guest_aufgieser') return 'guest_aufgieser';
+  if (role === 'staff') return 'staff';
+  if (role === 'gast') return 'gast';
+  return 'admin';
+}
 
 const INVITE_BASE_URL = typeof window !== 'undefined' ? `${window.location.origin}/login?invite=` : '/login?invite=';
 
@@ -18,8 +44,7 @@ export function InvitationsTab() {
   const revoke = useRevokeInvitation();
   const sendInvite = useSendInviteEmail();
 
-  const [targetRole, setTargetRole] = useState<MemberRole>('guest_aufgieser');
-  const [targetIsAufgieser, setTargetIsAufgieser] = useState(false);
+  const [roleKind, setRoleKind] = useState<InviteRoleKind>('aufgieser');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [note, setNote] = useState('');
@@ -39,9 +64,10 @@ export function InvitationsTab() {
 
   async function handleCreate() {
     try {
+      const { target_role, target_is_aufgieser } = mapInviteRole(roleKind);
       const inv = await create.mutateAsync({
-        target_role: targetRole,
-        target_is_aufgieser: targetRole === 'member' ? targetIsAufgieser : false,
+        target_role,
+        target_is_aufgieser,
         note: note.trim() || null,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
       });
@@ -65,7 +91,6 @@ export function InvitationsTab() {
       setExpiresAt('');
       setRecipientEmail('');
       setRecipientName('');
-      setTargetIsAufgieser(false);
     } catch (e) {
       window.alert((e as Error).message);
     }
@@ -99,7 +124,7 @@ export function InvitationsTab() {
     catch (e) { window.alert((e as Error).message); }
   }
 
-  const selectedRoleMeta = ROLE_OPTIONS.find((r) => r.value === targetRole);
+  const selectedRoleMeta = ROLE_OPTIONS.find((r) => r.value === roleKind);
 
   return (
     <div className="space-y-4">
@@ -119,9 +144,9 @@ export function InvitationsTab() {
                 <button
                   key={r.value}
                   type="button"
-                  onClick={() => setTargetRole(r.value)}
+                  onClick={() => setRoleKind(r.value)}
                   className={`rounded-lg px-2 py-2 text-left text-xs ring-1 transition ${
-                    targetRole === r.value
+                    roleKind === r.value
                       ? 'bg-amber-500/20 text-amber-100 ring-amber-500/40 font-semibold'
                       : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
                   }`}
@@ -136,17 +161,6 @@ export function InvitationsTab() {
           </div>
 
           <div className="space-y-2">
-            {targetRole === 'member' && (
-              <label className="flex items-center gap-2 text-xs text-forest-200">
-                <input
-                  type="checkbox"
-                  checked={targetIsAufgieser}
-                  onChange={(e) => setTargetIsAufgieser(e.target.checked)}
-                  className="w-4 h-4 rounded ring-1 ring-forest-700/50"
-                />
-                Als Aufgießer freischalten (🧖)
-              </label>
-            )}
             <div>
               <label className="text-[10px] text-forest-300 uppercase tracking-wider">
                 Empfänger-Email <span className="text-emerald-300/80">(✉️ wenn gesetzt: sofort versenden)</span>
@@ -213,7 +227,7 @@ export function InvitationsTab() {
         ) : (
           <ul className="mt-3 space-y-2">
             {open.map((inv) => {
-              const meta = ROLE_OPTIONS.find((r) => r.value === inv.target_role);
+              const meta = ROLE_OPTIONS.find((r) => r.value === inviteRoleFromDb(inv.target_role, inv.target_is_aufgieser));
               const url = `${INVITE_BASE_URL}${inv.code}`;
               return (
                 <li key={inv.id} className="rounded-lg bg-forest-900/60 px-3 py-2.5 ring-1 ring-forest-800/40">
@@ -223,7 +237,6 @@ export function InvitationsTab() {
                         <span className="font-mono text-base font-bold text-amber-200 tracking-wider">{inv.code}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-forest-800 text-forest-100">
                           {meta?.emoji} {meta?.label}
-                          {inv.target_is_aufgieser && ' + 🧖'}
                         </span>
                       </div>
                       <div className="text-[11px] text-forest-400 mt-0.5 truncate">
