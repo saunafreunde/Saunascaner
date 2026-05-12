@@ -100,7 +100,8 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
   if (!ready || member.isLoading) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   if (!member.data?.approved) return <PendingApproval />;
-  if (member.data?.role !== 'admin') return <NoAccess />;
+  // Admin oder WM-Admin (eingeschränkter Zugang nur auf WM-Tab; Tab-Filter regelt Sichtbarkeit)
+  if (member.data?.role !== 'admin' && !member.data?.is_wm_admin) return <NoAccess />;
   return <>{children}</>;
 }
 

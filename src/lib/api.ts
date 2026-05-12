@@ -147,6 +147,7 @@ export type Member = {
   member_number: number | null;
   role: MemberRole;
   is_aufgieser: boolean;
+  is_wm_admin: boolean;
   entry_code: string | null;
   sauna_name: string | null;
   sauna_name_changed_at: string | null;

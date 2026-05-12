@@ -22,6 +22,7 @@ import {
 import { ALL_BADGES } from '@/lib/badges';
 import BadgeChip from '@/components/BadgeChip';
 import { useAuth } from '@/hooks/useAuth';
+import { isAdmin, isWmAdmin } from '@/lib/roles';
 import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
@@ -43,7 +44,14 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
 
 export default function Admin() {
   const { signOut } = useAuth();
-  const [tab, setTab] = useState<Tab>('saunas');
+  const me = useCurrentMember();
+  const fullAdmin = isAdmin(me.data);
+  const wmOnly = !fullAdmin && isWmAdmin(me.data);
+  const visibleTabs = useMemo<Tab[]>(
+    () => wmOnly ? ['wm'] : (Object.keys(TAB_META) as Tab[]),
+    [wmOnly]
+  );
+  const [tab, setTab] = useState<Tab>(wmOnly ? 'wm' : 'saunas');
 
   return (
     <div className="bg-schwarzwald-soft min-h-full text-slate-100">
@@ -74,7 +82,7 @@ export default function Admin() {
         {/* Modern segmented tab bar */}
         <div className="mx-auto max-w-6xl px-4 pb-2 -mt-1">
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
-            {(Object.keys(TAB_META) as Tab[]).map((t) => {
+            {visibleTabs.map((t) => {
               const active = tab === t;
               const meta = TAB_META[t];
               return (
@@ -374,6 +382,18 @@ function MembersTab() {
                     }`}
                   >
                     {m.is_aufgieser ? '🔥 Aufgieser' : '+ Aufgieser'}
+                  </button>
+                  {/* WM-Admin-Toggle */}
+                  <button
+                    onClick={() => update.mutate({ id: m.id, is_wm_admin: !m.is_wm_admin })}
+                    title={m.is_wm_admin ? 'WM-Admin-Rechte entziehen' : 'Als WM-Admin markieren (darf Spiele/Tipps verwalten)'}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
+                      m.is_wm_admin
+                        ? 'bg-heat-500/20 text-heat-200 ring-heat-500/30 hover:bg-heat-500/30'
+                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
+                    }`}
+                  >
+                    {m.is_wm_admin ? '🏆 WM-Admin' : '+ WM-Admin'}
                   </button>
                   <button onClick={() => downloadBadge({
                     name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
