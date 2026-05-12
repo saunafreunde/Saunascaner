@@ -16,6 +16,9 @@ import { AufgieserPhotoGallery } from '@/components/AufgieserPhotoGallery';
 import { FavoriteOilsDisplay, FavoriteOilsPicker } from '@/components/FavoriteOilsPicker';
 import { AufgieserGuestbook } from '@/components/AufgieserGuestbook';
 import { RatingCommentsCarousel } from '@/components/RatingCommentsCarousel';
+import { InfusionReactionBar } from '@/components/InfusionReactionBar';
+import { InfusionAnnounceButton } from '@/components/InfusionAnnounceButton';
+import { AufgussWishes } from '@/components/AufgussWishes';
 import { fmtClock } from '@/lib/time';
 import { isAdmin, isAufgieser } from '@/lib/roles';
 
@@ -141,20 +144,24 @@ export default function StarProfile() {
               {upcomingAufguss.length > 0 && (
                 <section className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-5">
                   <h3 className="text-xs font-semibold uppercase tracking-widest text-amber-400/90 mb-3">Nächste Aufgüsse</h3>
-                  <ul className="space-y-2">
+                  <ul className="space-y-3">
                     {upcomingAufguss.map((i) => (
-                      <li key={i.id} className="flex items-center justify-between rounded-lg bg-forest-900/60 px-3 py-2">
-                        <div>
-                          <div className="text-sm font-medium text-forest-100">{i.title || 'Aufguss'}</div>
-                          <div className="text-xs text-forest-400">
-                            {new Date(i.start_time).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })} · {fmtClock(i.start_time)}
+                      <li key={i.id} className="rounded-lg bg-forest-900/60 px-3 py-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-forest-100 truncate">{i.title || 'Aufguss'}</div>
+                            <div className="text-xs text-forest-400">
+                              {new Date(i.start_time).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })} · {fmtClock(i.start_time)}
+                            </div>
                           </div>
+                          {i.temperature_c && (
+                            <span className="rounded-full bg-amber-500/20 text-amber-200 text-xs px-2 py-0.5 ring-1 ring-amber-500/40 whitespace-nowrap">
+                              {i.temperature_c}°C
+                            </span>
+                          )}
                         </div>
-                        {i.temperature_c && (
-                          <span className="rounded-full bg-amber-500/20 text-amber-200 text-xs px-2 py-0.5 ring-1 ring-amber-500/40">
-                            {i.temperature_c}°C
-                          </span>
-                        )}
+                        <InfusionAnnounceButton infusionId={i.id} startTime={i.start_time} />
+                        <InfusionReactionBar infusionId={i.id} compact />
                       </li>
                     ))}
                   </ul>
@@ -186,6 +193,9 @@ export default function StarProfile() {
 
               {/* Was Gäste sagen — Rating-Kommentare */}
               <RatingCommentsCarousel aufgieserId={star.id} />
+
+              {/* Aufguss-Wünsche */}
+              <AufgussWishes aufgieserId={star.id} />
 
               {/* Gästebuch */}
               <AufgieserGuestbook aufgieserId={star.id} />

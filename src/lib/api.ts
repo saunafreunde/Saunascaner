@@ -2584,3 +2584,212 @@ export function useAufgieserRatingRadar(aufgieserId: string | null | undefined) 
   });
 }
 
+// ─── Aufguss-Interaktionen (Migration 0047) ─────────────────────────────
+
+export type ReactionKind = 'fire' | 'heart' | 'sparkle' | 'wind' | 'sauna';
+
+export const REACTION_EMOJI: Record<ReactionKind, { emoji: string; label: string }> = {
+  fire:    { emoji: '🔥', label: 'Hot' },
+  heart:   { emoji: '❤️', label: 'Liebe' },
+  sparkle: { emoji: '✨', label: 'Magisch' },
+  wind:    { emoji: '💨', label: 'Atmo' },
+  sauna:   { emoji: '🧖', label: 'Sauna-Power' },
+};
+
+export const REACTION_KINDS: ReactionKind[] = ['fire', 'heart', 'sparkle', 'wind', 'sauna'];
+
+export type InfusionReactions = {
+  counts: Partial<Record<ReactionKind, number>>;
+  my_reaction: ReactionKind | null;
+  total: number;
+};
+
+export function useInfusionReactions(infusionId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['infusion-reactions', infusionId],
+    enabled: !!infusionId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_infusion_reactions', { p_infusion: infusionId });
+      if (error) throw error;
+      return data as InfusionReactions;
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useReactToInfusion() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { infusionId: string; reaction: ReactionKind }>({
+    mutationFn: async ({ infusionId, reaction }) => {
+      const { error } = await need().rpc('react_to_infusion', { p_infusion: infusionId, p_reaction: reaction });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['infusion-reactions', vars.infusionId] });
+    },
+  });
+}
+
+export function useUnreactToInfusion() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (infusionId) => {
+      const { error } = await need().rpc('unreact_to_infusion', { p_infusion: infusionId });
+      if (error) throw error;
+    },
+    onSuccess: (_, infusionId) => {
+      qc.invalidateQueries({ queryKey: ['infusion-reactions', infusionId] });
+    },
+  });
+}
+
+// "Ich komme heute"
+export type InfusionAnnouncement = {
+  member_id: string;
+  name: string;
+  avatar_path: string | null;
+  is_aufgieser: boolean;
+  announced_at: string;
+  message: string | null;
+  is_me: boolean;
+};
+
+export function useInfusionAnnouncements(infusionId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['infusion-announcements', infusionId],
+    enabled: !!infusionId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_infusion_announcements', { p_infusion: infusionId });
+      if (error) throw error;
+      return (data ?? []) as InfusionAnnouncement[];
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useAnnounceAttendance() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { infusionId: string; message?: string }>({
+    mutationFn: async ({ infusionId, message }) => {
+      const { error } = await need().rpc('announce_attendance', { p_infusion: infusionId, p_message: message ?? null });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['infusion-announcements', vars.infusionId] });
+    },
+  });
+}
+
+export function useUnannounceAttendance() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (infusionId) => {
+      const { error } = await need().rpc('unannounce_attendance', { p_infusion: infusionId });
+      if (error) throw error;
+    },
+    onSuccess: (_, infusionId) => {
+      qc.invalidateQueries({ queryKey: ['infusion-announcements', infusionId] });
+    },
+  });
+}
+
+// Aufguss-Wünsche
+export type AufgussWish = {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar: string | null;
+  wish_text: string;
+  wish_specialty: string | null;
+  created_at: string;
+  fulfilled_at: string | null;
+  like_count: number;
+  liked_by_me: boolean;
+  is_my_wish: boolean;
+};
+
+export function useAufgussWishes(aufgieserId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['aufguss-wishes', aufgieserId],
+    enabled: !!aufgieserId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_aufguss_wishes', { p_aufgieser_id: aufgieserId, p_limit: 50 });
+      if (error) throw error;
+      return (data ?? []) as AufgussWish[];
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateWish() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { aufgieserId: string; wishText: string; specialty?: string | null }>({
+    mutationFn: async ({ aufgieserId, wishText, specialty }) => {
+      const meRes = await need().from('members').select('id').eq('auth_user_id', (await need().auth.getUser()).data.user?.id ?? '').maybeSingle();
+      if (!meRes.data?.id) throw new Error('not_logged_in');
+      const { error } = await need().from('aufguss_wishes').insert({
+        aufgieser_id: aufgieserId,
+        author_id: meRes.data.id,
+        wish_text: wishText.trim(),
+        wish_specialty: specialty ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufguss-wishes', vars.aufgieserId] });
+    },
+  });
+}
+
+export function useDeleteWish() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { wishId: string; aufgieserId: string }>({
+    mutationFn: async ({ wishId }) => {
+      const { error } = await need().from('aufguss_wishes').delete().eq('id', wishId);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufguss-wishes', vars.aufgieserId] });
+    },
+  });
+}
+
+export function useToggleWishLike() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { wishId: string; aufgieserId: string; currentlyLiked: boolean }>({
+    mutationFn: async ({ wishId, currentlyLiked }) => {
+      const meRes = await need().from('members').select('id').eq('auth_user_id', (await need().auth.getUser()).data.user?.id ?? '').maybeSingle();
+      if (!meRes.data?.id) throw new Error('not_logged_in');
+      if (currentlyLiked) {
+        const { error } = await need()
+          .from('aufguss_wish_likes')
+          .delete()
+          .eq('wish_id', wishId)
+          .eq('member_id', meRes.data.id);
+        if (error) throw error;
+      } else {
+        const { error } = await need()
+          .from('aufguss_wish_likes')
+          .insert({ wish_id: wishId, member_id: meRes.data.id });
+        if (error && !String(error.message).includes('duplicate')) throw error;
+      }
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufguss-wishes', vars.aufgieserId] });
+    },
+  });
+}
+
+export function useMarkWishFulfilled() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { wishId: string; aufgieserId: string; fulfilled: boolean }>({
+    mutationFn: async ({ wishId, fulfilled }) => {
+      const { error } = await need().rpc('mark_wish_fulfilled', { p_wish_id: wishId, p_fulfilled: fulfilled });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufguss-wishes', vars.aufgieserId] });
+    },
+  });
+}
+
