@@ -59,6 +59,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sb = createClient(supaUrl, serviceKey);
 
+  // GET ?botinfo=1 → Diagnose: Telegram getMe (echter Bot-Username)
+  if (req.method === 'GET' && req.query.botinfo === '1') {
+    const r = await fetch(`${TG_API(token)}/getMe`);
+    const j = await r.json();
+    const r2 = await fetch(`${TG_API(token)}/getWebhookInfo`);
+    const j2 = await r2.json();
+    return res.status(200).json({ getMe: j, getWebhookInfo: j2 });
+  }
+
   // GET ?announce=1 → Cron-Hook (Personal-Fallback-Announce)
   if (req.method === 'GET' && req.query.announce === '1') {
     const cronSecret = process.env.CRON_SECRET;
