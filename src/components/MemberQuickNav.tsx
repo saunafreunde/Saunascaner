@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useMyEmailAccount } from '@/lib/api';
+import { useCurrentMember, useMyEmailAccount } from '@/lib/api';
+import { isGast } from '@/lib/roles';
 
 interface Props {
   /** Mitglieder-ID für den Profil-Link (eigenes Profil) */
@@ -9,20 +10,25 @@ interface Props {
 /**
  * Kompakte Icon-Navigation für eingeloggte Mitglieder (ohne Admin-Rechte).
  * Spiegelt das Pattern von AdminQuickNav, zeigt aber nur die für normale
- * Mitglieder relevanten Bereiche.
+ * Mitglieder relevanten Bereiche. Gäste sehen ein reduziertes Set.
  */
 export function MemberQuickNav({ myMemberId }: Props) {
   const { pathname } = useLocation();
+  const me = useCurrentMember();
   const emailAccount = useMyEmailAccount();
+  const gast = isGast(me.data);
 
-  const items: { path: string; label: string; icon: string }[] = [
-    { path: '/dashboard', label: 'Tafel',     icon: '📺' },
-    { path: '/planner',   label: 'Mitglied',  icon: '🧖' },
-    { path: '/members',   label: 'Galerie',   icon: '👥' },
-    { path: '/aufgieser', label: 'Aufgießer', icon: '🌟' },
-    { path: '/wm',        label: 'WM',        icon: '🏆' },
-  ];
-  if (emailAccount.data) {
+  const items: { path: string; label: string; icon: string }[] = [];
+  items.push({ path: '/dashboard', label: 'Tafel', icon: '📺' });
+  if (!gast) {
+    items.push({ path: '/planner', label: 'Mitglied', icon: '🧖' });
+    items.push({ path: '/members', label: 'Galerie', icon: '👥' });
+  }
+  items.push({ path: '/aufgieser', label: 'Aufgießer', icon: '🌟' });
+  if (!gast) {
+    items.push({ path: '/wm', label: 'WM', icon: '🏆' });
+  }
+  if (emailAccount.data && !gast) {
     items.push({ path: '/postfach', label: 'Postfach', icon: '📬' });
   }
   items.push({ path: '/hilfe', label: 'Hilfe', icon: '📖' });

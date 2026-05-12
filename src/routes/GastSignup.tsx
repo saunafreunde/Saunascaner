@@ -50,7 +50,7 @@ export default function GastSignup() {
           signup_kind: 'gast',
           gast_referral: sourceLabel,
           gast_origin: ref,
-          redirect_to: `${window.location.origin}/feed`,
+          redirect_to: `${window.location.origin}/aufgieser`,
         }),
       });
       const data = await r.json();

@@ -263,6 +263,10 @@ function MembersTab() {
                   <div className="text-xs text-amber-200/80">{m.email}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <button onClick={() => approve.mutate({ id: m.id, role: 'gast', is_aufgieser: false })}
+                    className="rounded-lg bg-sky-600/20 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-600/30 ring-1 ring-sky-500/40">
+                    👋 Gast
+                  </button>
                   <button onClick={() => approve.mutate({ id: m.id, role: 'member', is_aufgieser: false })}
                     className="rounded-lg bg-forest-800/60 px-3 py-1.5 text-xs font-semibold text-forest-100 hover:bg-forest-700 ring-1 ring-forest-600/40">
                     ✅ Mitglied

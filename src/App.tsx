@@ -67,17 +67,22 @@ export default function App() {
 // Runtime-Erkennung schließt die Lücke. Im normalen Browser bleibt
 // der Gast-Auftritt aktiv.
 function RootEntry() {
+  const { user } = useAuth();
+  const member = useCurrentMember();
   const isStandalone = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    // iOS Safari setzt navigator.standalone === true bei Home-Screen-Start
     const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-    // Android/Chromium und neuere iOS-Versionen melden display-mode: standalone
     const displayStandalone = window.matchMedia('(display-mode: standalone)').matches
       || window.matchMedia('(display-mode: minimal-ui)').matches
       || window.matchMedia('(display-mode: fullscreen)').matches;
     return iosStandalone || displayStandalone;
   }, []);
-  if (isStandalone) return <Navigate to="/planner" replace />;
+  // Eingeloggte Gäste landen auf ihrem Aufgießer-Bereich, nicht auf der öffentlichen Gäste-Seite
+  if (user && member.data?.role === 'gast') return <Navigate to="/aufgieser" replace />;
+  if (isStandalone) {
+    if (user && member.data?.role === 'gast') return <Navigate to="/aufgieser" replace />;
+    return <Navigate to="/planner" replace />;
+  }
   return <Guest />;
 }
 
@@ -89,6 +94,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!ready || (user && member.isLoading)) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   if (member.data && !member.data.approved) return <PendingApproval />;
+  // Gäste haben keinen Aufguss-Planner-Zugang — Redirect auf ihren Bereich
+  if (member.data?.role === 'gast' && loc.pathname === '/planner') {
+    return <Navigate to="/aufgieser" replace />;
+  }
   return <>{children}</>;
 }
 
