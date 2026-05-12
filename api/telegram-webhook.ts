@@ -69,6 +69,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, announced });
   }
 
+  // GET ?rating_push=1 → Cron-Hook (Rating-Push 15 Min nach Aufguss-Ende)
+  if (req.method === 'GET' && req.query.rating_push === '1') {
+    const pushed = await sendRatingPushes(sb, token);
+    return res.status(200).json({ ok: true, pushed });
+  }
+
   // POST ?action=broadcast_handbook → Handbuch-Link an alle Chats
   if (req.method === 'POST' && req.query.action === 'broadcast_handbook') {
     // Auth via Bearer-Token: nur Admin darf broadcasten
@@ -128,8 +134,8 @@ async function announceFallbacks(sb: SupabaseClient, token: string): Promise<num
   const chatIds = cfgVal?.chat_ids ?? [];
   if (chatIds.length === 0) return 0;
 
-  // Personal-Fallbacks in den nächsten 2 Stunden, die noch nicht angekündigt sind
-  const { data: slots } = await sb.rpc('get_personal_fallbacks_to_announce', { p_hours: 2 });
+  // Personal-Fallbacks in den nächsten 90 Minuten, die noch nicht angekündigt sind
+  const { data: slots } = await sb.rpc('get_personal_fallbacks_to_announce', { p_minutes: 90 });
   const list = (slots ?? []) as Array<{
     infusion_id: string;
     sauna_name: string;
@@ -199,15 +205,26 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
     }
   }
 
-  // Plain /start — Broadcast-Registrierung (Bestandsverhalten)
+  // Plain /start — Broadcast-Registrierung + Verknüpfen-Button wenn unverknüpft
   if (text === '/start' || text.startsWith('/start@')) {
     await sb.rpc('register_telegram_chat', { p_chat_id: chatId });
     const brand = await getBrandSettings(sb);
-    await tgSend(token, chatId,
-      `🌲 <b>Willkommen bei ${brand.org.name}!</b>\n\n` +
-      `Du bist für Benachrichtigungen registriert.\n\n` +
-      `Wenn du dein Konto verknüpfen möchtest (um Aufgüsse zu sehen, Personal-Slots zu übernehmen, …):\n` +
-      `<b>App öffnen → Profil → 🔗 Telegram verknüpfen</b> → den dort generierten Link klicken.`);
+    const { data: linkedMember } = await sb.from('members').select('id, name').eq('telegram_user_id', fromId).maybeSingle();
+    if (linkedMember) {
+      await tgSend(token, chatId,
+        `🌲 <b>Hallo ${linkedMember.name}!</b>\n\nDein Konto ist verknüpft, du bekommst Benachrichtigungen.\n\nSchreibe /help um alle Befehle zu sehen.`);
+    } else {
+      await tgSend(token, chatId,
+        `🌲 <b>Willkommen bei ${brand.org.name}!</b>\n\n` +
+        `Du bist für Benachrichtigungen registriert. Damit du Personal-Aufgüsse übernehmen und Aufgüsse direkt im Chat bewerten kannst, verknüpfe dein Konto:`,
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🔗 Konto verknüpfen', url: 'https://saunascaner.vercel.app/planner#telegram' },
+            ]],
+          },
+        });
+    }
     return;
   }
 
@@ -253,11 +270,71 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
     return;
   }
 
-  // Default: Hilfe
-  if (text.startsWith('/')) {
-    await tgSend(token, chatId,
-      `Befehle:\n/heute · /morgen — Aufguss-Übersicht\n/meine — meine Aufgüsse\n/link — Konto verknüpfen\n/unlink — Verknüpfung lösen\n/start — Broadcast aktivieren\n/stop — abmelden`);
+  // /woche — Übersicht der nächsten 7 Tage
+  if (text === '/woche') {
+    await sendWeekList(sb, token, chatId);
+    return;
   }
+
+  // /pin — eigenen Tablet-PIN anzeigen (braucht Verknüpfung)
+  if (text === '/pin') {
+    const { data: rows } = await sb.rpc('get_my_checkin_pin_by_telegram', { p_telegram_user_id: fromId });
+    const pinRow = Array.isArray(rows) ? rows[0] : rows;
+    if (!pinRow?.pin) {
+      await tgSend(token, chatId, '⚠️ Konto nicht verknüpft oder kein PIN gesetzt. Sende /link für die Anleitung.');
+      return;
+    }
+    await tgSend(token, chatId,
+      `🔢 <b>Dein Sauna-Tablet-PIN</b>\n\n<code>${pinRow.pin}</code>\n\n` +
+      `Damit checkst du am Sauna-Tablet ein. Niemandem zeigen!`);
+    return;
+  }
+
+  // /feed — Link zum Mini-Insta-Feed
+  if (text === '/feed') {
+    await tgSend(token, chatId,
+      `📸 <b>Sauna-Feed</b>\n\nFotos, Reactions, Aroma-Tags zum Aufguss.`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '📸 Feed öffnen', url: 'https://saunascaner.vercel.app/feed' },
+          ]],
+        },
+      });
+    return;
+  }
+
+  // /help — Alle Befehle
+  if (text === '/help' || text === '/hilfe' || text === '/?') {
+    await tgSend(token, chatId, helpText());
+    return;
+  }
+
+  // Default: Hilfe-Hinweis
+  if (text.startsWith('/')) {
+    await tgSend(token, chatId, helpText());
+  }
+}
+
+function helpText(): string {
+  return (
+    `<b>📚 Saunascaner-Bot — Befehle</b>\n\n` +
+    `<b>📋 Aufgüsse</b>\n` +
+    `/heute — heutige Aufgüsse\n` +
+    `/morgen — morgige Aufgüsse\n` +
+    `/woche — die nächsten 7 Tage\n` +
+    `/meine — meine geplanten Aufgüsse\n\n` +
+    `<b>🔢 Mein Konto</b>\n` +
+    `/pin — mein Sauna-Tablet-PIN\n` +
+    `/link — Konto verknüpfen\n` +
+    `/unlink — Verknüpfung lösen\n\n` +
+    `<b>🌐 App-Links</b>\n` +
+    `/feed — Mini-Insta-Feed öffnen\n\n` +
+    `<b>🔔 Broadcasts</b>\n` +
+    `/start — Benachrichtigungen aktivieren\n` +
+    `/stop — abmelden\n\n` +
+    `<i>Bei „✋ Ich übernehme"- und ⭐-Buttons in Nachrichten: einfach tippen — funktioniert nur mit verknüpftem Konto.</i>`
+  );
 }
 
 // ─── Callback Handler (Inline-Buttons) ───────────────────────────────────
@@ -315,6 +392,74 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
     }
   }
 
+  // attend:<infusion_id> — "Ich komme"-Button aus /heute /morgen
+  const attendMatch = data.match(/^attend:([0-9a-f-]{36})$/i);
+  if (attendMatch) {
+    const infusionId = attendMatch[1];
+    try {
+      const { data: result, error } = await sb.rpc('telegram_announce_attendance', {
+        p_telegram_user_id: fromId,
+        p_infusion_id: infusionId,
+      });
+      if (error) throw error;
+      const row = Array.isArray(result) ? result[0] : result;
+      if (row) {
+        await tgAnswerCallback(token, cb.id, `🙋 Eingetragen — bis bald bei „${row.infusion_title}"!`, false);
+      }
+      return;
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes('telegram_not_linked')) {
+        await tgAnswerCallback(token, cb.id,
+          '⚠️ Verknüpfe erst dein Konto: saunascaner.vercel.app/planner#telegram', true);
+      } else if (msg.includes('infusion_already_started')) {
+        await tgAnswerCallback(token, cb.id, 'Aufguss hat schon begonnen.', true);
+      } else {
+        await tgAnswerCallback(token, cb.id, '❌ Fehler: ' + msg, true);
+      }
+      return;
+    }
+  }
+
+  // rate:<infusion_id>:<stars> — 1-5-Stern Quick-Rating aus Push
+  const rateMatch = data.match(/^rate:([0-9a-f-]{36}):([1-5])$/i);
+  if (rateMatch) {
+    const infusionId = rateMatch[1];
+    const stars = parseInt(rateMatch[2], 10);
+    try {
+      const { data: result, error } = await sb.rpc('telegram_quick_rate', {
+        p_telegram_user_id: fromId,
+        p_infusion_id: infusionId,
+        p_stars: stars,
+      });
+      if (error) throw error;
+      const row = Array.isArray(result) ? result[0] : result;
+      const title = row?.infusion_title ?? 'Aufguss';
+      await tgAnswerCallback(token, cb.id, `⭐ ${stars}/5 für „${title}" gespeichert. Danke!`, false);
+      const oldText = cb.message?.text ?? '';
+      await tgEditMessage(token, chatId, messageId,
+        `${oldText}\n\n✅ <b>Deine Bewertung: ${'⭐'.repeat(stars)}${'☆'.repeat(5-stars)}</b>`,
+        { inline_keyboard: [[
+          { text: '✏️ Detailliert in App', url: `https://saunascaner.vercel.app/planner` },
+        ]]});
+      return;
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes('telegram_not_linked')) {
+        await tgAnswerCallback(token, cb.id, '⚠️ Konto nicht verknüpft.', true);
+      } else if (msg.includes('self_rating_not_allowed')) {
+        await tgAnswerCallback(token, cb.id, 'Eigene Aufgüsse kannst du nicht bewerten.', true);
+      } else if (msg.includes('rating_window_expired')) {
+        await tgAnswerCallback(token, cb.id, 'Bewertungsfenster ist zu (3h nach Ende).', true);
+      } else if (msg.includes('infusion_not_finished')) {
+        await tgAnswerCallback(token, cb.id, 'Aufguss läuft noch.', true);
+      } else {
+        await tgAnswerCallback(token, cb.id, '❌ Fehler: ' + msg, true);
+      }
+      return;
+    }
+  }
+
   // Default
   await tgAnswerCallback(token, cb.id, '');
 }
@@ -351,15 +496,120 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
     : { data: [] };
   const meisterName = (id: string | null) => (id && members?.find((m) => m.id === id)?.name) || 'Personal';
 
-  const lines = data.map((i) => {
+  // Header
+  await tgSend(token, chatId, day === 'today' ? '<b>📋 Heute</b>' : '<b>📋 Morgen</b>');
+
+  // Pro Aufguss eigene Nachricht mit Inline-Button "Ich komme"
+  for (const i of data) {
     const s = (i.saunas as unknown as { name: string; temperature_label: string }) ?? { name: '?', temperature_label: '?' };
     const name = i.is_personal_fallback ? '👨‍🍳 Personal' : meisterName(i.saunameister_id);
     const team = i.team_infusion ? ' 👥' : '';
-    return `🔥 <b>${fmtClock(i.start_time)}</b> · ${s.name} ${s.temperature_label}\n   ${i.title}${team} — ${name}`;
-  });
+    const text = `🔥 <b>${fmtClock(i.start_time)}</b> · ${s.name} ${s.temperature_label}\n${i.title}${team} — ${name}`;
 
-  const header = day === 'today' ? '<b>📋 Heute</b>' : '<b>📋 Morgen</b>';
-  await tgSend(token, chatId, `${header}\n\n${lines.join('\n\n')}`);
+    // "Ich komme"-Button nur für zukünftige Aufgüsse mit Aufgießer (kein Personal-Fallback)
+    const isFuture = new Date(i.start_time).getTime() > Date.now();
+    const showAttendBtn = isFuture && !i.is_personal_fallback;
+    const showTakeoverBtn = isFuture && i.is_personal_fallback;
+
+    const buttons: Array<{ text: string; callback_data: string }> = [];
+    if (showAttendBtn) buttons.push({ text: '🙋 Ich komme', callback_data: `attend:${i.id}` });
+    if (showTakeoverBtn) buttons.push({ text: '✋ Ich übernehme', callback_data: `takeover:${i.id}` });
+
+    await tgSend(token, chatId, text, buttons.length ? {
+      reply_markup: { inline_keyboard: [buttons] },
+    } : {});
+  }
+}
+
+async function sendWeekList(sb: SupabaseClient, token: string, chatId: number) {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setDate(end.getDate() + 7);
+
+  const { data, error } = await sb
+    .from('infusions')
+    .select('id, title, start_time, end_time, sauna_id, saunameister_id, is_personal_fallback, team_infusion, saunas(name, temperature_label)')
+    .gte('start_time', start.toISOString())
+    .lt('start_time', end.toISOString())
+    .order('start_time');
+
+  if (error) { await tgSend(token, chatId, '❌ Fehler: ' + error.message); return; }
+  if (!data || data.length === 0) { await tgSend(token, chatId, 'Diese Woche keine Aufgüsse.'); return; }
+
+  const meisterIds = Array.from(new Set(data.map((i) => i.saunameister_id).filter(Boolean) as string[]));
+  const { data: members } = meisterIds.length
+    ? await sb.from('members').select('id, name').in('id', meisterIds)
+    : { data: [] };
+  const meisterName = (id: string | null) => (id && members?.find((m) => m.id === id)?.name) || 'Personal';
+
+  // Gruppiert nach Datum
+  const byDay = new Map<string, typeof data>();
+  for (const i of data) {
+    const key = fmtDayKey(i.start_time);
+    if (!byDay.has(key)) byDay.set(key, [] as typeof data);
+    byDay.get(key)!.push(i);
+  }
+
+  const parts: string[] = ['<b>📋 Diese Woche</b>'];
+  for (const [day, list] of byDay) {
+    parts.push(`\n<b>${day}</b>`);
+    for (const i of list) {
+      const s = (i.saunas as unknown as { name: string; temperature_label: string }) ?? { name: '?', temperature_label: '?' };
+      const name = i.is_personal_fallback ? '👨‍🍳 Personal' : meisterName(i.saunameister_id);
+      const team = i.team_infusion ? ' 👥' : '';
+      parts.push(`${fmtClock(i.start_time)} · ${s.name} ${s.temperature_label} · ${i.title}${team} — ${name}`);
+    }
+  }
+  await tgSend(token, chatId, parts.join('\n'));
+}
+
+function fmtDayKey(iso: string): string {
+  return new Date(iso).toLocaleString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
+}
+
+// ─── Cron: Rating-Pushes 15 Min nach Aufguss-Ende ────────────────────────
+async function sendRatingPushes(sb: SupabaseClient, token: string): Promise<number> {
+  const { data: pending } = await sb.rpc('get_pending_telegram_rating_pushes');
+  const list = (pending ?? []) as Array<{
+    member_id: string;
+    telegram_user_id: number;
+    member_name: string;
+    infusion_id: string;
+    infusion_title: string;
+    meister_name: string;
+    end_time: string;
+  }>;
+  if (list.length === 0) return 0;
+
+  let sent = 0;
+  for (const r of list) {
+    const text =
+      `⭐ <b>Bewertung — wie war's?</b>\n\n` +
+      `<b>${r.infusion_title}</b>\n` +
+      `${r.meister_name} · ${fmtClock(r.end_time)}\n\n` +
+      `Schnell-Bewertung — alle 6 Kategorien auf einen Stern-Wert. Detaillierter geht's in der App.`;
+    const reply_markup = {
+      inline_keyboard: [
+        [
+          { text: '1⭐', callback_data: `rate:${r.infusion_id}:1` },
+          { text: '2⭐', callback_data: `rate:${r.infusion_id}:2` },
+          { text: '3⭐', callback_data: `rate:${r.infusion_id}:3` },
+          { text: '4⭐', callback_data: `rate:${r.infusion_id}:4` },
+          { text: '5⭐', callback_data: `rate:${r.infusion_id}:5` },
+        ],
+        [
+          { text: '✏️ Detailliert in App', url: 'https://saunascaner.vercel.app/planner' },
+        ],
+      ],
+    };
+    try {
+      await tgSend(token, r.telegram_user_id, text, { reply_markup });
+      await sb.rpc('mark_telegram_rating_pushed', { p_member_id: r.member_id, p_infusion_id: r.infusion_id });
+      sent++;
+    } catch (e) {
+      console.error('rating push failed', r.member_id, e);
+    }
+  }
+  return sent;
 }
 
 async function sendMyInfusions(sb: SupabaseClient, token: string, chatId: number, memberId: string, memberName: string) {
