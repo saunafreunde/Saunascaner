@@ -825,6 +825,24 @@ export function usePresentMembers() {
   });
 }
 
+// ─── Self-Presence (Migration 0050) ──────────────────────────────────────
+
+export function useToggleMyPresence() {
+  const qc = useQueryClient();
+  return useMutation<boolean, Error, void>({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('toggle_my_presence');
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return row?.is_present as boolean;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['present'] });
+    },
+  });
+}
+
 // ─── Scanner RPCs ─────────────────────────────────────────────────────────
 export async function togglePresenceByCode(code: string) {
   const { data, error } = await need().rpc('toggle_presence', { p_member_code: code });

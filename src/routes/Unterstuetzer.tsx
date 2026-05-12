@@ -7,6 +7,10 @@ import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { PageBackground } from '@/components/PageBackground';
 import { SupportTaskCard } from '@/components/SupportTaskCard';
 import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
+import { MyPresenceToggle } from '@/components/MyPresenceToggle';
+import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
+import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
+import { PushPermission } from '@/components/PushPermission';
 
 type Tab = 'termine' | 'pools';
 
@@ -44,6 +48,9 @@ export default function Unterstuetzer() {
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">
+        {/* Anwesenheits-Toggle (ganz oben, wichtigster Self-Service) */}
+        <MyPresenceToggle />
+
         {/* Stats-Kompakt */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatTile emoji="🤝" value={totalActive} label="Aktive Einsätze" accent="#22c55e" />
@@ -51,6 +58,9 @@ export default function Unterstuetzer() {
           <StatTile emoji="✓" value={completedCount} label="Bestätigt" accent="#ec4899" />
           <StatTile emoji="🏅" value={list.filter((t) => !t.is_helping_me).length} label="Offene Aufgaben" accent="#a78bfa" />
         </section>
+
+        {/* PIN-Karte (für Sauna-Tablet-Checkin) */}
+        <MyCheckinPinCard />
 
         {/* Aktuelle Aufgaben */}
         <section>
@@ -135,6 +145,22 @@ export default function Unterstuetzer() {
         {me.data && (
           <MemberAchievementsGallery memberId={me.data.id} categories={['support']} />
         )}
+
+        {/* Push-Benachrichtigungen */}
+        {me.data && (
+          <section className="rounded-3xl bg-forest-950/85 ring-1 ring-forest-800/60 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
+              🔔 Benachrichtigungen
+            </h2>
+            <p className="text-xs text-forest-300/80 mb-4 leading-relaxed">
+              Bei neuen Aufgaben + Notfall-Alarm sofort informiert werden.
+            </p>
+            <PushPermission memberId={me.data.id} />
+          </section>
+        )}
+
+        {/* Evakuierungs-Alarm — ganz unten, weil rot/gefährlich */}
+        <EvacuationAlarmButton />
 
         {/* Info-Box am Ende */}
         <section className="rounded-2xl bg-forest-950/60 ring-1 ring-forest-800/40 p-4 text-center">
