@@ -27,6 +27,9 @@ const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
 const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
 const GastSignup      = lazy(() => import('@/routes/GastSignup'));
 const GastHome        = lazy(() => import('@/routes/Gast'));
+const CheckinPin      = lazy(() => import('@/routes/CheckinPin'));
+const CheckinSignup   = lazy(() => import('@/routes/CheckinSignup'));
+const CheckinRate     = lazy(() => import('@/routes/CheckinRate'));
 const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
 const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 
@@ -54,6 +57,9 @@ export default function App() {
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/gast-signup"    element={<GastSignup />} />
+        <Route path="/checkin"        element={<CheckinPin />} />
+        <Route path="/checkin/signup" element={<CheckinSignup />} />
+        <Route path="/checkin/rate"   element={<CheckinRate />} />
         <Route path="/me"             element={<Navigate to="/planner" replace />} />
         <Route path="/m/:code"        element={<MagicEntry />} />
         <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />

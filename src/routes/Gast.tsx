@@ -13,6 +13,8 @@ import { MemberAchievementsGallery } from '@/components/MemberAchievementsGaller
 import { MemberAttendanceChart } from '@/components/MemberAttendanceChart';
 import { GastProfileHeader } from '@/components/GastProfileHeader';
 import { PushPermission } from '@/components/PushPermission';
+import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
+import { PendingRatingsBlock } from '@/components/PendingRatingsBlock';
 import { isAdmin, isGast } from '@/lib/roles';
 import { fmtClock } from '@/lib/time';
 
@@ -102,6 +104,12 @@ export default function Gast() {
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-8">
         {/* Profil-Header ganz oben (Avatar + Name + Motto editierbar) */}
         {me.data && <GastProfileHeader member={me.data} />}
+
+        {/* Noch zu bewertende Aufgüsse (vom letzten Sauna-Tag) */}
+        <PendingRatingsBlock />
+
+        {/* Eigener Checkin-PIN für Tablet */}
+        <MyCheckinPinCard />
 
         {/* Stats-Dashboard */}
         {me.data && <MemberStatsCard memberId={me.data.id} />}

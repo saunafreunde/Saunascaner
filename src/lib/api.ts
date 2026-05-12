@@ -2327,6 +2327,34 @@ export function useTopFans(memberId: string | null | undefined, limit = 20) {
   });
 }
 
+// ─── Checkin-PIN (Migration 0048) ───────────────────────────────────────
+
+export function useMyCheckinPin() {
+  return useQuery({
+    queryKey: ['my-checkin-pin'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_my_checkin_pin');
+      if (error) throw error;
+      return (data ?? null) as string | null;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useRotateMyCheckinPin() {
+  const qc = useQueryClient();
+  return useMutation<string, Error, void>({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('rotate_my_checkin_pin');
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-checkin-pin'] });
+    },
+  });
+}
+
 // ─── Voller Stats-Block für Dashboard (Migration 0045) ──────────────────
 
 export type MemberStatsFull = {
