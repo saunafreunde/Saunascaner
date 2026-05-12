@@ -11,6 +11,7 @@ import { MyPresenceToggle } from '@/components/MyPresenceToggle';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { PushPermission } from '@/components/PushPermission';
+import { PreviewBanner } from '@/components/PreviewBanner';
 import { fmtClock } from '@/lib/time';
 
 // /mitarbeiter — Bereich für role='staff' Personal.
@@ -45,6 +46,7 @@ export default function Mitarbeiter() {
 
   return (
     <PageBackground page="planner" variant="soft" className="min-h-screen">
+      <PreviewBanner />
       <header className="sticky top-0 z-30 mx-auto w-full max-w-[1200px] flex items-center gap-3 bg-forest-950/85 backdrop-blur-xl px-4 py-3 ring-1 ring-forest-800/40">
         <img src={logoUrl ?? '/icons/icon-512.png'} alt={orgName} className="h-10 w-10 rounded-xl flex-shrink-0" />
         <div className="flex-1 min-w-0">

@@ -47,6 +47,8 @@ import {
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
+import { usePreviewMode } from '@/hooks/usePreviewMode';
+import { PreviewBanner } from '@/components/PreviewBanner';
 import type { RecurringSlot, AufgieserAbsence, Sauna, Infusion } from '@/types/database';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -159,10 +161,17 @@ export default function Planner() {
 
   const m = member.data;
   // Kanonische Helper aus src/lib/roles.ts — bezieht Gast-Aufgießer + Admin ein
-  const isAufgieser = isAufgieserHelper(m);
-  const isAdmin = isAdminHelper(m);
-  const isStaff = isStaffHelper(m);
-  const isGuestAufgieser = isGuestAufgieserHelper(m);
+  const isAufgieserOrig = isAufgieserHelper(m);
+  const isAdminOrig = isAdminHelper(m);
+  const isStaffOrig = isStaffHelper(m);
+  const isGuestAufgieserOrig = isGuestAufgieserHelper(m);
+
+  // Admin-Preview-Modus: ?preview=<rolle> simuliert die Sicht eines normalen Users
+  const { previewRole } = usePreviewMode();
+  const isAufgieser = previewRole ? (previewRole === 'aufgieser' || previewRole === 'guest_aufgieser') : isAufgieserOrig;
+  const isAdmin = previewRole ? false : isAdminOrig;
+  const isStaff = previewRole ? (previewRole === 'staff') : isStaffOrig;
+  const isGuestAufgieser = previewRole ? (previewRole === 'guest_aufgieser') : isGuestAufgieserOrig;
   // Stamm-Slot/Urlaub nur für VEREINS-Aufgießer (nicht Gast-Aufgießer, die helfen nur gelegentlich aus)
   const canApplyStammSlot = isAufgieser && !isGuestAufgieser;
   const now = useNow(60_000);
@@ -587,6 +596,7 @@ export default function Planner() {
 
   return (
     <PageBackground page="planner">
+      <PreviewBanner />
       {showAttrCreator && m && (
         <CustomAttrCreator memberId={m.id} onClose={() => { setShowAttrCreator(false); customAttrsQ.refetch(); }} />
       )}

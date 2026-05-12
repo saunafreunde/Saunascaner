@@ -17,19 +17,28 @@ const DIRECT_ITEMS: NavItem[] = [
   { path: '/admin',     label: 'Admin',     icon: '⚙️' },
 ];
 
-// Spezial-Sichten die man sonst nicht direkt sieht
+// Spezial-Sichten — alle mit ?preview=<rolle> damit der Admin die Sicht
+// genau wie der entsprechende User sieht (rollen-spezifische Bereiche werden
+// ausgeblendet, oben erscheint ein 🔍 Admin-Vorschau-Banner).
 const VORSCHAU_ITEMS: NavItem[] = [
-  { path: '/unterstuetzer',   label: 'Unterstützer-Sicht',  icon: '🤝',   hint: 'Helfer-Aufgaben für Nicht-Aufgießer' },
-  { path: '/mitarbeiter',     label: 'Mitarbeiter-Sicht',   icon: '👨‍🍳', hint: 'Staff: Personal-Slots + Alarm' },
-  { path: '/planner',         label: 'Gast-Aufgießer-Sicht', icon: '🌍',  hint: 'Planner ohne Stamm-Slot/Urlaub' },
-  { path: '/gast?preview=1',  label: 'Gast-Bereich',        icon: '👋',   hint: 'mit Preview-Banner' },
-  { path: '/checkin',         label: 'Tablet-PIN',          icon: '🔢',   hint: 'Sauna-Tablet-Einstieg (öffnet neuer Tab)' },
-  { path: '/scanner',         label: 'Eingang-Scanner',     icon: '📷',   hint: 'QR-Code-Einlass (öffnet neuer Tab)' },
-  { path: '/oil-room',        label: 'Aromen-Tablet',       icon: '🌿',   hint: 'Öl-Raum-Bildschirm (öffnet neuer Tab)' },
-  { path: '/hilfe',           label: 'Hilfe / Handbuch',    icon: '📖',   hint: 'Mitglieder-Handbuch' },
+  { path: '/planner?preview=aufgieser',         label: 'Aufgießer-Sicht',     icon: '🧖',   hint: 'Planner wie Vereins-Aufgießer ihn sieht' },
+  { path: '/planner?preview=guest_aufgieser',   label: 'Gast-Aufgießer-Sicht', icon: '🌍',  hint: 'Planner OHNE Stamm-Slot/Urlaub' },
+  { path: '/unterstuetzer?preview=member',      label: 'Unterstützer-Sicht',  icon: '🤝',   hint: 'Helfer-Aufgaben für Nicht-Aufgießer' },
+  { path: '/mitarbeiter?preview=staff',         label: 'Mitarbeiter-Sicht',   icon: '👨‍🍳', hint: 'Staff: Personal-Slots + Alarm' },
+  { path: '/gast?preview=gast',                 label: 'Gast-Bereich',        icon: '👋',   hint: 'wie ein angemeldeter Gast' },
+  { path: '/checkin',                           label: 'Tablet-PIN',          icon: '🔢',   hint: 'Sauna-Tablet-Einstieg (öffnet neuer Tab)' },
+  { path: '/scanner',                           label: 'Eingang-Scanner',     icon: '📷',   hint: 'QR-Code-Einlass (öffnet neuer Tab)' },
+  { path: '/oil-room',                          label: 'Aromen-Tablet',       icon: '🌿',   hint: 'Öl-Raum-Bildschirm (öffnet neuer Tab)' },
+  { path: '/hilfe',                             label: 'Hilfe / Handbuch',    icon: '📖',   hint: 'Mitglieder-Handbuch' },
 ];
 
 const TARGET_BLANK_PATHS = new Set(['/checkin', '/scanner', '/oil-room']);
+
+function shouldOpenInNewTab(path: string): boolean {
+  // Path kann Query-Strings enthalten — nur den Pfad-Teil prüfen
+  const pathOnly = path.split('?')[0];
+  return TARGET_BLANK_PATHS.has(pathOnly);
+}
 
 interface AdminQuickNavProps {
   variant?: 'pills' | 'icons';
@@ -155,7 +164,7 @@ function VorschauDropdown({ items, onClose }: { items: NavItem[]; onClose: () =>
             <Link
               to={item.path}
               onClick={onClose}
-              target={TARGET_BLANK_PATHS.has(item.path) ? '_blank' : undefined}
+              target={shouldOpenInNewTab(item.path) ? '_blank' : undefined}
               className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-forest-200 hover:bg-forest-900/80 hover:text-forest-100 transition"
             >
               <span className="text-xl flex-shrink-0">{item.icon}</span>
@@ -163,7 +172,7 @@ function VorschauDropdown({ items, onClose }: { items: NavItem[]; onClose: () =>
                 <div className="font-medium leading-tight">{item.label}</div>
                 {item.hint && <div className="text-[10px] text-forest-500 mt-0.5">{item.hint}</div>}
               </div>
-              {TARGET_BLANK_PATHS.has(item.path) && (
+              {shouldOpenInNewTab(item.path) && (
                 <span className="text-[10px] text-forest-500">↗</span>
               )}
             </Link>

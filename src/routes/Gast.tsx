@@ -23,7 +23,8 @@ import { fmtClock } from '@/lib/time';
 export default function Gast() {
   const me = useCurrentMember();
   const [params] = useSearchParams();
-  const previewMode = params.get('preview') === '1' && isAdmin(me.data);
+  // Preview-Modus akzeptiert sowohl ?preview=1 (alte URLs) als auch ?preview=gast (neu)
+  const previewMode = (params.get('preview') === '1' || params.get('preview') === 'gast') && isAdmin(me.data);
   const isReallyGast = isGast(me.data);
 
   const stars = useAufgieserStars();
