@@ -291,7 +291,14 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
     } catch (e) {
       const msg = (e as Error).message;
       if (msg.includes('telegram_not_linked')) {
-        await tgAnswerCallback(token, cb.id, '⚠️ Dein Telegram ist nicht mit einem Saunascaner-Konto verknüpft.', true);
+        await tgAnswerCallback(token, cb.id,
+          '⚠️ Dein Telegram ist nicht verknüpft.\n\n' +
+          'So gehts:\n' +
+          '1. Öffne saunascaner.vercel.app/planner\n' +
+          '2. Scroll zum Block „✈️ Telegram-Bot"\n' +
+          '3. Klick „Verknüpfen" → Telegram öffnet sich → folge dem Link\n\n' +
+          'Danach funktioniert der „Ich übernehme"-Button.',
+          true);
       } else if (msg.includes('already_taken')) {
         await tgAnswerCallback(token, cb.id, 'Der Slot wurde schon übernommen.', true);
         // Aktualisierte Anzeige nachholen

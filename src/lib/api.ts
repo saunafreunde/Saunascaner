@@ -1987,8 +1987,8 @@ export function useUnlinkTelegram() {
 
 export function telegramStartUrl(token: string): string {
   const bot = (typeof window !== 'undefined' && window.localStorage)
-    ? (window.localStorage.getItem('TELEGRAM_BOT_USERNAME') ?? 'SaunaFDSBot')
-    : 'SaunaFDSBot';
+    ? (window.localStorage.getItem('TELEGRAM_BOT_USERNAME') ?? 'saunafreunde_bot')
+    : 'saunafreunde_bot';
   return `https://t.me/${bot}?start=${token}`;
 }
 
