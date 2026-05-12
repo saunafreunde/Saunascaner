@@ -19,6 +19,9 @@ export function MemberQuickNav({ myMemberId }: Props) {
   const gast = isGast(me.data);
 
   const items: { path: string; label: string; icon: string }[] = [];
+  if (gast) {
+    items.push({ path: '/gast', label: 'Mein Bereich', icon: '🏡' });
+  }
   items.push({ path: '/dashboard', label: 'Tafel', icon: '📺' });
   if (!gast) {
     items.push({ path: '/planner', label: 'Mitglied', icon: '🧖' });

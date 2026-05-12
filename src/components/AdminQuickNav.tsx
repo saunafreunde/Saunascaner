@@ -2,13 +2,15 @@ import { Link, useLocation } from 'react-router-dom';
 import { useMyEmailAccount } from '@/lib/api';
 
 const NAV_ITEMS_BASE = [
-  { path: '/dashboard', label: 'Tafel',     icon: '📺' },
-  { path: '/planner',   label: 'Mitglied',  icon: '🧖' },
-  { path: '/members',   label: 'Galerie',   icon: '👥' },
-  { path: '/admin',     label: 'Admin',     icon: '⚙️' },
-  { path: '/wm',        label: 'WM',        icon: '🏆' },
-  { path: '/scanner',   label: 'Scanner',   icon: '📷' },
-  { path: '/oil-room',  label: 'Aromen',    icon: '🌿' },
+  { path: '/dashboard',          label: 'Tafel',         icon: '📺' },
+  { path: '/planner',            label: 'Mitglied',      icon: '🧖' },
+  { path: '/members',            label: 'Galerie',       icon: '👥' },
+  { path: '/aufgieser',          label: 'Aufgießer',     icon: '🌟' },
+  { path: '/gast?preview=1',     label: 'Gast-Vorschau', icon: '👋' },
+  { path: '/admin',              label: 'Admin',         icon: '⚙️' },
+  { path: '/wm',                 label: 'WM',            icon: '🏆' },
+  { path: '/scanner',            label: 'Scanner',       icon: '📷' },
+  { path: '/oil-room',           label: 'Aromen',        icon: '🌿' },
 ] as const;
 
 interface AdminQuickNavProps {

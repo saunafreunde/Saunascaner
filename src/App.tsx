@@ -26,6 +26,7 @@ const ForgotPassword  = lazy(() => import('@/routes/ForgotPassword'));
 const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
 const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
 const GastSignup      = lazy(() => import('@/routes/GastSignup'));
+const GastHome        = lazy(() => import('@/routes/Gast'));
 const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
 const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/members"           element={<RequireAuth><Members /></RequireAuth>} />
         <Route path="/postfach"          element={<RequireAuth><Postfach /></RequireAuth>} />
         <Route path="/hilfe"             element={<RequireAuth><Help /></RequireAuth>} />
+        <Route path="/gast"                  element={<RequireAuth><GastHome /></RequireAuth>} />
         <Route path="/aufgieser"             element={<RequireAuth><AufgieserStars /></RequireAuth>} />
         <Route path="/aufgieser/:memberId"   element={<RequireAuth><StarProfile /></RequireAuth>} />
         <Route path="/login"          element={<Login />} />
@@ -67,7 +69,7 @@ export default function App() {
 // Runtime-Erkennung schließt die Lücke. Im normalen Browser bleibt
 // der Gast-Auftritt aktiv.
 function RootEntry() {
-  const { user } = useAuth();
+  const { ready, user } = useAuth();
   const member = useCurrentMember();
   const isStandalone = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -77,14 +79,22 @@ function RootEntry() {
       || window.matchMedia('(display-mode: fullscreen)').matches;
     return iosStandalone || displayStandalone;
   }, []);
-  // Eingeloggte Gäste landen auf ihrem Aufgießer-Bereich, nicht auf der öffentlichen Gäste-Seite
-  if (user && member.data?.role === 'gast') return <Navigate to="/aufgieser" replace />;
-  if (isStandalone) {
-    if (user && member.data?.role === 'gast') return <Navigate to="/aufgieser" replace />;
-    return <Navigate to="/planner" replace />;
-  }
+
+  // Wenn User eingeloggt ist: warten bis member.data geladen — sonst Race auf Tafel
+  if (user && !ready) return <Splash />;
+  if (user && member.isLoading) return <Splash />;
+
+  // Eingeloggte Gäste → eigener Bereich /gast
+  if (user && member.data?.role === 'gast') return <Navigate to="/gast" replace />;
+
+  // Standalone-PWA: eingeloggte Mitglieder → /planner
+  if (isStandalone && user && member.data) return <Navigate to="/planner" replace />;
+
+  // Sonst: öffentliche Aufguss-Tafel
   return <Guest />;
 }
+
+const GAST_BLOCKED_PATHS = ['/planner', '/members', '/wm', '/postfach'];
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { ready, user } = useAuth();
@@ -94,9 +104,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!ready || (user && member.isLoading)) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   if (member.data && !member.data.approved) return <PendingApproval />;
-  // Gäste haben keinen Aufguss-Planner-Zugang — Redirect auf ihren Bereich
-  if (member.data?.role === 'gast' && loc.pathname === '/planner') {
-    return <Navigate to="/aufgieser" replace />;
+  // Gäste haben keinen Zugriff auf interne Mitglieder-Routen — Redirect zum Gäste-Bereich
+  if (member.data?.role === 'gast' && GAST_BLOCKED_PATHS.some((p) => loc.pathname.startsWith(p))) {
+    return <Navigate to="/gast" replace />;
   }
   return <>{children}</>;
 }

@@ -12,9 +12,9 @@ export default function Login() {
   const brand = useBrandSettings();
   const loc = useLocation();
   const nav = useNavigate();
-  // Gäste landen nach Login auf ihrem Aufgießer-Bereich, alle anderen auf /planner
+  // Gäste landen nach Login auf ihrem internen Bereich, alle anderen auf /planner
   const isGastMember = member.data?.role === 'gast';
-  const defaultNext = isGastMember ? '/aufgieser' : '/planner';
+  const defaultNext = isGastMember ? '/gast' : '/planner';
   const rawNext = new URLSearchParams(loc.search).get('next') ?? defaultNext;
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : defaultNext;
   const inviteCode = new URLSearchParams(loc.search).get('invite');
