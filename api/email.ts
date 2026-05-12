@@ -242,15 +242,19 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
   if (gast_origin) meta.gast_origin = gast_origin;
 
   // Magic-Link generieren (KEIN Auto-Send durch Supabase!)
-  const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
-    type: userExists ? 'magiclink' : 'signup',
-    email,
-    password: !userExists ? cryptoRandomPassword() : undefined,
-    options: {
-      redirectTo,
-      data: Object.keys(meta).length > 0 ? meta : undefined,
-    },
-  });
+  // Discriminated union: 'signup' braucht password, 'magiclink' nicht.
+  const generateOptions = {
+    redirectTo,
+    data: Object.keys(meta).length > 0 ? meta : undefined,
+  };
+  const { data: linkData, error: linkErr } = userExists
+    ? await svc.auth.admin.generateLink({ type: 'magiclink', email, options: generateOptions })
+    : await svc.auth.admin.generateLink({
+        type: 'signup',
+        email,
+        password: cryptoRandomPassword(),
+        options: generateOptions,
+      });
   if (linkErr || !linkData?.properties?.action_link) {
     return res.status(500).json({ error: linkErr?.message ?? 'could not generate link' });
   }
@@ -275,7 +279,6 @@ function cryptoRandomPassword(): string {
   // 24-Zeichen Zufalls-Passwort für Neu-User. User braucht es nie zu sehen — Login geht via Magic-Link.
   const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!#=*';
   const bytes = new Uint8Array(24);
-  // @ts-expect-error — Node 18+ hat globalThis.crypto
   globalThis.crypto.getRandomValues(bytes);
   return Array.from(bytes).map((n) => charset[n % charset.length]).join('');
 }

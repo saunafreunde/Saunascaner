@@ -4,7 +4,7 @@
 // ?action=tablet-signup: Body { name, email, dsgvo, ref?, origin? } — Schnell-Signup am Tablet
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PIN_RE = /^\d{4}$/;
@@ -79,7 +79,7 @@ function getOrigin(req: VercelRequest): string {
 async function handlePinCheckin(
   req: VercelRequest,
   res: VercelResponse,
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseClient,
 ) {
   const pin = String(req.body?.pin ?? '').trim();
   if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
@@ -123,7 +123,7 @@ async function handlePinCheckin(
 async function handleTabletSignup(
   req: VercelRequest,
   res: VercelResponse,
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseClient,
 ) {
   const { name, email, dsgvo, ref } = req.body as {
     name?: string; email?: string; dsgvo?: boolean; ref?: string;
@@ -197,7 +197,6 @@ async function handleTabletSignup(
 function cryptoRandomPassword(): string {
   const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!#=*';
   const bytes = new Uint8Array(24);
-  // @ts-expect-error — Node 18+ hat globalThis.crypto
   globalThis.crypto.getRandomValues(bytes);
   return Array.from(bytes).map((n) => charset[n % charset.length]).join('');
 }
