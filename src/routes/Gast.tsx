@@ -5,7 +5,6 @@ import {
   useCurrentMember, useMyFollowing, useAufgieserStars, useInfusions, useSaunas,
   useBrandSettings, brandAssetUrl,
 } from '@/lib/api';
-import { Avatar } from '@/components/Avatar';
 import { StarTradingCard } from '@/components/StarTradingCard';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { PageBackground } from '@/components/PageBackground';
