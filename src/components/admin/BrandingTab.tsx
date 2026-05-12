@@ -50,6 +50,19 @@ export function BrandingTab() {
     setDirty(true);
   }
 
+  /** Wie patch(), aber speichert SOFORT nach Update — für Asset-Uploads. */
+  async function patchAndSave<K extends keyof BrandSettings>(key: K, value: BrandSettings[K]) {
+    const next = { ...brand, [key]: value };
+    setBrand(next);
+    try {
+      await update.mutateAsync(next);
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 1500);
+    } catch (e) {
+      window.alert('Speichern fehlgeschlagen: ' + (e as Error).message);
+    }
+  }
+
   if (brandQ.isLoading) {
     return <p className="text-forest-300/70 text-sm">Lade Branding…</p>;
   }
@@ -75,22 +88,22 @@ export function BrandingTab() {
 
       <OrgSection org={brand.org} onChange={(org) => patch('org', org)} />
 
-      <LogoSection logo={brand.logo} onChange={(logo) => patch('logo', logo)} />
+      <LogoSection logo={brand.logo} onChange={(logo) => patchAndSave('logo', logo)} />
 
       <BackgroundsSection
         backgrounds={brand.backgrounds}
-        onChange={(bg) => patch('backgrounds', bg)}
+        onChange={(bg) => patchAndSave('backgrounds', bg)}
       />
 
       <TileBgsSection
         saunas={saunasQ.data ?? []}
         tileBgs={brand.tile_bgs}
-        onChange={(t) => patch('tile_bgs', t)}
+        onChange={(t) => patchAndSave('tile_bgs', t)}
       />
 
-      <BadgeSection badge={brand.badge} onChange={(b) => patch('badge', b)} />
+      <BadgeSection badge={brand.badge} onChange={(b) => patchAndSave('badge', b)} />
 
-      <AdsSection ads={brand.ads} onChange={(a) => patch('ads', a)} />
+      <AdsSection ads={brand.ads} onChange={(a) => patchAndSave('ads', a)} />
     </div>
   );
 }
@@ -327,7 +340,8 @@ function BadgeSection({ badge, onChange }: { badge: BrandSettings['badge']; onCh
 
 // ─── Ads ─────────────────────────────────────────────────────────────────
 function AdsSection({ ads, onChange }: { ads: BrandSettings['ads']; onChange: (a: BrandSettings['ads']) => void }) {
-  const slots = 4;
+  // TV-Tafel zeigt 3 Werbeplätze pro AdSidebar (Dashboard.tsx AdSidebar slice(0,3)).
+  const slots = 3;
   const padded: (BrandSettings['ads'][number] | null)[] = Array.from({ length: slots }, (_, i) => ads[i] ?? null);
 
   const setSlot = (idx: number, val: BrandSettings['ads'][number] | null) => {
