@@ -82,10 +82,31 @@ function getAvailableSlots(forDate: Date): string[] {
   );
 }
 
-function slotToDate(day: 'today' | 'tomorrow', hhmm: string): Date {
+function slotToDate(date: Date, hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
-  const base = day === 'tomorrow' ? addDays(new Date(), 1) : new Date();
-  return setMinutes(setHours(base, h), m);
+  return setMinutes(setHours(date, h), m);
+}
+
+// Tuesday of the calendar week (Mo=1, Di=2 …). weekOffset=0 → aktuelle Woche.
+function tuesdayOfWeek(weekOffset: number): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // weekday: 0=So..6=Sa — wir wollen Di als Wochenstart
+  const dow = today.getDay();
+  // Diff zum Di der aktuellen Woche (negativ wenn heute Mo/So, sonst positiv-rückwärts)
+  // Mo: -6 (vorherige Di), Di: 0, Mi: -1, Do: -2, Fr: -3, Sa: -4, So: -5
+  const diffToTue = dow === 1 ? -6 : dow === 0 ? -5 : -(dow - 2);
+  return addDays(today, diffToTue + weekOffset * 7);
+}
+
+// 6 Tage einer Wochen-Seite: Di, Mi, Do, Fr, Sa, So
+function weekDays(weekOffset: number): Date[] {
+  const tue = tuesdayOfWeek(weekOffset);
+  return Array.from({ length: 6 }, (_, i) => addDays(tue, i));
+}
+
+function isSameYMD(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 const FIXED_DURATION_MIN = 15;
@@ -311,7 +332,16 @@ export default function Planner() {
   }
 
   // ─── Aufguss-Formular ───────────────────────────────────────────────────
-  const [day, setDay] = useState<'today' | 'tomorrow'>('today');
+  // Rollen-basiertes Planungs-Fenster (in Wochen):
+  //   Admin: unbegrenzt (Cap 26)
+  //   Gast-Aufgießer: 4 Wochen voraus
+  //   Aufgießer/Staff: 2 Wochen voraus
+  const MAX_WEEK_OFFSET = isAdmin ? 26 : isGuestAufgieser ? 4 : isStaff ? 0 : 2;
+
+  const [weekOffset, setWeekOffset] = useState<number>(0);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const t = new Date(); t.setHours(0, 0, 0, 0); return t;
+  });
   const [saunaId, setSaunaId] = useState<string>('');
   const [slot, setSlot] = useState<string>('15:00');
   const [title, setTitle] = useState('');
@@ -326,20 +356,16 @@ export default function Planner() {
     if (!saunaId && saunas[0]) setSaunaId(saunas[0].id);
   }, [saunaId, saunas]);
 
-  const todayDate = new Date();
-  const tomorrowDate = addDays(todayDate, 1);
-  const availableSlots = useMemo(
-    () => getAvailableSlots(day === 'today' ? todayDate : tomorrowDate),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [day]
-  );
-  const isMondaySelected = (day === 'today' ? todayDate : tomorrowDate).getDay() === 1;
+  const todayDate = useMemo(() => { const t = new Date(); t.setHours(0,0,0,0); return t; }, []);
+  const visibleDays = useMemo(() => weekDays(weekOffset), [weekOffset]);
 
+  // selectedDate auto-anpassen wenn man die Woche wechselt: erster Nicht-Vergangenheit-Tag
   useEffect(() => {
-    if (availableSlots.length > 0 && !availableSlots.includes(slot)) {
-      setSlot(availableSlots[Math.floor(availableSlots.length / 2)] ?? availableSlots[0]);
-    }
-  }, [availableSlots, slot]);
+    const stillVisible = visibleDays.some((d) => isSameYMD(d, selectedDate));
+    if (stillVisible) return;
+    const firstUsable = visibleDays.find((d) => d.getTime() >= todayDate.getTime() && d.getDay() !== 1) ?? visibleDays[0];
+    setSelectedDate(firstUsable);
+  }, [visibleDays, selectedDate, todayDate]);
 
   const infusionByKey = useMemo(() => {
     const map = new Map<string, Infusion>();
@@ -349,30 +375,66 @@ export default function Planner() {
     return map;
   }, [infusions]);
 
-  function getInfusionAt(saunaIdLookup: string, hhmm: string): Infusion | undefined {
-    const start = slotToDate(day, hhmm);
-    return infusionByKey.get(`${saunaIdLookup}|${format(start, 'yyyy-MM-dd HH:mm')}`);
-  }
+  // Garantie-Status pro Tag (vorberechnet — wird sowohl im Matrix-Rendering
+  // als auch in der Submit-Validierung verwendet)
+  type DayContext = {
+    date: Date;
+    isMonday: boolean;
+    isPast: boolean;
+    availableSlots: string[];
+    garantieSlotsOpen: { hour: number; saunaName: string; tempC: 80 | 100 }[];
+  };
 
-  function slotStatus(saunaIdLookup: string, hhmm: string): SlotStatus {
-    const start = slotToDate(day, hhmm);
-    if (day === 'today' && isBefore(start, new Date())) return { kind: 'past' };
+  const dayContextOf = useCallback((date: Date): DayContext => {
+    const isMonday = date.getDay() === 1;
+    const isPast = date.getTime() < todayDate.getTime();
+    const availableSlots = getAvailableSlots(date);
+    const garantieSlotsOpen: DayContext['garantieSlotsOpen'] = [];
+    if (!isMonday) {
+      const weekday = date.getDay();
+      for (const h of slotHoursForWeekday(weekday)) {
+        const slotDate = setMinutes(setHours(date, h), 0);
+        const tempC = garantieTemperatureFor(slotDate);
+        if (tempC === null) continue;
+        const garantieSauna = saunas.find((s) => s.temperature_label === `${tempC}°C` && s.is_active);
+        if (!garantieSauna) continue;
+        const key = `${garantieSauna.id}|${format(slotDate, 'yyyy-MM-dd HH:mm')}`;
+        const inf = infusionByKey.get(key);
+        const hasReal = inf && !inf.is_personal_fallback;
+        if (!hasReal) garantieSlotsOpen.push({ hour: h, saunaName: garantieSauna.name, tempC });
+      }
+    }
+    return { date, isMonday, isPast, availableSlots, garantieSlotsOpen };
+  }, [todayDate, saunas, infusionByKey]);
+
+  const slotStatusFor = useCallback((date: Date, saunaIdLookup: string, hhmm: string): SlotStatus => {
+    const start = slotToDate(date, hhmm);
+    if (isBefore(start, new Date())) return { kind: 'past' };
     const inf = infusionByKey.get(`${saunaIdLookup}|${format(start, 'yyyy-MM-dd HH:mm')}`);
     if (!inf) return { kind: 'free' };
     if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
     if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
     return { kind: 'taken', infusion: inf };
+  }, [infusionByKey, m?.id]);
+
+  function getInfusionAt(date: Date, saunaIdLookup: string, hhmm: string): Infusion | undefined {
+    const start = slotToDate(date, hhmm);
+    return infusionByKey.get(`${saunaIdLookup}|${format(start, 'yyyy-MM-dd HH:mm')}`);
   }
+
+  // Selected-Day-Context
+  const selectedDayCtx = useMemo(() => dayContextOf(selectedDate), [dayContextOf, selectedDate]);
+  const isMondaySelected = selectedDayCtx.isMonday;
 
   // ID des aktuell gewählten Personal-Fallbacks (für Submit-Branch)
   const selectedFallbackId = useMemo(() => {
-    const inf = getInfusionAt(saunaId, slot);
+    const inf = getInfusionAt(selectedDate, saunaId, slot);
     return inf?.is_personal_fallback ? inf.id : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saunaId, slot, day, infusionByKey]);
+  }, [saunaId, slot, selectedDate, infusionByKey]);
 
   function isSlotTaken(hhmm: string) {
-    const inf = getInfusionAt(saunaId, hhmm);
+    const inf = getInfusionAt(selectedDate, saunaId, hhmm);
     if (!inf) return false;
     // Personal-Fallback ist NICHT "taken" — er ist übernehmbar
     return !inf.is_personal_fallback;
@@ -380,37 +442,16 @@ export default function Planner() {
 
   // ─── Garantie-Sperre: Sauna 2 erst, wenn alle Garantie-Slots des Tages
   // ─── durch echte Aufgießer (nicht Personal-Fallback) belegt sind.
-  // Wir prüfen client-seitig anhand der bereits geladenen `infusions`-Liste,
-  // damit ohne zusätzlichen Server-Roundtrip Live-Feedback im Formular kommt.
-  const selectedDayDate = day === 'today' ? todayDate : tomorrowDate;
   const isGarantieSauna = useMemo(() => {
-    const start = slotToDate(day, slot);
+    const start = slotToDate(selectedDate, slot);
     const temp = garantieTemperatureFor(start);
     if (temp === null) return false;
     const sauna = saunas.find((s) => s.id === saunaId);
     if (!sauna) return false;
     return sauna.temperature_label === `${temp}°C`;
-  }, [day, slot, saunaId, saunas]);
+  }, [selectedDate, slot, saunaId, saunas]);
 
-  const garantieSlotsOpenToday = useMemo(() => {
-    // Liste aller Slot-Stunden des gewählten Tages, in denen die jeweilige
-    // Garantie-Sauna noch KEINEN echten Aufguss (nicht-Fallback) hat.
-    const open: { hour: number; saunaName: string; tempC: 80 | 100 }[] = [];
-    const weekday = selectedDayDate.getDay();
-    for (const h of slotHoursForWeekday(weekday)) {
-      const slotDate = setMinutes(setHours(selectedDayDate, h), 0);
-      const tempC = garantieTemperatureFor(slotDate);
-      if (tempC === null) continue;
-      const garantieSauna = saunas.find((s) => s.temperature_label === `${tempC}°C` && s.is_active);
-      if (!garantieSauna) continue;
-      const key = `${garantieSauna.id}|${format(slotDate, 'yyyy-MM-dd HH:mm')}`;
-      const inf = infusions.find((i) => `${i.sauna_id}|${format(new Date(i.start_time), 'yyyy-MM-dd HH:mm')}` === key);
-      const hasReal = inf && !inf.is_personal_fallback;
-      if (!hasReal) open.push({ hour: h, saunaName: garantieSauna.name, tempC });
-    }
-    return open;
-  }, [selectedDayDate, saunas, infusions]);
-
+  const garantieSlotsOpenToday = selectedDayCtx.garantieSlotsOpen;
   const secondarySaunaBlocked = !isGarantieSauna && garantieSlotsOpenToday.length > 0;
 
   function toggleAttr(a: InfusionAttribute) {
@@ -455,8 +496,8 @@ export default function Planner() {
     if (!title.trim()) return setFormError('Titel fehlt.');
     if (isMondaySelected) return setFormError('Montag keine Aufgüsse.');
 
-    const start = slotToDate(day, slot);
-    if (day === 'today' && isBefore(start, new Date())) return setFormError('Slot liegt in der Vergangenheit.');
+    const start = slotToDate(selectedDate, slot);
+    if (isBefore(start, new Date())) return setFormError('Slot liegt in der Vergangenheit.');
     if (isSlotTaken(slot)) return setFormError('Slot bereits belegt.');
     // Staff darf NUR Personal-Fallbacks übernehmen
     if (isStaff && !selectedFallbackId) {
@@ -496,7 +537,11 @@ export default function Planner() {
       // Push an alle Mitglieder wenn TEAM-Aufguss veröffentlicht
       if (teamInfusion) {
         const saunaLabel = saunas.find((s) => s.id === saunaId)?.name ?? '';
-        const dayLabel = day === 'today' ? 'heute' : 'morgen';
+        const dayLabel = isSameYMD(selectedDate, todayDate)
+          ? 'heute'
+          : isSameYMD(selectedDate, addDays(todayDate, 1))
+            ? 'morgen'
+            : format(selectedDate, 'EEE dd.MM.');
         sendBroadcastPush({
           title: '👥 Neuer Team-Aufguss',
           body: `${m.name} sucht 2 Co-Aufgießer · ${title.trim()} · ${dayLabel} ${format(start, 'HH:mm')}${saunaLabel ? ' · ' + saunaLabel : ''}`,
@@ -872,53 +917,105 @@ export default function Planner() {
           <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
             <h2 className="text-sm font-semibold text-forest-100 uppercase tracking-wider">Neuen Aufguss eintragen</h2>
 
-            <div className="grid grid-cols-2 gap-2">
-              {(['today', 'tomorrow'] as const).map((d) => (
-                <button key={d} type="button" onClick={() => setDay(d)}
-                  className={`rounded-xl px-4 py-3 text-sm font-medium ring-1 transition ${
-                    day === d ? 'bg-forest-600 text-white ring-forest-500' : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
-                  }`}>
-                  {d === 'today' ? 'Heute' : 'Morgen'}
-                </button>
-              ))}
+            {/* ── WOCHEN-PAGER ─────────────────────────────────────────── */}
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-forest-900/40 px-3 py-2 ring-1 ring-forest-800/40">
+              <button
+                type="button"
+                onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
+                disabled={weekOffset === 0}
+                className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >◀ Woche</button>
+              <div className="text-center">
+                <div className="text-xs font-semibold text-forest-100">
+                  {weekOffset === 0 ? 'Diese Woche' : weekOffset === 1 ? 'Nächste Woche' : `In ${weekOffset} Wochen`}
+                </div>
+                <div className="text-[10px] text-forest-400 tabular-nums">
+                  {format(visibleDays[0], 'dd.MM.')} – {format(visibleDays[visibleDays.length - 1], 'dd.MM.yyyy')}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeekOffset((o) => Math.min(MAX_WEEK_OFFSET, o + 1))}
+                disabled={weekOffset >= MAX_WEEK_OFFSET}
+                title={weekOffset >= MAX_WEEK_OFFSET ? `Maximal ${MAX_WEEK_OFFSET} Wochen im Voraus planen` : ''}
+                className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >Woche ▶</button>
+            </div>
+
+            {/* ── LEGENDE ─────────────────────────────────────────────── */}
+            <div className="flex flex-wrap items-center gap-3 text-[10px] text-forest-400 px-1">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" /> frei</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" /> Personal — übernehmen</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70" /> belegt</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-violet-500/70" /> mein Aufguss</span>
+            </div>
+
+            {/* ── 6 TAGE STAPEL ──────────────────────────────────────── */}
+            <div className="space-y-3">
+              {visibleDays.map((d) => {
+                const ctx = dayContextOf(d);
+                const isSelected = isSameYMD(d, selectedDate);
+                const isToday = isSameYMD(d, todayDate);
+                const weekdayLabel = WEEKDAY_LABEL_DE[d.getDay()] ?? '';
+                const secondaryBlockedForDay = ctx.garantieSlotsOpen.length > 0; // wird pro-Slot weiter verfeinert
+                return (
+                  <div
+                    key={d.toISOString()}
+                    className={`rounded-2xl p-3 ring-1 transition ${
+                      isSelected
+                        ? 'bg-forest-900/70 ring-forest-500/60 shadow-md shadow-forest-900/40'
+                        : 'bg-forest-950/40 ring-forest-800/40'
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between mb-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-sm font-bold ${isToday ? 'text-amber-200' : 'text-forest-100'}`}>
+                          {weekdayLabel}
+                        </span>
+                        <span className="text-[11px] text-forest-400 tabular-nums">{format(d, 'dd.MM.')}</span>
+                        {isToday && <span className="text-[9px] uppercase tracking-wider text-amber-300/80">heute</span>}
+                      </div>
+                      {ctx.isPast && !isToday && (
+                        <span className="text-[10px] text-forest-500">vergangen</span>
+                      )}
+                    </div>
+
+                    {ctx.isMonday ? (
+                      <div className="rounded-lg bg-forest-900/40 px-3 py-3 text-center text-[11px] text-forest-400/70 ring-1 ring-forest-800/30">
+                        Montag — Ruhetag, keine Aufgüsse
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {saunas.filter((s) => s.is_active).map((s) => (
+                          <SaunaSlotRow
+                            key={s.id}
+                            sauna={s}
+                            slots={ctx.availableSlots}
+                            selectedSaunaId={isSelected ? saunaId : ''}
+                            selectedSlot={isSelected ? slot : ''}
+                            slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
+                            secondarySaunaBlocked={secondaryBlockedForDay}
+                            garantieSlotsOpenToday={ctx.garantieSlotsOpen}
+                            onPick={(picked) => {
+                              setSelectedDate(d);
+                              setSaunaId(s.id);
+                              setSlot(picked);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {isMondaySelected ? (
-              <div className="rounded-xl bg-forest-900/60 px-4 py-6 text-center text-forest-300/70 ring-1 ring-forest-800/40">
-                Montag keine Aufgüsse
+              <div className="rounded-xl bg-forest-900/60 px-4 py-3 text-center text-forest-300/70 ring-1 ring-forest-800/40 text-xs">
+                Bitte zuerst einen Slot in der Wochen-Übersicht oben wählen — Montag ist Ruhetag.
               </div>
             ) : (
               <>
-                {/* SLOT-MATRIX: 2 Sauna-Zeilen, ein Klick wählt Sauna+Uhrzeit gleichzeitig */}
-                <div>
-                  <div className="flex items-baseline justify-between">
-                    <label className="text-xs text-forest-300">Sauna & Uhrzeit auswählen</label>
-                    <div className="flex items-center gap-3 text-[10px] text-forest-400">
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" /> frei</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" /> Personal — übernehmen</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70" /> belegt</span>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-[10px] text-forest-400/80">
-                    Tipp: leere (grüne) Slots = neuer Aufguss · gelbe Slots = Personal-Aufguss übernehmen · rote = von einem anderen Aufgießer belegt
-                  </p>
-                  <div className="mt-2 space-y-1.5">
-                    {saunas.filter((s) => s.is_active).map((s) => (
-                      <SaunaSlotRow
-                        key={s.id}
-                        sauna={s}
-                        slots={availableSlots}
-                        selectedSaunaId={saunaId}
-                        selectedSlot={slot}
-                        slotStatus={slotStatus}
-                        secondarySaunaBlocked={secondarySaunaBlocked}
-                        garantieSlotsOpenToday={garantieSlotsOpenToday}
-                        onPick={(picked) => { setSaunaId(s.id); setSlot(picked); }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
                 {selectedFallbackId && (
                   <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
                     <p className="font-semibold">🔄 Du übernimmst einen Personal-Aufguss.</p>
