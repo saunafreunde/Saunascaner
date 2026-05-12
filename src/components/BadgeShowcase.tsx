@@ -1,5 +1,8 @@
-import { MILESTONE_BADGES, SPECIAL_BADGES, TIER_STYLES, TIER_LABEL, type BadgeDefinition } from '@/lib/badges';
-import { useMyBadges, useMemberStats } from '@/lib/api';
+import {
+  MILESTONE_BADGES, SPECIAL_BADGES, GAST_BADGES, TIER_STYLES, TIER_LABEL,
+  type BadgeDefinition,
+} from '@/lib/badges';
+import { useMyBadges, useMemberStats, useMember } from '@/lib/api';
 import type { MemberAchievement } from '@/lib/api';
 
 type Props = {
@@ -94,14 +97,47 @@ function BadgeItem({
 export default function BadgeShowcase({ memberId }: Props) {
   const badgesQ = useMyBadges(memberId);
   const statsQ = useMemberStats(memberId);
+  const memberQ = useMember(memberId);
 
   const achievements = badgesQ.data ?? [];
   const stats = statsQ.data;
+  const isAufgieserMember = !!memberQ.data?.is_aufgieser;
 
   function getAchievement(badgeId: string) {
     return achievements.find((a) => a.badge_id === badgeId);
   }
 
+  // Bei Gast / Nicht-Aufgießer-Mitglied: nur die Gast-Kategorien zeigen
+  if (!isAufgieserMember) {
+    // Dedupe — manche Badges (streak_4w etc.) existieren in beiden Quellen
+    const seen = new Set<string>();
+    const guestRelevant = GAST_BADGES.filter((b) => {
+      if (seen.has(b.id)) return false;
+      seen.add(b.id);
+      return true;
+    });
+    return (
+      <div className="space-y-4">
+        <section>
+          <p className="text-[11px] text-forest-400/80 mb-2">
+            Hier siehst du deine verdienten Auszeichnungen. Eine vollständige Übersicht aller verfügbaren Badges findest du in deinem Bereich.
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {guestRelevant.map((badge) => (
+              <BadgeItem
+                key={badge.id}
+                badge={badge}
+                achievement={getAchievement(badge.id)}
+                stats={stats}
+              />
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  // Aufgießer: vollständiger Showcase mit allen drei Sektionen
   return (
     <div className="space-y-4">
       <section>

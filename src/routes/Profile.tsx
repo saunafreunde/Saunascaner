@@ -317,12 +317,24 @@ export default function Profile() {
           <BadgeShowcase memberId={m.id} />
         </div>
 
-        {/* Stats + komplette Galerie nur beim eigenen Profil */}
-        {isMyself && (
+        {/* Stats + komplette Galerie nur beim eigenen Profil, NICHT für Gäste
+            (die haben das alles in /gast — Duplikat-Vermeidung) */}
+        {isMyself && m.role !== 'gast' && (
           <>
             <MemberStatsCard memberId={m.id} />
             <MemberAchievementsGallery memberId={m.id} />
           </>
+        )}
+        {isMyself && m.role === 'gast' && (
+          <div className="rounded-2xl bg-sky-900/20 ring-1 ring-sky-500/30 p-4 text-center">
+            <p className="text-sm text-forest-200">Statistik &amp; Auszeichnungen findest du in deinem Bereich.</p>
+            <a
+              href="/gast"
+              className="mt-2 inline-block rounded-xl bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40 px-4 py-2 text-sm font-semibold hover:bg-sky-500/30"
+            >
+              🏡 Zu meinem Bereich
+            </a>
+          </div>
         )}
 
         {/* PWA Install + Push (nur bei eigenem Profil) */}

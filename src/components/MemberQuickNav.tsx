@@ -35,7 +35,8 @@ export function MemberQuickNav({ myMemberId }: Props) {
     items.push({ path: '/postfach', label: 'Postfach', icon: '📬' });
   }
   items.push({ path: '/hilfe', label: 'Hilfe', icon: '📖' });
-  if (myMemberId) {
+  // Gäste: kein separater Profil-Link — alles in "Mein Bereich" (/gast)
+  if (myMemberId && !gast) {
     items.push({ path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' });
   }
 
