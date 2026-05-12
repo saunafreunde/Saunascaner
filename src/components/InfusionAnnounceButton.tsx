@@ -81,7 +81,7 @@ export function InfusionAnnounceButton({ infusionId, startTime, showList = true 
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="z.B. „Bringe Freunde mit" oder „Freue mich!""
+            placeholder={'z.B. „Bringe Freunde mit" oder „Freue mich!"'}
             maxLength={200}
             className="flex-1 rounded-lg bg-forest-900/70 ring-1 ring-forest-700/60 px-3 py-1.5 text-xs text-forest-100 placeholder-forest-500"
           />

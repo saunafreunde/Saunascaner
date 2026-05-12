@@ -77,7 +77,7 @@ export function AufgussWishes({ aufgieserId }: Props) {
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Was wünschst du dir? z.B. „Wieder einen Honig-Aufguss mit langsamem Wedeln, das war so toll letzte Woche!""
+                placeholder={'Was wünschst du dir? z.B. „Wieder einen Honig-Aufguss mit langsamem Wedeln, das war so toll letzte Woche!"'}
                 rows={3}
                 maxLength={500}
                 autoFocus

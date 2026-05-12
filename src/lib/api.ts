@@ -171,6 +171,8 @@ export type Member = {
   style_quote: string | null;
   star_card_visible: boolean;
   star_accent_color: string | null;
+  // Lieblings-Aromen (Migration 0046)
+  favorite_oils: string[];
   // Gast-Felder (Migration 0040)
   gast_referral_source: string | null;
   gast_consent_at: string | null;
