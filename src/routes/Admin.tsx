@@ -216,6 +216,34 @@ function MemberBadgesRow({ memberId }: { memberId: string }) {
   );
 }
 
+type MembersFilter = 'all' | 'member' | 'aufgieser' | 'guest_aufgieser' | 'gast' | 'staff' | 'admin' | 'revoked';
+
+const MEMBER_FILTER_META: Record<MembersFilter, { label: string; icon: string }> = {
+  all:             { label: 'Alle',           icon: '👥' },
+  member:          { label: 'Mitglieder',     icon: '✅' },
+  aufgieser:       { label: 'Aufgießer',      icon: '🧖' },
+  guest_aufgieser: { label: 'Gast-Aufgießer', icon: '🌍' },
+  gast:            { label: 'Gäste',          icon: '👋' },
+  staff:           { label: 'Personal',       icon: '👨‍🍳' },
+  admin:           { label: 'Admins',         icon: '⚙️' },
+  revoked:         { label: 'Gesperrt',       icon: '🚫' },
+};
+
+function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
+  if (f === 'all') return !m.revoked_at;
+  if (f === 'revoked') return !!m.revoked_at;
+  if (m.revoked_at) return false;
+  switch (f) {
+    case 'member':          return m.role === 'member' && !m.is_aufgieser;
+    case 'aufgieser':       return m.role === 'member' && m.is_aufgieser;
+    case 'guest_aufgieser': return m.role === 'guest_aufgieser';
+    case 'gast':            return m.role === 'gast';
+    case 'staff':           return m.role === 'staff';
+    case 'admin':           return m.role === 'admin';
+    default: return true;
+  }
+}
+
 function MembersTab() {
   const membersQ = useAllMembers();
   const pendingQ = usePendingMembers();
@@ -236,6 +264,20 @@ function MembersTab() {
   const [newRole, setNewRole] = useState<Member['role']>('member');
   const [error, setError] = useState<string | null>(null);
   const [postfachMember, setPostfachMember] = useState<Member | null>(null);
+  const [filter, setFilter] = useState<MembersFilter>('all');
+
+  const allMembers = membersQ.data ?? [];
+  const counts = useMemo(() => {
+    const c = {} as Record<MembersFilter, number>;
+    (Object.keys(MEMBER_FILTER_META) as MembersFilter[]).forEach((f) => {
+      c[f] = allMembers.filter((m) => memberMatchesFilter(m, f)).length;
+    });
+    return c;
+  }, [allMembers]);
+  const filteredMembers = useMemo(
+    () => allMembers.filter((m) => memberMatchesFilter(m, filter)),
+    [allMembers, filter]
+  );
 
   const emailAccountFor = (memberId: string) => accountsQ.data?.find((a) => a.member_id === memberId);
 
@@ -304,6 +346,7 @@ function MembersTab() {
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
           <select value={newRole} onChange={(e) => setNewRole(e.target.value as Member['role'])}
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
+            <option value="gast">Gast</option>
             <option value="member">Mitglied</option>
             <option value="guest_aufgieser">Gast-Aufgießer</option>
             <option value="staff">Personal</option>
@@ -323,10 +366,40 @@ function MembersTab() {
 
       <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
         <h2 className="text-base font-semibold text-forest-100">
-          Mitglieder ({membersQ.data?.length ?? 0})
+          Mitglieder ({allMembers.length})
         </h2>
+
+        {/* Filter-Reiter */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {(Object.keys(MEMBER_FILTER_META) as MembersFilter[]).map((f) => {
+            const meta = MEMBER_FILTER_META[f];
+            const active = filter === f;
+            const cnt = counts[f];
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+                  active
+                    ? 'bg-forest-500 text-forest-950 ring-forest-400 shadow-sm'
+                    : 'bg-forest-900/60 text-forest-300 ring-forest-800/50 hover:bg-forest-800/70 hover:text-forest-100'
+                }`}
+              >
+                <span>{meta.icon}</span>
+                <span>{meta.label}</span>
+                <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${active ? 'bg-forest-950/30' : 'bg-forest-950/60 text-forest-400'}`}>
+                  {cnt}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {filteredMembers.length === 0 ? (
+          <p className="mt-6 text-center text-sm text-forest-400/70">Keine Mitglieder in dieser Kategorie.</p>
+        ) : (
         <ul className="mt-3 divide-y divide-forest-800/40">
-          {(membersQ.data ?? []).map((m) => (
+          {filteredMembers.map((m) => (
             <li key={m.id} className="py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -338,11 +411,16 @@ function MembersTab() {
                     )}
                     {m.role === 'guest_aufgieser' && (
                       <span className="rounded-full bg-emerald-500/20 px-2 text-[10px] font-bold text-emerald-200">
-                        🌍 Gast{m.home_group ? ` · ${m.home_group}` : ''}
+                        🌍 Gast-Aufgießer{m.home_group ? ` · ${m.home_group}` : ''}
                       </span>
                     )}
                     {m.role === 'staff' && (
                       <span className="rounded-full bg-slate-500/20 px-2 text-[10px] font-bold text-slate-200">👨‍🍳 Personal</span>
+                    )}
+                    {m.role === 'gast' && (
+                      <span className="rounded-full bg-sky-500/20 px-2 text-[10px] font-bold text-sky-200">
+                        👋 Gast{m.gast_referral_source ? ` · ${m.gast_referral_source}` : ''}
+                      </span>
                     )}
                     {m.is_aufgieser && m.role === 'member' && (
                       <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">🧖 Aufgieser</span>
@@ -471,6 +549,7 @@ function MembersTab() {
             </li>
           ))}
         </ul>
+        )}
       </div>
 
       {postfachMember && (
