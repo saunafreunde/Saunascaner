@@ -19,6 +19,7 @@ export function MemberQuickNav({ myMemberId }: Props) {
     { path: '/dashboard', label: 'Tafel',     icon: '📺' },
     { path: '/planner',   label: 'Mitglied',  icon: '🧖' },
     { path: '/members',   label: 'Galerie',   icon: '👥' },
+    { path: '/aufgieser', label: 'Aufgießer', icon: '🌟' },
     { path: '/wm',        label: 'WM',        icon: '🏆' },
   ];
   if (emailAccount.data) {

@@ -162,6 +162,18 @@ export type Member = {
   calendar_feed_token: string | null;
   telegram_user_id: number | null;
   telegram_link_token: string | null;
+  // Social-Layer / Star-Profil (Migration 0041)
+  bio: string | null;
+  aufgieser_story: string | null;
+  signature_aufguss: string | null;
+  specialties: string[];
+  style_quote: string | null;
+  star_card_visible: boolean;
+  star_accent_color: string | null;
+  // Gast-Felder (Migration 0040)
+  gast_referral_source: string | null;
+  gast_consent_at: string | null;
+  gast_signup_origin: string | null;
   created_at: string;
 };
 
@@ -2164,3 +2176,151 @@ export function useMaterializeHorizon() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
   });
 }
+
+// ─── Social-Layer: Aufgießer-Stars + Following (Migrationen 0040–0042) ───
+
+import type { StarStats, AufgieserStar, FollowEntry, TopFan } from '@/types/database';
+
+export const STAR_SPECIALTIES = [
+  'salz', 'honig', 'birke', 'eis', 'musik', 'licht', 'kraeuter', 'show',
+] as const;
+export type StarSpecialty = typeof STAR_SPECIALTIES[number];
+
+export const SPECIALTY_LABELS: Record<StarSpecialty, { emoji: string; label: string }> = {
+  salz:     { emoji: '🧂', label: 'Salz' },
+  honig:    { emoji: '🍯', label: 'Honig' },
+  birke:    { emoji: '🌿', label: 'Birke' },
+  eis:      { emoji: '🧊', label: 'Eis' },
+  musik:    { emoji: '🎵', label: 'Musik' },
+  licht:    { emoji: '✨', label: 'Licht' },
+  kraeuter: { emoji: '🌱', label: 'Kräuter' },
+  show:     { emoji: '🎭', label: 'Show' },
+};
+
+export function useAufgieserStars() {
+  return useQuery({
+    queryKey: ['aufgieser-stars'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_aufgieser_stars');
+      if (error) throw error;
+      return (data ?? []) as AufgieserStar[];
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useStarStats(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['star-stats', memberId],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_star_stats', { p_member_id: memberId });
+      if (error) throw error;
+      return data as StarStats;
+    },
+    staleTime: 20_000,
+  });
+}
+
+export type StarProfilePatch = {
+  bio?: string | null;
+  story?: string | null;
+  signature?: string | null;
+  specialties?: string[] | null;
+  quote?: string | null;
+  visible?: boolean | null;
+  accent?: string | null;
+};
+
+export function useUpdateMyStarProfile() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, StarProfilePatch>({
+    mutationFn: async (patch) => {
+      const { error } = await need().rpc('update_my_star_profile', {
+        p_bio: patch.bio ?? null,
+        p_story: patch.story ?? null,
+        p_signature: patch.signature ?? null,
+        p_specialties: patch.specialties ?? null,
+        p_quote: patch.quote ?? null,
+        p_visible: patch.visible ?? null,
+        p_accent: patch.accent ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['aufgieser-stars'] });
+    },
+  });
+}
+
+export function useFollowMember() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (followeeId) => {
+      const { error } = await need().rpc('follow_member', { p_followee: followeeId });
+      if (error) throw error;
+    },
+    onSuccess: (_, followeeId) => {
+      qc.invalidateQueries({ queryKey: ['my-following'] });
+      qc.invalidateQueries({ queryKey: ['am-i-following', followeeId] });
+      qc.invalidateQueries({ queryKey: ['star-stats', followeeId] });
+      qc.invalidateQueries({ queryKey: ['aufgieser-stars'] });
+    },
+  });
+}
+
+export function useUnfollowMember() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (followeeId) => {
+      const { error } = await need().rpc('unfollow_member', { p_followee: followeeId });
+      if (error) throw error;
+    },
+    onSuccess: (_, followeeId) => {
+      qc.invalidateQueries({ queryKey: ['my-following'] });
+      qc.invalidateQueries({ queryKey: ['am-i-following', followeeId] });
+      qc.invalidateQueries({ queryKey: ['star-stats', followeeId] });
+      qc.invalidateQueries({ queryKey: ['aufgieser-stars'] });
+    },
+  });
+}
+
+export function useMyFollowing() {
+  return useQuery({
+    queryKey: ['my-following'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_my_following');
+      if (error) throw error;
+      return (data ?? []) as FollowEntry[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useAmIFollowing(followeeId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['am-i-following', followeeId],
+    enabled: !!followeeId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('am_i_following', { p_followee: followeeId });
+      if (error) throw error;
+      return !!data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useTopFans(memberId: string | null | undefined, limit = 20) {
+  return useQuery({
+    queryKey: ['top-fans', memberId, limit],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_top_fans', { p_member_id: memberId, p_limit: limit });
+      if (error) throw error;
+      return (data ?? []) as TopFan[];
+    },
+    staleTime: 30_000,
+  });
+}
+

@@ -25,6 +25,9 @@ const Help            = lazy(() => import('@/routes/Help'));
 const ForgotPassword  = lazy(() => import('@/routes/ForgotPassword'));
 const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
 const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
+const GastSignup      = lazy(() => import('@/routes/GastSignup'));
+const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
+const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 
 export default function App() {
   useRealtimeSync();
@@ -43,9 +46,12 @@ export default function App() {
         <Route path="/members"           element={<RequireAuth><Members /></RequireAuth>} />
         <Route path="/postfach"          element={<RequireAuth><Postfach /></RequireAuth>} />
         <Route path="/hilfe"             element={<RequireAuth><Help /></RequireAuth>} />
+        <Route path="/aufgieser"             element={<RequireAuth><AufgieserStars /></RequireAuth>} />
+        <Route path="/aufgieser/:memberId"   element={<RequireAuth><StarProfile /></RequireAuth>} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/gast-signup"    element={<GastSignup />} />
         <Route path="/me"             element={<Navigate to="/planner" replace />} />
         <Route path="/m/:code"        element={<MagicEntry />} />
         <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />

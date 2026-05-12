@@ -33,7 +33,53 @@ export type Infusion = {
   created_at: string;
 };
 
-export type MemberRole = 'member' | 'guest_aufgieser' | 'staff' | 'admin';
+export type MemberRole = 'gast' | 'member' | 'guest_aufgieser' | 'staff' | 'admin';
+
+export type StarStats = {
+  total_aufguss: number;
+  team_aufguss: number;
+  avg_rating: number | null;
+  rating_count: number;
+  fan_count: number;
+  badge_count: number;
+  favorite_temp: string | null;
+};
+
+export type AufgieserStar = {
+  id: string;
+  name: string;
+  avatar_path: string | null;
+  motto: string | null;
+  bio: string | null;
+  aufgieser_story: string | null;
+  signature_aufguss: string | null;
+  specialties: string[];
+  style_quote: string | null;
+  star_accent_color: string | null;
+  role: MemberRole;
+  is_aufgieser: boolean;
+  home_group: string | null;
+  total_aufguss: number;
+  fan_count: number;
+  avg_rating: number | null;
+};
+
+export type FollowEntry = {
+  followee_id: string;
+  name: string;
+  avatar_path: string | null;
+  signature_aufguss: string | null;
+  specialties: string[];
+  is_aufgieser: boolean;
+  notifications_enabled: boolean;
+};
+
+export type TopFan = {
+  follower_id: string;
+  name: string;
+  avatar_path: string | null;
+  followed_at: string;
+};
 
 export type Invitation = {
   id: string;

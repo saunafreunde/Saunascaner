@@ -210,10 +210,17 @@ function buildICS(events: Array<{
 // selbst über info@sauna-fds.de mit eigenem Schwarzwald-Template.
 async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
-  const { email, redirect_to, invite_code } = req.body as {
+  const {
+    email, redirect_to, invite_code,
+    signup_kind, name, gast_referral, gast_origin,
+  } = req.body as {
     email: string;
     redirect_to?: string;
     invite_code?: string;
+    signup_kind?: 'gast';
+    name?: string;
+    gast_referral?: string;
+    gast_origin?: string;
   };
   if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
 
@@ -226,6 +233,14 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
   const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
   const redirectTo = redirect_to ?? `${origin}/planner`;
 
+  // Metadata für handle_new_user-Trigger
+  const meta: Record<string, string> = {};
+  if (invite_code) meta.invite_code = invite_code.toUpperCase();
+  if (signup_kind) meta.signup_kind = signup_kind;
+  if (name) meta.name = name;
+  if (gast_referral) meta.gast_referral = gast_referral;
+  if (gast_origin) meta.gast_origin = gast_origin;
+
   // Magic-Link generieren (KEIN Auto-Send durch Supabase!)
   const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
     type: userExists ? 'magiclink' : 'signup',
@@ -233,7 +248,7 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
     password: !userExists ? cryptoRandomPassword() : undefined,
     options: {
       redirectTo,
-      data: invite_code ? { invite_code: invite_code.toUpperCase() } : undefined,
+      data: Object.keys(meta).length > 0 ? meta : undefined,
     },
   });
   if (linkErr || !linkData?.properties?.action_link) {
