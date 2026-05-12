@@ -223,7 +223,7 @@ function EditForm({ currentValues, onClose }: EditFormProps) {
           type="text"
           value={signature}
           onChange={(e) => setSignature(e.target.value)}
-          placeholder="z.B. „Honig-Birke-Salz" oder „Drei-Stein-Special""
+          placeholder={'z.B. „Honig-Birke-Salz" oder „Drei-Stein-Special"'}
           maxLength={100}
           className="w-full rounded-lg bg-forest-900/70 ring-1 ring-forest-700/60 px-3 py-2 text-sm text-forest-100 placeholder-forest-500"
         />
