@@ -4,6 +4,7 @@ import { de } from 'date-fns/locale';
 import {
   useOpenSupportTasks, useCreateSupportTask, useArchiveSupportTask,
   useUnarchiveSupportTask, useMarkHelperFulfilled, useTaskHelpers,
+  useApproveHelper, useRejectHelper,
   SUPPORT_CATEGORY_META,
   type SupportTaskCategory, type SupportTaskVisibility, type SupportTask,
 } from '@/lib/api';
@@ -27,6 +28,7 @@ export function SupportTasksAdminTab() {
   const [endTime, setEndTime] = useState('');
   const [maxHelpers, setMaxHelpers] = useState<string>('');
   const [location, setLocation] = useState('');
+  const [requiresApproval, setRequiresApproval] = useState(false);
 
   const filtered = useMemo(() => {
     if (filter === 'all') return tasks.data ?? [];
@@ -47,9 +49,11 @@ export function SupportTasksAdminTab() {
         end_time: endTime || null,
         max_helpers: maxHelpers ? parseInt(maxHelpers, 10) : null,
         location: location.trim() || null,
+        requires_approval: requiresApproval,
       });
       setTitle(''); setDescription(''); setCategory('other'); setVisibility('all');
       setStartTime(''); setEndTime(''); setMaxHelpers(''); setLocation('');
+      setRequiresApproval(false);
       setShowForm(false);
     } catch (e) {
       setError((e as Error).message);
@@ -164,6 +168,23 @@ export function SupportTasksAdminTab() {
                 className="w-full rounded-lg bg-forest-900/70 ring-1 ring-forest-700/60 px-3 py-2 text-sm text-forest-100"
               />
             </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-3 text-sm text-forest-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requiresApproval}
+                  onChange={(e) => setRequiresApproval(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-forest-600 bg-forest-900 text-amber-500"
+                />
+                <span>
+                  <strong className="text-amber-200">🛡️ Freigabe erforderlich</strong>
+                  <span className="block text-[11px] text-forest-400 mt-0.5">
+                    Helfer-Anmeldungen sind erst nach deiner Zustimmung gültig. Für Events
+                    mit Vorab-Auswahl oder Aufgaben die bestimmte Skills brauchen.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
           {error && <div className="rounded-lg bg-red-900/40 ring-1 ring-red-700/50 px-3 py-2 text-sm text-red-200">{error}</div>}
           <button
@@ -224,7 +245,9 @@ function AdminTaskRow({ task, onArchive }: {
 }) {
   const helpers = useTaskHelpers(task.id);
   const mark = useMarkHelperFulfilled();
-  const [expanded, setExpanded] = useState(false);
+  const approveHelper = useApproveHelper();
+  const rejectHelper = useRejectHelper();
+  const [expanded, setExpanded] = useState(task.pending_count > 0);
   const cat = SUPPORT_CATEGORY_META[task.category];
 
   return (
@@ -248,6 +271,16 @@ function AdminTaskRow({ task, onArchive }: {
             {' · '}
             <span className="text-forest-300 font-semibold">{task.helper_count}</span>
             {task.max_helpers ? ` von ${task.max_helpers}` : ''} Helfer
+            {task.requires_approval && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40 px-1.5 py-0.5 font-semibold">
+                🛡️ Freigabe nötig
+              </span>
+            )}
+            {task.pending_count > 0 && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-600/20 text-amber-200 ring-1 ring-amber-600/40 px-1.5 py-0.5 font-semibold animate-pulse">
+                {task.pending_count} ⏳ wartet
+              </span>
+            )}
           </div>
         </div>
         <div className="flex flex-col gap-1 flex-shrink-0">
@@ -270,34 +303,114 @@ function AdminTaskRow({ task, onArchive }: {
       </div>
 
       {expanded && (
-        <div className="mt-3 pl-9">
+        <div className="mt-3 pl-9 space-y-3">
           {helpers.isLoading ? (
             <p className="text-xs text-forest-400">Lädt…</p>
-          ) : (helpers.data ?? []).filter((h) => !h.left_at).length === 0 ? (
-            <p className="text-xs text-forest-500">Noch keine Helfer angemeldet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {(helpers.data ?? []).filter((h) => !h.left_at).map((h) => (
-                <li key={h.member_id} className="flex items-center gap-2 rounded-lg bg-forest-900/60 px-2.5 py-1.5">
-                  <Avatar name={h.name} avatarPath={h.avatar_path} size="sm" isAufgieser={h.is_aufgieser} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-forest-100 font-medium">{h.name}</div>
-                    {h.note && <div className="text-[11px] text-amber-400/90">„{h.note}"</div>}
+          ) : (() => {
+            const list = (helpers.data ?? []).filter((h) => !h.left_at);
+            const pending = list.filter((h) => !h.approved_at && !h.rejected_at);
+            const approved = list.filter((h) => h.approved_at);
+            const rejected = list.filter((h) => h.rejected_at);
+            if (list.length === 0) return <p className="text-xs text-forest-500">Noch keine Helfer angemeldet.</p>;
+            return (
+              <>
+                {pending.length > 0 && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-amber-300 font-semibold mb-1.5">
+                      ⏳ Warten auf Freigabe ({pending.length})
+                    </div>
+                    <ul className="space-y-2">
+                      {pending.map((h) => (
+                        <li key={h.member_id} className="flex items-center gap-2 rounded-lg bg-amber-900/15 ring-1 ring-amber-500/30 px-2.5 py-1.5">
+                          <Avatar name={h.name} avatarPath={h.avatar_path} size="sm" isAufgieser={h.is_aufgieser} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-forest-100 font-medium">{h.name}</div>
+                            {h.note && <div className="text-[11px] text-amber-400/90">„{h.note}"</div>}
+                          </div>
+                          <button
+                            onClick={() => approveHelper.mutate({ taskId: task.id, memberId: h.member_id })}
+                            className="rounded-lg bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/40 px-2.5 py-1 text-[11px] font-semibold hover:bg-emerald-500/30"
+                          >
+                            ✓ Zuweisen
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`${h.name} ablehnen?`)) {
+                                rejectHelper.mutate({ taskId: task.id, memberId: h.member_id });
+                              }
+                            }}
+                            className="rounded-lg bg-red-900/30 text-red-300 ring-1 ring-red-700/40 px-2.5 py-1 text-[11px] font-semibold hover:bg-red-900/50"
+                          >
+                            ✗ Ablehnen
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <button
-                    onClick={() => mark.mutate({ taskId: task.id, memberId: h.member_id, fulfilled: !h.fulfilled_at })}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] ring-1 transition ${
-                      h.fulfilled_at
-                        ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-500/40'
-                        : 'bg-forest-900 text-forest-300 ring-forest-700/50 hover:bg-forest-800'
-                    }`}
-                  >
-                    {h.fulfilled_at ? '✓ Erfüllt' : 'Als erfüllt markieren'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                )}
+                {approved.length > 0 && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-emerald-300 font-semibold mb-1.5">
+                      ✓ Zugewiesen ({approved.length})
+                    </div>
+                    <ul className="space-y-2">
+                      {approved.map((h) => (
+                        <li key={h.member_id} className="flex items-center gap-2 rounded-lg bg-forest-900/60 px-2.5 py-1.5">
+                          <Avatar name={h.name} avatarPath={h.avatar_path} size="sm" isAufgieser={h.is_aufgieser} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-forest-100 font-medium">{h.name}</div>
+                            {h.note && <div className="text-[11px] text-amber-400/90">„{h.note}"</div>}
+                          </div>
+                          <button
+                            onClick={() => mark.mutate({ taskId: task.id, memberId: h.member_id, fulfilled: !h.fulfilled_at })}
+                            className={`rounded-lg px-2.5 py-1 text-[11px] ring-1 transition ${
+                              h.fulfilled_at
+                                ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-500/40'
+                                : 'bg-forest-900 text-forest-300 ring-forest-700/50 hover:bg-forest-800'
+                            }`}
+                          >
+                            {h.fulfilled_at ? '✓ Erfüllt' : 'Als erfüllt markieren'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Zuweisung von ${h.name} zurückziehen?`)) {
+                                rejectHelper.mutate({ taskId: task.id, memberId: h.member_id });
+                              }
+                            }}
+                            title="Zuweisung zurückziehen"
+                            className="rounded-lg bg-forest-900 text-forest-500 ring-1 ring-forest-700/40 px-2 py-1 text-[11px] hover:bg-red-900/30 hover:text-red-300"
+                          >
+                            ✗
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {rejected.length > 0 && (
+                  <details className="text-[11px] text-forest-500">
+                    <summary className="cursor-pointer hover:text-forest-300">
+                      {rejected.length} abgelehnt
+                    </summary>
+                    <ul className="mt-1 space-y-1 ml-3">
+                      {rejected.map((h) => (
+                        <li key={h.member_id} className="flex items-center gap-2 opacity-70">
+                          <Avatar name={h.name} avatarPath={h.avatar_path} size="xs" />
+                          <span>{h.name}</span>
+                          <button
+                            onClick={() => approveHelper.mutate({ taskId: task.id, memberId: h.member_id })}
+                            className="text-emerald-400 hover:text-emerald-300 underline text-[10px]"
+                          >
+                            Doch zuweisen
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </article>

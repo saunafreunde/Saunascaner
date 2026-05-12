@@ -2383,8 +2383,11 @@ export type SupportTask = {
   max_helpers: number | null;
   location: string | null;
   created_at: string;
+  requires_approval: boolean;
   helper_count: number;
+  pending_count: number;
   is_helping_me: boolean;
+  my_status: 'pending' | 'approved' | 'rejected' | null;
   is_full: boolean;
 };
 
@@ -2413,6 +2416,8 @@ export type SupportTaskHelperRow = {
   note: string | null;
   left_at: string | null;
   fulfilled_at: string | null;
+  approved_at: string | null;
+  rejected_at: string | null;
 };
 
 export function useOpenSupportTasks() {
@@ -2489,6 +2494,7 @@ export type CreateSupportTaskInput = {
   end_time?: string | null;
   max_helpers?: number | null;
   location?: string | null;
+  requires_approval?: boolean;
 };
 
 export function useCreateSupportTask() {
@@ -2504,11 +2510,40 @@ export function useCreateSupportTask() {
         p_end_time: input.end_time ?? null,
         p_max_helpers: input.max_helpers ?? null,
         p_location: input.location ?? null,
+        p_requires_approval: input.requires_approval ?? false,
       });
       if (error) throw error;
       return data as string;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['support-tasks'] }),
+  });
+}
+
+export function useApproveHelper() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { taskId: string; memberId: string }>({
+    mutationFn: async ({ taskId, memberId }) => {
+      const { error } = await need().rpc('approve_helper', { p_task_id: taskId, p_member_id: memberId });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['support-tasks'] });
+      qc.invalidateQueries({ queryKey: ['support-task-helpers', vars.taskId] });
+    },
+  });
+}
+
+export function useRejectHelper() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { taskId: string; memberId: string }>({
+    mutationFn: async ({ taskId, memberId }) => {
+      const { error } = await need().rpc('reject_helper', { p_task_id: taskId, p_member_id: memberId });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['support-tasks'] });
+      qc.invalidateQueries({ queryKey: ['support-task-helpers', vars.taskId] });
+    },
   });
 }
 

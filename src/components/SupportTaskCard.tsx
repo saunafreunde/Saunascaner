@@ -21,9 +21,10 @@ export function SupportTaskCard({ task }: Props) {
 
   const cat = SUPPORT_CATEGORY_META[task.category];
   const isEvent = !!task.start_time;
-  const activeHelpers = (helpers.data ?? []).filter((h) => !h.left_at);
-  const visibleHelpers = activeHelpers.slice(0, 5);
-  const extraCount = Math.max(0, activeHelpers.length - visibleHelpers.length);
+  // Nur zugewiesene Helfer in der Avatare-Reihe zeigen
+  const approvedHelpers = (helpers.data ?? []).filter((h) => !h.left_at && !h.rejected_at && h.approved_at);
+  const visibleHelpers = approvedHelpers.slice(0, 5);
+  const extraCount = Math.max(0, approvedHelpers.length - visibleHelpers.length);
 
   return (
     <article className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 transition hover:ring-amber-500/30">
@@ -62,6 +63,12 @@ export function SupportTaskCard({ task }: Props) {
         </div>
       </div>
 
+      {task.requires_approval && (
+        <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40 px-2 py-0.5 text-[10px] font-semibold">
+          🛡️ Freigabe durch Admin
+        </div>
+      )}
+
       {/* Helfer-Stand */}
       <div className="mt-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -80,11 +87,28 @@ export function SupportTaskCard({ task }: Props) {
           <div className="text-xs text-forest-300">
             <span className="font-semibold text-forest-100 tabular-nums">{task.helper_count}</span>
             {task.max_helpers ? <span> von <span className="tabular-nums">{task.max_helpers}</span> Helfer</span> : <span> Helfer</span>}
+            {task.pending_count > 0 && (
+              <span className="ml-1 text-amber-400">· {task.pending_count} ⏳</span>
+            )}
           </div>
         </div>
 
-        {/* Join/Leave-Button */}
-        {task.is_helping_me ? (
+        {/* Join/Leave/Pending-Button */}
+        {task.my_status === 'pending' ? (
+          <button
+            onClick={() => {
+              if (window.confirm('Anfrage zurückziehen?')) leave.mutate(task.id);
+            }}
+            disabled={leave.isPending}
+            className="rounded-xl bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/40 px-3 py-1.5 text-xs font-semibold hover:bg-amber-500/30 disabled:opacity-50"
+          >
+            ⏳ Wartet auf Freigabe
+          </button>
+        ) : task.my_status === 'rejected' ? (
+          <span className="rounded-xl bg-red-900/30 text-red-300 ring-1 ring-red-700/40 px-3 py-1.5 text-xs font-semibold">
+            ✗ Abgelehnt
+          </span>
+        ) : task.is_helping_me ? (
           <button
             onClick={() => {
               if (window.confirm('Wirklich abmelden?')) leave.mutate(task.id);
@@ -103,7 +127,7 @@ export function SupportTaskCard({ task }: Props) {
             onClick={() => setShowJoinModal(true)}
             className="rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 px-3 py-1.5 text-xs font-semibold hover:from-amber-400 hover:to-amber-500"
           >
-            🙋 Ich helfe mit!
+            {task.requires_approval ? '🙋 Bewerben' : '🙋 Ich helfe mit!'}
           </button>
         )}
       </div>
