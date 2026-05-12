@@ -94,7 +94,7 @@ function RootEntry() {
   return <Guest />;
 }
 
-const GAST_BLOCKED_PATHS = ['/planner', '/members', '/wm', '/postfach'];
+const GAST_BLOCKED_PATHS = ['/planner', '/members', '/postfach'];
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { ready, user } = useAuth();

@@ -12,6 +12,7 @@ import { MemberStatsCard } from '@/components/MemberStatsCard';
 import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
 import { MemberAttendanceChart } from '@/components/MemberAttendanceChart';
 import { GastProfileHeader } from '@/components/GastProfileHeader';
+import { PushPermission } from '@/components/PushPermission';
 import { isAdmin, isGast } from '@/lib/roles';
 import { fmtClock } from '@/lib/time';
 
@@ -250,30 +251,37 @@ export default function Gast() {
         )}
 
         {/* Quick-Actions */}
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <section className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Link to="/aufgieser" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
             <div className="text-2xl">🌟</div>
             <div className="mt-1 text-xs font-semibold text-forest-100">Aufgießer</div>
             <div className="text-[10px] text-forest-400">entdecken</div>
+          </Link>
+          <Link to="/wm" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+            <div className="text-2xl">🏆</div>
+            <div className="mt-1 text-xs font-semibold text-forest-100">WM-Tipspiel</div>
+            <div className="text-[10px] text-forest-400">mittippen</div>
           </Link>
           <Link to="/dashboard" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
             <div className="text-2xl">📺</div>
             <div className="mt-1 text-xs font-semibold text-forest-100">Tafel</div>
             <div className="text-[10px] text-forest-400">aktueller Plan</div>
           </Link>
-          {me.data && (
-            <Link to={`/profile/${me.data.id}`} className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-              <div className="text-2xl">🪪</div>
-              <div className="mt-1 text-xs font-semibold text-forest-100">Profil</div>
-              <div className="text-[10px] text-forest-400">bearbeiten</div>
-            </Link>
-          )}
-          <Link to="/hilfe" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">📖</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">Hilfe</div>
-            <div className="text-[10px] text-forest-400">Handbuch</div>
-          </Link>
         </section>
+
+        {/* Benachrichtigungen — Push-Aktivierung */}
+        {me.data && (
+          <section className="rounded-3xl bg-forest-950/85 ring-1 ring-forest-800/60 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
+              🔔 Benachrichtigungen
+            </h2>
+            <p className="text-xs text-forest-300/80 mb-4 leading-relaxed">
+              Aktiviere Push-Benachrichtigungen, damit du sofort erfährst wenn deine
+              Lieblings-Aufgießer einen neuen Aufguss planen.
+            </p>
+            <PushPermission memberId={me.data.id} />
+          </section>
+        )}
       </main>
     </PageBackground>
   );

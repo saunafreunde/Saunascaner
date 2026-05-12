@@ -28,16 +28,17 @@ export function MemberQuickNav({ myMemberId }: Props) {
     items.push({ path: '/members', label: 'Galerie', icon: '👥' });
   }
   items.push({ path: '/aufgieser', label: 'Aufgießer', icon: '🌟' });
-  if (!gast) {
-    items.push({ path: '/wm', label: 'WM', icon: '🏆' });
-  }
+  // WM-Tipspiel jetzt auch für Gäste freigegeben
+  items.push({ path: '/wm', label: 'WM', icon: '🏆' });
   if (emailAccount.data && !gast) {
     items.push({ path: '/postfach', label: 'Postfach', icon: '📬' });
   }
-  items.push({ path: '/hilfe', label: 'Hilfe', icon: '📖' });
-  // Gäste: kein separater Profil-Link — alles in "Mein Bereich" (/gast)
-  if (myMemberId && !gast) {
-    items.push({ path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' });
+  // Hilfe und Profil nur für Mitglieder — Gäste haben alles in /gast
+  if (!gast) {
+    items.push({ path: '/hilfe', label: 'Hilfe', icon: '📖' });
+    if (myMemberId) {
+      items.push({ path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' });
+    }
   }
 
   return (
