@@ -9,15 +9,16 @@ const TAFEL_ITEM = { path: '/dashboard', label: 'Tafel', icon: '📺' };
 type NavItem = { path: string; label: string; icon: string; hint?: string };
 
 const VORSCHAU_ITEMS: NavItem[] = [
-  { path: '/planner',         label: 'Mitglied-Sicht',   icon: '🧖', hint: 'wie Aufgießer sie sehen' },
-  { path: '/members',         label: 'Mitglieder-Galerie', icon: '👥', hint: 'Member-Directory' },
-  { path: '/aufgieser',       label: 'Aufgießer-Stars',   icon: '🌟', hint: 'Trading-Card-Übersicht' },
-  { path: '/wm',              label: 'WM-Tipspiel',       icon: '🏆', hint: 'Tipp-Übersicht' },
-  { path: '/gast?preview=1',  label: 'Gast-Bereich',      icon: '👋', hint: 'mit Preview-Banner' },
-  { path: '/checkin',         label: 'Tablet-PIN',        icon: '🔢', hint: 'Sauna-Tablet-Einstieg' },
-  { path: '/scanner',         label: 'Eingang-Scanner',   icon: '📷', hint: 'QR-Code-Einlass' },
-  { path: '/oil-room',        label: 'Aromen-Tablet',     icon: '🌿', hint: 'Öl-Raum-Bildschirm' },
-  { path: '/hilfe',           label: 'Hilfe / Handbuch',  icon: '📖', hint: 'Mitglieder-Handbuch' },
+  { path: '/planner',         label: 'Aufgießer-Sicht',     icon: '🧖', hint: 'Planner mit Atelier + Slots' },
+  { path: '/unterstuetzer',   label: 'Unterstützer-Sicht',  icon: '🤝', hint: 'Helfer-Aufgaben für Nicht-Aufgießer' },
+  { path: '/gast?preview=1',  label: 'Gast-Bereich',        icon: '👋', hint: 'mit Preview-Banner' },
+  { path: '/aufgieser',       label: 'Aufgießer-Stars',     icon: '🌟', hint: 'Trading-Card-Übersicht (für alle)' },
+  { path: '/members',         label: 'Mitglieder-Galerie',  icon: '👥', hint: 'Member-Directory' },
+  { path: '/wm',              label: 'WM-Tipspiel',         icon: '🏆', hint: 'Tipp-Übersicht' },
+  { path: '/checkin',         label: 'Tablet-PIN',          icon: '🔢', hint: 'Sauna-Tablet-Einstieg' },
+  { path: '/scanner',         label: 'Eingang-Scanner',     icon: '📷', hint: 'QR-Code-Einlass' },
+  { path: '/oil-room',        label: 'Aromen-Tablet',       icon: '🌿', hint: 'Öl-Raum-Bildschirm' },
+  { path: '/hilfe',           label: 'Hilfe / Handbuch',    icon: '📖', hint: 'Mitglieder-Handbuch' },
 ];
 
 interface AdminQuickNavProps {
