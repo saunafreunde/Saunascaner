@@ -5,6 +5,7 @@ import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
 import { SupportTasksAdminTab } from '@/components/admin/SupportTasksAdminTab';
+import { FeedModerationTab } from '@/components/admin/FeedModerationTab';
 import { PostfachDialog } from '@/components/admin/PostfachDialog';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { HandbookTab } from '@/components/admin/HandbookTab';
@@ -28,7 +29,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'wm';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:      { label: 'Saunen',       icon: '🔥' },
@@ -41,6 +42,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   handbook:    { label: 'Handbuch',     icon: '📖' },
   polls:       { label: 'Abfragen',     icon: '📋' },
   tasks:       { label: 'Aufgaben',     icon: '🤝' },
+  feed:        { label: 'Feed',         icon: '📸' },
   wm:          { label: 'WM-Tipps',     icon: '🏆' },
 };
 
@@ -117,6 +119,7 @@ export default function Admin() {
         {tab === 'handbook' && <HandbookTab />}
         {tab === 'polls' && <PollsTab />}
         {tab === 'tasks' && <SupportTasksAdminTab />}
+        {tab === 'feed' && <FeedModerationTab />}
         {tab === 'wm' && <WmAdminTab />}
       </div>
     </div>

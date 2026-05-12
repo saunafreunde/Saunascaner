@@ -39,6 +39,7 @@ export function MemberQuickNav({ myMemberId }: Props) {
     items.push({ path: '/members', label: 'Galerie', icon: '👥' });
   }
   items.push({ path: '/aufgieser', label: 'Aufgießer', icon: '🌟' });
+  items.push({ path: '/feed', label: 'Feed', icon: '📸' });
   // WM-Tipspiel jetzt auch für Gäste freigegeben
   items.push({ path: '/wm', label: 'WM', icon: '🏆' });
   if (emailAccount.data && !gast) {

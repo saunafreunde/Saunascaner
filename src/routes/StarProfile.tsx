@@ -13,6 +13,7 @@ import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { PageBackground } from '@/components/PageBackground';
 import { RatingRadar } from '@/components/RatingRadar';
 import { AufgieserPhotoGallery } from '@/components/AufgieserPhotoGallery';
+import { PolaroidGallery } from '@/components/feed/PolaroidGallery';
 import { FavoriteOilsDisplay, FavoriteOilsPicker } from '@/components/FavoriteOilsPicker';
 import { AufgieserGuestbook } from '@/components/AufgieserGuestbook';
 import { RatingCommentsCarousel } from '@/components/RatingCommentsCarousel';
@@ -188,8 +189,16 @@ export default function StarProfile() {
                 )}
               </div>
 
-              {/* Foto-Galerie */}
+              {/* Foto-Galerie (kuratiert vom Aufgießer) */}
               <AufgieserPhotoGallery memberId={star.id} editable={isMe} />
+
+              {/* Feed-Beiträge als Polaroid-Sammlung */}
+              <div>
+                <h3 className="text-[11px] uppercase tracking-wider text-amber-300/80 font-semibold mb-2 px-1">
+                  📷 Feed-Beiträge
+                </h3>
+                <PolaroidGallery memberId={star.id} />
+              </div>
 
               {/* Was Gäste sagen — Rating-Kommentare */}
               <RatingCommentsCarousel aufgieserId={star.id} />

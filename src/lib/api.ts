@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence, MemberRole, Invitation } from '@/types/database';
 import type { InfusionAttribute } from './attributes';
@@ -3066,3 +3066,243 @@ export function useMarkWishFulfilled() {
   });
 }
 
+// ─── Mini-Insta-Feed (Migration 0052) ─────────────────────────────────────
+export type FeedReactionType = 'fire' | 'water' | 'leaf' | 'crown' | 'theater';
+
+export type FeedPost = {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar: string | null;
+  author_role: string;
+  image_path: string;
+  caption: string | null;
+  infusion_id: string | null;
+  infusion_title: string | null;
+  infusion_aufgieser_name: string | null;
+  infusion_start_time: string | null;
+  oils: string[];
+  created_at: string;
+  reaction_counts: Partial<Record<FeedReactionType, number>>;
+  my_reactions: FeedReactionType[];
+};
+
+export type FeedFilter = { oil?: string | null; infusion?: string | null };
+
+const FEED_PAGE_SIZE = 20;
+
+export function useFeed(filter: FeedFilter = {}) {
+  return useInfiniteQuery<FeedPost[]>({
+    queryKey: ['feed', filter.oil ?? null, filter.infusion ?? null],
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const { data, error } = await need().rpc('list_feed', {
+        p_limit: FEED_PAGE_SIZE,
+        p_before: pageParam,
+        p_filter_oil: filter.oil ?? null,
+        p_filter_infusion: filter.infusion ?? null,
+      });
+      if (error) throw error;
+      return (data ?? []) as FeedPost[];
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || lastPage.length < FEED_PAGE_SIZE) return undefined;
+      return lastPage[lastPage.length - 1].created_at;
+    },
+  });
+}
+
+export type MemberFeedPost = {
+  id: string;
+  image_path: string;
+  caption: string | null;
+  infusion_id: string | null;
+  infusion_title: string | null;
+  oils: string[];
+  created_at: string;
+  reaction_total: number;
+};
+
+export function useMemberFeedPosts(memberId: string | null | undefined, limit = 12) {
+  return useQuery({
+    queryKey: ['feed-by-member', memberId, limit],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_member_feed_posts', {
+        p_member_id: memberId,
+        p_limit: limit,
+      });
+      if (error) throw error;
+      return (data ?? []) as MemberFeedPost[];
+    },
+  });
+}
+
+export type InfusionFeedPost = {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar: string | null;
+  image_path: string;
+  caption: string | null;
+  oils: string[];
+  created_at: string;
+  reaction_total: number;
+};
+
+export function useInfusionFeedPosts(infusionId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['feed-by-infusion', infusionId],
+    enabled: !!infusionId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_infusion_feed_posts', { p_infusion_id: infusionId });
+      if (error) throw error;
+      return (data ?? []) as InfusionFeedPost[];
+    },
+  });
+}
+
+export function useCreateFeedPost() {
+  const qc = useQueryClient();
+  return useMutation<
+    FeedPost,
+    Error,
+    { imagePath: string; caption: string | null; infusionId: string | null; oils: string[] }
+  >({
+    mutationFn: async ({ imagePath, caption, infusionId, oils }) => {
+      const { data, error } = await need().rpc('create_feed_post', {
+        p_image_path: imagePath,
+        p_caption: caption,
+        p_infusion_id: infusionId,
+        p_oils: oils,
+      });
+      if (error) throw error;
+      return data as FeedPost;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
+}
+
+export function useDeleteMyFeedPost() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { postId: string }>({
+    mutationFn: async ({ postId }) => {
+      const { error } = await need().rpc('delete_my_feed_post', { p_post_id: postId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['feed'] });
+      qc.invalidateQueries({ queryKey: ['feed-by-member'] });
+      qc.invalidateQueries({ queryKey: ['feed-by-infusion'] });
+    },
+  });
+}
+
+export function useAdminDeleteFeedPost() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { postId: string }>({
+    mutationFn: async ({ postId }) => {
+      const { error } = await need().rpc('admin_delete_feed_post', { p_post_id: postId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['feed'] });
+      qc.invalidateQueries({ queryKey: ['admin-feed'] });
+    },
+  });
+}
+
+export function useReactToFeedPost() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { postId: string; reaction: FeedReactionType }>({
+    mutationFn: async ({ postId, reaction }) => {
+      const { error } = await need().rpc('react_to_feed_post', {
+        p_post_id: postId,
+        p_reaction: reaction,
+      });
+      if (error) throw error;
+    },
+    // Optimistic update auf alle 'feed'-Queries (alle Filter)
+    onMutate: async ({ postId, reaction }) => {
+      await qc.cancelQueries({ queryKey: ['feed'] });
+      const snapshots: [readonly unknown[], unknown][] = [];
+      const allFeedQueries = qc.getQueriesData<{ pages: FeedPost[][]; pageParams: unknown[] }>({ queryKey: ['feed'] });
+      for (const [key, data] of allFeedQueries) {
+        snapshots.push([key, data]);
+        if (!data?.pages) continue;
+        const next = {
+          ...data,
+          pages: data.pages.map((page) =>
+            page.map((p) => {
+              if (p.id !== postId) return p;
+              const has = p.my_reactions.includes(reaction);
+              const newCount = (p.reaction_counts[reaction] ?? 0) + (has ? -1 : 1);
+              return {
+                ...p,
+                my_reactions: has ? p.my_reactions.filter((r) => r !== reaction) : [...p.my_reactions, reaction],
+                reaction_counts: { ...p.reaction_counts, [reaction]: Math.max(0, newCount) },
+              };
+            })
+          ),
+        };
+        qc.setQueryData(key, next);
+      }
+      return { snapshots };
+    },
+    onError: (_err, _vars, ctx) => {
+      const snapshots = (ctx as { snapshots: [readonly unknown[], unknown][] } | undefined)?.snapshots ?? [];
+      for (const [key, data] of snapshots) qc.setQueryData(key, data);
+    },
+  });
+}
+
+export function useDismissFeedEcho() {
+  return useMutation<void, Error, { infusionId: string }>({
+    mutationFn: async ({ infusionId }) => {
+      const { error } = await need().rpc('dismiss_feed_echo', { p_infusion_id: infusionId });
+      if (error) throw error;
+    },
+  });
+}
+
+export function useFeedEchoShouldShow(infusionId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['feed-echo-state', infusionId],
+    enabled: !!infusionId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_feed_echo_state', { p_infusion_id: infusionId });
+      if (error) throw error;
+      return data === true;
+    },
+  });
+}
+
+export type AdminFeedPost = {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar: string | null;
+  image_path: string;
+  caption: string | null;
+  infusion_id: string | null;
+  oils: string[];
+  created_at: string;
+  deleted_at: string | null;
+  reaction_total: number;
+};
+
+export function useAdminFeed(showDeleted = false) {
+  return useQuery({
+    queryKey: ['admin-feed', showDeleted],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_admin_feed', {
+        p_show_deleted: showDeleted,
+        p_limit: 200,
+      });
+      if (error) throw error;
+      return (data ?? []) as AdminFeedPost[];
+    },
+  });
+}

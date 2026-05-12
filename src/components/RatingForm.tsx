@@ -4,6 +4,7 @@ import { de } from 'date-fns/locale';
 import { RATING_CATEGORIES, type RatingCategoryId } from '@/lib/ratingCategories';
 import { useSubmitRating, useMyRatingForInfusion, type RatableInfusion } from '@/lib/api';
 import { RatingStars } from './RatingStars';
+import { EchoPromptModal } from './feed/EchoPromptModal';
 
 interface RatingFormProps {
   infusion: RatableInfusion;
@@ -35,6 +36,7 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
   const [ratings, setRatings] = useState<Ratings>(EMPTY_RATINGS);
   const [comment, setComment] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showEcho, setShowEcho] = useState(false);
 
   const myRatingQ = useMyRatingForInfusion(infusion.id, memberId);
   const submitRating = useSubmitRating();
@@ -79,10 +81,27 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
     });
 
     if (result === 'ok') {
-      onSuccess();
+      // Echo-Modal nur beim Erst-Submit (nicht beim Editieren)
+      if (!isEditing) {
+        setShowEcho(true);
+      } else {
+        onSuccess();
+      }
     } else {
       setErrorMsg(ERROR_MESSAGES[result] ?? 'Unbekannter Fehler.');
     }
+  }
+
+  if (showEcho) {
+    return (
+      <EchoPromptModal
+        infusionId={infusion.id}
+        infusionTitle={infusion.title}
+        infusionAufgieser={meisterName}
+        infusionStartTime={infusion.start_time}
+        onClose={() => { setShowEcho(false); onSuccess(); }}
+      />
+    );
   }
 
   return (

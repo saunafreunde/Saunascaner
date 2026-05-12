@@ -34,6 +34,7 @@ const Unterstuetzer   = lazy(() => import('@/routes/Unterstuetzer'));
 const Mitarbeiter     = lazy(() => import('@/routes/Mitarbeiter'));
 const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
 const StarProfile     = lazy(() => import('@/routes/StarProfile'));
+const Feed            = lazy(() => import('@/routes/Feed'));
 
 export default function App() {
   useRealtimeSync();
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="/mitarbeiter"           element={<RequireAuth><Mitarbeiter /></RequireAuth>} />
         <Route path="/aufgieser"             element={<RequireAuth><AufgieserStars /></RequireAuth>} />
         <Route path="/aufgieser/:memberId"   element={<RequireAuth><StarProfile /></RequireAuth>} />
+        <Route path="/feed"                  element={<RequireAuth><Feed /></RequireAuth>} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
