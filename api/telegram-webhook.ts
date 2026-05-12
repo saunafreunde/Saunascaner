@@ -252,10 +252,10 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
     return;
   }
 
-  // /heute, /morgen — öffentliche Aufguss-Listen
+  // /heute, /morgen — öffentliche Aufguss-Listen (mit freien Slots)
   if (text === '/heute' || text === '/morgen') {
     const day = text === '/heute' ? 'today' : 'tomorrow';
-    await sendDayList(sb, token, chatId, day);
+    await sendDayList(sb, token, chatId, day, fromId);
     return;
   }
 
@@ -465,7 +465,14 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
 }
 
 // ─── Helpers: Day-List + My-List ─────────────────────────────────────────
-async function sendDayList(sb: SupabaseClient, token: string, chatId: number, day: 'today' | 'tomorrow') {
+function slotHoursForWeekday(weekday: number): number[] {
+  // Mo: nichts. Di/Mi/Do: 14-20 (7 Slots). Fr/Sa/So: 11-20 (10 Slots).
+  if (weekday === 1) return [];
+  if (weekday === 2 || weekday === 3 || weekday === 4) return [14, 15, 16, 17, 18, 19, 20];
+  return [11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+}
+
+async function sendDayList(sb: SupabaseClient, token: string, chatId: number, day: 'today' | 'tomorrow', fromTelegramId?: number) {
   const offset = day === 'tomorrow' ? 1 : 0;
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -473,51 +480,102 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
 
-  const { data, error } = await sb
+  // Aktiver User (verknüpft?) für „eigener Aufguss"-Markierung
+  let myMemberId: string | null = null;
+  if (fromTelegramId) {
+    const { data: me } = await sb.from('members').select('id').eq('telegram_user_id', fromTelegramId).maybeSingle();
+    myMemberId = me?.id ?? null;
+  }
+
+  // 1) Alle Infusions des Tages
+  const { data: infs, error } = await sb
     .from('infusions')
     .select('id, title, start_time, end_time, sauna_id, saunameister_id, is_personal_fallback, team_infusion, saunas(name, temperature_label)')
     .gte('start_time', start.toISOString())
     .lt('start_time', end.toISOString())
     .order('start_time');
+  if (error) { await tgSend(token, chatId, '❌ Fehler: ' + error.message); return; }
 
-  if (error) {
-    await tgSend(token, chatId, '❌ Fehler: ' + error.message);
-    return;
-  }
-  if (!data || data.length === 0) {
-    await tgSend(token, chatId, day === 'today' ? 'Heute keine Aufgüsse.' : 'Morgen keine Aufgüsse.');
+  // 2) Aktive Saunen + erlaubte Stunden für den Tag → freie Slots ermitteln
+  const { data: saunas } = await sb.from('saunas').select('id, name, temperature_label').eq('is_active', true);
+  const weekday = start.getDay();
+  const hours = slotHoursForWeekday(weekday);
+
+  // Header
+  const dayLabel = day === 'today' ? '<b>📋 Heute</b>' : '<b>📋 Morgen</b>';
+  if (weekday === 1) {
+    await tgSend(token, chatId, `${dayLabel}\n\nMontag — Ruhetag, keine Aufgüsse.`);
     return;
   }
 
   // Meister-Namen
-  const meisterIds = Array.from(new Set(data.map((i) => i.saunameister_id).filter(Boolean) as string[]));
+  const meisterIds = Array.from(new Set((infs ?? []).map((i) => i.saunameister_id).filter(Boolean) as string[]));
   const { data: members } = meisterIds.length
     ? await sb.from('members').select('id, name').in('id', meisterIds)
     : { data: [] };
   const meisterName = (id: string | null) => (id && members?.find((m) => m.id === id)?.name) || 'Personal';
 
-  // Header
-  await tgSend(token, chatId, day === 'today' ? '<b>📋 Heute</b>' : '<b>📋 Morgen</b>');
+  // Map: (sauna_id|hour) → infusion
+  type Inf = NonNullable<typeof infs>[number];
+  const infByKey = new Map<string, Inf>();
+  for (const i of (infs ?? [])) {
+    const h = new Date(i.start_time).getHours();
+    infByKey.set(`${i.sauna_id}|${h}`, i);
+  }
 
-  // Pro Aufguss eigene Nachricht mit Inline-Button "Ich komme"
-  for (const i of data) {
-    const s = (i.saunas as unknown as { name: string; temperature_label: string }) ?? { name: '?', temperature_label: '?' };
-    const name = i.is_personal_fallback ? '👨‍🍳 Personal' : meisterName(i.saunameister_id);
-    const team = i.team_infusion ? ' 👥' : '';
-    const text = `🔥 <b>${fmtClock(i.start_time)}</b> · ${s.name} ${s.temperature_label}\n${i.title}${team} — ${name}`;
+  await tgSend(token, chatId, dayLabel);
 
-    // "Ich komme"-Button nur für zukünftige Aufgüsse mit Aufgießer (kein Personal-Fallback)
-    const isFuture = new Date(i.start_time).getTime() > Date.now();
-    const showAttendBtn = isFuture && !i.is_personal_fallback;
-    const showTakeoverBtn = isFuture && i.is_personal_fallback;
+  let freeCount = 0;
+  const planUrl = 'https://saunascaner.vercel.app/planner';
 
-    const buttons: Array<{ text: string; callback_data: string }> = [];
-    if (showAttendBtn) buttons.push({ text: '🙋 Ich komme', callback_data: `attend:${i.id}` });
-    if (showTakeoverBtn) buttons.push({ text: '✋ Ich übernehme', callback_data: `takeover:${i.id}` });
+  // Pro Slot (Sauna × Stunde) eine Nachricht
+  for (const h of hours) {
+    for (const sa of (saunas ?? [])) {
+      const i = infByKey.get(`${sa.id}|${h}`);
+      const hh = String(h).padStart(2, '0');
+      const isFuture = new Date(start.getTime() + h * 3600_000).getTime() > Date.now();
 
-    await tgSend(token, chatId, text, buttons.length ? {
-      reply_markup: { inline_keyboard: [buttons] },
-    } : {});
+      if (!i) {
+        // FREIER Slot
+        if (!isFuture) continue; // vergangene leere Slots überspringen
+        freeCount++;
+        const text = `🟢 <b>${hh}:00</b> · ${sa.name} ${sa.temperature_label}\n<i>— frei —</i>`;
+        await tgSend(token, chatId, text, {
+          reply_markup: {
+            inline_keyboard: [[{ text: '📲 In App belegen', url: planUrl }]],
+          },
+        });
+        continue;
+      }
+
+      const isMine = myMemberId && i.saunameister_id === myMemberId;
+      const name = i.is_personal_fallback ? '👨‍🍳 Personal' : (isMine ? `<i>du selbst</i>` : meisterName(i.saunameister_id));
+      const team = i.team_infusion ? ' 👥' : '';
+      const mineMark = isMine ? ' ✓' : '';
+      const text = `🔥 <b>${hh}:00</b> · ${sa.name} ${sa.temperature_label}\n${i.title}${team}${mineMark} — ${name}`;
+
+      const buttons: Array<{ text: string; callback_data: string }> = [];
+      if (isFuture && !isMine && !i.is_personal_fallback) {
+        buttons.push({ text: '🙋 Ich komme', callback_data: `attend:${i.id}` });
+      }
+      if (isFuture && i.is_personal_fallback) {
+        buttons.push({ text: '✋ Ich übernehme', callback_data: `takeover:${i.id}` });
+      }
+
+      await tgSend(token, chatId, text, buttons.length ? {
+        reply_markup: { inline_keyboard: [buttons] },
+      } : {});
+    }
+  }
+
+  if (freeCount > 0) {
+    await tgSend(token, chatId,
+      `💡 <b>${freeCount} freie Slot${freeCount === 1 ? '' : 's'}</b> — neu anlegen geht nur in der App (Titel, Aromen, Eigenschaften).`,
+      {
+        reply_markup: {
+          inline_keyboard: [[{ text: '📲 Slot belegen in der App', url: planUrl }]],
+        },
+      });
   }
 }
 
