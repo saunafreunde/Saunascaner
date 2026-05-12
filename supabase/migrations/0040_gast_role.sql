@@ -35,29 +35,29 @@ comment on function public.is_gast() is
 
 -- ─── 4. list_members_directory: Gäste ausfiltern ──────────────────────────
 -- Gäste tauchen NICHT im Mitglieder-Directory auf (analog zu staff).
--- Bestehende Funktion aus 0028 erweitern.
+-- Bestehende Signatur (aus 0028) beibehalten, nur Filter erweitern.
 create or replace function public.list_members_directory()
 returns table (
   id uuid,
   name text,
+  sauna_name text,
+  member_number integer,
   role text,
   is_aufgieser boolean,
+  is_present boolean,
+  birthday date,
   motto text,
   avatar_path text,
-  birthday date,
-  sauna_name text,
   home_group text,
-  is_present boolean,
-  member_number int,
-  approved boolean
+  created_at timestamp with time zone
 )
 language sql stable security definer set search_path = public, auth as $$
-  select m.id, m.name, m.role, m.is_aufgieser, m.motto, m.avatar_path,
-         m.birthday, m.sauna_name, m.home_group, m.is_present, m.member_number, m.approved
+  select m.id, m.name, m.sauna_name, m.member_number, m.role, m.is_aufgieser,
+         m.is_present, m.birthday, m.motto, m.avatar_path, m.home_group, m.created_at
     from public.members m
    where m.approved = true
      and m.revoked_at is null
-     and m.role not in ('staff', 'gast')           -- staff und gast nicht im Verein-Directory
+     and m.role not in ('staff', 'gast')
      and exists (select 1 from public.members me where me.auth_user_id = auth.uid())
    order by m.is_aufgieser desc nulls last, m.name asc;
 $$;

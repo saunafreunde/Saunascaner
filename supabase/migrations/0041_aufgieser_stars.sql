@@ -37,6 +37,18 @@ alter table public.members
 -- ─── 3. GIN-Index für Specialty-Filter ───────────────────────────────────
 create index if not exists idx_members_specialties on public.members using gin(specialties);
 
+-- ─── 3b. Forward-Declaration: member_follows (volle Definition in 0042) ──
+-- Wird hier minimal erzeugt, damit RPCs in 0041 (fan_count) bereits funktionieren.
+-- Migration 0042 erweitert mit RLS, RPCs, Trigger, Cron.
+create table if not exists public.member_follows (
+  follower_id           uuid not null references public.members(id) on delete cascade,
+  followee_id           uuid not null references public.members(id) on delete cascade,
+  created_at            timestamptz not null default now(),
+  notifications_enabled boolean not null default true,
+  primary key (follower_id, followee_id),
+  check (follower_id <> followee_id)
+);
+
 -- ─── 4. RPC: Star-Profil aktualisieren (SECURITY DEFINER wegen RLS-Footgun) ─
 create or replace function public.update_my_star_profile(
   p_bio text default null,

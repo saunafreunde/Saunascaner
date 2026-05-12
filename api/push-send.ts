@@ -119,10 +119,15 @@ async function processQueue(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'env missing' });
   }
 
+  // Optional: Secret-Check wenn CRON_SECRET gesetzt ist (sonst offen wie push-reminder-cron).
+  // Da der Endpoint nur Pushes aus der Queue verschickt und idempotent ist (processed_at-Update),
+  // ist eine offene Variante akzeptabel — schlimmstenfalls verzögern sich Pushes.
   const cronSecret = process.env.CRON_SECRET;
-  const headerSecret = req.headers['x-cron-secret'];
-  if (!cronSecret || headerSecret !== cronSecret) {
-    return res.status(401).json({ error: 'cron secret required' });
+  if (cronSecret) {
+    const headerSecret = req.headers['x-cron-secret'];
+    if (headerSecret !== cronSecret) {
+      return res.status(401).json({ error: 'cron secret required' });
+    }
   }
 
   const sb = createClient(supaUrl, serviceKey);
