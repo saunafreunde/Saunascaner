@@ -11,6 +11,11 @@ import { StarTradingCard } from '@/components/StarTradingCard';
 import { Avatar } from '@/components/Avatar';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { PageBackground } from '@/components/PageBackground';
+import { RatingRadar } from '@/components/RatingRadar';
+import { AufgieserPhotoGallery } from '@/components/AufgieserPhotoGallery';
+import { FavoriteOilsDisplay, FavoriteOilsPicker } from '@/components/FavoriteOilsPicker';
+import { AufgieserGuestbook } from '@/components/AufgieserGuestbook';
+import { RatingCommentsCarousel } from '@/components/RatingCommentsCarousel';
 import { fmtClock } from '@/lib/time';
 import { isAdmin, isAufgieser } from '@/lib/roles';
 
@@ -28,6 +33,7 @@ export default function StarProfile() {
   const canEdit = isMe && (isAufgieser(me.data) || isAdmin(me.data));
   const wantEdit = params.get('edit') === '1';
   const [editing, setEditing] = useState(wantEdit && canEdit);
+  const [showOilsPicker, setShowOilsPicker] = useState(false);
 
   useEffect(() => {
     if (wantEdit && canEdit) setEditing(true);
@@ -154,10 +160,46 @@ export default function StarProfile() {
                   </ul>
                 </section>
               )}
+
+              {/* Stil-Profil-Radar */}
+              <RatingRadar memberId={star.id} accent={star.star_accent_color ?? '#f59e0b'} />
+
+              {/* Lieblings-Aromen */}
+              <div className="space-y-2">
+                <FavoriteOilsDisplay
+                  oilIds={(me.data?.id === star.id ? me.data.favorite_oils : []) ?? []}
+                  accent={star.star_accent_color ?? '#f59e0b'}
+                />
+                {isMe && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOilsPicker(true)}
+                    className="text-xs text-amber-400 hover:text-amber-300 underline"
+                  >
+                    Lieblings-Aromen bearbeiten →
+                  </button>
+                )}
+              </div>
+
+              {/* Foto-Galerie */}
+              <AufgieserPhotoGallery memberId={star.id} editable={isMe} />
+
+              {/* Was Gäste sagen — Rating-Kommentare */}
+              <RatingCommentsCarousel aufgieserId={star.id} />
+
+              {/* Gästebuch */}
+              <AufgieserGuestbook aufgieserId={star.id} />
             </>
           )}
         </div>
       </main>
+
+      {showOilsPicker && me.data && (
+        <FavoriteOilsPicker
+          current={me.data.favorite_oils ?? []}
+          onClose={() => setShowOilsPicker(false)}
+        />
+      )}
     </PageBackground>
   );
 }

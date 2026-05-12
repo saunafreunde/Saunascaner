@@ -25,6 +25,12 @@ export function useRealtimeSync() {
         })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'infusion_attendances' },
         () => qc.invalidateQueries({ queryKey: ['member-stats-full'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufgieser_comments' },
+        () => qc.invalidateQueries({ queryKey: ['aufgieser-comments'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufgieser_comment_likes' },
+        () => qc.invalidateQueries({ queryKey: ['aufgieser-comments'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufgieser_photos' },
+        () => qc.invalidateQueries({ queryKey: ['aufgieser-photos'] }))
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);

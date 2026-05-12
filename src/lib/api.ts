@@ -2356,3 +2356,231 @@ export function useMemberStatsFull(memberId: string | null | undefined) {
 
 // useMyBadges(memberId) gibt's bereits oben — verwenden wir wieder für Stats-Layer
 
+// ─── Aufgießer-Profil-Social (Migration 0046) ───────────────────────────
+
+export type AufgieserPhoto = {
+  id: string;
+  member_id: string;
+  photo_path: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type AufgieserComment = {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar: string | null;
+  author_role: MemberRole;
+  author_is_aufgieser: boolean;
+  content: string;
+  parent_id: string | null;
+  created_at: string;
+  edited_at: string | null;
+  like_count: number;
+  liked_by_me: boolean;
+  can_delete: boolean;
+};
+
+export type AufgieserRatingComment = {
+  rating_id: string;
+  infusion_id: string;
+  infusion_title: string;
+  rated_at: string;
+  author_name: string;
+  author_avatar: string | null;
+  comment: string;
+  avg_score: number;
+};
+
+export type RatingRadar = {
+  chemie: number;
+  luftbewegung: number;
+  wedeltechnik: number;
+  hitzeniveau: number;
+  musik: number;
+  duftentwicklung: number;
+  sample_size: number;
+};
+
+// Foto-Galerie
+export function useAufgieserPhotos(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['aufgieser-photos', memberId],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('aufgieser_photos')
+        .select('*')
+        .eq('member_id', memberId)
+        .order('sort_order', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as AufgieserPhoto[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useAddAufgieserPhoto() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { memberId: string; file: File; caption?: string }>({
+    mutationFn: async ({ memberId, file, caption }) => {
+      const path = await uploadAsset(file, 'aufgieser-photos');
+      const sortRes = await need()
+        .from('aufgieser_photos')
+        .select('sort_order')
+        .eq('member_id', memberId)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const nextSort = (sortRes.data?.sort_order ?? -1) + 1;
+      const { error } = await need().from('aufgieser_photos').insert({
+        member_id: memberId,
+        photo_path: path,
+        caption: caption?.trim() || null,
+        sort_order: nextSort,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufgieser-photos', vars.memberId] });
+    },
+  });
+}
+
+export function useDeleteAufgieserPhoto() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { id: string; memberId: string }>({
+    mutationFn: async ({ id }) => {
+      const { error } = await need().from('aufgieser_photos').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufgieser-photos', vars.memberId] });
+    },
+  });
+}
+
+// Lieblings-Öle
+export function useSetMyFavoriteOils() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string[]>({
+    mutationFn: async (oils) => {
+      const { error } = await need().rpc('set_my_favorite_oils', { p_oils: oils });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['aufgieser-stars'] });
+    },
+  });
+}
+
+// Gästebuch
+export function useAufgieserComments(aufgieserId: string | null | undefined, limit = 50) {
+  return useQuery({
+    queryKey: ['aufgieser-comments', aufgieserId, limit],
+    enabled: !!aufgieserId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_aufgieser_comments', {
+        p_aufgieser_id: aufgieserId,
+        p_limit: limit,
+      });
+      if (error) throw error;
+      return (data ?? []) as AufgieserComment[];
+    },
+    staleTime: 20_000,
+  });
+}
+
+export function usePostAufgieserComment() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { aufgieserId: string; content: string; parentId?: string | null }>({
+    mutationFn: async ({ aufgieserId, content, parentId }) => {
+      const meRes = await need().from('members').select('id').eq('auth_user_id', (await need().auth.getUser()).data.user?.id ?? '').maybeSingle();
+      if (!meRes.data?.id) throw new Error('not_logged_in');
+      const { error } = await need().from('aufgieser_comments').insert({
+        aufgieser_id: aufgieserId,
+        author_id: meRes.data.id,
+        content: content.trim(),
+        parent_id: parentId ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufgieser-comments', vars.aufgieserId] });
+    },
+  });
+}
+
+export function useDeleteAufgieserComment() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { id: string; aufgieserId: string }>({
+    mutationFn: async ({ id }) => {
+      const { error } = await need().from('aufgieser_comments').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufgieser-comments', vars.aufgieserId] });
+    },
+  });
+}
+
+export function useToggleCommentLike() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { commentId: string; aufgieserId: string; currentlyLiked: boolean }>({
+    mutationFn: async ({ commentId, currentlyLiked }) => {
+      const meRes = await need().from('members').select('id').eq('auth_user_id', (await need().auth.getUser()).data.user?.id ?? '').maybeSingle();
+      if (!meRes.data?.id) throw new Error('not_logged_in');
+      if (currentlyLiked) {
+        const { error } = await need()
+          .from('aufgieser_comment_likes')
+          .delete()
+          .eq('comment_id', commentId)
+          .eq('member_id', meRes.data.id);
+        if (error) throw error;
+      } else {
+        const { error } = await need()
+          .from('aufgieser_comment_likes')
+          .insert({ comment_id: commentId, member_id: meRes.data.id });
+        if (error && !String(error.message).includes('duplicate')) throw error;
+      }
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['aufgieser-comments', vars.aufgieserId] });
+    },
+  });
+}
+
+// Rating-Kommentare
+export function useAufgieserRatingComments(aufgieserId: string | null | undefined, limit = 10) {
+  return useQuery({
+    queryKey: ['aufgieser-rating-comments', aufgieserId, limit],
+    enabled: !!aufgieserId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_aufgieser_rating_comments', {
+        p_aufgieser_id: aufgieserId,
+        p_limit: limit,
+      });
+      if (error) throw error;
+      return (data ?? []) as AufgieserRatingComment[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+// Rating-Radar
+export function useAufgieserRatingRadar(aufgieserId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['aufgieser-rating-radar', aufgieserId],
+    enabled: !!aufgieserId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_aufgieser_rating_radar', { p_aufgieser_id: aufgieserId });
+      if (error) throw error;
+      return data as RatingRadar;
+    },
+    staleTime: 60_000,
+  });
+}
+
