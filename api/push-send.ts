@@ -11,7 +11,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
-import { authenticate } from './_auth';
+import { authenticate } from './_auth.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cron-Action: process-queue — verarbeitet notification_queue,

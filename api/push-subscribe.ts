@@ -1,7 +1,7 @@
 // POST /api/push-subscribe — speichert eine Browser-Push-Subscription.
 // Erfordert gültiges Supabase-JWT. member_id muss der eingeloggte User sein.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { authenticate } from './_auth';
+import { authenticate } from './_auth.js';
 
 interface PushSubBody {
   member_id: string;

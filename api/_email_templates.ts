@@ -15,8 +15,8 @@ const COLORS = {
   forest: '#22c55e',
 };
 
-import type { BrandData } from './_email_helpers';
-import { publicAssetUrlServer } from './_email_helpers';
+import type { BrandData } from './_email_helpers.js';
+import { publicAssetUrlServer } from './_email_helpers.js';
 
 const FALLBACK_LOGO = 'https://saunascaner.vercel.app/icons/icon-512.png';
 
