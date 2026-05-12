@@ -3306,3 +3306,90 @@ export function useAdminFeed(showDeleted = false) {
     },
   });
 }
+
+// ─── Stats-RPCs (Migration 0055) ──────────────────────────────────────────
+function simpleStat<T>(key: string, fn: string, args: Record<string, unknown> = {}) {
+  return useQuery({
+    queryKey: ['stats', key, args],
+    queryFn: async () => {
+      const { data, error } = await need().rpc(fn, args);
+      if (error) throw error;
+      return (data ?? []) as T;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export type AufgieserLeader = { member_id: string; name: string; avatar_path: string | null; infusion_count: number; avg_rating: number; rating_count: number };
+export const useStatsAufgieserLeaderboard = () => simpleStat<AufgieserLeader[]>('aufgieser-leaderboard', 'stats_aufgieser_leaderboard');
+
+export type VereinRatingAvg = { chemie: number; luftbewegung: number; wedeltechnik: number; hitzeniveau: number; musik: number; duftentwicklung: number };
+export const useStatsVereinRatingAvg = () => simpleStat<VereinRatingAvg[]>('verein-rating-avg', 'stats_verein_rating_avg');
+
+export type AufgieserConsistency = {
+  member_id: string; name: string; rating_count: number;
+  chemie_avg: number; chemie_sd: number; luft_avg: number; luft_sd: number;
+  wedel_avg: number; wedel_sd: number; hitze_avg: number; hitze_sd: number;
+  musik_avg: number; musik_sd: number; duft_avg: number; duft_sd: number;
+};
+export const useStatsAufgieserConsistency = () => simpleStat<AufgieserConsistency[]>('aufgieser-consistency', 'stats_aufgieser_consistency');
+
+export type AromaSignature = { oil_slug: string; usage_count: number };
+export const useStatsAufgieserAromaSignature = (memberId: string | null | undefined, limit = 12) =>
+  useQuery({
+    queryKey: ['stats', 'aroma-signature', memberId, limit],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('stats_aufgieser_aroma_signature', { p_member_id: memberId, p_limit: limit });
+      if (error) throw error;
+      return (data ?? []) as AromaSignature[];
+    },
+  });
+
+export type VolumeByMonth = { month: string; eigen: number; fallback: number; team: number };
+export const useStatsVolumeByMonth = (months = 12) => simpleStat<VolumeByMonth[]>('volume-by-month', 'stats_volume_by_month', { p_months: months });
+
+export type WeekdayHourCell = { weekday: number; hour: number; count: number };
+export const useStatsWeekdayHourHeatmap = (months = 12) => simpleStat<WeekdayHourCell[]>('weekday-hour-heatmap', 'stats_weekday_hour_heatmap', { p_months: months });
+
+export type FallbackRateRow = { month: string; total: number; fallbacks: number; fallback_pct: number };
+export const useStatsFallbackRateByMonth = (months = 12) => simpleStat<FallbackRateRow[]>('fallback-rate-by-month', 'stats_fallback_rate_by_month', { p_months: months });
+
+export type TeamAufgussRow = { total: number; team_count: number; team_pct: number; top_member_id: string | null; top_name: string | null; top_count: number };
+export const useStatsTeamAufgussSummary = () => simpleStat<TeamAufgussRow[]>('team-aufguss-summary', 'stats_team_aufguss_summary');
+
+export type TopOil = { oil_slug: string; usage_count: number };
+export const useStatsTopOils = (limit = 20) => simpleStat<TopOil[]>('top-oils', 'stats_top_oils', { p_limit: limit });
+
+export type OilRatingCorr = { oil_slug: string; usage_count: number; avg_rating: number; rating_count: number };
+export const useStatsOilRatingCorrelation = (minUsage = 2) => simpleStat<OilRatingCorr[]>('oil-rating-corr', 'stats_oil_rating_correlation', { p_min_usage: minUsage });
+
+export type OilSeasonRow = { oil_slug: string; month: number; usage_count: number };
+export const useStatsOilSeasonality = () => simpleStat<OilSeasonRow[]>('oil-seasonality', 'stats_oil_seasonality');
+
+export type StreakRow = { member_id: string; name: string; longest_streak: number; current_streak: number; total_visits: number };
+export const useStatsStreakLeaderboard = (limit = 15) => simpleStat<StreakRow[]>('streak-leaderboard', 'stats_attendance_streak_leaderboard', { p_limit: limit });
+
+export type ActivityScoreRow = { member_id: string; name: string; role: string; infusions_done: number; attendances: number; ratings_given: number; posts: number; reactions_made: number; total_score: number };
+export const useStatsActivityScore = (limit = 20) => simpleStat<ActivityScoreRow[]>('activity-score', 'stats_activity_score', { p_limit: limit });
+
+export type MemberGrowthRow = { month: string; role: string; joined: number };
+export const useStatsMemberGrowth = (months = 12) => simpleStat<MemberGrowthRow[]>('member-growth', 'stats_member_growth_by_month', { p_months: months });
+
+export type RetentionRow = { bucket: string; member_count: number };
+export const useStatsGuestRetentionFunnel = () => simpleStat<RetentionRow[]>('guest-retention', 'stats_guest_retention_funnel');
+
+export type RatingCoverageRow = { month: string; total: number; rated: number; coverage_pct: number };
+export const useStatsRatingCoverage = (months = 12) => simpleStat<RatingCoverageRow[]>('rating-coverage', 'stats_rating_coverage_by_month', { p_months: months });
+
+export type RatingDistRow = { stars: number; count: number };
+export const useStatsRatingDistribution = () => simpleStat<RatingDistRow[]>('rating-distribution', 'stats_rating_distribution');
+
+export type FeedActivityRow = { day: string; posts: number; reactions: number };
+export const useStatsFeedActivity = (days = 30) => simpleStat<FeedActivityRow[]>('feed-activity', 'stats_feed_activity_by_day', { p_days: days });
+
+export type FeedReactionDistRow = { reaction: string; count: number };
+export const useStatsFeedReactionDistribution = () => simpleStat<FeedReactionDistRow[]>('feed-reaction-dist', 'stats_feed_reaction_distribution');
+
+export type FollowNetworkRow = { kind: 'star' | 'fan'; member_id: string; name: string; avatar_path: string | null; role: string; n: number };
+export const useStatsFollowerNetwork = (limit = 8) => simpleStat<FollowNetworkRow[]>('follower-network', 'stats_follower_network', { p_limit: limit });

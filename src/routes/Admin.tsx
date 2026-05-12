@@ -6,6 +6,7 @@ import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
 import { SupportTasksAdminTab } from '@/components/admin/SupportTasksAdminTab';
 import { FeedModerationTab } from '@/components/admin/FeedModerationTab';
+import { AuswertungenTab } from '@/components/admin/AuswertungenTab';
 import { PostfachDialog } from '@/components/admin/PostfachDialog';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { HandbookTab } from '@/components/admin/HandbookTab';
@@ -29,21 +30,22 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
-  saunas:      { label: 'Saunen',       icon: '🔥' },
-  members:     { label: 'Mitglieder',   icon: '👥' },
-  invitations: { label: 'Einladungen',  icon: '✉️' },
-  recurring:   { label: 'Stamm-Slots',  icon: '📅' },
-  presence:    { label: 'Anwesenheit',  icon: '🟢' },
-  stats:       { label: 'Statistik',    icon: '📊' },
-  branding:    { label: 'Branding',     icon: '🎨' },
-  handbook:    { label: 'Handbuch',     icon: '📖' },
-  polls:       { label: 'Abfragen',     icon: '📋' },
-  tasks:       { label: 'Aufgaben',     icon: '🤝' },
-  feed:        { label: 'Feed',         icon: '📸' },
-  wm:          { label: 'WM-Tipps',     icon: '🏆' },
+  saunas:       { label: 'Saunen',       icon: '🔥' },
+  members:      { label: 'Mitglieder',   icon: '👥' },
+  invitations:  { label: 'Einladungen',  icon: '✉️' },
+  recurring:    { label: 'Stamm-Slots',  icon: '📅' },
+  presence:     { label: 'Anwesenheit',  icon: '🟢' },
+  stats:        { label: 'Statistik',    icon: '📊' },
+  auswertungen: { label: 'Auswertungen', icon: '📈' },
+  branding:     { label: 'Branding',     icon: '🎨' },
+  handbook:     { label: 'Handbuch',     icon: '📖' },
+  polls:        { label: 'Abfragen',     icon: '📋' },
+  tasks:        { label: 'Aufgaben',     icon: '🤝' },
+  feed:         { label: 'Feed',         icon: '📸' },
+  wm:           { label: 'WM-Tipps',     icon: '🏆' },
 };
 
 export default function Admin() {
@@ -120,6 +122,7 @@ export default function Admin() {
         {tab === 'polls' && <PollsTab />}
         {tab === 'tasks' && <SupportTasksAdminTab />}
         {tab === 'feed' && <FeedModerationTab />}
+        {tab === 'auswertungen' && <AuswertungenTab />}
         {tab === 'wm' && <WmAdminTab />}
       </div>
     </div>
