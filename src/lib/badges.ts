@@ -8,6 +8,7 @@ export type BadgeCategory =
   | 'discovery'   // Aufgießer-/Sauna-Vielfalt
   | 'community'   // Follows, Pioneer
   | 'season'      // Saison + Geburtstag + Adlerauge
+  | 'support'     // Helfer-Einsätze (Unterstützer)
   | 'special';    // sonstige (Pioneer-Aufgießer, WM, etc.)
 
 export type BadgeDefinition = {
@@ -453,7 +454,59 @@ export const GAST_BADGES: BadgeDefinition[] = [
   },
 ];
 
-export const ALL_BADGES: BadgeDefinition[] = [...MILESTONE_BADGES, ...SPECIAL_BADGES, ...GAST_BADGES];
+// ─── Unterstützer-Badges (Migration 0049) ────────────────────────────────
+// Helfer-Einsätze: Aufgaben-Anmeldungen → Badges automatisch via DB-Trigger.
+
+export const SUPPORT_BADGES: BadgeDefinition[] = [
+  // Volunteer (Anzahl Einsätze gesamt)
+  { id: 'volunteer_first', emoji: '🤝', label: 'Erste Hilfe',
+    description: 'Erste Helfer-Anmeldung — willkommen im Unterstützer-Kreis!',
+    tier: 'bronze', category: 'support', threshold: 1 },
+  { id: 'volunteer_5', emoji: '🤝', label: 'Helfer',
+    description: '5 Helfer-Einsätze — du bist verlässlich.',
+    tier: 'bronze', category: 'support', threshold: 5 },
+  { id: 'volunteer_25', emoji: '🛠️', label: 'Aktivposten',
+    description: '25 Helfer-Einsätze — ohne dich läuft hier nichts.',
+    tier: 'silver', category: 'support', threshold: 25 },
+  { id: 'volunteer_50', emoji: '🏅', label: 'Vereins-Stütze',
+    description: '50 Helfer-Einsätze — eine tragende Säule.',
+    tier: 'gold', category: 'support', threshold: 50 },
+  { id: 'volunteer_100', emoji: '💎', label: 'Säulen-Heilige',
+    description: '100 Helfer-Einsätze — Legenden-Status für Helfer.',
+    tier: 'platinum', category: 'support', threshold: 100 },
+
+  // Event-Helfer
+  { id: 'event_helper_first', emoji: '🎪', label: 'Event-Premiere',
+    description: 'Bei einem Vereins-Event mitgemacht.',
+    tier: 'bronze', category: 'support', threshold: 1 },
+  { id: 'event_helper_5', emoji: '🎭', label: 'Event-Profi',
+    description: '5 Events mitgestaltet — du machst Stimmung.',
+    tier: 'silver', category: 'support', threshold: 5 },
+  { id: 'event_helper_10', emoji: '🏆', label: 'Event-Held',
+    description: '10 Events mitorganisiert — Mister/Mrs. Saunafest!',
+    tier: 'gold', category: 'support', threshold: 10 },
+
+  // Pflege-Held
+  { id: 'care_hero_first', emoji: '🌱', label: 'Erste Pflege',
+    description: 'Erste Pflege-Aufgabe übernommen.',
+    tier: 'bronze', category: 'support', threshold: 1 },
+  { id: 'care_hero_5', emoji: '🌿', label: 'Pflege-Held',
+    description: '5 Pflege-Einsätze — du hältst alles am Laufen.',
+    tier: 'silver', category: 'support', threshold: 5 },
+  { id: 'care_hero_15', emoji: '🌳', label: 'Pflege-Meister',
+    description: '15 Pflege-Einsätze — der Verein dankt!',
+    tier: 'gold', category: 'support', threshold: 15 },
+
+  // Erste-Stunde
+  { id: 'early_bird_helper_3', emoji: '⚡', label: 'Schnell-Helfer',
+    description: '3× innerhalb 1 Stunde nach Veröffentlichung angemeldet.',
+    tier: 'silver', category: 'support', threshold: 3 },
+  { id: 'early_bird_helper_10', emoji: '🌅', label: 'Sofort-Reagierer',
+    description: '10× innerhalb 1 Stunde nach Veröffentlichung angemeldet — du bist immer da.',
+    tier: 'gold', category: 'support', threshold: 10 },
+];
+
+export const ALL_BADGES: BadgeDefinition[] = [...MILESTONE_BADGES, ...SPECIAL_BADGES, ...GAST_BADGES, ...SUPPORT_BADGES];
 
 // Labels für Galerie-Gruppen
 export const CATEGORY_LABEL: Record<BadgeCategory, { emoji: string; label: string }> = {
@@ -464,6 +517,7 @@ export const CATEGORY_LABEL: Record<BadgeCategory, { emoji: string; label: strin
   discovery:  { emoji: '🔍', label: 'Entdeckung' },
   community:  { emoji: '❤️', label: 'Community' },
   season:     { emoji: '🌟', label: 'Saison' },
+  support:    { emoji: '🤝', label: 'Helfer' },
   special:    { emoji: '🏅', label: 'Spezial' },
 };
 

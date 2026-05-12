@@ -2341,6 +2341,196 @@ export function useMyCheckinPin() {
   });
 }
 
+// ─── Unterstützer-Aufgaben (Migration 0049) ─────────────────────────────
+
+export type SupportTaskCategory = 'event' | 'care' | 'material' | 'social' | 'other';
+export type SupportTaskVisibility = 'all' | 'member_only' | 'staff_only' | 'aufgieser';
+
+export const SUPPORT_CATEGORY_META: Record<SupportTaskCategory, { emoji: string; label: string }> = {
+  event:    { emoji: '🎪', label: 'Event' },
+  care:     { emoji: '🌱', label: 'Pflege' },
+  material: { emoji: '📦', label: 'Material' },
+  social:   { emoji: '☕', label: 'Sozial' },
+  other:    { emoji: '🤝', label: 'Sonstiges' },
+};
+
+export type SupportTask = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: SupportTaskCategory;
+  visibility: SupportTaskVisibility;
+  start_time: string | null;
+  end_time: string | null;
+  max_helpers: number | null;
+  location: string | null;
+  created_at: string;
+  helper_count: number;
+  is_helping_me: boolean;
+  is_full: boolean;
+};
+
+export type MySupportTaskEntry = {
+  task_id: string;
+  title: string;
+  description: string | null;
+  category: SupportTaskCategory;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  joined_at: string;
+  note: string | null;
+  left_at: string | null;
+  fulfilled_at: string | null;
+  archived_at: string | null;
+  archived_reason: string | null;
+};
+
+export type SupportTaskHelperRow = {
+  member_id: string;
+  name: string;
+  avatar_path: string | null;
+  is_aufgieser: boolean;
+  joined_at: string;
+  note: string | null;
+  left_at: string | null;
+  fulfilled_at: string | null;
+};
+
+export function useOpenSupportTasks() {
+  return useQuery({
+    queryKey: ['support-tasks', 'open'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_open_support_tasks');
+      if (error) throw error;
+      return (data ?? []) as SupportTask[];
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useMySupportTasks(includeArchived = true) {
+  return useQuery({
+    queryKey: ['support-tasks', 'mine', includeArchived],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_support_tasks', { p_include_archived: includeArchived });
+      if (error) throw error;
+      return (data ?? []) as MySupportTaskEntry[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useTaskHelpers(taskId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['support-task-helpers', taskId],
+    enabled: !!taskId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_task_helpers', { p_task_id: taskId });
+      if (error) throw error;
+      return (data ?? []) as SupportTaskHelperRow[];
+    },
+    staleTime: 20_000,
+  });
+}
+
+export function useJoinSupportTask() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { taskId: string; note?: string }>({
+    mutationFn: async ({ taskId, note }) => {
+      const { error } = await need().rpc('join_support_task', { p_task_id: taskId, p_note: note ?? null });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['support-tasks'] });
+      qc.invalidateQueries({ queryKey: ['support-task-helpers', vars.taskId] });
+    },
+  });
+}
+
+export function useLeaveSupportTask() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (taskId) => {
+      const { error } = await need().rpc('leave_support_task', { p_task_id: taskId });
+      if (error) throw error;
+    },
+    onSuccess: (_, taskId) => {
+      qc.invalidateQueries({ queryKey: ['support-tasks'] });
+      qc.invalidateQueries({ queryKey: ['support-task-helpers', taskId] });
+    },
+  });
+}
+
+export type CreateSupportTaskInput = {
+  title: string;
+  description?: string | null;
+  category?: SupportTaskCategory;
+  visibility?: SupportTaskVisibility;
+  start_time?: string | null;
+  end_time?: string | null;
+  max_helpers?: number | null;
+  location?: string | null;
+};
+
+export function useCreateSupportTask() {
+  const qc = useQueryClient();
+  return useMutation<string, Error, CreateSupportTaskInput>({
+    mutationFn: async (input) => {
+      const { data, error } = await need().rpc('create_support_task', {
+        p_title: input.title,
+        p_description: input.description ?? null,
+        p_category: input.category ?? 'other',
+        p_visibility: input.visibility ?? 'all',
+        p_start_time: input.start_time ?? null,
+        p_end_time: input.end_time ?? null,
+        p_max_helpers: input.max_helpers ?? null,
+        p_location: input.location ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['support-tasks'] }),
+  });
+}
+
+export function useArchiveSupportTask() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { id: string; reason?: string }>({
+    mutationFn: async ({ id, reason }) => {
+      const { error } = await need().rpc('archive_support_task', { p_id: id, p_reason: reason ?? 'erledigt' });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['support-tasks'] }),
+  });
+}
+
+export function useUnarchiveSupportTask() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (id) => {
+      const { error } = await need().rpc('unarchive_support_task', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['support-tasks'] }),
+  });
+}
+
+export function useMarkHelperFulfilled() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { taskId: string; memberId: string; fulfilled: boolean }>({
+    mutationFn: async ({ taskId, memberId, fulfilled }) => {
+      const { error } = await need().rpc('mark_helper_fulfilled', {
+        p_task_id: taskId, p_member_id: memberId, p_fulfilled: fulfilled,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['support-task-helpers', vars.taskId] });
+    },
+  });
+}
+
 export function useRotateMyCheckinPin() {
   const qc = useQueryClient();
   return useMutation<string, Error, void>({

@@ -39,6 +39,13 @@ export function useRealtimeSync() {
         () => qc.invalidateQueries({ queryKey: ['aufguss-wishes'] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'aufguss_wish_likes' },
         () => qc.invalidateQueries({ queryKey: ['aufguss-wishes'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tasks' },
+        () => qc.invalidateQueries({ queryKey: ['support-tasks'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_task_helpers' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['support-tasks'] });
+          qc.invalidateQueries({ queryKey: ['support-task-helpers'] });
+        })
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);
