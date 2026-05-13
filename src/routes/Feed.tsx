@@ -138,12 +138,14 @@ export default function Feed() {
         )}
       </main>
 
-      {/* Compose-FAB */}
+      {/* Compose-FAB — auf Mobile über Bottom-Nav (+72px) + Safe-Area, auf Desktop unten rechts */}
       <button
         type="button"
         onClick={() => setComposeOpen(true)}
         title="Neuen Beitrag"
-        className="fixed bottom-5 right-5 z-40 h-14 w-14 rounded-full bg-forest-500 text-forest-950 text-2xl font-bold shadow-2xl shadow-forest-500/40 ring-2 ring-forest-300/40 hover:bg-forest-400 hover:scale-110 transition flex items-center justify-center"
+        aria-label="Neuen Beitrag erstellen"
+        className="fixed right-4 z-40 h-14 w-14 rounded-full bg-forest-500 text-forest-950 text-2xl font-bold shadow-2xl shadow-forest-500/40 ring-2 ring-forest-300/40 hover:bg-forest-400 hover:scale-110 active:scale-95 transition flex items-center justify-center"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 84px)' }}
       >＋</button>
 
       {composeOpen && (

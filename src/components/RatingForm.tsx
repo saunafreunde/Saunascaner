@@ -106,12 +106,12 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/60 backdrop-blur-sm lg:items-center lg:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-md rounded-2xl bg-forest-950 ring-1 ring-forest-700/50 shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="px-5 pt-5 pb-4 border-b border-forest-800/40">
+      <div className="w-full lg:max-w-md bg-forest-950 ring-1 ring-forest-700/50 shadow-2xl flex flex-col h-screen-dvh lg:h-auto lg:max-h-[90vh] lg:rounded-2xl">
+        {/* Header — sticky-top mit Safe-Area */}
+        <div className="px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-4 border-b border-forest-800/40">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-100">
@@ -126,7 +126,8 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
             </div>
             <button
               onClick={onClose}
-              className="text-forest-400 hover:text-slate-200 text-xl leading-none shrink-0"
+              aria-label="Schließen"
+              className="flex h-11 w-11 items-center justify-center text-forest-400 hover:text-slate-200 text-xl leading-none shrink-0 -mr-2 -mt-1 rounded-full active:bg-forest-900/60"
             >
               ✕
             </button>
@@ -172,8 +173,8 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 pb-5 pt-3 border-t border-forest-800/40">
+        {/* Footer — sticky-bottom mit Safe-Area, Backdrop-Blur */}
+        <div className="px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-forest-800/40 bg-forest-950/95 backdrop-blur-lg">
           {!allFilled && (
             <p className="text-xs text-forest-400 text-center mb-2">
               Bitte alle 6 Kategorien bewerten
@@ -182,7 +183,7 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
           <button
             onClick={handleSubmit}
             disabled={!allFilled || submitRating.isPending}
-            className="w-full rounded-xl bg-forest-600 hover:bg-forest-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+            className="w-full rounded-xl bg-forest-600 hover:bg-forest-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed min-h-[48px] px-4 text-base font-semibold text-white transition"
           >
             {submitRating.isPending
               ? 'Speichern...'

@@ -5,6 +5,20 @@
 html, body, #root { height: 100%; }
 body { font-family: 'Inter', system-ui, sans-serif; }
 
+/* ─── Mobile / PWA Safe-Area-Helper ──────────────────────────────────── */
+/* Padding-Tokens via Tailwind sind verfügbar (pt-safe-top etc.). Diese
+   Klassen sind für max(...) Kombinationen die in Tailwind hässlich wären. */
+.pt-safe-top    { padding-top:    env(safe-area-inset-top); }
+.pb-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.pb-safe-or-4   { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.pb-safe-or-5   { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+.h-screen-dvh   { height: 100vh; height: 100dvh; }
+.min-h-screen-dvh { min-height: 100vh; min-height: 100dvh; }
+.max-h-screen-dvh { max-height: 100vh; max-height: 100dvh; }
+/* Scroll-Snap-Container für horizontale Tab-Bars */
+.snap-x-tabs   { scroll-snap-type: x mandatory; scroll-padding-inline: 1rem; }
+.snap-x-tabs > * { scroll-snap-align: start; }
+
 /* Schwarzwald-Backdrop */
 .bg-schwarzwald {
   background-color: #052e16;

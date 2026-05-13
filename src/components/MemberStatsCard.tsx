@@ -63,16 +63,16 @@ function StatTile({ emoji, value, label, accent, small }: {
   small?: boolean;
 }) {
   return (
-    <div className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-3 text-center hover:ring-amber-500/30 transition">
+    <div className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-3 text-center hover:ring-amber-500/30 transition min-w-0" title={String(value)}>
       <div className="text-2xl">{emoji}</div>
       <div
-        className={`mt-1 font-bold tabular-nums ${small ? 'text-xs leading-tight truncate' : 'text-xl'}`}
+        title={String(value)}
+        className={`mt-1 font-bold tabular-nums truncate ${small ? 'text-xs leading-tight' : 'text-xl'}`}
         style={{ color: accent }}
-        title={typeof value === 'string' ? value : undefined}
       >
         {value}
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-forest-400">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-forest-400 truncate" title={label}>{label}</div>
     </div>
   );
 }

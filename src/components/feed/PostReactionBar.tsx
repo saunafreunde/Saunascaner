@@ -35,7 +35,7 @@ export function PostReactionBar({ postId, counts, myReactions, compact = false }
             onClick={() => toggle(r.kind)}
             title={r.label + (cnt > 0 ? ` (${cnt})` : '')}
             className={`group inline-flex items-center gap-1 rounded-full transition ${
-              compact ? 'px-1.5 py-0.5 text-[11px]' : 'px-2.5 py-1.5 text-xs'
+              compact ? 'px-1.5 py-0.5 text-[11px]' : 'px-3 py-2 text-sm min-h-[40px]'
             } ring-1 ${
               isMine
                 ? 'bg-amber-500/20 ring-amber-500/50 text-amber-200 scale-105 shadow-sm shadow-amber-500/20'

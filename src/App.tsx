@@ -5,6 +5,25 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
+
+// Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows
+const NO_BOTTOM_NAV_PATHS = [
+  '/dashboard', '/scanner', '/oil-room',
+  '/checkin', '/checkin/signup', '/checkin/rate',
+  '/gast-signup', '/login', '/forgot', '/reset-password',
+  '/m/',
+];
+
+function shouldShowBottomNav(pathname: string): boolean {
+  return !NO_BOTTOM_NAV_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/') || (p.endsWith('/') && pathname.startsWith(p)));
+}
+
+function BottomNavGate() {
+  const { pathname } = useLocation();
+  if (!shouldShowBottomNav(pathname)) return null;
+  return <MobileBottomNav />;
+}
 
 // Eager-loaded routes (für sofortige Verfügbarkeit)
 import Guest from '@/routes/Guest';
@@ -41,8 +60,9 @@ export default function App() {
   useApplyStoredTheme();
   return (
     <Suspense fallback={<Splash />}>
-      <Routes>
-        <Route path="/" element={<RootEntry />} />
+      <div className="pb-[calc(env(safe-area-inset-bottom)+72px)] lg:pb-0 min-h-full">
+        <Routes>
+          <Route path="/" element={<RootEntry />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/scanner"   element={<Scanner />} />
         <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
@@ -70,7 +90,9 @@ export default function App() {
         <Route path="/m/:code"        element={<MagicEntry />} />
         <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />
         <Route path="*"          element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </div>
+      <BottomNavGate />
     </Suspense>
   );
 }

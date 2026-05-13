@@ -940,7 +940,7 @@ export default function Planner() {
                 type="button"
                 onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
                 disabled={weekOffset === 0}
-                className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="rounded-lg bg-forest-900/70 min-h-[44px] px-3.5 py-2 text-sm font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >◀ Woche</button>
               <div className="text-center">
                 <div className="text-xs font-semibold text-forest-100">
@@ -955,7 +955,7 @@ export default function Planner() {
                 onClick={() => setWeekOffset((o) => Math.min(MAX_WEEK_OFFSET, o + 1))}
                 disabled={weekOffset >= MAX_WEEK_OFFSET}
                 title={weekOffset >= MAX_WEEK_OFFSET ? `Maximal ${MAX_WEEK_OFFSET} Wochen im Voraus planen` : ''}
-                className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="rounded-lg bg-forest-900/70 min-h-[44px] px-3.5 py-2 text-sm font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >Woche ▶</button>
             </div>
 
@@ -1434,7 +1434,7 @@ function SaunaSlotRow({
           {sauna.temperature_label}
         </span>
       </div>
-      <div className="grid grid-cols-5 sm:grid-cols-10 gap-1">
+      <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 lg:grid-cols-10 gap-1.5">
         {slots.map((hhmm) => {
           const hour = Number(hhmm.split(':')[0]);
           const status = slotStatus(sauna.id, hhmm);
@@ -1490,7 +1490,7 @@ function SaunaSlotRow({
               disabled={disabled}
               onClick={() => onPick(hhmm)}
               title={title}
-              className={`relative rounded-md py-2 text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${disabled ? 'cursor-not-allowed' : 'hover:brightness-125'} ${isSelected ? 'font-bold' : ''}`}
+              className={`relative rounded-lg min-h-[44px] px-2 py-2 text-sm lg:text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${disabled ? 'cursor-not-allowed opacity-60' : 'hover:brightness-125 active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
             >
               {label}
               {extra}

@@ -89,9 +89,9 @@ export function FeedComposeModal({ defaultInfusionId = null, onClose, onPosted }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-3" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 sm:p-3" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl bg-forest-950 ring-1 ring-forest-700/50 max-h-[92vh] overflow-y-auto"
+        className="w-full max-w-lg bg-forest-950 ring-1 ring-forest-700/50 max-h-screen-dvh sm:max-h-[92vh] sm:rounded-2xl rounded-t-2xl overflow-y-auto pb-safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-forest-800/40">
@@ -242,8 +242,8 @@ function FeedOilPicker({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 p-3" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl bg-forest-950 ring-1 ring-emerald-700/40 p-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 sm:p-3" onClick={onClose}>
+      <div className="w-full max-w-2xl bg-forest-950 ring-1 ring-emerald-700/40 p-4 max-h-screen-dvh sm:max-h-[85vh] sm:rounded-2xl rounded-t-2xl overflow-y-auto pb-safe-bottom" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base font-semibold text-emerald-100">🌿 Aromen wählen ({selected.length}/{maxOils})</h3>
           <button onClick={onClose} className="text-emerald-200 hover:text-white text-xl">×</button>

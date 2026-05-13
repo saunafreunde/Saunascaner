@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { WmAdminTab } from '@/components/admin/WmAdminTab';
@@ -58,6 +58,10 @@ export default function Admin() {
     [wmOnly]
   );
   const [tab, setTab] = useState<Tab>(wmOnly ? 'wm' : 'saunas');
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [tab]);
 
   return (
     <div className="bg-schwarzwald-soft min-h-full text-slate-100">
@@ -85,17 +89,18 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Modern segmented tab bar */}
+        {/* Modern segmented tab bar — Scroll-Snap auf Mobile, Active-Tab auto-scrollt in den View */}
         <div className="mx-auto max-w-6xl px-4 pb-2 -mt-1">
-          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin snap-x-tabs">
             {visibleTabs.map((t) => {
               const active = tab === t;
               const meta = TAB_META[t];
               return (
                 <button
                   key={t}
+                  ref={active ? activeTabRef : undefined}
                   onClick={() => setTab(t)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap transition ${
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-2 min-h-[40px] text-xs sm:text-sm font-medium whitespace-nowrap transition ${
                     active
                       ? 'bg-forest-500 text-forest-950 shadow-md ring-1 ring-forest-400'
                       : 'text-forest-300 hover:bg-forest-900/60 hover:text-forest-100'

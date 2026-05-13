@@ -136,7 +136,7 @@ export default function StarProfile() {
                   <h3 className="text-xs font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
                     {isMe ? 'Meine Story' : 'Story'}
                   </h3>
-                  <div className="text-sm text-forest-200/90 leading-relaxed [&_p]:mt-3 [&_p:first-child]:mt-0 [&_strong]:text-forest-100 [&_strong]:font-semibold [&_em]:italic [&_a]:text-amber-400 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mt-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-forest-100 [&_h2]:mt-4 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-forest-100 [&_h3]:mt-3">
+                  <div className="text-sm text-forest-200/90 leading-relaxed [&_p]:mt-3 [&_p:first-child]:mt-0 [&_strong]:text-forest-100 [&_strong]:font-semibold [&_em]:italic [&_a]:text-amber-400 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mt-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-forest-100 [&_h2]:mt-4 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-forest-100 [&_h3]:mt-3 [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{star.aufgieser_story}</ReactMarkdown>
                   </div>
                 </section>

@@ -38,9 +38,9 @@ export function FeedFilterSheet({ activeOil, activeInfusion, onApply, onClose }:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-3" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 sm:p-3" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl bg-forest-950 ring-1 ring-forest-700/50 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-lg bg-forest-950 ring-1 ring-forest-700/50 max-h-screen-dvh sm:max-h-[85vh] sm:rounded-2xl rounded-t-2xl overflow-y-auto pb-safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-forest-800/40">

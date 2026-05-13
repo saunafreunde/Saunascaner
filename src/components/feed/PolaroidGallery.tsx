@@ -40,7 +40,7 @@ export function PolaroidGallery({ memberId, limit = 6 }: Props) {
       <div className="relative rounded-2xl bg-gradient-to-br from-amber-950/70 via-stone-900/60 to-amber-950/80 ring-1 ring-amber-900/40 p-6 shadow-inner shadow-black/40 overflow-hidden">
         <div className="absolute inset-0 opacity-20 pointer-events-none"
           style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(120,80,40,0.3) 0 2px, transparent 2px 28px)' }} />
-        <div className="relative grid grid-cols-3 gap-3 sm:gap-4">
+        <div className="relative grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           {posts.slice(0, limit).map((p, idx) => (
             <PolaroidThumb
               key={p.id}

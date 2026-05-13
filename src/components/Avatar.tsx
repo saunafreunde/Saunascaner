@@ -14,8 +14,8 @@ interface AvatarProps {
 }
 
 const SIZE_CLASSES: Record<Size, string> = {
-  xs: 'h-7 w-7 text-[11px] rounded-lg',
-  sm: 'h-10 w-10 text-base rounded-xl',
+  xs: 'h-8 w-8 text-xs rounded-lg',
+  sm: 'h-11 w-11 text-base rounded-xl',
   md: 'h-14 w-14 text-2xl rounded-2xl',
   lg: 'h-20 w-20 text-3xl rounded-3xl',
   xl: 'h-24 w-24 text-4xl rounded-3xl',
