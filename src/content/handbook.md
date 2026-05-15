@@ -486,6 +486,31 @@ Du bist Mitarbeiter (nicht Vereinsmitglied) und hilfst beim Betrieb. Dein Bereic
 
 90 Minuten bevor ein Personal-Aufguss fällig wird (und kein Aufgießer übernommen hat), schickt der **Telegram-Bot** automatisch eine Nachricht in den Aufgießer-Channel mit **„✋ Ich übernehme"**-Button. Falls niemand reagiert: **du machst den Aufguss** als Personal-Fallback.
 
+### 📅 Verfügbarkeit für den Folgemonat eintragen ⭐ neu
+
+Im Mitarbeiter-Bereich gibt es einen **Verfügbarkeits-Kalender** (60 Tage voraus). Du klickst auf einen Tag → Modal öffnet sich → trägst **Zeitfenster** ein (z.B. 18:00–22:00) + optional eine Notiz („Nur kurz, danach Termin"). Auch nachträglich änderbar oder löschbar.
+
+> **Wichtig:** Deine Eingaben sind **nicht bindend**. Sie helfen dem CP-Verantwortlichen, dich nur dann einzuplanen, wenn du tatsächlich Zeit hast. Eine Planung kann auch davon abweichen — du musst aber im Notfall nicht.
+
+### 🔄 Schicht-Tausch zwischen Mitarbeitern ⭐ neu
+
+In der Section **„📋 Meine Schichten"** siehst du deine zukünftigen Schichten. Pro Schicht gibt's zwei Buttons:
+
+- **🔄 Tauschen** → Modal: wähle einen anderen Mitarbeiter aus der Liste + optionale Nachricht → **Anfrage senden**. Der andere bekommt eine Push-Nachricht.
+- **✗ Absagen** → wenn du wirklich nicht kannst (siehe nächste Section).
+
+In der Section **„🔄 Tausch-Anfragen"** siehst du:
+- **eingehende** Anfragen mit ✓ Annehmen / ✗ Ablehnen
+- **ausgehende** Anfragen die du selbst gestellt hast — mit Zurückziehen-Option
+
+Wenn jemand annimmt: Schichten werden **direkt** getauscht. Der **CP-Verantwortliche bekommt eine Notification** zur Information.
+
+### 🆘 Schicht absagen + Broadcast „Wer hat Zeit?" ⭐ neu
+
+Wenn du **kurzfristig** nicht kannst: Klick auf **✗ Absagen** bei deiner Schicht, gib einen kurzen Grund ein → Absage wird gespeichert.
+
+→ Automatisch geht eine **Push-Nachricht an ALLE anderen Mitarbeiter**: „Schicht-Absage: Wer hat Zeit?". In deren Mitarbeiter-Bereich erscheint die Schicht unter **„🆘 Offene Absagen"** mit **„🙋 Ich übernehme"**-Button. Erster Klick gewinnt — die Schicht ist dann ihm/ihr zugeordnet.
+
 ### Was du nicht machst
 
 - ❌ **Aufgüsse bewerten** — Personal hat **kein** PendingRatings-Block. Bewertungen geben nur Mitglieder und Gäste ab, die im Aufguss waren.
@@ -516,13 +541,47 @@ Wenn du dich einloggst, landest du direkt in `/cp`. Von oben nach unten siehst d
 | Section | Was du tust |
 |---|---|
 | 🚨 **Notfall-Alarm** | Ganz oben — sofort sichtbar. Doppelte Bestätigung verhindert Fehlauslösung. |
-| 📋 **Mini-Tafel (Heute)** | Timeline mit allen Stunden-Slots des heutigen Tages, pro aktive Sauna eine Zeile. „Jetzt"-Marker als grüner Strich. Handy-optimiert (horizontal scrollbar). |
-| 🟢 **Anwesenheit + 🔑 PIN** | Eigene Check-In-Steuerung und PIN-Anzeige (wie beim Mitarbeiter-Bereich). |
-| 🗓️ **Personal-Schichtplan** | Wochenansicht für 7 Tage. Klick auf **+ Schicht** → wählen wer wann arbeitet. Löschen mit einem Klick. Pfeil-Buttons für Wochen-Wechsel. |
-| 📥 **Anwesenheits-Export** | Datums-Range wählen → **CSV laden**, danach Tabelle + Download-Button. „🖨️ Drucken / PDF" nutzt den Browser-Drucker-Dialog. |
-| ⭐ **Bewertungs-Übersicht (anonym)** | Heat-Map: Wochentag × Stunde → ⭐-Schnitt. Aggregiert über **alle Aufgießer** — du siehst, **welche Slot-Zeit** im Schnitt am besten/schlechtesten bewertet wird, **aber nicht wer den Aufguss gemacht hat**. |
-| 🔔 **Benachrichtigungen** | Push-Aktivierung für Notfall & neue Personal-Slots. |
-| Quick-Links | 👨‍🍳 Mitarbeiter (klassischer Mitarbeiter-Bereich) · 🏆 WM · 📖 Hilfe |
+| 🔔 **Notifications-Inbox** | Auto-aktualisierend: Tausch-Vorgänge, Absagen, Übernahmen. Klick auf ✓ markiert als gelesen. |
+| 📋 **Mini-Tafel (Heute)** | Timeline mit allen Stunden-Slots des heutigen Tages, pro aktive Sauna eine Zeile. „Jetzt"-Marker. |
+| 🟢 **Anwesenheit + 🔑 PIN** | Eigene Check-In-Steuerung und PIN-Anzeige. |
+| 💰 **Monatsstunden** ⭐ neu | Pro Mitarbeiter: geplante Stunden + Euro-Betrag + Limit-Auslastungs-Balken. Sortiert: oben = fast voll, unten = noch viel Luft. |
+| 📅 **Verfügbarkeits-Übersicht** ⭐ neu | 14-Tage-Tabelle: wer hat wann Zeit eingetragen. |
+| 🗓️ **Personal-Schichtplan** | Wochenansicht für 7 Tage. Klick auf **+ Schicht** → wählen wer wann arbeitet. |
+| 📥 **Anwesenheits-Export** | Datums-Range → CSV/Druck. |
+| ⭐ **Bewertungs-Übersicht (anonym)** | Heat-Map: Wochentag × Stunde → ⭐-Schnitt. **Ohne** Aufgießer-Bezug. |
+| 🔔 **Benachrichtigungen-Toggle** | Push-Aktivierung für Notfall & neue Personal-Slots. |
+| Quick-Links | 👨‍🍳 Mitarbeiter · 🏆 WM · 📖 Hilfe |
+
+### 💰 Monatsstunden-Übersicht im Detail ⭐ neu
+
+Pro Mitarbeiter siehst du:
+- **Geplante Stunden** im laufenden Monat (cancelled shifts werden ausgeschlossen)
+- **Euro-Verdienst** = Stunden × Stundensatz
+- **Limit-Auslastungs-Balken** (grün → gelb → orange → rot ab 85%)
+- **Stundensatz** und **Monats-Limit** sind pro Mitarbeiter konfigurierbar (Klick auf den Text öffnet Edit-Modal)
+
+**Default-Werte:** 14 €/h und 610 €/Monat (Übungsleiter-Limit). Beides änderbar pro Mitarbeiter über den Edit-Button.
+
+**Ziel der Übersicht:** gerechte Verteilung. Sortiert: wer schon viele Stunden hatte, steht oben — wer noch Luft hat, ist unten. So vermeidest du, einem Mitarbeiter zu viele Schichten zu geben, während andere ihre 610 € noch nicht ausgeschöpft haben.
+
+### 📅 Verfügbarkeits-Übersicht im Detail ⭐ neu
+
+Mitarbeiter tragen selbst ein, wann sie Zeit haben (Tag + Zeitfenster). Du siehst die nächsten 14 Tage als Matrix:
+- **Zeilen:** Mitarbeiter
+- **Spalten:** Tage
+- **Zellen mit Zeitfenster:** „18:00–22:00" (grün)
+- **Leere Zellen:** keine Angabe gemacht
+
+**Die Angaben sind nicht bindend** — du kannst auch außerhalb der Verfügbarkeit planen, aber das ist die Wunsch-Übersicht der Mitarbeiter.
+
+### 🔄 CP-Notifications bei Tausch + Absagen ⭐ neu
+
+Du bekommst eine Notification (über die Inbox oben), wenn:
+- **Schicht-Tausch erfolgt** — z.B. „Anna ↔ Bernd haben getauscht"
+- **Absage übernommen** — z.B. „Cara übernimmt die abgesagte Schicht"
+- **Eigene Schicht abgesagt** (falls du selbst eingeplant warst)
+
+So bleibst du immer im Loop, ohne dass du Mitarbeitern hinterherrennen musst.
 
 ### Wie die anonyme Bewertungs-Übersicht funktioniert
 

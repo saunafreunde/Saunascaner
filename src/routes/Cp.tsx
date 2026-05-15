@@ -10,9 +10,12 @@ import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { PushPermission } from '@/components/PushPermission';
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { MiniDashboardTimeline } from '@/components/MiniDashboardTimeline';
+import { NotificationsInbox } from '@/components/staff/NotificationsInbox';
 import { PersonalShiftPlanner } from '@/components/cp/PersonalShiftPlanner';
 import { AttendanceExportSection } from '@/components/cp/AttendanceExportSection';
 import { RatingsAnonymousOverview } from '@/components/cp/RatingsAnonymousOverview';
+import { MonthlyHoursOverview } from '@/components/cp/MonthlyHoursOverview';
+import { AvailabilityOverview } from '@/components/cp/AvailabilityOverview';
 
 // /cp — Bereich für role='staff' + is_personal_planer=true (CP-Verantwortlicher).
 // Hat alles vom Mitarbeiter (PIN, Anwesenheit, Notfall, Mini-Tafel) PLUS:
@@ -46,6 +49,9 @@ export default function Cp() {
         {/* Notfall-Button — ganz oben, sofort erreichbar */}
         <EvacuationAlarmButton />
 
+        {/* Notifications-Inbox (Tausch-Vorgänge, Absagen, Übernahmen) */}
+        <NotificationsInbox />
+
         {/* Mini-Tafel: ganzer Tag im Überblick */}
         <MiniDashboardTimeline />
 
@@ -54,6 +60,12 @@ export default function Cp() {
           <MyPresenceToggle />
           <MyCheckinPinCard />
         </div>
+
+        {/* Monats-Stunden + Euro-Verteilung pro Mitarbeiter */}
+        <MonthlyHoursOverview />
+
+        {/* Verfügbarkeits-Übersicht aller Mitarbeiter (14 Tage) */}
+        <AvailabilityOverview />
 
         {/* Personal-Schicht-Planung */}
         <PersonalShiftPlanner />

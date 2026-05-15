@@ -13,6 +13,11 @@ import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { PushPermission } from '@/components/PushPermission';
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { MiniDashboardTimeline } from '@/components/MiniDashboardTimeline';
+import { NotificationsInbox } from '@/components/staff/NotificationsInbox';
+import { AvailabilityCalendar } from '@/components/staff/AvailabilityCalendar';
+import { MyShiftsList } from '@/components/staff/MyShiftsList';
+import { OpenCancellationsList } from '@/components/staff/OpenCancellationsList';
+import { SwapRequestsList } from '@/components/staff/SwapRequestsList';
 import { fmtClock } from '@/lib/time';
 
 // /mitarbeiter — Bereich für role='staff' Personal.
@@ -70,14 +75,29 @@ export default function Mitarbeiter() {
         {/* 1. Notfall-Button — ganz oben, sofort erreichbar */}
         <EvacuationAlarmButton />
 
-        {/* 2. Mini-Tafel: kompakte Timeline statt TV-Tafel-Link */}
+        {/* 2. Notifications-Inbox (nur sichtbar bei pending Items) */}
+        <NotificationsInbox />
+
+        {/* 3. Offene Absagen — sofort sichtbar, damit andere übernehmen können */}
+        <OpenCancellationsList />
+
+        {/* 4. Mini-Tafel: kompakte Timeline statt TV-Tafel-Link */}
         <MiniDashboardTimeline />
 
-        {/* 3. Anwesenheit + PIN kompakt */}
+        {/* 5. Anwesenheit + PIN kompakt */}
         <div className="grid sm:grid-cols-2 gap-4">
           <MyPresenceToggle />
           <MyCheckinPinCard />
         </div>
+
+        {/* 6. Meine Schichten (eigene zukünftige + Cancel/Swap-Buttons) */}
+        <MyShiftsList />
+
+        {/* 7. Tausch-Anfragen (eingehende + ausgehende) */}
+        <SwapRequestsList />
+
+        {/* 8. Meine Verfügbarkeit (60 Tage voraus) */}
+        <AvailabilityCalendar />
 
         {/* 4. Personal-Fallback-Slots — Pflicht-Durchführung */}
         <section className="rounded-3xl bg-forest-950/85 ring-1 ring-amber-500/30 p-5">

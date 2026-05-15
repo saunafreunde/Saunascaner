@@ -149,6 +149,8 @@ export type Member = {
   is_aufgieser: boolean;
   is_wm_admin: boolean;
   is_personal_planer: boolean;
+  hourly_rate_eur: number;
+  monthly_hour_limit_eur: number;
   entry_code: string | null;
   sauna_name: string | null;
   sauna_name_changed_at: string | null;
@@ -721,6 +723,273 @@ export function useStaffAttendance(from: string, to: string, enabled = false) {
       return (data ?? []) as StaffAttendanceRow[];
     },
     enabled,
+  });
+}
+
+// ─── Staff: Verfügbarkeit (Migration 0059) ───────────────────────────────
+export type AvailabilityEntry = {
+  id: string;
+  date: string;        // YYYY-MM-DD
+  start_time: string;  // HH:MM:SS
+  end_time: string;
+  note: string | null;
+};
+
+export function useMyAvailability(from: string, to: string) {
+  return useQuery({
+    queryKey: ['my-availability', from, to],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_availability', { p_from: from, p_to: to });
+      if (error) throw error;
+      return (data ?? []) as AvailabilityEntry[];
+    },
+  });
+}
+
+export function useSetMyAvailability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { date: string; start_time: string; end_time: string; note?: string | null }) => {
+      const { error } = await need().rpc('set_my_availability', {
+        p_date: p.date,
+        p_start_time: p.start_time,
+        p_end_time: p.end_time,
+        p_note: p.note ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-availability'] }),
+  });
+}
+
+export function useDeleteMyAvailability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (date: string) => {
+      const { error } = await need().rpc('delete_my_availability', { p_date: date });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-availability'] }),
+  });
+}
+
+// ─── CP: alle Mitarbeiter-Verfügbarkeiten lesen ───────────────────────────
+export type StaffAvailabilityEntry = AvailabilityEntry & {
+  member_id: string;
+  member_name: string;
+};
+
+export function useStaffAvailability(from: string, to: string) {
+  return useQuery({
+    queryKey: ['staff-availability', from, to],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_staff_availability', { p_from: from, p_to: to });
+      if (error) throw error;
+      return (data ?? []) as StaffAvailabilityEntry[];
+    },
+  });
+}
+
+// ─── CP: Monats-Stunden + Euro-Verteilung (Migration 0059) ────────────────
+export type MonthlyStatsRow = {
+  member_id: string;
+  name: string;
+  shift_count: number;
+  total_hours: number;
+  hourly_rate_eur: number;
+  total_earned_eur: number;
+  monthly_limit_eur: number;
+  limit_remaining_eur: number;
+  limit_usage_pct: number;
+};
+
+export function useStaffMonthlyStats(year: number, month: number) {
+  return useQuery({
+    queryKey: ['staff-monthly-stats', year, month],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('staff_monthly_stats', { p_year: year, p_month: month });
+      if (error) throw error;
+      return (data ?? []) as MonthlyStatsRow[];
+    },
+  });
+}
+
+export function useSetMemberPayroll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { member_id: string; hourly_rate_eur: number; monthly_hour_limit_eur: number }) => {
+      const { error } = await need().rpc('set_member_payroll', {
+        p_member_id: p.member_id,
+        p_hourly_rate_eur: p.hourly_rate_eur,
+        p_monthly_hour_limit_eur: p.monthly_hour_limit_eur,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['staff-monthly-stats'] });
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['staff-members'] });
+    },
+  });
+}
+
+// ─── Schicht-Absage + Übernahme (Migration 0060) ─────────────────────────
+export function useCancelMyShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { shift_id: string; reason?: string | null }) => {
+      const { error } = await need().rpc('cancel_my_shift', {
+        p_shift_id: p.shift_id,
+        p_reason: p.reason ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['personal-shifts'] });
+      qc.invalidateQueries({ queryKey: ['open-cancellations'] });
+    },
+  });
+}
+
+export function useTakeOpenShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (shift_id: string) => {
+      const { error } = await need().rpc('take_open_shift', { p_shift_id: shift_id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['personal-shifts'] });
+      qc.invalidateQueries({ queryKey: ['open-cancellations'] });
+    },
+  });
+}
+
+export type OpenCancellation = {
+  shift_id: string;
+  original_member_id: string;
+  original_member_name: string;
+  shift_date: string;
+  start_time: string;
+  end_time: string;
+  cancelled_at: string;
+  cancellation_reason: string | null;
+};
+
+export function useOpenCancellations() {
+  return useQuery({
+    queryKey: ['open-cancellations'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_open_cancellations');
+      if (error) throw error;
+      return (data ?? []) as OpenCancellation[];
+    },
+  });
+}
+
+// ─── Schicht-Tausch (Migration 0060) ─────────────────────────────────────
+export function useRequestShiftSwap() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { shift_id: string; to_member_id: string; offered_shift_id?: string | null; message?: string | null }) => {
+      const { error } = await need().rpc('request_shift_swap', {
+        p_shift_id: p.shift_id,
+        p_to_member_id: p.to_member_id,
+        p_offered_shift_id: p.offered_shift_id ?? null,
+        p_message: p.message ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['swap-requests'] }),
+  });
+}
+
+export function useAcceptShiftSwap() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (swap_id: string) => {
+      const { error } = await need().rpc('accept_shift_swap', { p_swap_id: swap_id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['swap-requests'] });
+      qc.invalidateQueries({ queryKey: ['personal-shifts'] });
+    },
+  });
+}
+
+export function useRejectShiftSwap() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (swap_id: string) => {
+      const { error } = await need().rpc('reject_shift_swap', { p_swap_id: swap_id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['swap-requests'] }),
+  });
+}
+
+export type SwapRequest = {
+  id: string;
+  direction: 'incoming' | 'outgoing';
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  shift_id: string;
+  shift_date: string;
+  shift_start: string;
+  shift_end: string;
+  offered_shift_id: string | null;
+  offered_date: string | null;
+  offered_start: string | null;
+  offered_end: string | null;
+  other_member_id: string;
+  other_member_name: string;
+  message: string | null;
+  created_at: string;
+};
+
+export function useMySwapRequests() {
+  return useQuery({
+    queryKey: ['swap-requests'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_swap_requests');
+      if (error) throw error;
+      return (data ?? []) as SwapRequest[];
+    },
+  });
+}
+
+// ─── App-Inbox: pending Notifications (Migration 0060) ───────────────────
+export type AppNotification = {
+  id: string;
+  kind: string;
+  payload: {
+    title?: string;
+    body?: string;
+    [key: string]: unknown;
+  };
+  created_at: string;
+};
+
+export function useMyPendingNotifications() {
+  return useQuery({
+    queryKey: ['my-notifications'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_pending_notifications');
+      if (error) throw error;
+      return (data ?? []) as AppNotification[];
+    },
+    refetchInterval: 30_000, // Alle 30s polling für „live" Inbox
+  });
+}
+
+export function useMarkNotificationSeen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('mark_notification_seen', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-notifications'] }),
   });
 }
 
