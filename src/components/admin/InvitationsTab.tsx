@@ -3,35 +3,37 @@ import { format } from 'date-fns';
 import { useInvitations, useCreateInvitation, useRevokeInvitation, useSendInviteEmail } from '@/lib/api';
 import type { MemberRole } from '@/types/database';
 
-// UI-Rollen-Optionen — werden beim Erstellen auf (target_role, target_is_aufgieser) gemappt.
-type InviteRoleKind = 'aufgieser' | 'helfer' | 'guest_aufgieser' | 'staff' | 'gast' | 'admin';
+// UI-Rollen-Optionen — werden beim Erstellen auf (target_role, target_is_aufgieser, target_is_personal_planer) gemappt.
+type InviteRoleKind = 'aufgieser' | 'helfer' | 'guest_aufgieser' | 'staff' | 'cp_personal' | 'gast' | 'admin';
 
 const ROLE_OPTIONS: { value: InviteRoleKind; label: string; emoji: string; description: string }[] = [
   { value: 'aufgieser',       label: 'Aufgießer',       emoji: '🧖',    description: 'Vereinsmitglied mit Aufgießer-Rechten — darf Aufgüsse planen.' },
   { value: 'helfer',          label: 'Helfer',          emoji: '🤝',    description: 'Vereinsmitglied ohne Aufgieser-Rechte — Helfer-/Unterstützer-Bereich.' },
   { value: 'guest_aufgieser', label: 'Gast-Aufgießer',  emoji: '🌍',    description: 'Aufgießer von anderen Landesgruppen.' },
-  { value: 'staff',           label: 'Personal',        emoji: '👨‍🍳', description: 'Mitarbeiter (nicht-Verein). Übernimmt Personal-Aufgüsse.' },
+  { value: 'staff',           label: 'Personal',        emoji: '👨‍🍳', description: 'Mitarbeiter (nicht-Verein). Führt Personal-Aufgüsse durch.' },
+  { value: 'cp_personal',     label: 'CP-Verantwortlicher', emoji: '🛠️', description: 'Personal-Planer mit Anwesenheits-Export und anonymisierter Bewertungs-Analyse.' },
   { value: 'gast',            label: 'Gast',            emoji: '👋',    description: 'Sauna-Besucher mit Tablet-PIN, ohne Vereinszugehörigkeit.' },
   { value: 'admin',           label: 'Admin',           emoji: '⚙️',    description: 'Vollzugriff auf alle Bereiche.' },
 ];
 
 // Mapping UI-Wert → DB-Felder
-function mapInviteRole(kind: InviteRoleKind): { target_role: MemberRole; target_is_aufgieser: boolean } {
+function mapInviteRole(kind: InviteRoleKind): { target_role: MemberRole; target_is_aufgieser: boolean; target_is_personal_planer: boolean } {
   switch (kind) {
-    case 'aufgieser':       return { target_role: 'member',          target_is_aufgieser: true };
-    case 'helfer':          return { target_role: 'member',          target_is_aufgieser: false };
-    case 'guest_aufgieser': return { target_role: 'guest_aufgieser', target_is_aufgieser: false };
-    case 'staff':           return { target_role: 'staff',           target_is_aufgieser: false };
-    case 'gast':            return { target_role: 'gast',            target_is_aufgieser: false };
-    case 'admin':           return { target_role: 'admin',           target_is_aufgieser: false };
+    case 'aufgieser':       return { target_role: 'member',          target_is_aufgieser: true,  target_is_personal_planer: false };
+    case 'helfer':          return { target_role: 'member',          target_is_aufgieser: false, target_is_personal_planer: false };
+    case 'guest_aufgieser': return { target_role: 'guest_aufgieser', target_is_aufgieser: false, target_is_personal_planer: false };
+    case 'staff':           return { target_role: 'staff',           target_is_aufgieser: false, target_is_personal_planer: false };
+    case 'cp_personal':     return { target_role: 'staff',           target_is_aufgieser: false, target_is_personal_planer: true };
+    case 'gast':            return { target_role: 'gast',            target_is_aufgieser: false, target_is_personal_planer: false };
+    case 'admin':           return { target_role: 'admin',           target_is_aufgieser: false, target_is_personal_planer: false };
   }
 }
 
 // Reverse: DB-Felder → UI-Wert (für Anzeige bestehender Einladungen)
-function inviteRoleFromDb(role: MemberRole, isAufgieser: boolean): InviteRoleKind {
+function inviteRoleFromDb(role: MemberRole, isAufgieser: boolean, isPersonalPlaner: boolean): InviteRoleKind {
   if (role === 'member') return isAufgieser ? 'aufgieser' : 'helfer';
   if (role === 'guest_aufgieser') return 'guest_aufgieser';
-  if (role === 'staff') return 'staff';
+  if (role === 'staff') return isPersonalPlaner ? 'cp_personal' : 'staff';
   if (role === 'gast') return 'gast';
   return 'admin';
 }
@@ -64,10 +66,11 @@ export function InvitationsTab() {
 
   async function handleCreate() {
     try {
-      const { target_role, target_is_aufgieser } = mapInviteRole(roleKind);
+      const { target_role, target_is_aufgieser, target_is_personal_planer } = mapInviteRole(roleKind);
       const inv = await create.mutateAsync({
         target_role,
         target_is_aufgieser,
+        target_is_personal_planer,
         note: note.trim() || null,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
       });
@@ -227,7 +230,7 @@ export function InvitationsTab() {
         ) : (
           <ul className="mt-3 space-y-2">
             {open.map((inv) => {
-              const meta = ROLE_OPTIONS.find((r) => r.value === inviteRoleFromDb(inv.target_role, inv.target_is_aufgieser));
+              const meta = ROLE_OPTIONS.find((r) => r.value === inviteRoleFromDb(inv.target_role, inv.target_is_aufgieser, inv.target_is_personal_planer));
               const url = `${INVITE_BASE_URL}${inv.code}`;
               return (
                 <li key={inv.id} className="rounded-lg bg-forest-900/60 px-3 py-2.5 ring-1 ring-forest-800/40">

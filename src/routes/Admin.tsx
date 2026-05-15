@@ -491,6 +491,20 @@ function MembersTab() {
                   >
                     {m.is_wm_admin ? '🏆 WM-Admin' : '+ WM-Admin'}
                   </button>
+                  {/* CP-Verantwortlicher-Toggle — nur bei staff sinnvoll */}
+                  {m.role === 'staff' && (
+                    <button
+                      onClick={() => update.mutate({ id: m.id, is_personal_planer: !m.is_personal_planer })}
+                      title={m.is_personal_planer ? 'CP-Rechte entziehen' : 'Als CP-Verantwortlicher markieren (Personal-Planung + Bewertungs-Übersicht)'}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
+                        m.is_personal_planer
+                          ? 'bg-amber-500/20 text-amber-200 ring-amber-500/30 hover:bg-amber-500/30'
+                          : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
+                      }`}
+                    >
+                      {m.is_personal_planer ? '🛠️ CP-V' : '+ CP-V'}
+                    </button>
+                  )}
                   <button onClick={() => downloadBadge({
                     name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
                     role: m.role, organization: orgName,

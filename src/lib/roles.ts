@@ -24,6 +24,11 @@ export function isStaff(m?: Member | null): boolean {
   return m?.role === 'staff';
 }
 
+/** CP-Verantwortlicher: Personal mit erweiterten Rechten (Schicht-Planung, Anwesenheits-Export, anonyme Bewertungs-Analyse). */
+export function isPersonalPlaner(m?: Member | null): boolean {
+  return !!m?.is_personal_planer;
+}
+
 /** Sauna-Besucher mit Self-Sign-Up-Account (Social-Layer). KEIN Vereinsmitglied. */
 export function isGast(m?: Member | null): boolean {
   return m?.role === 'gast';
@@ -49,7 +54,7 @@ export function roleLabel(m?: Member | null): string {
   if (!m) return '—';
   if (m.role === 'admin') return 'Admin';
   if (m.role === 'guest_aufgieser') return 'Gast-Aufgießer';
-  if (m.role === 'staff') return 'Personal';
+  if (m.role === 'staff') return m.is_personal_planer ? 'CP-Verantwortlicher' : 'Personal';
   if (m.role === 'gast') return 'Gast';
   if (m.is_aufgieser) return 'Aufgießer';
   return 'Mitglied';
@@ -59,7 +64,7 @@ export function roleEmoji(m?: Member | null): string {
   if (!m) return '👤';
   if (m.role === 'admin') return '⚙️';
   if (m.role === 'guest_aufgieser') return '🌍';
-  if (m.role === 'staff') return '👨‍🍳';
+  if (m.role === 'staff') return m.is_personal_planer ? '🛠️' : '👨‍🍳';
   if (m.role === 'gast') return '👋';
   if (m.is_aufgieser) return '🧖';
   return '✅';

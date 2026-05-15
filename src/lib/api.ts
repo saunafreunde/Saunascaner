@@ -148,6 +148,7 @@ export type Member = {
   role: MemberRole;
   is_aufgieser: boolean;
   is_wm_admin: boolean;
+  is_personal_planer: boolean;
   entry_code: string | null;
   sauna_name: string | null;
   sauna_name_changed_at: string | null;
@@ -517,11 +518,29 @@ export function usePendingMembers() {
 export function useApproveMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { id: string; role?: MemberRole; is_aufgieser?: boolean }) => {
+    mutationFn: async (p: { id: string; role?: MemberRole; is_aufgieser?: boolean; is_personal_planer?: boolean }) => {
       const { error } = await need().rpc('approve_member', {
         p_member_id: p.id,
         p_role: p.role ?? 'member',
         p_is_aufgieser: p.is_aufgieser ?? false,
+        p_is_personal_planer: p.is_personal_planer ?? false,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+    },
+  });
+}
+
+export function useSetPersonalPlaner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { id: string; value: boolean }) => {
+      const { error } = await need().rpc('set_is_personal_planer', {
+        p_member_id: p.id,
+        p_value: p.value,
       });
       if (error) throw error;
     },
@@ -550,12 +569,14 @@ export function useCreateInvitation() {
     mutationFn: async (p: {
       target_role: MemberRole;
       target_is_aufgieser?: boolean;
+      target_is_personal_planer?: boolean;
       note?: string | null;
       expires_at?: string | null;
     }) => {
       const { data, error } = await need().rpc('create_invitation', {
         p_target_role: p.target_role,
         p_target_is_aufgieser: p.target_is_aufgieser ?? false,
+        p_target_is_personal_planer: p.target_is_personal_planer ?? false,
         p_note: p.note ?? null,
         p_expires_at: p.expires_at ?? null,
       });
@@ -579,6 +600,126 @@ export function useRevokeInvitation() {
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations'] }),
+  });
+}
+
+// ─── CP-Verantwortlicher: Staff-Liste (Migration 0056) ───────────────────
+export type StaffMemberEntry = {
+  id: string;
+  name: string;
+  email: string | null;
+  is_personal_planer: boolean;
+  is_present: boolean;
+  avatar_path: string | null;
+};
+
+export function useStaffMembers() {
+  return useQuery({
+    queryKey: ['staff-members'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_staff_members');
+      if (error) throw error;
+      return (data ?? []) as StaffMemberEntry[];
+    },
+  });
+}
+
+// ─── CP-Verantwortlicher: Personal-Schichten (Migration 0056) ────────────
+export type PersonalShift = {
+  id: string;
+  staff_member_id: string;
+  staff_name: string;
+  shift_date: string; // YYYY-MM-DD
+  start_time: string; // HH:MM:SS
+  end_time: string;
+  notes: string | null;
+};
+
+export function useListPersonalShifts(from: string, to: string) {
+  return useQuery({
+    queryKey: ['personal-shifts', from, to],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_personal_shifts', { p_from: from, p_to: to });
+      if (error) throw error;
+      return (data ?? []) as PersonalShift[];
+    },
+  });
+}
+
+export function useCreatePersonalShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { staff_member_id: string; shift_date: string; start_time: string; end_time: string; notes?: string | null }) => {
+      const { error } = await need().rpc('create_personal_shift', {
+        p_staff_member_id: p.staff_member_id,
+        p_shift_date: p.shift_date,
+        p_start_time: p.start_time,
+        p_end_time: p.end_time,
+        p_notes: p.notes ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['personal-shifts'] }),
+  });
+}
+
+export function useDeletePersonalShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('delete_personal_shift', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['personal-shifts'] }),
+  });
+}
+
+// ─── CP-Verantwortlicher: Anonymisierte Bewertungs-Übersicht (Mig. 0056) ──
+export type RatingsAnonymousRow = {
+  sauna_id: string;
+  sauna_name: string;
+  weekday: number;       // 0=Sonntag ... 6=Samstag
+  hour_of_day: number;   // 0..23
+  rating_count: number;
+  avg_chemie: number | null;
+  avg_luftbewegung: number | null;
+  avg_wedeltechnik: number | null;
+  avg_hitzeniveau: number | null;
+  avg_musik: number | null;
+  avg_duftentwicklung: number | null;
+  avg_overall: number | null;
+};
+
+export function useRatingsAnonymous(from: string, to: string) {
+  return useQuery({
+    queryKey: ['ratings-anonymous', from, to],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_ratings_anonymous', { p_from: from, p_to: to });
+      if (error) throw error;
+      return (data ?? []) as RatingsAnonymousRow[];
+    },
+  });
+}
+
+// ─── CP-Verantwortlicher: Anwesenheits-Export (Mig. 0056) ────────────────
+export type StaffAttendanceRow = {
+  member_id: string;
+  name: string;
+  role: string;
+  check_in_at: string;
+  check_out_at: string | null;
+  duration_minutes: number | null;
+};
+
+export function useStaffAttendance(from: string, to: string, enabled = false) {
+  return useQuery({
+    queryKey: ['staff-attendance', from, to],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('export_staff_attendance', { p_from: from, p_to: to });
+      if (error) throw error;
+      return (data ?? []) as StaffAttendanceRow[];
+    },
+    enabled,
   });
 }
 

@@ -51,6 +51,7 @@ const CheckinSignup   = lazy(() => import('@/routes/CheckinSignup'));
 const CheckinRate     = lazy(() => import('@/routes/CheckinRate'));
 const Unterstuetzer   = lazy(() => import('@/routes/Unterstuetzer'));
 const Mitarbeiter     = lazy(() => import('@/routes/Mitarbeiter'));
+const Cp              = lazy(() => import('@/routes/Cp'));
 const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
 const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 const Feed            = lazy(() => import('@/routes/Feed'));
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/gast"                  element={<RequireAuth><GastHome /></RequireAuth>} />
         <Route path="/unterstuetzer"         element={<RequireAuth><Unterstuetzer /></RequireAuth>} />
         <Route path="/mitarbeiter"           element={<RequireAuth><Mitarbeiter /></RequireAuth>} />
+        <Route path="/cp"                    element={<RequireAuth><Cp /></RequireAuth>} />
         <Route path="/aufgieser"             element={<RequireAuth><AufgieserStars /></RequireAuth>} />
         <Route path="/aufgieser/:memberId"   element={<RequireAuth><StarProfile /></RequireAuth>} />
         <Route path="/feed"                  element={<RequireAuth><Feed /></RequireAuth>} />
@@ -121,6 +123,11 @@ function RootEntry() {
   // Eingeloggte Gäste → eigener Bereich /gast
   if (user && member.data?.role === 'gast') return <Navigate to="/gast" replace />;
 
+  // CP-Verantwortlicher (Staff + is_personal_planer) → /cp als Default
+  if (user && member.data?.role === 'staff' && member.data.is_personal_planer) {
+    return <Navigate to="/cp" replace />;
+  }
+
   // Mitarbeiter (Staff) → eigener Bereich /mitarbeiter
   if (user && member.data?.role === 'staff') return <Navigate to="/mitarbeiter" replace />;
 
@@ -160,6 +167,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   // Staff (Mitarbeiter) gehört in /mitarbeiter, nicht in /planner
   if (member.data?.role === 'staff' && loc.pathname === '/planner') {
     return <Navigate to="/mitarbeiter" replace />;
+  }
+  // /cp-Bereich nur für CP-Verantwortliche (staff + is_personal_planer) + Admin (Preview)
+  if (loc.pathname.startsWith('/cp')
+      && member.data?.role !== 'admin'
+      && !member.data?.is_personal_planer) {
+    return <Navigate to={member.data?.role === 'staff' ? '/mitarbeiter' : '/'} replace />;
   }
   return <>{children}</>;
 }

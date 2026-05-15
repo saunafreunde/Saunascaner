@@ -86,6 +86,7 @@ export type Invitation = {
   code: string;
   target_role: MemberRole;
   target_is_aufgieser: boolean;
+  target_is_personal_planer: boolean;
   note: string | null;
   expires_at: string | null;
   created_by: string | null;

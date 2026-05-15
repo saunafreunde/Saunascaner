@@ -1,14 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useCurrentMember } from '@/lib/api';
-import { isAdmin, isAufgieser, isGast, isStaff, isVereinsMitglied } from '@/lib/roles';
+import { isAdmin, isAufgieser, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
 
 // Bottom-Nav fixed unten, nur auf Mobile (`lg:hidden`).
 // Pro Rolle 5 Haupt-Routen. Mit Safe-Area-Padding (iOS-Notch, Android-Gesture-Bar).
 
 type NavItem = { path: string; label: string; icon: string };
 
-function navItemsForRole(opts: { admin: boolean; gast: boolean; staff: boolean; aufgieser: boolean; helfer: boolean; myMemberId: string | null }): NavItem[] {
-  const { admin, gast, staff, aufgieser, helfer, myMemberId } = opts;
+function navItemsForRole(opts: { admin: boolean; gast: boolean; staff: boolean; cp: boolean; aufgieser: boolean; helfer: boolean; myMemberId: string | null }): NavItem[] {
+  const { admin, gast, staff, cp, aufgieser, helfer, myMemberId } = opts;
   const profile: NavItem = myMemberId
     ? { path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' }
     : { path: '/login', label: 'Login', icon: '🔑' };
@@ -28,6 +28,15 @@ function navItemsForRole(opts: { admin: boolean; gast: boolean; staff: boolean; 
       { path: '/dashboard', label: 'Tafel',     icon: '📺' },
       { path: '/aufgieser', label: 'Aufgießer', icon: '🌟' },
       { path: '/feed',      label: 'Feed',      icon: '📸' },
+      profile,
+    ];
+  }
+  if (cp) {
+    return [
+      { path: '/cp',          label: 'CP',        icon: '🛠️' },
+      { path: '/mitarbeiter', label: 'Personal',  icon: '👨‍🍳' },
+      { path: '/aufgieser',   label: 'Aufgießer', icon: '🌟' },
+      { path: '/feed',        label: 'Feed',      icon: '📸' },
       profile,
     ];
   }
@@ -86,7 +95,8 @@ export function MobileBottomNav() {
   const items = navItemsForRole({
     admin: isAdmin(m),
     gast: isGast(m),
-    staff: isStaff(m),
+    cp: isStaff(m) && isPersonalPlaner(m),
+    staff: isStaff(m) && !isPersonalPlaner(m),
     aufgieser: isAufgieser(m) && !isStaff(m),
     helfer: isVereinsMitglied(m) && !isAufgieser(m) && !isStaff(m),
     myMemberId: m.id ?? null,
