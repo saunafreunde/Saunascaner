@@ -12,11 +12,19 @@ import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { PushPermission } from '@/components/PushPermission';
 import { PreviewBanner } from '@/components/PreviewBanner';
+import { MiniDashboardTimeline } from '@/components/MiniDashboardTimeline';
 import { fmtClock } from '@/lib/time';
 
 // /mitarbeiter — Bereich für role='staff' Personal.
-// Funktionen: Anwesenheit, PIN, Evak-Alarm, Personal-Fallback-Übernahme (Slot-Matrix Light)
-// KEIN: Atelier, Stammslot, Urlaub, WM (wenn der nicht relevant ist)
+// Layout-Reihenfolge (Phase-2-Refactor):
+//   1. Notfall-Button ganz oben (sofort erreichbar)
+//   2. Mini-Tafel als Timeline (statt TV-Tafel-Link — auf Handy unleserlich)
+//   3. Anwesenheit + PIN kompakt nebeneinander
+//   4. Personal-Fallback-Slots (Personal muss durchführen, nicht „übernehmen")
+//   5. Push-Aktivierung
+//   6. Quick-Links (Aufgießer / WM / Hilfe — Tafel-Link entfernt)
+//
+// Personal bewertet KEINE Aufgüsse — kein PendingRatingsBlock im Bereich.
 export default function Mitarbeiter() {
   const me = useCurrentMember();
   const infusions = useInfusions();
@@ -27,10 +35,10 @@ export default function Mitarbeiter() {
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
 
-  // Personal-Fallback-Slots heute + morgen
+  // Personal-Fallback-Slots heute + morgen (36h-Horizont)
   const fallbackSlots = useMemo(() => {
     const now = Date.now();
-    const upper = now + 36 * 3600 * 1000; // 36h Horizont
+    const upper = now + 36 * 3600 * 1000;
     return (infusions.data ?? [])
       .filter((i) => i.is_personal_fallback)
       .filter((i) => {
@@ -59,28 +67,34 @@ export default function Mitarbeiter() {
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">
-        {/* Anwesenheits-Toggle */}
-        <MyPresenceToggle />
+        {/* 1. Notfall-Button — ganz oben, sofort erreichbar */}
+        <EvacuationAlarmButton />
 
-        {/* PIN-Karte */}
-        <MyCheckinPinCard />
+        {/* 2. Mini-Tafel: kompakte Timeline statt TV-Tafel-Link */}
+        <MiniDashboardTimeline />
 
-        {/* Personal-Fallback-Übernahme */}
+        {/* 3. Anwesenheit + PIN kompakt */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <MyPresenceToggle />
+          <MyCheckinPinCard />
+        </div>
+
+        {/* 4. Personal-Fallback-Slots — Pflicht-Durchführung */}
         <section className="rounded-3xl bg-forest-950/85 ring-1 ring-amber-500/30 p-5">
           <div className="flex items-end justify-between mb-3 flex-wrap gap-2">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90">
-                🔥 Personal-Aufgüsse übernehmen
+                🔥 Personal-Aufgüsse durchführen
               </h2>
               <p className="text-[11px] text-forest-400 mt-0.5">
-                Garantie-Slots der nächsten 36 Stunden, für die noch kein Aufgießer eingetragen ist.
+                Garantie-Slots der nächsten 36 Stunden, für die kein Aufgießer eingetragen ist — du führst sie durch.
               </p>
             </div>
             <Link
               to="/planner"
               className="rounded-lg bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/40 px-3 py-1.5 text-xs font-semibold hover:bg-amber-500/30"
             >
-              Im Planner übernehmen →
+              Im Planner ansehen →
             </Link>
           </div>
 
@@ -125,7 +139,7 @@ export default function Mitarbeiter() {
           )}
         </section>
 
-        {/* Push-Aktivierung */}
+        {/* 5. Push-Aktivierung */}
         {me.data && (
           <section className="rounded-3xl bg-forest-950/85 ring-1 ring-forest-800/60 p-5">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
@@ -138,12 +152,8 @@ export default function Mitarbeiter() {
           </section>
         )}
 
-        {/* Quick-Links */}
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Link to="/dashboard" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">📺</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">Tafel</div>
-          </Link>
+        {/* 6. Quick-Links — Tafel-Link entfernt (Mini-Tafel oben ersetzt ihn) */}
+        <section className="grid grid-cols-3 gap-3">
           <Link to="/aufgieser" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
             <div className="text-2xl">🌟</div>
             <div className="mt-1 text-xs font-semibold text-forest-100">Aufgießer</div>
@@ -157,9 +167,6 @@ export default function Mitarbeiter() {
             <div className="mt-1 text-xs font-semibold text-forest-100">Hilfe</div>
           </Link>
         </section>
-
-        {/* Evakuierungs-Alarm */}
-        <EvacuationAlarmButton />
       </main>
     </PageBackground>
   );
