@@ -1,37 +1,84 @@
 # 🌲 Saunascaner — Mitglieder-Handbuch
 
-> Die App der **Saunafreunde Schwarzwald e.V.** für Aufguss-Planung, Mitglieder-Verwaltung, WM-Tipspiel und vieles mehr.
-> 
+> Die App der **Saunafreunde Schwarzwald e.V.** für Aufguss-Planung, Mitglieder-Verwaltung, WM-Tipspiel, Mini-Feed und vieles mehr.
+>
 > **Live unter:** [saunascaner.vercel.app](https://saunascaner.vercel.app)
+> **Stand:** 15.05.2026
 
 ---
 
 ## Inhaltsverzeichnis
 
-1. [Erste Schritte — Anmelden](#1-erste-schritte--anmelden)
-2. [Mitglieds-Arten](#2-mitglieds-arten)
-3. [Die TV-Tafel](#3-die-tv-tafel)
-4. [Aufgüsse planen](#4-aufg%C3%BCsse-planen)
-5. [Mein Atelier](#5-mein-atelier)
-6. [Stamm-Slot & Urlaub](#6-stamm-slot--urlaub)
-7. [Mitglieder-Galerie](#7-mitglieder-galerie)
-8. [WM-Tipspiel](#8-wm-tipspiel)
-9. [Einlass-Code & Anwesenheit](#9-einlass-code--anwesenheit)
-10. [Mein Profil & Erfolge](#10-mein-profil--erfolge)
-11. [Kalender-Abo & Telegram](#11-kalender-abo--telegram)
-12. [Postfach (für Mail-Konto-Inhaber)](#12-postfach-f%C3%BCr-mail-konto-inhaber)
-13. [App auf Home-Bildschirm](#13-app-auf-home-bildschirm)
-14. [Push-Benachrichtigungen](#14-push-benachrichtigungen)
-15. [Notfall — Evakuierungs-Alarm](#15-notfall--evakuierungs-alarm)
-16. [Häufige Fragen](#16-h%C3%A4ufige-fragen)
+**Teil A — Einstieg**
+1. [Willkommen](#1-willkommen)
+2. [Anmelden](#2-anmelden)
+3. [Alle Seiten & Zugänge](#3-alle-seiten--zug%C3%A4nge) ⭐ neu
+4. [Die 5 Mitglieds-Arten](#4-die-5-mitglieds-arten)
+
+**Teil B — Pro Rolle**
+
+5. [👋 Als Gast](#5--als-gast)
+6. [🤝 Als Unterstützer](#6--als-unterst%C3%BCtzer)
+7. [🧖 Als Aufgießer / 🌍 Gast-Aufgießer](#7--als-aufgie%C3%9Fer---als-gast-aufgie%C3%9Fer)
+8. [👨‍🍳 Als Personal](#8--als-personal)
+9. [⚙️ Als Admin](#9-%EF%B8%8F-als-admin)
+
+**Teil C — Features für Alle**
+
+10. [Mini-Feed](#10-mini-feed) ⭐ neu
+11. [Mitglieder-Galerie & Profile](#11-mitglieder-galerie--profile)
+12. [WM-Tipspiel 2026](#12-wm-tipspiel-2026)
+13. [Mein Profil & Erfolge](#13-mein-profil--erfolge)
+14. [Einlass-Code & PIN-Pool](#14-einlass-code--pin-pool)
+
+**Teil D — Werkzeuge & Geräte**
+
+15. [Tablet-Workflows](#15-tablet-workflows) ⭐ neu
+16. [Die TV-Tafel im Detail](#16-die-tv-tafel-im-detail)
+17. [Telegram-Bot](#17-telegram-bot)
+18. [Kalender-Abo (iCal)](#18-kalender-abo-ical)
+19. [Postfach](#19-postfach)
+
+**Teil E — Hintergrund-Mechanik**
+
+20. [App auf Home-Bildschirm (PWA)](#20-app-auf-home-bildschirm-pwa)
+21. [Push-Benachrichtigungen](#21-push-benachrichtigungen)
+22. [Notfall — Evakuierungs-Alarm](#22-notfall--evakuierungs-alarm)
+23. [Häufige Fragen + Kontakt](#23-h%C3%A4ufige-fragen--kontakt)
 
 ---
 
-## 1. Erste Schritte — Anmelden
+# Teil A — Einstieg
 
-Du kannst dich auf drei Wegen anmelden:
+## 1. Willkommen
 
-### ✨ Login-Link per E-Mail (empfohlen — Standard)
+**Saunascaner** ist die digitale Heimat der Saunafreunde Schwarzwald e.V.
+
+Du kannst hier:
+
+- 🔥 **Aufgüsse planen** und übernehmen (für Aufgießer)
+- 📺 die **TV-Tafel** im Vereinsraum live mitlesen
+- 📸 im **Mini-Feed** sehen was los war
+- 🏆 beim **WM-Tipspiel 2026** mittippen
+- 🤝 **Helfer-Aufgaben** annehmen (z.B. „Wer hilft Samstag beim Aufräumen?")
+- 🎉 als **Gast** den Verein kennenlernen
+- ⚙️ als **Admin** alles steuern
+
+> **Neu seit dem letzten Update:**
+> - 5. Rolle **👋 Gast** für Schnupper-Besuche mit eigenem Bereich `/gast`
+> - **Mini-Feed** `/feed` mit Aroma-Tags, Bühnen-Reactions und Echo-Modal
+> - **6-Tage-Wochenansicht** im Planner (statt nur Heute/Morgen)
+> - **Tablet-Check-In** mit PIN unter `/checkin`
+> - **Quick-Rating** im Telegram-Bot (15 Min nach jedem Aufguss)
+> - **Helfer-Aufgaben-System** mit Approval-Workflow
+
+---
+
+## 2. Anmelden
+
+Du kannst dich auf **drei Wegen** anmelden:
+
+### ✨ Login-Link per E-Mail (empfohlen)
 1. Geh auf [saunascaner.vercel.app/login](https://saunascaner.vercel.app/login)
 2. Trage deine E-Mail-Adresse ein
 3. Klick **„Login-Link schicken"**
@@ -43,56 +90,194 @@ Du kannst dich auf drei Wegen anmelden:
 ### 🔑 Mit Passwort anmelden
 Falls du lieber ein Passwort verwendest — klicke oben auf den Tab **🔑 Passwort**, gib E-Mail + Passwort ein.
 
-### 🌲 Neu hier? Konto anlegen
-Wenn du noch kein Konto hast: oben auf **🌲 Neu** klicken, Name + E-Mail + Passwort eingeben. **Wichtig:** dein Konto muss erst von einem Admin freigegeben werden, bevor du die App nutzen kannst.
-
 ### 📨 Einladungs-Link vom Admin
 Hat dir ein Admin einen Einladungs-Link geschickt? Klick einfach auf den Link in der Mail — du wirst automatisch mit der richtigen Rolle freigeschaltet und musst nur noch dein Passwort setzen.
 
+> **iPhone-Tipp:** Wenn du die App schon auf den Home-Bildschirm gelegt hast (siehe Kapitel 20), startet sie direkt in deinem Default-Bereich — keine Login-Eingabe nötig.
+
 ---
 
-## 2. Mitglieds-Arten
+## 3. Alle Seiten & Zugänge
 
-Bei den Saunafreunden gibt es 4 verschiedene Mitglieds-Arten — jede mit anderen Rechten:
+Saunascaner hat viele Seiten. Hier siehst du auf einen Blick, **welche Rolle wohin kommt**.
 
-| Symbol | Rolle | Was du kannst |
+### Rollen-Legende
+
+| Symbol | Rolle | Default-Bereich nach Login |
 |---|---|---|
-| ✅ | **Mitglied** | App nutzen, WM-Tipspiel, Galerie, eigenes Profil |
-| 🧖 | **Aufgießer** | Alles vom Mitglied + Aufgüsse planen, Team-Aufgüsse anbieten, Stamm-Slots beantragen, Urlaub eintragen, Notfall-Alarm |
-| 🌍 | **Gast-Aufgießer** | Wie Aufgießer — für Aufgießer aus anderen Landesgruppen. Du wirst mit „🌍 Gast" und deiner Landesgruppe gekennzeichnet |
-| 👨‍🍳 | **Personal** | Mitarbeiter (nicht Verein) — kann nur Personal-Aufgüsse übernehmen, Notfall-Alarm, WM-Tipspiel, Mitgliederliste sehen |
-| ⚙️ | **Admin** | Alles + Verwaltung von Saunen, Mitgliedern, Branding, WM-Spielen |
+| 👋 | Gast | `/gast` |
+| 🤝 | Unterstützer (Mitglied ohne Aufgießer-Status) | `/unterstuetzer` |
+| 🧖 | Aufgießer | `/planner` |
+| 🌍 | Gast-Aufgießer (aus anderer Landesgruppe) | `/planner` |
+| 👨‍🍳 | Personal (Mitarbeiter) | `/mitarbeiter` |
+| ⚙️ | Admin | `/planner` (mit Admin-Menü) |
 
-Deine Rolle siehst du in deinem Profil oben im Header (z.B. „Hallo, Christoph · Aufgieser").
+> **Sonderflag `is_wm_admin`:** unabhängig von der Rolle — Personen mit diesem Flag bekommen Zugriff auf den WM-Admin-Tab. Sie sind sonst keine Admins.
+
+### Öffentliche Seiten (kein Login nötig)
+
+Diese Seiten kann **jeder** ohne Anmeldung aufrufen — typisch für Tablets, TVs und QR-Codes:
+
+| Pfad | Zweck |
+|---|---|
+| `/dashboard` | 📺 TV-Tafel — Anzeige im Vereinsraum auf 85"-Fernseher |
+| `/scanner` | 📷 QR-Scanner am Eingang (Anwesenheit) |
+| `/oil-room` | 🛢️ Öl-Raum-Tablet für Sauna-Steuerung |
+| `/checkin` | 🔢 PIN-Eingabe am Eingangs-Tablet |
+| `/checkin/signup` | 🆕 Profil-Setup nach erstem PIN-Check-in |
+| `/checkin/rate` | ⭐ Aufguss-Bewertung am Tablet nach Besuch |
+| `/gast-signup` | 👋 Selbst-Anmeldung für Gäste via QR-Code |
+| `/m/<code>` | 🔗 Magic-Entry (Einmal-Link aus QR-Code) |
+| `/login` · `/forgot` · `/reset-password` | 🔐 Auth-Seiten |
+
+### Zugangsmatrix — Wer kommt wohin?
+
+| Pfad | 👋 Gast | 🤝 Unterstützer | 🧖 Aufgießer | 🌍 Gast-Aufgießer | 👨‍🍳 Personal | ⚙️ Admin |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/gast` | ✅ | 🔁 | 🔁 | 🔁 | 🔁 | 👁️ |
+| `/unterstuetzer` | 🔁 | ✅ | 🔁 | 🔁 | 🔁 | 👁️ |
+| `/planner` | 🔁 | 🔁 | ✅ | ✅ | 🔁 | ✅ |
+| `/mitarbeiter` | 🔁 | 🔁 | 🔁 | 🔁 | ✅ | 👁️ |
+| `/aufgieser` · `/aufgieser/:id` | 🔁 | 🔁 | ✅ | ✅ | 🔁 | ✅ |
+| `/feed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/members` · `/profile/:id` | 🔁 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/wm` | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/postfach` | 🔁 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/hilfe` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/admin` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+
+**Legende:** ✅ Vollzugriff · ❌ kein Zugang · 🔁 Weiterleitung in deinen Default-Bereich · 👁️ als Admin sichtbar (via Preview-Mode)
+
+### Deep-Links für Gäste
+
+| Link | Was passiert |
+|---|---|
+| QR-Code im Vereinsraum | öffnet `/gast-signup?ref=qr_<location>` — Schnellanmeldung |
+| Admin-Einladung per Mail | öffnet `/m/<code>` — Magic-Entry, ein-Klick-Freischaltung mit zugewiesener Rolle |
+
+### Admin-Preview-Mode 👁️
+
+Als Admin kannst du jede Rollen-Seite mit `?preview=<rolle>` testen — z.B.:
+
+- `/planner?preview=aufgieser`
+- `/gast?preview=gast`
+- `/unterstuetzer?preview=member`
+
+**Wichtig:** Preview überschreibt nur die UI-Anzeige. Es **testet KEINE RLS-Regeln** (Row Level Security). Für echten RLS-Test melde dich mit einem Test-Account in der Rolle an.
 
 ---
 
-## 3. Die TV-Tafel
+## 4. Die 5 Mitglieds-Arten
 
-Die **TV-Tafel** (`/dashboard`) ist die Anzeige im Vereinsraum auf dem 85"-Fernseher.
+| Symbol | Rolle | Default-Bereich | Hauptrechte |
+|---|---|---|---|
+| 👋 | **Gast** | `/gast` | Feed lesen, Polaroid-Galerie ansehen, Verein kennenlernen. **Kein Planen, kein Postfach.** |
+| 🤝 | **Unterstützer** (Mitglied) | `/unterstuetzer` | Alles vom Gast + Helfer-Aufgaben annehmen, WM-Tipspiel, Mitglieder-Galerie, eigenes Profil + Badges |
+| 🧖 | **Aufgießer** | `/planner` | Alles vom Unterstützer + Aufgüsse planen (2 Wochen voraus), Team-Aufgüsse, Atelier, Stamm-Slot, Urlaub, Notfall-Alarm |
+| 🌍 | **Gast-Aufgießer** | `/planner` | Wie Aufgießer — aber **4 Wochen voraus planbar** und sichtbar mit „🌍 Gast" + Landesgruppe |
+| 👨‍🍳 | **Personal** | `/mitarbeiter` | Personal-Aufgüsse übernehmen, Notfall-Alarm auslösen, WM-Tipspiel, Mitgliederliste sehen |
+| ⚙️ | **Admin** | `/planner` | Alles + 13 Verwaltungs-Tabs unter `/admin` (Saunas, Members, Invitations, Recurring, Presence, Stats, Auswertungen, Branding, Handbook, Polls, Tasks, Feed, WM) |
 
-**Was du dort siehst:**
-- **Aktuelle Uhrzeit** und **Wetter** im Header
-- **Logo** des Vereins
-- **Sauna-Spalten** — pro aktive Sauna eine Spalte mit den nächsten 3 Aufguss-Slots
-- **Garantie-Stunden** — jede Stunde ist eine Sauna „dran". 80°C/100°C wechselt sich ab. Freitags sind die ersten 3 Slots alle 80°C, dann wechselt es ab 14:00 mit 100°C.
-
-**Slot-Anzeige:**
-- 🧖 **Aufgießer-Name** — geplanter Aufguss
-- 👨‍🍳 **„Personal-Aufguss"** — Garantie-Slot ohne Aufgießer (Personal übernimmt)
-- 🚫 **„Kein Aufguss"** — diese Sauna ist zur Zeit nicht dran (die andere Sauna macht den Garantie-Aufguss)
-- 🌡️ **80°C oder 100°C** — Temperatur des Slots
-
-**Schwarzwald-Bühne unten:** durchgehende Animation mit Holzfäller, Spielplatz, Sauna-Hütte, Reh, Segelflieger — pure CSS, auch nachts schön anzusehen.
+Deine Rolle siehst du oben im Header neben deinem Avatar.
 
 ---
 
-## 4. Aufgüsse planen
+# Teil B — Pro Rolle (Was du tust)
 
-Nur für **Aufgießer** (🧖), **Gast-Aufgießer** (🌍) und **Admins** (⚙️).
+## 5. 👋 Als Gast
+
+**Default-Bereich:** `/gast`
+
+Als Gast bist du herzlich willkommen — du kannst den Verein in Ruhe kennenlernen, ohne gleich Mitglied zu werden.
+
+### So wirst du Gast
+
+**Variante 1: QR-Code im Vereinsraum**
+1. Im Vereinsraum gibt es einen QR-Code auf dem Tisch.
+2. Mit dem Handy scannen → öffnet `/gast-signup`
+3. **Name + E-Mail** eintragen, einen 4-stelligen PIN wählen
+4. **Anmelden** klicken → du bist drin
+
+**Variante 2: Admin lädt dich ein**
+Ein Admin schickt dir einen Einladungs-Link. Du klickst, vergibst dein Passwort, fertig.
+
+### Was du als Gast machen kannst
+
+| Bereich | Was geht |
+|---|---|
+| 📸 **Mini-Feed** (`/feed`) | Bilder anschauen, Reactions geben (🌟 🔥 🌿 💧 🎵), Aroma-Tags filtern |
+| 📺 **TV-Tafel** (`/dashboard`) | Mitlesen wann welcher Aufguss läuft |
+| 👥 **Mitglieder-Galerie** (`/members`) | Aufgießer-Galerie sehen, Star-Profile mit Polaroid-Galerie |
+| 🏆 **Hilfe** (`/hilfe`) | Dieses Handbuch lesen |
+
+### Was du als Gast **nicht** kannst
+
+- ❌ Aufgüsse planen
+- ❌ Helfer-Aufgaben annehmen
+- ❌ Postfach nutzen
+- ❌ WM-Tipspiel
+- ❌ Einlass-Code generieren (PIN gibt's, aber nur fürs Tablet-Check-In)
+
+> **Lust auf mehr?** Sprich einen Admin an — er kann dich zum **Unterstützer** oder direkt zum **Aufgießer** upgraden.
+
+---
+
+## 6. 🤝 Als Unterstützer
+
+**Default-Bereich:** `/unterstuetzer`
+
+Du bist Vereinsmitglied, aber (noch) kein aktiver Aufgießer. In deinem Bereich findest du **alles, womit du den Verein unterstützen kannst**.
+
+### Helfer-Aufgaben-System
+
+In `/unterstuetzer` siehst du oben **„🤝 Offene Helfer-Aufgaben"** — Dinge, bei denen der Verein gerade Hilfe braucht:
+
+- 🧹 „Wer hilft Samstag beim Großputz?"
+- 🛒 „Lieferung Aufguss-Öle abholen am Freitag"
+- 🎉 „Helfer für Sommerfest gesucht"
+
+**Aufgabe annehmen:**
+1. Auf die Aufgaben-Karte klicken
+2. **„🙋 Ich helfe mit"** klicken
+3. Optional: Notiz eintragen („Bin um 14 Uhr da")
+4. Submit → Admin bekommt Push und kann freigeben (Approval-Workflow)
+
+Sobald freigegeben, taucht die Aufgabe in deinem **„📋 Meine Zusagen"**-Block auf.
+
+**Eigene Aufgabe einreichen:** Ganz unten **„+ Aufgabe vorschlagen"** — Admin entscheidet.
+
+### Was du sonst kannst
+
+- 📸 Im **Mini-Feed** posten (siehe Kapitel 10)
+- 🏆 **WM-Tipspiel** unter `/wm` mitspielen
+- 👥 In der **Mitglieder-Galerie** stöbern
+- 📧 Dein **Postfach** lesen (falls du eine `@sauna-fds.de`-Adresse hast)
+- 🪪 Dein **Profil** ausfüllen und Badges sammeln
+
+---
+
+## 7. 🧖 Als Aufgießer / 🌍 Gast-Aufgießer
+
+**Default-Bereich:** `/planner`
+
+Hier ist deine Schaltzentrale. Du planst Aufgüsse, übernimmst Personal-Slots, organisierst dein Atelier.
+
+### 6-Tage-Wochenansicht
+
+Statt nur Heute/Morgen siehst du jetzt **6 Tage voraus** als horizontal scrollbare Wochenansicht:
+
+| Rolle | Planungsfenster |
+|---|---|
+| 🧖 Aufgießer | **2 Wochen** voraus |
+| 🌍 Gast-Aufgießer | **4 Wochen** voraus |
+| ⚙️ Admin | **26 Wochen** voraus |
+
+Wechsle mit den Pfeil-Buttons zwischen den Wochen — Anker-Tag oben zeigt immer den aktuell sichtbaren Zeitraum.
 
 ### Slot-Matrix
-Im Planner (`/planner`) findest du die **Slot-Matrix** — zwei Zeilen übereinander (eine pro Sauna), pro Stunde eine Zelle:
+
+Pro Sauna eine Zeile, pro Stunde eine Zelle:
 
 | Farbe | Bedeutung |
 |---|---|
@@ -101,72 +286,180 @@ Im Planner (`/planner`) findest du die **Slot-Matrix** — zwei Zeilen übereina
 | 🟣 violet | **dein eigener** Aufguss |
 | 🔴 rose | **gesperrt** — anderer Aufgießer hat den Slot belegt |
 
-**Ein Klick wählt Sauna + Uhrzeit gleichzeitig** — kein zweimal klicken nötig.
+**Ein Klick wählt Sauna + Uhrzeit gleichzeitig.**
 
-### Aufguss-Formular
-1. **Tag wählen**: Heute oder Morgen
-2. **Slot in der Matrix anklicken** — grüne Zellen sind frei
+### Aufguss anlegen
+
+1. **Tag wählen** in der Wochenansicht
+2. **Slot in der Matrix anklicken** (grüne Zellen)
 3. **Titel** eintragen (z.B. „Eukalyptus klassisch")
-4. **Eigenschaften** auswählen (z.B. 🍃 Naturreines Öl, 🎵 Musik, 🔥 Mit Feuer)
-5. **Ätherische Öle** (bis zu 3) für Runde 1/2/3
+4. **Eigenschaften** auswählen (🍃 Naturöl · 🎵 Musik · 🔥 Mit Feuer · 💧 Wasserdampf · 🔇 Stille · 🔊 Laut)
+5. **Ätherische Öle** (bis zu 3) für Runde 1/2/3 — wirkt sich auf Aroma-Tags im Feed aus
 6. **Team-Aufguss** an/aus — bis zu 2 Co-Aufgießer können beitreten
-7. **„Aufguss eintragen"** klicken
+7. **„Aufguss eintragen"**
 
 ### Personal-Aufguss übernehmen
-Wenn du einen gelben 🟡 Slot anklickst, ändert sich der Button zu **„🔄 Personal-Aufguss übernehmen"**. Trag deinen Titel + Eigenschaften ein → der Standard-Personal-Aufguss wird durch deinen ersetzt.
 
-### Garantie-Sperre Sauna 2
-Solange in der „dran"-Sauna noch Personal-Aufgüsse offen sind, ist Planung in der anderen Sauna gesperrt. **Übernehme zuerst die Garantie-Slots, dann öffnet sich die zweite Sauna.**
+Wenn du einen gelben 🟡 Slot anklickst, wechselt der Button auf **„🔄 Personal-Aufguss übernehmen"**. Titel + Eigenschaften eintragen → Standard-Personal-Aufguss wird durch deinen ersetzt.
+
+> **Garantie-Sperre Sauna 2:** Solange in der „dran"-Sauna noch Personal-Aufgüsse offen sind, ist die andere Sauna für neue Slots gesperrt. Übernimm zuerst die Garantie-Slots.
 
 ### Team-Aufguss
-- Toggle **„Team-Aufguss"** aktivieren beim Anlegen
-- Push-Benachrichtigung geht an alle anderen Aufgießer
-- Max. 2 weitere Aufgießer können beitreten
-- Quick-Liste „👥 Offene Team-Plätze" oben im Planner
 
----
+- Toggle **„Team-Aufguss"** beim Anlegen aktivieren
+- Push geht an alle Aufgießer
+- Max. **2 weitere** können beitreten
+- Quick-Liste **„👥 Offene Team-Plätze"** oben im Planner
 
-## 5. Mein Atelier
+### Mein Atelier 🧖
 
-Im Planner-Bereich findest du **„🧖 Mein Atelier"** — deine Werkbank:
+- **Meine geplanten Aufgüsse** — Karten-Ansicht
+- **Templates** — Aufguss-Vorlagen mit einem Klick wiederverwenden
+- **Custom-Buttons** — eigene Eigenschaften (Admin schaltet frei)
 
-- **Meine geplanten Aufgüsse** — alle zukünftigen Aufgüsse als Karten
-- **Templates** — Aufguss-Vorlagen die du gespeichert hast
-- **Custom-Buttons** — eigene Eigenschaften-Buttons die nur du nutzen kannst (Admin kann freischalten)
-
-**Vorlage speichern:** Beim Aufguss-Anlegen → „Als Vorlage" → wird gespeichert und kann mit einem Klick wieder angewendet werden.
-
-**Co-Aufgießer beitreten:** Team-Aufgüsse anderer Aufgießer kannst du hier oder über die Quick-Liste oben beitreten.
-
----
-
-## 6. Stamm-Slot & Urlaub
-
-Aufgießer können **wöchentliche Stamm-Slots** beantragen — fest reservierte Aufgusszeiten.
+**Vorlage speichern:** beim Anlegen → „Als Vorlage" → kann später mit einem Klick wieder eingetragen werden.
 
 ### Stamm-Slot beantragen
-1. Planner → unten **„📅 Stamm-Slot & Urlaub"**
-2. **„Mein Stamm-Slot" → „Neuen Stamm-Slot beantragen"**
-3. Wochentag, Stunde, Sauna wählen
-4. Optional: **Vorlage** auswählen — bei jeder Materialisierung wird die Vorlage automatisch als Aufguss eingetragen
-5. Notiz (z.B. „Mein Stamm-Slot seit 5 Jahren")
-6. **„Antrag stellen"** — Admin bekommt Push und kann freigeben
 
-Sobald freigegeben: für die nächsten 8 Wochen ist dieser Slot automatisch dir reserviert.
+1. Planner → **„📅 Stamm-Slot & Urlaub"**
+2. **„Neuen Stamm-Slot beantragen"**
+3. Wochentag, Stunde, Sauna wählen
+4. Optional: **Vorlage** verknüpfen
+5. Notiz („Mein Stamm-Slot seit 5 Jahren")
+6. **„Antrag stellen"** → Admin gibt frei → 8 Wochen automatisch reserviert
 
 ### Urlaub eintragen
-1. **„Meine Abwesenheit" → „Neue Abwesenheit"**
-2. Datums-Range (von/bis) eintragen
-3. Notiz (z.B. „Urlaub Ostsee")
-4. **„Abwesenheit speichern"**
 
-→ deine Stamm-Slot-Aufgüsse in dem Zeitraum werden automatisch freigegeben + Push geht an alle anderen Aufgießer („🏖️ Urlaubsslots frei").
+1. **„Meine Abwesenheit" → „Neue Abwesenheit"**
+2. Datums-Range eintragen
+3. Notiz („Urlaub Ostsee")
+4. **„Speichern"**
+
+→ Deine Stamm-Slot-Aufgüsse im Zeitraum werden automatisch freigegeben + Push „🏖️ Urlaubsslots frei" an alle Aufgießer.
+
+### Echo-Modal nach Bewertung
+
+Wenn jemand deinen Aufguss bewertet (1–5 ⭐ + 6 Kategorien), bekommst du ein **Echo-Modal**:
+- 📸 Vorschau seines Feed-Posts (falls verknüpft)
+- 💬 Quick-Reply als Aufgießer („Danke für die Rückmeldung!")
+- 🌿 Aroma-Tags die er gewählt hat
+
+### Notfall-Alarm
+
+Roter Button oben rechts im Planner — siehe Kapitel 22.
 
 ---
 
-## 7. Mitglieder-Galerie
+## 8. 👨‍🍳 Als Personal
 
-Unter `/members` findest du **alle Vereinsmitglieder** auf schönen Karten:
+**Default-Bereich:** `/mitarbeiter`
+
+Du bist Mitarbeiter (nicht Vereinsmitglied) und hilfst beim Betrieb.
+
+### Was du machst
+
+| Aktion | Wie |
+|---|---|
+| **Personal-Aufgüsse durchführen** | Liste der Personal-Slots oben — automatisch dir zugeordnet wenn kein Aufgießer kommt |
+| **Aufguss-Übernahme melden** | Wenn du einen Slot übernimmst, kurz im Mitarbeiter-Bereich bestätigen |
+| **Notfall-Alarm** | Roter Button — Vollbild-Alarm + Telegram + Push (siehe Kapitel 22) |
+| **WM-Tipspiel** | Du darfst mittippen — `/wm` |
+| **Mitgliederliste sehen** | `/members` — alle Vereinsmitglieder |
+
+### Announce-Cron 90 Min vor Personal-Fallback
+
+90 Minuten bevor ein Personal-Aufguss fällig wird (und kein Aufgießer übernommen hat), schickt der **Telegram-Bot** automatisch eine Nachricht in den Channel mit **„✋ Ich übernehme"**-Button. Falls niemand reagiert: der Slot bleibt bei dir als Personal-Aufguss.
+
+> **Was du NICHT machst:** Vereinsmitglieder anlegen, Saunas konfigurieren, Branding ändern — das macht der Admin.
+
+---
+
+## 9. ⚙️ Als Admin
+
+**Default-Bereich:** `/planner` (mit zusätzlichem Admin-Menü)
+
+Du hast Vollzugriff auf alle Bereiche und kannst über `/admin` die App komplett verwalten.
+
+### Die 13 Admin-Tabs unter `/admin`
+
+| Tab | Was du tust |
+|---|---|
+| **🛁 Saunas** | Saunen ein/ausschalten, Temperatur-Modi, Farbe, Sortierung |
+| **👥 Members** | Mitglieder anlegen, Rollen ändern, sperren/entsperren, PINs zurücksetzen |
+| **📨 Invitations** | Einladungen verschicken — **6 Rollen-Buttons**: Aufgießer · Helfer · Gast-Aufgießer · Personal · Gast · Admin |
+| **📅 Recurring** | Stamm-Slots verwalten — Anträge freigeben, materialisieren |
+| **🟢 Presence** | Live-Anwesenheit, manuelle Korrekturen |
+| **📊 Stats** | Aufguss-Statistiken pro Aufgießer/Monat |
+| **📈 Auswertungen** | PDF-Reports, Datenexporte |
+| **🎨 Branding** | `brand_settings` — Logo, Farben, Vereinsname, Custom-Texte |
+| **📖 Handbook** | Dieses Handbuch verschicken (Email-Broadcast, Telegram, WhatsApp, PDF) |
+| **📊 Polls** | Umfragen erstellen + Ergebnisse |
+| **🤝 Tasks** | Helfer-Aufgaben anlegen, Zusagen freigeben |
+| **📸 Feed** | Feed-Moderation (Bilder, Kommentare) |
+| **🏆 WM** | WM-Tipspiel administrieren (nur sichtbar bei `is_wm_admin`) |
+
+### Admin-Preview-Mode 👁️
+
+Jede Rollen-Seite kannst du im Preview-Mode testen:
+
+```
+/planner?preview=aufgieser
+/gast?preview=gast
+/unterstuetzer?preview=member
+/mitarbeiter?preview=staff
+```
+
+**Was es macht:** Frontend zeigt dir die UI-Sicht der Rolle.
+**Was es NICHT macht:** Es testet keine RLS-Regeln auf Datenbank-Ebene. Für echten RLS-Test einen Test-Account in der Rolle nutzen.
+
+### is_wm_admin
+
+Personen mit `is_wm_admin`-Flag (aber ohne Admin-Rolle) sehen unter `/admin` **nur den WM-Tab** — sie können die WM-Verwaltung machen, aber nichts anderes.
+
+---
+
+# Teil C — Features für Alle
+
+## 10. Mini-Feed
+
+**Pfad:** `/feed`
+
+Der Mini-Feed ist unsere kleine, vereinsinterne Insta-Variante — kein TikTok, keine Algorithmen, einfach ein netter Strom an Sauna-Eindrücken.
+
+### Was du sehen kannst
+
+- 📸 **1 Bild + 280 Zeichen Text** pro Post
+- 🌿 **Aroma-Tags** (z.B. Eukalyptus · Birke · Zirbe · Latschenkiefer · Honig) — filterbar oben
+- 🎭 **5 Bühnen-Reactions**: 🌟 (Klasse) · 🔥 (Heiß) · 🌿 (Aroma) · 💧 (Dampf) · 🎵 (Stimmung)
+- 🔗 **Aufguss-Anchor** — Post mit einem Aufguss-Slot verknüpft, dann erscheint im Post die Slot-Karte mit Aufgießer-Name + Zeit
+
+### Post erstellen
+
+1. Plus-Button unten rechts
+2. Bild aufnehmen oder hochladen (1:1 quadratisch wird automatisch zugeschnitten)
+3. **Text** eintragen (max. 280 Zeichen)
+4. **Aroma-Tags** wählen (1–5 Tags)
+5. Optional: **Aufguss-Anchor** verknüpfen — wähle einen deiner Aufgüsse der letzten 24h
+6. **Posten** → erscheint sofort im Feed
+
+### Echo-Modal
+
+Wenn du im Feed eine **Reaction zu einem Post mit Aufguss-Anchor** gibst, erscheint nach 5 Sekunden das **Echo-Modal**:
+- Zeigt dir die anderen Reactions auf den Post
+- Bietet **Quick-Rate** für den verknüpften Aufguss (1–5 ⭐)
+- Der Aufgießer bekommt dein Echo direkt
+
+### Moderation
+
+Admin kann unter `/admin → Feed` Bilder/Kommentare löschen. Bei wiederholten Verstößen: User kann temporär aus dem Feed gesperrt werden.
+
+---
+
+## 11. Mitglieder-Galerie & Profile
+
+**Pfad:** `/members`
+
+Alle Vereinsmitglieder auf schönen Karten:
 - **Avatar** + Name + Sauna-Name + Motto
 - **Mitgliedsnummer** (FDS-001 etc.)
 - **Geburtstag** + Mitglied seit
@@ -174,256 +467,449 @@ Unter `/members` findest du **alle Vereinsmitglieder** auf schönen Karten:
 - 🟢 **Anwesend**-Badge wenn gerade in der Sauna
 - 🎂 **Birthday-Badge** wenn heute Geburtstag
 
-**Filter oben:**
-- **Alle**
-- **🧖 Aufgieser**
-- **🟢 Anwesend**
+### Filter oben
 
-**Klick auf eine Karte** öffnet das Profil dieser Person.
+- **Alle** · **🧖 Aufgießer** · **🤝 Unterstützer** · **🟢 Anwesend** · **🎂 Geburtstage**
 
-**Foto-Karussell unten:** „📸 Erinnerungen aus der Sauna" — Mitglieder können selbst Fotos hochladen (Admin moderiert).
+### Star-Profil
+
+Klick auf eine Aufgießer-Karte → öffnet **Star-Profil** mit:
+- 📡 **Bewertungs-Radar** (6 Kategorien)
+- 🏅 **Trophäenwand** mit Badges
+- 📸 **Polaroid-Galerie** — alle Feed-Posts dieses Aufgießers als Polaroid-Stapel
+- 📖 **Guestbook** — andere Mitglieder können Notizen hinterlassen
+- 🎯 **Aufguss-Historie** der letzten 30 Tage
+
+### Foto-Karussell unten
+
+„📸 Erinnerungen aus der Sauna" — kuratierte Bilder vom Admin.
 
 ---
 
-## 8. WM-Tipspiel
+## 12. WM-Tipspiel 2026
 
-Bei sportlichen Großereignissen (aktuell WM 2026) gibt es das **interne Tipspiel** unter `/wm`.
+**Pfad:** `/wm`
 
-**Spielablauf:**
+Interner Tipspiel-Spaß zur Fußball-WM 2026.
+
+### Spielablauf
+
 - **104 Spiele** über alle Phasen (Gruppen → Achtel → … → Finale)
-- Du tippst pro Spiel: **Sieger** (Heim/Unentschieden/Auswärts) + optional **genaues Ergebnis** für mehr Punkte
-- **Joker** pro Phase: 1 Spiel zählt doppelt (musst du vorher setzen)
-- **Champion-Tipp**: wer wird Weltmeister?
-- **Gruppen-Picks**: welche 2 Teams kommen aus jeder Gruppe weiter?
+- **48 Teams** in **12 Gruppen**
+- Anstoßzeiten in **MESZ**
+- Du tippst pro Spiel: **Sieger** (Heim / Unentschieden / Auswärts) + optional **genaues Ergebnis** für Bonuspunkte
 
-**Punkte-Box ganz oben** erklärt das aktuelle Punktesystem im Detail.
+### Spezial-Tipps
 
-**Rangliste** mit allen Mitspielern, Live-Update bei jedem Spielergebnis.
+- 🃏 **Joker** pro Phase: 1 Spiel zählt doppelt (musst du vorher setzen)
+- 🏆 **Champion-Tipp**: Wer wird Weltmeister?
+- 📋 **Gruppen-Picks**: Welche 2 Teams kommen aus jeder Gruppe weiter?
+- 🥅 **Final-Tipp**: Welche Teams stehen im Finale?
 
-**Heat-Map** zeigt deine Tipp-Trefferquote über die Zeit.
+### Streak-Bonus
 
----
+Wenn du **N Spiele in Folge** richtig tippst, gibt's einen Streak-Multiplikator obendrauf.
 
-## 9. Einlass-Code & Anwesenheit
+### Heat-Map
 
-### Einlass-Code (PIN)
-Statt mit QR-Karte am Eingang kannst du auch einen **4–8-stelligen PIN** verwenden:
+Zeigt deine **Tipp-Trefferquote** über die Zeit — wo bist du stark, wo schwach?
 
-1. Planner → unten **„🔑 Einlass-Code"**
-2. **„Code setzen"** oder bestehenden bearbeiten
-3. Live-Check zeigt sofort: ✓ verfügbar / ✕ schon vergeben
-4. **🎲-Button** generiert einen freien Zufalls-PIN
-5. **Speichern**
+### Rangliste
 
-Am Eingangs-Tablet einfach den PIN tippen — du bist eingecheckt.
+Live-Update bei jedem Spielergebnis. Top-3 bekommen am Saisonende ein **🥇/🥈/🥉-Badge** in der Profilwand.
 
-### Anwesenheit / Check-in
-- Im Planner oben siehst du deinen **Anwesenheits-Status**
-- **„Einchecken"** wenn du in der Sauna bist
-- **Dauer wird live mitgezählt** („Anwesend seit 1h 23min")
-- **„Auschecken"** beim Gehen
-- **Streak-Bonus**: wenn du jede Woche da bist, sammelst du Punkte für Achievement-Badges
+> **Sonderfall WM-Admin (`is_wm_admin`):** Personen mit diesem Flag können unter `/admin → WM` Spielergebnisse eintragen, ohne sonst Admin-Rechte zu haben.
 
 ---
 
-## 10. Mein Profil & Erfolge
+## 13. Mein Profil & Erfolge
 
-Klick auf deinen Avatar oben im Header oder geh zu `/profile/<deine-id>`.
-
-**Was du einstellen kannst:**
+**Pfad:** `/profile/<deine-id>` oder Klick auf den Avatar oben im Header.
 
 ### 🪪 Identität
+
 - **Name** (vom Admin gepflegt)
 - **Sauna-Name** — dein „Künstlername" (z.B. „Birken-Hexe")
-- **Avatar** — eigenes Foto hochladen oder Dicebear-Default
+- **Avatar** — eigenes Foto oder Dicebear-Default
 - **Motto** — kurzer Spruch (max. 200 Zeichen)
-- **Geburtstag** — wirst am Tag in der Galerie mit 🎂 markiert
+- **Geburtstag** — 🎂-Markierung in der Galerie am Tag
 
 ### 📡 Bewertungen
-Andere Mitglieder können deine Aufgüsse anonym bewerten (6 Kategorien: Chemie, Luftbewegung, Wedeltechnik, Hitzeniveau, Musik, Duftentwicklung). Dein Radar-Diagramm zeigt deine Stärken.
 
-### 🏅 Auszeichnungen
-**Trophäenwand** mit deinen erreichten Badges:
-- **Aufgießer-Badges** (10/50/100/500 Aufgüsse)
-- **Anwesenheits-Badges** (Streak-Wochen)
-- **Spezial-Badges** (Mitternachts-Aufgießer, Birkenzweig-Held, etc.)
-- **WM-Badges** (Gold/Silber/Bronze nach Saison)
-- **Custom-Badges** vom Admin verliehen
+Andere Mitglieder bewerten deine Aufgüsse anonym in **6 Kategorien**:
+
+| Kategorie | Was bewertet wird |
+|---|---|
+| 🧪 Chemie | Wie passend war das Öl-Set? |
+| 🌀 Luftbewegung | Wie geschmeidig war das Wedeln? |
+| 🪭 Wedeltechnik | Sauber, kontrolliert, kreativ? |
+| 🌡️ Hitzeniveau | Stimmt die Intensität? |
+| 🎵 Musik | Passt der Sound? |
+| 🌿 Duftentwicklung | Wie hat sich der Duft entfaltet? |
+
+Dein **Radar-Diagramm** zeigt deine Stärken auf einen Blick.
+
+### 🏅 67+ Badges in 8 Kategorien
+
+Klick auf **„🏆 Trophäenwand"** für den vollen Überblick:
+
+| Kategorie | Beispiele |
+|---|---|
+| 🧖 **Aufgießer** | 10 / 50 / 100 / 500 / 1000 Aufgüsse |
+| 🟢 **Anwesenheit** | 4/8/12/26/52 Wochen Streak |
+| 🌍 **Reise** | „Gast in 3 Landesgruppen" · „Internationaler Aufgießer" |
+| 🌟 **Spezial** | Mitternachts-Aufgießer · Birkenzweig-Held · Polarnacht-Aufgießer · 360°-Wedeler |
+| 🏆 **WM-Saison** | Gold/Silber/Bronze · Joker-Champion · Streak-Master |
+| 🎨 **Feed-Künstler** | „Erste 10 Posts" · „Aroma-Sammler" · „Polaroid-König" |
+| 🤝 **Helfer** | „5/25/100 Aufgaben angenommen" · „Vereins-Stütze" |
+| 🎁 **Custom** | Vom Admin verliehene Einzelbadges (Jubiläum, Spezial-Ereignis) |
+
+> **Wie kommst du an Badges?** Automatisch durch Aktivität. Manche Spezial-Badges werden manuell vom Admin verliehen — z.B. zum Vereinsjubiläum oder bei besonderen Anlässen.
+
+### 🔗 Integrationen
+
+Im Profil unten findest du **„🔗 Integrationen"** mit:
+- 📅 **Kalender-Abo** (siehe Kapitel 18)
+- ✈️ **Telegram-Bot** (siehe Kapitel 17)
 
 ---
 
-## 11. Kalender-Abo & Telegram
+## 14. Einlass-Code & PIN-Pool
 
-Im Profil findest du **„🔗 Integrationen"** mit zwei nützlichen Verknüpfungen:
+Saunascaner nutzt einen **einheitlichen 4-stelligen PIN-Pool** für alle Rollen.
 
-### 📅 Kalender-Abo
+### Wie funktioniert das
+
+- Jedes Mitglied hat **einen 4-stelligen PIN** (`members.checkin_pin`)
+- PINs sind **vereinsweit unique** — keine Kollisionen möglich
+- Wird automatisch beim Anlegen generiert via `generate_checkin_pin()`
+
+> **Wichtig:** Du kannst deinen PIN **nicht selbst setzen** — er wird vom System generiert. Wenn du einen neuen brauchst (z.B. wegen Verlust), Admin bitten.
+
+### PIN ansehen
+
+- **In der App:** Profil → 🔑 **Einlass-Code** → wird dir angezeigt
+- **Per Telegram:** `/pin` an den Bot schicken
+
+### Tablet-Check-In am Eingang
+
+1. Am Eingangs-Tablet PIN tippen
+2. Tablet erkennt dich → grünes Häkchen
+3. Beim Verlassen nochmal PIN tippen → ausgecheckt
+
+### Anwesenheits-Tracking
+
+- **Dauer wird live mitgezählt** („Anwesend seit 1h 23min")
+- **Streak-Bonus**: wer jede Woche da ist, sammelt Punkte für 🟢 Anwesenheits-Badges
+
+---
+
+# Teil D — Werkzeuge & Geräte
+
+## 15. Tablet-Workflows
+
+Saunascaner läuft auf mehreren Tablets im Vereinsraum — alle ohne Login, jeder Workflow für einen klar definierten Zweck.
+
+### 📺 TV-Tafel — `/dashboard`
+Großer 85"-Fernseher im Vereinsraum. Zeigt aktuelle Aufgüsse, Schwarzwald-Bühne, Wetter. **Läuft 24/7.** Pure-CSS-Animation (kein JS-Timer) damit nichts heißläuft.
+
+### 📷 Scanner — `/scanner`
+QR-Code-Scanner am Eingang. Mitglied scannt seinen QR-Ausweis → automatisches Check-In/Check-Out.
+
+### 🛢️ Öl-Raum — `/oil-room`
+Tablet im Öl-Raum. Zeigt den aktuellen + nächsten Aufguss inkl. der vom Aufgießer gewählten Öle — Personal sieht sofort welche Flaschen rauszustellen sind.
+
+### 🔢 PIN-Check-In — `/checkin`
+Tablet am Eingang (Alternative zum QR-Scanner). PIN tippen → eingecheckt. Funktioniert für alle Rollen.
+
+### 🆕 Gast-Self-Sign-Up — `/checkin/signup`
+Wenn ein neuer PIN-Versuch fehlschlägt: System bietet Self-Sign-Up. Name + E-Mail + PIN → Account angelegt mit Rolle `gast`.
+
+### ⭐ Aufguss-Bewertung — `/checkin/rate`
+Nach dem Auschecken zeigt das Tablet eine Quick-Rate-Maske: 1–5 ⭐ + optional Kategorien-Wertung. Geht direkt in den Aufguss-Datensatz und löst beim Aufgießer das Echo-Modal aus.
+
+### 👋 Gast-Anmeldung via QR-Code — `/gast-signup`
+QR-Code im Raum zeigt direkt auf diese Seite. Schnellanmeldung für Gäste in <30 Sekunden.
+
+---
+
+## 16. Die TV-Tafel im Detail
+
+**Pfad:** `/dashboard` · 85"-Fernseher im Vereinsraum
+
+### Was du dort siehst
+
+- **Aktuelle Uhrzeit** und **Wetter** im Header (Open-Meteo, Freudenstadt + 3h + 6h)
+- **Logo** des Vereins (aus `brand_settings`)
+- **Sauna-Spalten** — pro aktive Sauna eine Spalte mit den nächsten 3 Aufguss-Slots
+- **Garantie-Stunden** — pro Stunde ist genau **eine** Sauna „dran"
+
+### 80°C / 100°C / 90°C — Rhythmus
+
+| Sauna | Temperatur | Charakter |
+|---|---|---|
+| **Kelo** | 80°C | Hauptsauna, milder, längere Sitzungen möglich |
+| **Blockhaus** | 100°C | Heiße Sauna, kürzere Sitzungen |
+| **Finnische** | 90°C | Spezial-Sauna, nur an Event-Tagen |
+
+**Tag-Rhythmus:** Start mit 80°C, dann wechseln stündlich 80↔100. **Freitags Sonderregel:** die ersten 3 Slots alle 80°C, ab 14:00 dann normaler Wechsel mit 100°C-Start.
+
+### Slot-Anzeige
+
+- 🧖 **Aufgießer-Name** — geplanter Aufguss
+- 👨‍🍳 **„Personal-Aufguss"** — Garantie-Slot ohne Aufgießer
+- 🚫 **„Kein Aufguss"** — andere Sauna macht den Garantie-Aufguss
+- 🌡️ **80°C / 100°C / 90°C** — Temperatur des Slots
+
+### Garantie-Sperrregel
+
+Solange in der „dran"-Sauna noch Personal-Fallback-Slots übrig sind, ist Planung in der Zweit-Sauna gesperrt. Sobald alle Garantie-Slots übernommen oder vorbei sind, öffnet sich die zweite Sauna automatisch.
+
+### Schwarzwald-Bühne
+
+Im unteren Drittel läuft eine durchgehende Pure-CSS-Animation: Holzfäller, Spielplatz, Sauna-Hütte, Reh, Segelflieger, ferner Berg, Horizont-Dunst — Tiefenebenen für atmosphärische Wirkung. Komplett ohne JS-Timer.
+
+### Personal-Fallback
+
+Wenn 15 Min vor einem Slot kein Aufgießer eingetragen ist, wird automatisch ein **Personal-Aufguss** angezeigt (Standardtitel/-Öl aus `brand_settings`).
+
+---
+
+## 17. Telegram-Bot
+
+Bot-Username: **@saunafreunde_bot**
+
+### Verknüpfen
+
+1. Profil → **„🔗 Verknüpfungs-Link generieren"**
+2. Auf den Link klicken → Telegram öffnet sich
+3. Bot bestätigt: „✅ Konto verknüpft"
+
+### Befehle
+
+| Befehl | Was er macht |
+|---|---|
+| `/heute` | Aufgüsse heute auflisten |
+| `/morgen` | Aufgüsse morgen auflisten |
+| `/woche` | Komplette Woche im Überblick |
+| `/meine` | Deine geplanten Aufgüsse |
+| `/pin` | Dein 4-stelliger Einlass-PIN |
+| `/feed` | Letzte 5 Feed-Posts mit Bildern |
+| `/help` | Alle Befehle |
+
+### Inline-Buttons
+
+Jede Bot-Nachricht zu einem Aufguss-Slot hat Quick-Buttons:
+
+- **🙋 „Ich komme"** — bei freien Slots: meldest dich als Teilnehmer an
+- **✋ „Ich übernehme"** — bei Personal-Slots: übernimmst als Aufgießer
+
+Ein Klick reicht — kein App-Wechsel nötig.
+
+### Quick-Rating-Push (15 Min nach Aufguss)
+
+15 Minuten nach jedem deiner besuchten Aufgüsse bekommst du eine **Bot-Nachricht** mit:
+- Aufgießer-Name + Sauna + Uhrzeit
+- **Inline-Buttons 1–5 ⭐**
+- Optional: „Ein Wort dazu?"-Eingabe für Aroma-Tag
+
+Antwort geht direkt in den Aufguss-Datensatz und löst beim Aufgießer das Echo-Modal aus.
+
+### Announce-Cron 90 Min vor Personal-Fallback
+
+90 Min bevor ein Aufguss-Slot ohne Aufgießer fällig wird, postet der Bot eine Nachricht in den **Aufgießer-Gruppen-Channel** mit **„✋ Ich übernehme"**-Button. Erster Klick gewinnt — Slot ist seins.
+
+### Notfall-Push
+
+Bei Evakuierung schickt der Bot eine **Vollbild-rote Push-Nachricht** an alle verknüpften Chats inkl. Liste der aktuell Anwesenden.
+
+---
+
+## 18. Kalender-Abo (iCal)
+
 Lass deine Aufgüsse automatisch in deinem Kalender erscheinen.
 
 **iPhone/iPad:**
-1. **„📅 Direkt abonnieren"** klicken
+1. Profil → **„📅 Direkt abonnieren"** klicken
 2. iOS öffnet die Kalender-App
 3. **„Abonnieren"** bestätigen
 
 **Android (Google Calendar):**
 1. **„📋 Link kopieren"**
-2. Google Calendar Web öffnen → Andere Kalender → „Per URL hinzufügen"
+2. Google Calendar Web → Andere Kalender → „Per URL hinzufügen"
 3. Link einfügen → fertig
 
 **Outlook:**
 1. Link kopieren
 2. Kalender hinzufügen → „Aus dem Internet" → Link einfügen
 
-**Token rotieren:** Falls jemand deinen Link bekommen hat — Token-Rotation macht den alten Link ungültig, du musst dann neu abonnieren.
+### Persönlicher vs. globaler Kalender
 
-### ✈️ Telegram-Bot
-Verknüpfe dein Telegram-Konto mit Saunascaner und nutze diese Befehle:
+- **Persönlich** — nur deine eigenen Aufgüsse + Stamm-Slots
+- **Global** — alle Aufgüsse aller Aufgießer (für Aufgießer-Rolle freigeschaltet)
 
-| Befehl | Was er macht |
-|---|---|
-| `/heute` | Aufgüsse heute auflisten |
-| `/morgen` | Aufgüsse morgen auflisten |
-| `/meine` | Deine geplanten Aufgüsse |
-| `/link` | Anleitung zur Verknüpfung |
-| `/unlink` | Verknüpfung lösen |
+### Token rotieren
 
-**Slot-Übernahme im Chat:** Wenn 2h vor einem Slot kein Aufgießer da ist, postet der Bot eine Nachricht im Telegram-Channel mit **„✋ Ich übernehme!"**-Button. Ein Klick reicht — der Slot ist deins.
-
-**Verknüpfung einrichten:**
-1. Profil → **„🔗 Verknüpfungs-Link generieren"**
-2. Klick auf den Link → Telegram öffnet sich
-3. Bot bestätigt: „✅ Konto verknüpft"
+Falls jemand deinen Link bekommen hat: **„🔄 Token rotieren"** im Profil — der alte Link wird ungültig, du musst neu abonnieren.
 
 ---
 
-## 12. Postfach (für Mail-Konto-Inhaber)
+## 19. Postfach
 
-Vereinsmitglieder mit einer eigenen `<name>@sauna-fds.de`-Adresse haben in der App ein **vollwertiges Webmail** unter `/postfach`.
+**Pfad:** `/postfach`
 
-**Was du machen kannst:**
+Vereinsmitglieder mit einer eigenen `<name>@sauna-fds.de`-Adresse haben ein **vollwertiges Webmail** in der App.
+
+### Was du machen kannst
+
 - 📥 **INBOX lesen** — letzte 50 Mails
-- 📤 **Sent** / 📝 **Drafts** / 🗑️ **Trash** / 📦 **Archive** — alle Ordner
-- ✉️ **Neue Mail schreiben** — mit CC/BCC, Anhängen, Drag&Drop
-- ↩ **Antworten** — mit Zitat-Quote
-- 📎 **Anhänge** — senden und empfangen (Drag&Drop)
-- 🛡️ **HTML-Mails sicher** — bösartiges JavaScript wird gefiltert, Bilder erst nach Klick geladen (Tracking-Pixel-Schutz)
+- 📤 **Sent** / 📝 **Drafts** / 🗑️ **Trash** / 📦 **Archive**
+- ✉️ **Neue Mail schreiben** mit CC/BCC + Anhängen
+- ↩ **Antworten** mit Zitat-Quote
+- 📎 **Drag&Drop** für Anhänge
+- 🛡️ **HTML-Mails sicher** — JS gefiltert, Bilder erst nach Klick (Tracking-Pixel-Schutz)
 
-**Wie kommst du an ein Postfach?** Frag einen Admin — er kann dir eine Adresse zuweisen.
+### Wie kommst du an ein Postfach?
+
+Frag einen Admin — er kann dir eine Adresse zuweisen.
 
 **Wenn du noch keins hast:** in `/postfach` siehst du den Hinweis „📭 Noch kein Postfach — sprich einen Admin an".
 
 ---
 
-## 13. App auf Home-Bildschirm
+# Teil E — Hintergrund-Mechanik
 
-Saunascaner ist eine **PWA (Progressive Web App)** — du kannst sie wie eine normale App auf dem Home-Bildschirm installieren.
+## 20. App auf Home-Bildschirm (PWA)
+
+Saunascaner ist eine **PWA (Progressive Web App)** — wie eine native App installierbar.
 
 ### iPhone/iPad (Safari)
+
 1. Safari öffnen → `saunascaner.vercel.app`
-2. **Teilen-Button** unten (Quadrat mit Pfeil nach oben)
+2. **Teilen-Button** unten (Quadrat mit Pfeil)
 3. **„Zum Home-Bildschirm"** wählen
 4. **„Hinzufügen"**
 
-Ab jetzt: Icon am Home-Bildschirm öffnet die App im Vollbild — startet **direkt auf `/planner`**, ohne Browser-Adresszeile.
+Ab jetzt: Icon am Home-Bildschirm öffnet die App im Vollbild — startet **direkt in deinem Default-Bereich**, ohne Browser-Adresszeile.
 
 ### Android (Chrome)
+
 1. Chrome öffnen → `saunascaner.vercel.app`
 2. Drei-Punkte-Menü oben rechts
 3. **„App installieren"** wählen
 
 ### Vorteile
+
 - App-Icon mit Schwarzwald-Logo
-- Vollbild, kein Browser-Header
+- Vollbild ohne Browser-Header
 - Schnellerer Start
-- Push-Benachrichtigungen funktionieren besser
+- Push-Benachrichtigungen funktionieren auf iPhone **nur** in der installierten PWA
+
+> **iOS-Hinweis:** Apple Safari ignoriert `start_url` weitgehend — die App erkennt aber selbst, dass sie als PWA läuft, und leitet dich in den richtigen Default-Bereich.
 
 ---
 
-## 14. Push-Benachrichtigungen
+## 21. Push-Benachrichtigungen
 
 Saunascaner kann dir Benachrichtigungen schicken — z.B.:
+
 - 🔥 **Reminder vor deinem Aufguss** (30 min vorher)
 - 👥 **Team-Aufguss-Angebot** eines anderen Aufgießers
 - 🔔 **Stamm-Slot freigegeben** durch Admin
 - 🏖️ **Urlaubsslots verfügbar** (für Aufgießer)
+- ⭐ **Quick-Rating-Push** 15 Min nach Aufguss
 - 🚨 **Notfall-Alarm** (Evakuierung)
 
-**Aktivieren:**
+### Aktivieren
+
 1. Beim ersten Login fragt der Browser nach Push-Erlaubnis → **„Zulassen"**
 2. Falls verpasst: Browser-Einstellungen → Benachrichtigungen → saunascaner.vercel.app → „Zulassen"
 
-**Auf iPhone:** funktioniert nur in der **installierten PWA-App** (siehe Kapitel 13), nicht im Safari-Browser.
+**Auf iPhone:** funktioniert nur in der **installierten PWA-App** (siehe Kapitel 20), nicht im Safari-Browser.
+
+### Dedup-Queue
+
+Saunascaner verhindert, dass du die gleiche Nachricht doppelt bekommst — auch wenn mehrere Geräte gleichzeitig online sind.
 
 ---
 
-## 15. Notfall — Evakuierungs-Alarm
+## 22. Notfall — Evakuierungs-Alarm
 
 Aufgießer, Personal und Admins können in absoluten Notfällen den **Evakuierungs-Alarm** auslösen.
 
-**Was passiert:**
+### Was passiert
+
 1. **Vollbild-Alarm** auf allen geöffneten App-Instanzen (auch auf der TV-Tafel)
-2. **Telegram-Push** an alle registrierten Chat-IDs
+2. **Telegram-Push** an alle verknüpften Chat-IDs
 3. **Web-Push-Benachrichtigung** mit Vibration an alle aktiven Browser
 4. **Liste aller aktuell Anwesenden** wird angezeigt — damit niemand übersehen wird
 
-**Auslösen:**
-- Planner oben rechts: roter **„🚨 Evakuierung"**-Button
-- Doppelte Bestätigung verhindert Fehl-Alarme
+### Auslösen
 
-**Alarm beenden:** wer ihn ausgelöst hat (oder Admin) kann „Alarm beenden" klicken.
+- Planner oben rechts: roter **„🚨 Evakuierung"**-Button
+- Mitarbeiter-Bereich: ebenfalls roter Button
+- **Doppelte Bestätigung** verhindert Fehl-Alarme
+
+### Alarm beenden
+
+Wer ihn ausgelöst hat (oder Admin) klickt **„Alarm beenden"**. Erst dann verschwindet der Vollbild-Alarm überall.
 
 ---
 
-## 16. Häufige Fragen
+## 23. Häufige Fragen + Kontakt
 
-### Ich kann nicht hochkommen, ich vergesse meine PINs
-Nutz den **Login-Link**. Du gibst nur deine E-Mail ein, klickst den Link aus der Mail — und bist drin. Keine PINs zu merken.
+### Ich kann mich nicht anmelden — ich vergesse meine PINs
+Nutz den **Login-Link** (E-Mail-Adresse → Klick im Postfach → drin). Keine PINs nötig.
 
 ### Wann kommt der Login-Link nicht an?
 - Spam-Ordner prüfen
-- E-Mail-Adresse korrekt geschrieben? (info@ ≠ inof@)
-- Bei Verzögerung: 1–2 Minuten warten, dann nochmal probieren
+- E-Mail-Adresse korrekt geschrieben?
+- Bei Verzögerung: 1–2 Min warten, dann nochmal probieren
 
 ### Mein Aufguss erscheint nicht auf der Tafel
-- Hast du den Slot im richtigen Tag (Heute/Morgen) angelegt?
-- Reload (Strg+R) die TV-Tafel — sie aktualisiert sich alle 5 Sekunden, sollte aber nach Reload sofort da sein
+- Im richtigen Tag eingetragen?
+- Reload (Strg+R) — die Tafel aktualisiert sich alle 5 Sekunden, nach Reload sofort
 
 ### Was ist ein „Stamm-Slot"?
-Eine **fest reservierte wöchentliche Aufguss-Zeit für dich** (z.B. „jeden Dienstag 18 Uhr in Kelo"). Wird einmal vom Admin freigegeben und dann automatisch für 8 Wochen voraus eingetragen. Falls du Urlaub hast: einfach Urlaub eintragen, andere können dann diese Slots übernehmen.
+Eine **fest reservierte wöchentliche Aufguss-Zeit** für dich (z.B. „jeden Dienstag 18 Uhr in Kelo"). Wird einmal vom Admin freigegeben und dann automatisch 8 Wochen voraus eingetragen. Bei Urlaub einfach Abwesenheit eintragen — andere können diese Slots dann übernehmen.
 
 ### Wie unterscheide ich Aufgießer und Gast-Aufgießer?
-**Aufgießer** sind Vereinsmitglieder (🧖 amber). **Gast-Aufgießer** sind Aufgießer von **anderen Landesgruppen**, die gelegentlich bei uns zu Gast sind (🌍 grün). Beide haben dieselben Rechte, sind aber visuell unterscheidbar.
+**🧖 Aufgießer** sind Vereinsmitglieder. **🌍 Gast-Aufgießer** sind Aufgießer **aus anderen Landesgruppen**. Beide haben Aufgieß-Rechte, aber Gast-Aufgießer können 4 Wochen voraus planen (Aufgießer nur 2 Wochen).
 
-### Wie kann ich einen „Personal-Aufguss" übernehmen?
+### Wie übernehme ich einen Personal-Aufguss?
 1. Planner öffnen
-2. In der Slot-Matrix auf einen **gelben 🟡 (Personal)**-Slot klicken
-3. Titel + Eigenschaften ausfüllen
+2. In der Slot-Matrix auf einen **gelben 🟡** Slot klicken
+3. Titel + Eigenschaften eintragen
 4. Submit-Button heißt jetzt **„🔄 Personal-Aufguss übernehmen"**
 
-Alternativ: per **Telegram-Bot** — der postet die offenen Slots automatisch in den Channel und ein Klick reicht.
+Alternativ: über den **Telegram-Bot** — er postet 90 Min vor offenen Slots eine Nachricht im Channel.
 
 ### Kann ich aus Versehen Aufgüsse löschen?
-- Eigene Aufgüsse kannst du im **Atelier** löschen — Doppelbestätigung empfohlen
+- Eigene Aufgüsse im **Atelier** löschen — mit Doppelbestätigung
 - Personal-Aufgüsse die du übernommen hast: bei Löschung wird der Slot wieder Personal-Fallback
-- Admin kann jederzeit alles löschen oder wiederherstellen
-
-### Was bedeutet 🟡 80°C / 🟠 100°C / 🟢 90°C?
-- **80°C Kelo** — Hauptsauna, gut für Beginner und längere Sitzungen
-- **100°C Blockhaus** — heiße Sauna, kürzere Sitzungen
-- **90°C Finnische Sauna** — Spezial-Sauna, nur an Event-Tagen aktiv
-
-**Stunden-Rhythmus:** Tag startet mit 80°C, wechselt stündlich auf 100°C, dann wieder 80°C, usw. Freitags sind die ersten 3 Slots alle 80°C, ab 14:00 dann mit 100°C-Start im Wechsel.
+- Admin kann jederzeit wiederherstellen
 
 ### Wie viele Co-Aufgießer können bei Team-Aufgüssen mitmachen?
-Maximal **2 weitere Aufgießer** zusätzlich zum Haupt-Aufgießer. Sobald 2/2 erreicht sind, ist der Slot voll.
+Maximal **2 weitere** zusätzlich zum Haupt-Aufgießer. Sobald 2/2 erreicht sind, ist der Slot voll.
+
+### Wie werde ich Aufgießer?
+Sprich einen Admin an. Er kann dich unter `/admin → Members` auf `is_aufgieser = true` setzen. Beim nächsten Login landest du dann automatisch im Planner.
+
+### Wer darf den Notfall-Alarm auslösen?
+**🧖 Aufgießer**, **🌍 Gast-Aufgießer**, **👨‍🍳 Personal** und **⚙️ Admins**. Doppelbestätigung verhindert versehentliches Auslösen.
+
+### Was ist ein „Aufguss-Anchor" im Feed?
+Wenn du einen Feed-Post mit einem deiner letzten Aufgüsse verknüpfst, erscheint im Post die Slot-Karte (Aufgießer + Zeit + Sauna). Reactions darauf lösen beim Aufgießer das **Echo-Modal** mit Quick-Rate aus.
 
 ### Ich bin neu — wo fang ich an?
 1. Anmelden mit Login-Link
-2. Warte auf Admin-Freigabe (1 Tag max.)
-3. **Profil ausfüllen**: Avatar, Motto, Geburtstag, Einlass-Code
-4. **App auf Home-Bildschirm** installieren (Kapitel 13)
+2. Warte auf Admin-Freigabe (max. 1 Tag)
+3. **Profil ausfüllen**: Avatar, Motto, Geburtstag
+4. **App auf Home-Bildschirm** installieren (Kapitel 20)
 5. **Push-Benachrichtigungen** aktivieren
-6. **Mitglieder-Galerie** durchblättern, Saunafreunde kennenlernen
-7. Wenn du Aufgießer werden willst: einem Admin sagen — er kann dich freischalten
+6. **Mitglieder-Galerie** durchblättern
+7. **Mini-Feed** anschauen, ein paar Reactions geben
+8. Wenn du Aufgießer werden willst: Admin sagen — er schaltet dich frei
 
 ---
 
@@ -432,9 +918,10 @@ Maximal **2 weitere Aufgießer** zusätzlich zum Haupt-Aufgießer. Sobald 2/2 er
 Bei Problemen oder Fragen:
 
 - **E-Mail:** [info@sauna-fds.de](mailto:info@sauna-fds.de)
-- **Im Verein:** sprich einen Admin an (⚙️-Badge)
+- **Im Verein:** sprich einen ⚙️ Admin an
+- **Telegram:** @saunafreunde_bot — `/help` für Befehlsübersicht
 
 ---
 
-**Saunafreunde Schwarzwald e.V.** — Freudenstadt  
-Made with 🔥 im Schwarzwald
+**Saunafreunde Schwarzwald e.V.** — Freudenstadt
+Vorderer Aischbach 27 · 72275 Alpirsbach
