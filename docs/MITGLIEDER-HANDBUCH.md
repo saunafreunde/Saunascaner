@@ -18,7 +18,7 @@
 **Teil B — Pro Rolle**
 
 5. [👋 Als Gast](#5--als-gast)
-6. [🤝 Als Unterstützer](#6--als-unterst%C3%BCtzer)
+6. [🤝 Als Helfer / Unterstützer](#6--als-helfer--unterst%C3%BCtzer)
 7. [🧖 Als Aufgießer / 🌍 Gast-Aufgießer](#7--als-aufgie%C3%9Fer---als-gast-aufgie%C3%9Fer)
 8. [👨‍🍳 Als Personal](#8--als-personal)
 9. [⚙️ Als Admin](#9-%EF%B8%8F-als-admin)
@@ -65,12 +65,12 @@ Du kannst hier:
 - ⚙️ als **Admin** alles steuern
 
 > **Neu seit dem letzten Update:**
-> - 5. Rolle **👋 Gast** für Schnupper-Besuche mit eigenem Bereich `/gast`
+> - 5. Rolle **👋 Gast** mit eigenem Bereich `/gast` — eigenes Profil, Favoriten-System, Bewertungen, Badges. Sofort aktiv, **kein** Admin-Approval nötig.
 > - **Mini-Feed** `/feed` mit Aroma-Tags, Bühnen-Reactions und Echo-Modal
 > - **6-Tage-Wochenansicht** im Planner (statt nur Heute/Morgen)
 > - **Tablet-Check-In** mit PIN unter `/checkin`
 > - **Quick-Rating** im Telegram-Bot (15 Min nach jedem Aufguss)
-> - **Helfer-Aufgaben-System** mit Approval-Workflow
+> - **Helfer-Aufgaben-System** mit Approval-Workflow (für 🤝 Helfer / Unterstützer)
 
 ---
 
@@ -106,7 +106,7 @@ Saunascaner hat viele Seiten. Hier siehst du auf einen Blick, **welche Rolle woh
 | Symbol | Rolle | Default-Bereich nach Login |
 |---|---|---|
 | 👋 | Gast | `/gast` |
-| 🤝 | Unterstützer (Mitglied ohne Aufgießer-Status) | `/unterstuetzer` |
+| 🤝 | **Helfer / Unterstützer** (Mitglied ohne Aufgießer-Status) — beides synonym | `/unterstuetzer` |
 | 🧖 | Aufgießer | `/planner` |
 | 🌍 | Gast-Aufgießer (aus anderer Landesgruppe) | `/planner` |
 | 👨‍🍳 | Personal (Mitarbeiter) | `/mitarbeiter` |
@@ -132,22 +132,27 @@ Diese Seiten kann **jeder** ohne Anmeldung aufrufen — typisch für Tablets, TV
 
 ### Zugangsmatrix — Wer kommt wohin?
 
-| Pfad | 👋 Gast | 🤝 Unterstützer | 🧖 Aufgießer | 🌍 Gast-Aufgießer | 👨‍🍳 Personal | ⚙️ Admin |
+| Pfad | 👋 Gast | 🤝 Helfer | 🧖 Aufgießer | 🌍 Gast-Aufgießer | 👨‍🍳 Personal | ⚙️ Admin |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | `/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/gast` | ✅ | 🔁 | 🔁 | 🔁 | 🔁 | 👁️ |
 | `/unterstuetzer` | 🔁 | ✅ | 🔁 | 🔁 | 🔁 | 👁️ |
 | `/planner` | 🔁 | 🔁 | ✅ | ✅ | 🔁 | ✅ |
 | `/mitarbeiter` | 🔁 | 🔁 | 🔁 | 🔁 | ✅ | 👁️ |
-| `/aufgieser` · `/aufgieser/:id` | 🔁 | 🔁 | ✅ | ✅ | 🔁 | ✅ |
+| `/aufgieser` · `/aufgieser/:id` | ✅ | 🔁 | ✅ | ✅ | 🔁 | ✅ |
 | `/feed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/members` · `/profile/:id` | 🔁 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/wm` | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/members` (Galerie) | 🔁 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/profile/:id` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/wm` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/postfach` | 🔁 | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/hilfe` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/admin` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 **Legende:** ✅ Vollzugriff · ❌ kein Zugang · 🔁 Weiterleitung in deinen Default-Bereich · 👁️ als Admin sichtbar (via Preview-Mode)
+
+> **Gast-Sperre — was Gäste *wirklich* nicht sehen:** nur `/planner`, `/members` (Mitglieder-Galerie) und `/postfach` werden für Gäste auf `/gast` umgeleitet. Alles andere (Aufgießer-Stars-Galerie `/aufgieser`, Einzelprofile `/profile/:id`, WM-Tipspiel `/wm`, Mini-Feed, Hilfe, TV-Tafel) ist für Gäste offen.
+
+> **„Helfer" = „Unterstützer":** Im Verein nennen wir die Rolle **Helfer**, die URL heißt `/unterstuetzer`. Beide Begriffe beschreiben dasselbe: Vereinsmitglied ohne Aufgießer-Status. In der Einladungs-Maske steht der Button als **🤝 Helfer**.
 
 ### Deep-Links für Gäste
 
@@ -173,7 +178,7 @@ Als Admin kannst du jede Rollen-Seite mit `?preview=<rolle>` testen — z.B.:
 | Symbol | Rolle | Default-Bereich | Hauptrechte |
 |---|---|---|---|
 | 👋 | **Gast** | `/gast` | Feed lesen, Polaroid-Galerie ansehen, Verein kennenlernen. **Kein Planen, kein Postfach.** |
-| 🤝 | **Unterstützer** (Mitglied) | `/unterstuetzer` | Alles vom Gast + Helfer-Aufgaben annehmen, WM-Tipspiel, Mitglieder-Galerie, eigenes Profil + Badges |
+| 🤝 | **Helfer / Unterstützer** (Mitglied) | `/unterstuetzer` | Alles vom Gast + Helfer-Aufgaben annehmen, Mitglieder-Galerie, Postfach. Vereinsbegriff: **„Helfer"** — URL-Pfad: `/unterstuetzer`. |
 | 🧖 | **Aufgießer** | `/planner` | Alles vom Unterstützer + Aufgüsse planen (2 Wochen voraus), Team-Aufgüsse, Atelier, Stamm-Slot, Urlaub, Notfall-Alarm |
 | 🌍 | **Gast-Aufgießer** | `/planner` | Wie Aufgießer — aber **4 Wochen voraus planbar** und sichtbar mit „🌍 Gast" + Landesgruppe |
 | 👨‍🍳 | **Personal** | `/mitarbeiter` | Personal-Aufgüsse übernehmen, Notfall-Alarm auslösen, WM-Tipspiel, Mitgliederliste sehen |
@@ -189,43 +194,147 @@ Deine Rolle siehst du oben im Header neben deinem Avatar.
 
 **Default-Bereich:** `/gast`
 
-Als Gast bist du herzlich willkommen — du kannst den Verein in Ruhe kennenlernen, ohne gleich Mitglied zu werden.
+Du bist Gast — herzlich willkommen! Der Gast-Bereich ist **kein abgespeckter Modus**, sondern eine eigene, sehr durchdachte Erfahrung. Du hast ein vollständiges Profil, eigene Statistiken, ein Favoriten-System für Aufgießer und kannst Aufgüsse bewerten. Nur Vereins-spezifische Bereiche (Planning, Mitglieder-Galerie, Postfach) sind für dich gesperrt.
 
-### So wirst du Gast
+### So wirst du Gast — drei Wege
 
-**Variante 1: QR-Code im Vereinsraum**
-1. Im Vereinsraum gibt es einen QR-Code auf dem Tisch.
-2. Mit dem Handy scannen → öffnet `/gast-signup`
-3. **Name + E-Mail** eintragen, einen 4-stelligen PIN wählen
-4. **Anmelden** klicken → du bist drin
+**🥇 Variante 1: QR-Code im Vereinsraum**
 
-**Variante 2: Admin lädt dich ein**
-Ein Admin schickt dir einen Einladungs-Link. Du klickst, vergibst dein Passwort, fertig.
+Im Vereinsraum gibt es **3 QR-Codes** — pro Standort einen, damit wir wissen, wo du eingestiegen bist:
 
-### Was du als Gast machen kannst
+| QR-Code | Standort | URL-Parameter |
+|---|---|---|
+| 🔥 **80°C-Sauna (Kelo)** | An der Garderobe | `?ref=qr_kelo` |
+| 🌿 **Bio-Sauna** | Tisch im Ruhebereich | `?ref=qr_bio` |
+| 🏠 **Hütte** | An der Eingangstür | `?ref=qr_haus` |
 
-| Bereich | Was geht |
+Mit dem Handy scannen → öffnet `/gast-signup` mit vorausgefülltem Herkunfts-Tracking.
+
+**🥈 Variante 2: Admin-Einladung**
+
+Ein Admin schickt dir einen Einladungs-Link (Button **„👋 Gast"** in der Einladungs-Maske). Du klickst, gibst dein Passwort vergeben, fertig.
+
+**🥉 Variante 3: Empfehlung durch Mitglied**
+
+Ein Vereinsmitglied empfiehlt dich — Admin legt dich an und schickt dir den Magic-Link.
+
+### Signup-Flow (`/gast-signup`)
+
+1. **Name** eintragen (Vorname oder Spitzname, mind. 2 Zeichen)
+2. **E-Mail-Adresse** eintragen
+3. **DSGVO-Checkbox** bestätigen (Link zu [Datenschutzerklärung](https://saunascaner.vercel.app/datenschutz))
+4. **„Anmelden"** klicken
+5. Magic-Link landet in deinem Postfach
+6. Klick auf den Link → sofort drin
+
+> **Wichtig:** Als Gast bist du **sofort aktiv** — kein Admin-Approval nötig. Du kannst direkt loslegen.
+
+### Was du als Gast machen kannst (vollständig)
+
+#### 🪪 Eigenes Profil
+
+- **Avatar hochladen** (oder Dicebear-Default behalten)
+- **Motto setzen** (max. 200 Zeichen) — direkt im Profil-Header editierbar
+- **Hover-Tipp**: über den Avatar fahren zeigt Bearbeiten-Hinweis
+- **👋 Gast**-Badge sichtbar in allen UI-Elementen
+
+#### 🔑 Eigener Check-In-PIN
+
+Du bekommst automatisch einen **4-stelligen PIN** (aus dem einheitlichen Verein-PIN-Pool). Damit kannst du am **Eingangs-Tablet** ein- und auschecken — genau wie Vereinsmitglieder.
+
+#### 🌟 Aufgießern folgen — „❤️ Deine Favoriten"
+
+- Gehe zu **🌟 Aufgießer entdecken** (Quick-Action im Gast-Bereich) oder direkt auf `/aufgieser`
+- Klick auf einen Aufgießer → öffnet Star-Profil mit Trading-Card-Style
+- **Herz-Button** ❤️ — wird zum Favorit, erscheint sofort in deinem Bereich
+- Im `/gast` erscheinen alle deine Favoriten als Karten-Grid
+
+#### 🔥 Wann gießen deine Favoriten?
+
+Block **„🔥 Wann deine Favoriten gießen"** zeigt die **nächsten 8 kommenden Aufgüsse** deiner Favoriten:
+- Aufguss-Titel + Aufgießer-Name
+- Sauna + Uhrzeit
+- **Countdown-Badge** („in 3h 12min")
+- Klick → Aufgießer-Profil
+
+#### 📅 Heute in der Sauna
+
+Block **„📅 Heute in der Sauna"** zeigt alle heutigen Aufgüsse — deine Favoriten sind mit ❤️-Indikator hervorgehoben.
+
+#### ⭐ Aufgüsse bewerten — PendingRatings
+
+Nach jedem Sauna-Besuch erscheint oben im Gast-Bereich der **„⭐ Noch zu bewerten"**-Block:
+- Pro besuchtem Aufguss: Aufgießer-Name, Sauna, Uhrzeit
+- **1–5 Sterne** anklicken
+- Optional: **Aroma-Tag** wählen (z.B. „Eukalyptus war stark")
+- Der Aufgießer sieht dein Echo direkt im Echo-Modal
+
+#### 📊 Eigene Statistiken
+
+- **MemberStatsCard**: Besuchstage gesamt, Durchschnitt pro Woche
+- **MemberAttendanceChart**: 30-Tage-Balkendiagramm deiner Besuche
+
+#### 🏅 Achievements & Badges
+
+Du sammelst die **kompletten 67+ Badges in 8 Kategorien** — genau wie Vereinsmitglieder:
+- 🧖 Aufgießer-Badges (durch Bewertungen)
+- 🟢 Anwesenheits-Badges (durch Check-Ins)
+- 🌍 Reise-Badges
+- 🌟 Spezial-Badges
+- 🏆 WM-Saison-Badges
+- 🎨 Feed-Künstler-Badges
+- 🤝 Helfer-Badges (Achtung: nur einsehen, du kannst keine Aufgaben annehmen)
+- 🎁 Custom-Badges vom Admin
+
+#### 📸 Mini-Feed
+
+Volle Lese- und Reaction-Rechte auf `/feed`. Posten kannst du als Gast **nicht** (das ist Mitgliedern vorbehalten).
+
+#### 🏆 WM-Tipspiel
+
+Du darfst **mittippen!** Quick-Action 🏆 WM oben → `/wm` ist für Gäste offen, du sammelst Punkte und bekommst Saison-Badges wie alle anderen.
+
+#### 📺 TV-Tafel
+
+`/dashboard` ist öffentlich — du kannst die TV-Tafel auch von zuhause aus mitlesen, um zu sehen, wer gerade gießt.
+
+#### 🔔 Push-Benachrichtigungen
+
+In der Profil-Box gibt es einen **PushPermission**-Block — aktivierst du das, bekommst du Reminder vor deinen Aufgüssen und im Notfall den Evakuierungs-Alarm.
+
+### Was du als Gast nicht kannst
+
+| Bereich | Was passiert |
 |---|---|
-| 📸 **Mini-Feed** (`/feed`) | Bilder anschauen, Reactions geben (🌟 🔥 🌿 💧 🎵), Aroma-Tags filtern |
-| 📺 **TV-Tafel** (`/dashboard`) | Mitlesen wann welcher Aufguss läuft |
-| 👥 **Mitglieder-Galerie** (`/members`) | Aufgießer-Galerie sehen, Star-Profile mit Polaroid-Galerie |
-| 🏆 **Hilfe** (`/hilfe`) | Dieses Handbuch lesen |
+| ❌ `/planner` | Redirect auf `/gast` |
+| ❌ `/members` (Mitglieder-Galerie) | Redirect — du siehst keine Liste aller Mitglieder, nur Aufgießer-Stars |
+| ❌ `/postfach` | Redirect — kein Webmail für Gäste |
+| ❌ **Aufgüsse planen** | Reserviert für Aufgießer-Rollen |
+| ❌ **Helfer-Aufgaben annehmen** | Reserviert für 🤝 Helfer |
+| ❌ **Im Mitglieder-Directory auftauchen** | Gäste sind aus `list_members_directory()` gefiltert (RLS) |
+| ❌ **Feed-Posts erstellen** | Lesen + reagieren ja, posten nein |
 
-### Was du als Gast **nicht** kannst
+### 🛡️ Recht auf Vergessen (DSGVO)
 
-- ❌ Aufgüsse planen
-- ❌ Helfer-Aufgaben annehmen
-- ❌ Postfach nutzen
-- ❌ WM-Tipspiel
-- ❌ Einlass-Code generieren (PIN gibt's, aber nur fürs Tablet-Check-In)
+In deinem Profil findest du **„🛡️ Account löschen"** — ein Klick + Bestätigung löscht **alle deine Daten**:
+- Member-Eintrag
+- Auth-Account
+- Follows, Reactions, Bewertungen
+- Anwesenheits-History
 
-> **Lust auf mehr?** Sprich einen Admin an — er kann dich zum **Unterstützer** oder direkt zum **Aufgießer** upgraden.
+Cascade-Löschung via RPC `delete_my_gast_account()`. Es bleibt nichts zurück.
+
+### Upgrade zum Mitglied
+
+Du gefällst dem Verein und möchtest dauerhaft dabei sein? Sprich einen ⚙️ Admin an — er kann dich mit einem Klick auf **🤝 Helfer** oder direkt auf **🧖 Aufgießer** hochstufen. Dein Profil, deine Favoriten und alle Badges bleiben dabei erhalten.
 
 ---
 
-## 6. 🤝 Als Unterstützer
+## 6. 🤝 Als Helfer / Unterstützer
 
 **Default-Bereich:** `/unterstuetzer`
+
+> **Begriffsklärung:** Im Verein nennen wir dich **Helfer** — auch der Button in der Admin-Einladungs-Maske heißt **🤝 Helfer**. Der URL-Pfad heißt aus historischen Gründen `/unterstuetzer`. Beide Begriffe bedeuten dasselbe: Vereinsmitglied ohne Aufgießer-Status (`role='member'` + `is_aufgieser=false`).
 
 Du bist Vereinsmitglied, aber (noch) kein aktiver Aufgießer. In deinem Bereich findest du **alles, womit du den Verein unterstützen kannst**.
 
