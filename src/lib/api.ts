@@ -702,13 +702,14 @@ export function useRatingsAnonymous(from: string, to: string) {
 }
 
 // ─── CP-Verantwortlicher: Anwesenheits-Export (Mig. 0056) ────────────────
+// Liefert pro Mitarbeiter & Tag einen Eintrag (attendance_events ist
+// tagesbasiert, keine Check-In/Out-Pärchen).
 export type StaffAttendanceRow = {
   member_id: string;
   name: string;
   role: string;
-  check_in_at: string;
-  check_out_at: string | null;
-  duration_minutes: number | null;
+  attendance_date: string;  // YYYY-MM-DD
+  recorded_at: string;      // timestamptz
 };
 
 export function useStaffAttendance(from: string, to: string, enabled = false) {

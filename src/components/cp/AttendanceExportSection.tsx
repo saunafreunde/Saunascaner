@@ -36,13 +36,12 @@ export function AttendanceExportSection() {
 
   const exportCsv = () => {
     const rows: string[][] = [
-      ['Mitarbeiter', 'Rolle', 'Check-In', 'Check-Out', 'Dauer (Min)'],
+      ['Mitarbeiter', 'Rolle', 'Datum', 'Erfasst am'],
       ...(data.data ?? []).map((r) => [
         r.name,
         r.role,
-        new Date(r.check_in_at).toLocaleString('de-DE'),
-        r.check_out_at ? new Date(r.check_out_at).toLocaleString('de-DE') : '—',
-        String(r.duration_minutes ?? ''),
+        r.attendance_date,
+        new Date(r.recorded_at).toLocaleString('de-DE'),
       ]),
     ];
     downloadCsv(`anwesenheit_${from}_bis_${to}.csv`, rows);
@@ -113,18 +112,16 @@ export function AttendanceExportSection() {
                 <thead>
                   <tr className="text-forest-400 text-left">
                     <th className="px-2 py-1">Name</th>
-                    <th className="px-2 py-1">Check-In</th>
-                    <th className="px-2 py-1">Check-Out</th>
-                    <th className="px-2 py-1 text-right">Dauer</th>
+                    <th className="px-2 py-1">Datum</th>
+                    <th className="px-2 py-1">Erfasst</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(data.data ?? []).slice(0, 50).map((r, i) => (
                     <tr key={i} className="border-t border-forest-800/30">
                       <td className="px-2 py-1 text-forest-100 truncate max-w-[120px]">{r.name}</td>
-                      <td className="px-2 py-1 text-forest-300 font-mono">{new Date(r.check_in_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-                      <td className="px-2 py-1 text-forest-300 font-mono">{r.check_out_at ? new Date(r.check_out_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                      <td className="px-2 py-1 text-amber-200 text-right font-mono">{r.duration_minutes ?? '—'} min</td>
+                      <td className="px-2 py-1 text-forest-300 font-mono">{r.attendance_date}</td>
+                      <td className="px-2 py-1 text-forest-300 font-mono">{new Date(r.recorded_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -208,6 +208,7 @@ comment on function public.list_ratings_anonymous(date, date) is
    Qualitäts-Übersicht ohne Personal-Bias.';
 
 -- ─── C.2) RPC: Anwesenheits-Export für Mitarbeiter ────────────────────────
+-- Nutzt attendance_events (pro Tag ein Eintrag, kein Check-In/Out-Pärchen).
 create or replace function public.export_staff_attendance(
   p_from date,
   p_to date
@@ -215,30 +216,25 @@ create or replace function public.export_staff_attendance(
   member_id uuid,
   name text,
   role text,
-  check_in_at timestamptz,
-  check_out_at timestamptz,
-  duration_minutes int
+  attendance_date date,
+  recorded_at timestamptz
 )
 language sql stable security definer set search_path = public, auth
 as $$
-  select m.id, m.name, m.role,
-         p.start_at as check_in_at,
-         p.end_at   as check_out_at,
-         extract(epoch from (coalesce(p.end_at, now()) - p.start_at))::int / 60 as duration_minutes
-    from public.presence_log p
-    join public.members m on m.id = p.member_id
+  select m.id, m.name, m.role, a.date, a.created_at
+    from public.attendance_events a
+    join public.members m on m.id = a.member_id
    where m.role = 'staff'
-     and p.start_at::date >= p_from
-     and p.start_at::date <= p_to
+     and a.date >= p_from
+     and a.date <= p_to
      and (public.is_personal_planer() or public.is_admin())
-   order by m.name, p.start_at;
+   order by m.name, a.date;
 $$;
 revoke all on function public.export_staff_attendance(date, date) from public;
 grant execute on function public.export_staff_attendance(date, date) to authenticated;
 
 comment on function public.export_staff_attendance(date, date) is
-  'Anwesenheits-Log für Personal in Zeitraum. CP-only.
-   Falls presence_log-Tabelle anders strukturiert ist, RPC anpassen.';
+  'Anwesenheits-Log für Personal in Zeitraum. CP-only. Nutzt attendance_events.';
 
 -- ─── D.1) Einladungen: target_is_personal_planer-Spalte ──────────────────
 alter table public.invitations
@@ -396,6 +392,9 @@ revoke all on function public.list_staff_members() from public;
 grant execute on function public.list_staff_members() to authenticated;
 
 -- ─── D.4) approve_member um is_personal_planer erweitern ──────────────────
+-- Alte 3-Parameter-Version droppen, damit es keine Überladungs-Ambiguität gibt.
+drop function if exists public.approve_member(uuid, text, boolean);
+
 create or replace function public.approve_member(
   p_member_id          uuid,
   p_role               text default 'member',
