@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { AvailabilityEntry } from '@/lib/api';
 import {
   useMyAvailability,
   useSetMyAvailability,
@@ -50,7 +51,7 @@ export function AvailabilityCalendar() {
   );
 
   const availByDate = useMemo(() => {
-    const map = new Map<string, typeof list.data extends Array<infer T> ? T : never>();
+    const map = new Map<string, AvailabilityEntry>();
     (list.data ?? []).forEach((a) => map.set(a.date, a));
     return map;
   }, [list.data]);
