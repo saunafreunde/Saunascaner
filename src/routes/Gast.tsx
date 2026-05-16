@@ -15,6 +15,7 @@ import { GastProfileHeader } from '@/components/GastProfileHeader';
 import { PushPermission } from '@/components/PushPermission';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { PendingRatingsBlock } from '@/components/PendingRatingsBlock';
+import { FanUpgradeCTA } from '@/components/gast/FanUpgradeCTA';
 import { isAdmin, isGast } from '@/lib/roles';
 import { fmtClock } from '@/lib/time';
 
@@ -120,6 +121,10 @@ export default function Gast() {
 
         {/* Achievement-Galerie */}
         {me.data && <MemberAchievementsGallery memberId={me.data.id} />}
+
+        {/* Fan-Upgrade-CTA — milestone-getriggert (≥5 Bewertungen oder ≥3 Sauna-Tage).
+            Zeigt auch Status-Card wenn Antrag schon läuft. Echte Gäste only. */}
+        <FanUpgradeCTA />
 
         {/* Begrüßungs-Block für brandneue Gäste */}
         {isReallyGast && followedStars.length === 0 && !previewMode && (
