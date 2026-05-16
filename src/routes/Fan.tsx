@@ -53,7 +53,7 @@ export default function Fan() {
       )}
 
       <header className="sticky top-0 z-30 mx-auto w-full max-w-[1200px] flex items-center gap-3 bg-forest-950/85 backdrop-blur-xl px-4 py-3 ring-1 ring-forest-800/40">
-        <img src={logoUrl} alt={orgName} className="h-10 w-10 rounded-xl flex-shrink-0" />
+        <img src={logoUrl ?? '/icons/icon-512.png'} alt={orgName} className="h-10 w-10 rounded-xl flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <h1 className="text-base font-semibold text-forest-100 truncate">
             Hallo {me.data?.name ?? 'Fan'} 🤝
