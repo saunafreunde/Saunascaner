@@ -662,6 +662,12 @@ function MembersTab() {
                     {m.is_aufgieser && m.role === 'member' && (
                       <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">🧖 Aufgieser</span>
                     )}
+                    {m.is_wm_admin && (
+                      <span className="rounded-full bg-heat-500/20 px-2 text-[10px] font-bold text-heat-200">🏆 WM-Admin</span>
+                    )}
+                    {m.role === 'staff' && m.is_personal_planer && (
+                      <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">🛠️ CP-V</span>
+                    )}
                   </div>
                   <div className="text-xs text-forest-300/70">
                     {m.email}
@@ -702,7 +708,8 @@ function MembersTab() {
                   >
                     🎭 Rolle{roleEditId === m.id ? ' ▴' : ' ▾'}
                   </button>
-                  {/* Aufgieser-Toggle */}
+                  {/* Aufgieser-Quick-Toggle — häufigste Einzel-Aktion, daher als Schnell-Button erhalten.
+                      Vollständiger Rollen-Wechsel (inkl. Admin/WM-Admin/CP-V) läuft über "🎭 Rolle ▾". */}
                   <button
                     onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
                     title={m.is_aufgieser ? 'Aufgieser-Status entfernen' : 'Als Aufgieser markieren'}
@@ -714,32 +721,6 @@ function MembersTab() {
                   >
                     {m.is_aufgieser ? '🔥 Aufgieser' : '+ Aufgieser'}
                   </button>
-                  {/* WM-Admin-Toggle */}
-                  <button
-                    onClick={() => update.mutate({ id: m.id, is_wm_admin: !m.is_wm_admin })}
-                    title={m.is_wm_admin ? 'WM-Admin-Rechte entziehen' : 'Als WM-Admin markieren (darf Spiele/Tipps verwalten)'}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
-                      m.is_wm_admin
-                        ? 'bg-heat-500/20 text-heat-200 ring-heat-500/30 hover:bg-heat-500/30'
-                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
-                    }`}
-                  >
-                    {m.is_wm_admin ? '🏆 WM-Admin' : '+ WM-Admin'}
-                  </button>
-                  {/* CP-Verantwortlicher-Toggle — nur bei staff sinnvoll */}
-                  {m.role === 'staff' && (
-                    <button
-                      onClick={() => update.mutate({ id: m.id, is_personal_planer: !m.is_personal_planer })}
-                      title={m.is_personal_planer ? 'CP-Rechte entziehen' : 'Als CP-Verantwortlicher markieren (Personal-Planung + Bewertungs-Übersicht)'}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
-                        m.is_personal_planer
-                          ? 'bg-amber-500/20 text-amber-200 ring-amber-500/30 hover:bg-amber-500/30'
-                          : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
-                      }`}
-                    >
-                      {m.is_personal_planer ? '🛠️ CP-V' : '+ CP-V'}
-                    </button>
-                  )}
                   <button onClick={() => downloadBadge({
                     name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
                     role: m.role, organization: orgName,
@@ -747,27 +728,6 @@ function MembersTab() {
                   })}
                     className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
                     Ausweis-PDF
-                  </button>
-                  <button
-                    onClick={() => {
-                      const becomingAdmin = m.role !== 'admin';
-                      const ok = window.confirm(
-                        becomingAdmin
-                          ? `"${m.name}" zum Admin machen? Admins haben Vollzugriff auf alle Saunen, Mitglieder, WM und Branding.`
-                          : `Admin-Rechte von "${m.name}" entfernen?`,
-                      );
-                      if (!ok) return;
-                      update.mutate({ id: m.id, role: becomingAdmin ? 'admin' : 'member' });
-                    }}
-                    disabled={m.id === me.data?.id}
-                    title={m.id === me.data?.id ? 'Du kannst dich nicht selbst degradieren' : undefined}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      m.role === 'admin'
-                        ? 'bg-forest-500/30 text-forest-100 ring-forest-400/40 hover:bg-forest-500/50'
-                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
-                    }`}
-                  >
-                    {m.role === 'admin' ? '👑 Admin entfernen' : '+ Admin'}
                   </button>
                   <button
                     onClick={() => update.mutate({ id: m.id, revoked_at: m.revoked_at ? null : new Date().toISOString() })}
@@ -807,10 +767,10 @@ function MembersTab() {
                   </button>
                 </div>
               </div>
-              {/* Rollen-Selector Panel — zeigt alle 6 Presets, aktuelle Rolle ist markiert */}
+              {/* Rollen-Selector Panel — Basis-Rolle (6 Presets) + Zusatz-Rechte (Modifier-Flags) */}
               {roleEditId === m.id && (
-                <div className="mt-3 rounded-xl bg-forest-900/70 p-3 ring-1 ring-amber-500/30">
-                  <div className="flex items-baseline justify-between mb-2">
+                <div className="mt-3 rounded-xl bg-forest-900/70 p-3 ring-1 ring-amber-500/30 space-y-3">
+                  <div className="flex items-baseline justify-between">
                     <span className="text-[11px] uppercase tracking-wider text-amber-300/90 font-semibold">
                       Rolle wechseln für {m.name}
                     </span>
@@ -821,37 +781,96 @@ function MembersTab() {
                       Schließen ✕
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {ROLE_PRESETS.map((preset) => {
-                      const isActive = memberRolePresetKey(m) === preset.key;
-                      const isSelfDemotion = m.id === me.data?.id && m.role === 'admin' && preset.role !== 'admin';
-                      return (
-                        <button
-                          key={preset.key}
-                          onClick={() => applyRolePreset(m, preset)}
-                          disabled={isActive || isSelfDemotion || update.isPending}
-                          title={isSelfDemotion ? 'Du kannst dich nicht selbst aus dem Admin entfernen' : preset.hint}
-                          className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                            isActive
-                              ? 'bg-forest-500/30 text-forest-50 ring-forest-400/60'
-                              : preset.btnClass
-                          }`}
-                        >
-                          <span className="text-base leading-none mt-0.5">{preset.icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-semibold flex items-center gap-1">
-                              {preset.label}
-                              {isActive && <span className="text-[9px] text-emerald-300">● aktiv</span>}
+
+                  {/* Basis-Rolle: einer der 6 Presets */}
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-forest-400 font-semibold mb-1.5">
+                      Basis-Rolle
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {ROLE_PRESETS.map((preset) => {
+                        const isActive = memberRolePresetKey(m) === preset.key;
+                        const isSelfDemotion = m.id === me.data?.id && m.role === 'admin' && preset.role !== 'admin';
+                        return (
+                          <button
+                            key={preset.key}
+                            onClick={() => applyRolePreset(m, preset)}
+                            disabled={isActive || isSelfDemotion || update.isPending}
+                            title={isSelfDemotion ? 'Du kannst dich nicht selbst aus dem Admin entfernen' : preset.hint}
+                            className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                              isActive
+                                ? 'bg-forest-500/30 text-forest-50 ring-forest-400/60'
+                                : preset.btnClass
+                            }`}
+                          >
+                            <span className="text-base leading-none mt-0.5">{preset.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold flex items-center gap-1">
+                                {preset.label}
+                                {isActive && <span className="text-[9px] text-emerald-300">● aktiv</span>}
+                              </div>
+                              <div className="text-[10px] opacity-80 mt-0.5 leading-tight">{preset.hint}</div>
                             </div>
-                            <div className="text-[10px] opacity-80 mt-0.5 leading-tight">{preset.hint}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <p className="mt-2 text-[10px] text-forest-400/80 leading-snug">
-                    Hinweis: Beim Wechsel auf eine andere Rolle als „Personal" wird die CP-V-Markierung automatisch entfernt.
-                    Aufgießer-Status, WM-Admin und CP-V kannst du auch über die Toggles oben separat verwalten.
+
+                  {/* Zusatz-Rechte: orthogonale Modifier-Flags (unabhängig von der Basis-Rolle) */}
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-forest-400 font-semibold mb-1.5">
+                      Zusatz-Rechte
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {/* WM-Admin: kann auf jeder Rolle sitzen */}
+                      <button
+                        onClick={() => update.mutate({ id: m.id, is_wm_admin: !m.is_wm_admin })}
+                        disabled={update.isPending}
+                        title="Darf WM-Spielplan, Ergebnisse und Tipps verwalten"
+                        className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 ${
+                          m.is_wm_admin
+                            ? 'bg-heat-500/20 text-heat-100 ring-heat-400/50'
+                            : 'bg-forest-800/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
+                        }`}
+                      >
+                        <span className="text-base leading-none mt-0.5">{m.is_wm_admin ? '☑' : '☐'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">🏆 WM-Admin</div>
+                          <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                            Darf WM-Spielplan, Ergebnisse und Tipps verwalten
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* CP-Verantwortlicher: nur bei staff sinnvoll */}
+                      <button
+                        onClick={() => update.mutate({ id: m.id, is_personal_planer: !m.is_personal_planer })}
+                        disabled={m.role !== 'staff' || update.isPending}
+                        title={m.role !== 'staff'
+                          ? 'Nur für Personal verfügbar — erst Basis-Rolle "Personal" wählen'
+                          : 'Personal-Planung + anonyme Bewertungs-Übersicht'}
+                        className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                          m.is_personal_planer
+                            ? 'bg-amber-500/20 text-amber-100 ring-amber-400/50'
+                            : 'bg-forest-800/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
+                        }`}
+                      >
+                        <span className="text-base leading-none mt-0.5">{m.is_personal_planer ? '☑' : '☐'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">🛠️ CP-Verantwortlicher</div>
+                          <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                            {m.role === 'staff'
+                              ? 'Personal-Planung + anonyme Bewertungs-Übersicht'
+                              : 'Nur für Personal verfügbar'}
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-forest-400/80 leading-snug">
+                    Hinweis: Beim Wechsel auf eine andere Basis-Rolle als „Personal" wird die CP-V-Markierung automatisch entfernt.
                   </p>
                 </div>
               )}
