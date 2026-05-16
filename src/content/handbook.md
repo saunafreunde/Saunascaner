@@ -12,40 +12,41 @@
 **Teil A — Einstieg**
 1. [Willkommen](#1-willkommen)
 2. [Anmelden](#2-anmelden)
-3. [Alle Seiten & Zugänge](#3-alle-seiten--zug%C3%A4nge) ⭐ neu
-4. [Die 5 Mitglieds-Arten](#4-die-5-mitglieds-arten)
+3. [Alle Seiten & Zugänge](#3-alle-seiten--zug%C3%A4nge)
+4. [Die 7 Mitglieds-Arten](#4-die-7-mitglieds-arten)
 
 **Teil B — Pro Rolle**
 
 5. [👋 Als Gast](#5--als-gast)
-6. [🤝 Als Helfer / Unterstützer](#6--als-helfer--unterst%C3%BCtzer)
-7. [🧖 Als Aufgießer / 🌍 Gast-Aufgießer](#7--als-aufgie%C3%9Fer---als-gast-aufgie%C3%9Fer)
-8. [👨‍🍳 Als Personal](#8--als-personal)
-9. [🛠️ Als CP-Verantwortlicher](#9--als-cp-verantwortlicher) ⭐ neu
-10. [⚙️ Als Admin](#10-%EF%B8%8F-als-admin)
+6. [🤝 Als Fan / Förderer](#6--als-fan--f%C3%B6rderer) ⭐ neu
+7. [🤝 Als Helfer / Unterstützer](#7--als-helfer--unterst%C3%BCtzer)
+8. [🧖 Als Aufgießer / 🌍 Gast-Aufgießer](#8--als-aufgie%C3%9Fer---als-gast-aufgie%C3%9Fer)
+9. [👨‍🍳 Als Personal](#9--als-personal)
+10. [🛠️ Als CP-Verantwortlicher](#10--als-cp-verantwortlicher)
+11. [⚙️ Als Admin](#11-%EF%B8%8F-als-admin)
 
 **Teil C — Features für Alle**
 
-11. [Mini-Feed](#11-mini-feed)
-12. [Mitglieder-Galerie & Profile](#12-mitglieder-galerie--profile)
-13. [WM-Tipspiel 2026](#13-wm-tipspiel-2026)
-14. [Mein Profil & Erfolge](#14-mein-profil--erfolge)
-15. [Einlass-Code & PIN-Pool](#15-einlass-code--pin-pool)
+12. [Mini-Feed](#12-mini-feed)
+13. [Mitglieder-Galerie & Profile](#13-mitglieder-galerie--profile)
+14. [WM-Tipspiel 2026](#14-wm-tipspiel-2026)
+15. [Mein Profil & Erfolge](#15-mein-profil--erfolge)
+16. [Einlass-Code & PIN-Pool](#16-einlass-code--pin-pool)
 
 **Teil D — Werkzeuge & Geräte**
 
-16. [Tablet-Workflows](#16-tablet-workflows)
-17. [Die TV-Tafel im Detail](#17-die-tv-tafel-im-detail)
-18. [Telegram-Bot](#18-telegram-bot)
-19. [Kalender-Abo (iCal)](#19-kalender-abo-ical)
-20. [Postfach](#20-postfach)
+17. [Tablet-Workflows](#17-tablet-workflows)
+18. [Die TV-Tafel im Detail](#18-die-tv-tafel-im-detail)
+19. [Telegram-Bot](#19-telegram-bot)
+20. [Kalender-Abo (iCal)](#20-kalender-abo-ical)
+21. [Postfach](#21-postfach)
 
 **Teil E — Hintergrund-Mechanik**
 
-21. [App auf Home-Bildschirm (PWA)](#21-app-auf-home-bildschirm-pwa)
-22. [Push-Benachrichtigungen](#22-push-benachrichtigungen)
-23. [Notfall — Evakuierungs-Alarm](#23-notfall--evakuierungs-alarm)
-24. [Häufige Fragen + Kontakt](#24-h%C3%A4ufige-fragen--kontakt)
+22. [App auf Home-Bildschirm (PWA)](#22-app-auf-home-bildschirm-pwa)
+23. [Push-Benachrichtigungen](#23-push-benachrichtigungen)
+24. [Notfall — Evakuierungs-Alarm](#24-notfall--evakuierungs-alarm)
+25. [Häufige Fragen + Kontakt](#25-h%C3%A4ufige-fragen--kontakt)
 
 ---
 
@@ -96,7 +97,7 @@ Falls du lieber ein Passwort verwendest — klicke oben auf den Tab **🔑 Passw
 ### 📨 Einladungs-Link vom Admin
 Hat dir ein Admin einen Einladungs-Link geschickt? Klick einfach auf den Link in der Mail — du wirst automatisch mit der richtigen Rolle freigeschaltet und musst nur noch dein Passwort setzen.
 
-> **iPhone-Tipp:** Wenn du die App schon auf den Home-Bildschirm gelegt hast (siehe Kapitel 21), startet sie direkt in deinem Default-Bereich — keine Login-Eingabe nötig.
+> **iPhone-Tipp:** Wenn du die App schon auf den Home-Bildschirm gelegt hast (siehe Kapitel 22), startet sie direkt in deinem Default-Bereich — keine Login-Eingabe nötig.
 
 ---
 
@@ -193,17 +194,20 @@ Als Admin kannst du jede Rollen-Seite mit `?preview=<rolle>` testen — z.B.:
 
 ---
 
-## 4. Die 6 Mitglieds-Arten
+## 4. Die 7 Mitglieds-Arten
 
 | Symbol | Rolle | Default-Bereich | Hauptrechte |
 |---|---|---|---|
-| 👋 | **Gast** | `/gast` | Feed lesen, Polaroid-Galerie ansehen, Verein kennenlernen. **Kein Planen, kein Postfach.** |
-| 🤝 | **Helfer / Unterstützer** (Mitglied) | `/unterstuetzer` | Alles vom Gast + Helfer-Aufgaben annehmen, Mitglieder-Galerie, Postfach. Vereinsbegriff: **„Helfer"** — URL-Pfad: `/unterstuetzer`. |
-| 🧖 | **Aufgießer** | `/planner` | Alles vom Unterstützer + Aufgüsse planen (2 Wochen voraus), Team-Aufgüsse, Atelier, Stamm-Slot, Urlaub, Notfall-Alarm |
+| 👋 | **Gast** | `/gast` | Sauna besuchen, Aufgüsse bewerten, Feed lesen, Lieblings-Aufgießer folgen. **Kostenlos, kein Verein-Status.** |
+| 🤝 | **Fan / Förderer** | `/fan` | Passives Vereinsmitglied — zahlt Jahresbeitrag, bekommt **Vereins-News + Aroma-Rezepte + Fan-Ausweis**. Keine Mitwirkungs-Pflicht, kein Stimmrecht. |
+| 🤝 | **Helfer / Unterstützer** (Aktiv-Mitglied) | `/unterstuetzer` | Alles vom Fan + Helfer-Aufgaben annehmen, Mitglieder-Galerie, Postfach, **Stimmrecht**. Vereinsbegriff: **„Helfer"** — URL-Pfad: `/unterstuetzer`. |
+| 🧖 | **Aufgießer** | `/planner` | Alles vom Unterstützer + Aufgüsse planen (2 Wochen voraus), Team-Aufgüsse, Atelier, Stamm-Slot, Urlaub, Notfall-Alarm, **Aroma-Rezepte einreichen** |
 | 🌍 | **Gast-Aufgießer** | `/planner` | Wie Aufgießer — aber **4 Wochen voraus planbar** und sichtbar mit „🌍 Gast" + Landesgruppe |
 | 👨‍🍳 | **Personal** | `/mitarbeiter` | Personal-Aufgüsse **durchführen** wenn kein Aufgießer kommt (Pflicht-Fallback), Notfall-Alarm auslösen, WM-Tipspiel, Mitgliederliste sehen. **Bewertet keine Aufgüsse.** |
 | 🛠️ | **CP-Verantwortlicher** | `/cp` | Alles vom Personal + Schichtplanung, Anwesenheits-Export (CSV), anonyme Bewertungs-Übersicht (ohne Aufgießer-Namen) |
-| ⚙️ | **Admin** | `/planner` | Alles + 13 Verwaltungs-Tabs unter `/admin` (Saunas, Members, Invitations, Recurring, Presence, Stats, Auswertungen, Branding, Handbook, Polls, Tasks, Feed, WM) |
+| ⚙️ | **Admin** | `/planner` | Alles + 15 Verwaltungs-Tabs unter `/admin` (Saunas, Members, Invitations, Recurring, Presence, Stats, Auswertungen, Branding, Handbook, Polls, Tasks, Feed, WM, **News, Aroma**) |
+
+**Conversion-Pyramide:** 👋 Gast → 🤝 Fan (Self-Antrag) → ✅ Helfer (Bewerbung) → 🧖 Aufgießer (Schulung + Vereinsbeschluss). Der Aufgießer-Pfad ist bewusst hochschwellig — das schützt die Kunstform.
 
 Deine Rolle siehst du oben im Header neben deinem Avatar.
 
@@ -351,7 +355,68 @@ Du gefällst dem Verein und möchtest dauerhaft dabei sein? Sprich einen ⚙️ 
 
 ---
 
-## 6. 🤝 Als Helfer / Unterstützer
+## 6. 🤝 Als Fan / Förderer
+
+> Du bist Sauna-Gast, willst aber näher dran sein — ohne dich zu verpflichten? Das **Förderndes Mitglied** ist der saubere Zwischenschritt zwischen Gast und Aktiv-Mitglied.
+
+### Was ist ein Fan?
+
+**Fan** (auch: Förderndes Mitglied, Förderer) ist eine **passive Mitgliedschaft**. Du zahlst einen Jahresbeitrag und bekommst dafür Premium-Vorteile in der App — aber:
+
+- **Keine Mitwirkungs-Pflicht** (kein Helferdienst, keine Sitzungen, keine Vereinsarbeit)
+- **Kein Stimmrecht** in der Mitgliederversammlung
+- **Keine Verpflichtung zum Aufgießen** — Aufgießer-Werden ist eine eigene Vereinsentscheidung mit Schulung und Vorstandsbeschluss
+
+Du bist **Fan unserer Kunstform** — du unterstützt finanziell und bist im Inner-Circle dabei.
+
+### Wie wirst du Fan?
+
+1. **Voraussetzung:** Du bist schon engagierter Gast — mindestens **5 Aufgüsse bewertet** ODER **3 Sauna-Tage besucht**. (Bei brandneuen Gästen erscheint die CTA noch nicht.)
+2. Im Gast-Bereich erscheint die Card **„🤝 Werde Fan unserer Saunameister"** automatisch.
+3. Klick auf **„Fan-Antrag stellen"** → Mini-Formular mit Anschrift (für Beitragsrechnung) und optional IBAN (für SEPA-Lastschrift) ausfüllen.
+4. DSGVO-Consent akzeptieren → Antrag absenden.
+5. Admin bekommt eine Push-Benachrichtigung und prüft deinen Antrag.
+6. Nach Eingang deiner ersten Beitragszahlung schaltet der Admin dich frei und setzt den Beitragszeitraum (z.B. „bezahlt bis 31.12.2026").
+7. Du landest automatisch im neuen Bereich `/fan` 🎉
+
+Falls dein Antrag abgelehnt wird, siehst du den Grund und kannst nach Klärung erneut beantragen.
+
+### Was bekommst du als Fan?
+
+- 📣 **Vereins-News-Feed** — exklusive Ankündigungen zu Events, Aktionen, Hinter-Kulissen-Stories. Push-Benachrichtigung bei jeder neuen News.
+- 🌿 **Aroma-Rezepte unserer Saunameister** — Original-Mischungen direkt aus dem Öl-Raum, mit Zutaten, Temperatur-Empfehlung und Anleitung. Wird vom Saunameister eingereicht und vom Admin freigegeben.
+- 🏅 **Digitaler Fan-Ausweis (PDF)** — personalisiert mit deiner Mitgliedsnummer und Vereinslogo, jederzeit herunterladbar aus dem Fan-Bereich.
+- 🔔 **Push für Vereins-News** zusätzlich zu den Favoriten-Aufgüssen.
+- + alle Features vom Gast bleiben erhalten (Bewertungen, Favoriten, Stats, Badges, PIN, Tablet-Check-in)
+
+### Beitragszeitraum, Erinnerung & Karenz
+
+Im Fan-Bereich siehst du oben die **Beitrags-Status-Card** mit dem `paid_until`-Datum.
+
+- **4 Wochen vor Ablauf** bekommst du eine **Erinnerungs-Push**: „Dein Beitrag läuft am DD.MM ab — bitte überweisen."
+- **Nach Ablauf** hast du **30 Tage Karenz** — Status bleibt Fan, du bekommst alles weiterhin.
+- **Nach 30 Tagen Karenz** wirst du **automatisch wieder zum Gast** zurückgestuft. Deine Daten (Bewertungen, Favoriten, Badges) bleiben erhalten — nur die Premium-Vorteile (News, Rezepte, Ausweis) sind weg.
+- Wenn du wieder Fan werden willst, stellst du einfach einen neuen Antrag.
+
+### GDPR — Recht auf Vergessen
+
+Im Fan-Bereich unten findest du den Abschnitt **„Datenschutz & Account-Löschung"** (ausklappbar). Mit einem Klick kannst du deinen kompletten Account löschen — Profil, Bewertungen, Favoriten, Badges, Beitragshistorie, Feed-Beiträge. Es bleibt nichts zurück.
+
+**Wichtig:** Bereits gezahlte Beiträge werden nicht erstattet. Wenn du nur den nächsten Beitrag nicht mehr zahlen willst, lass den Beitragszeitraum einfach ablaufen — dann landest du nach 30 Tagen automatisch wieder als Gast in der App, ohne dass du etwas tun musst.
+
+### Wenn du mehr willst: 🧖 Aufgießer werden
+
+Wenn dich die Kunstform des Aufgießens so begeistert, dass du sie selbst ausüben willst:
+
+1. Sprich den Vorstand an (am besten persönlich vor Ort oder per Telegram).
+2. Du wirst zu einer **Aufgießer-Schulung** eingeladen — mehrere Probe-Aufgüsse mit erfahrenen Saunameistern.
+3. Der Vereinsvorstand entscheidet über deine Aufnahme als 🧖 Aufgießer.
+
+Dieser Weg ist bewusst hochschwellig — der Verein schützt damit die Qualität und den künstlerischen Anspruch unserer Aufgüsse.
+
+---
+
+## 7. 🤝 Als Helfer / Unterstützer
 
 **Default-Bereich:** `/unterstuetzer`
 
@@ -379,7 +444,7 @@ Sobald freigegeben, taucht die Aufgabe in deinem **„📋 Meine Zusagen"**-Bloc
 
 ### Was du sonst kannst
 
-- 📸 Im **Mini-Feed** posten (siehe Kapitel 11)
+- 📸 Im **Mini-Feed** posten (siehe Kapitel 12)
 - 🏆 **WM-Tipspiel** unter `/wm` mitspielen
 - 👥 In der **Mitglieder-Galerie** stöbern
 - 📧 Dein **Postfach** lesen (falls du eine `@sauna-fds.de`-Adresse hast)
@@ -387,7 +452,7 @@ Sobald freigegeben, taucht die Aufgabe in deinem **„📋 Meine Zusagen"**-Bloc
 
 ---
 
-## 7. 🧖 Als Aufgießer / 🌍 Gast-Aufgießer
+## 8. 🧖 Als Aufgießer / 🌍 Gast-Aufgießer
 
 **Default-Bereich:** `/planner`
 
@@ -476,11 +541,11 @@ Wenn jemand deinen Aufguss bewertet (1–5 ⭐ + 6 Kategorien), bekommst du ein 
 
 ### Notfall-Alarm
 
-Roter Button oben rechts im Planner — siehe Kapitel 23.
+Roter Button oben rechts im Planner — siehe Kapitel 24.
 
 ---
 
-## 8. 👨‍🍳 Als Personal
+## 9. 👨‍🍳 Als Personal
 
 **Default-Bereich:** `/mitarbeiter`
 
@@ -491,7 +556,7 @@ Du bist Mitarbeiter (nicht Vereinsmitglied) und hilfst beim Betrieb. Dein Bereic
 | Aktion | Wie |
 |---|---|
 | **Personal-Aufgüsse durchführen** | Wenn kein Aufgießer für einen Garantie-Slot eingetragen ist, **musst du ihn durchführen** — das ist deine Aufgabe, kein „Übernehmen" wie bei Aufgießern. Die Liste der fälligen Slots siehst du oben im Bereich. |
-| **Notfall-Alarm** | **Roter Button ganz oben** — Vollbild-Alarm + Telegram + Push (siehe Kapitel 23). Doppelte Bestätigung verhindert Fehlauslösung. |
+| **Notfall-Alarm** | **Roter Button ganz oben** — Vollbild-Alarm + Telegram + Push (siehe Kapitel 24). Doppelte Bestätigung verhindert Fehlauslösung. |
 | **Mini-Tafel lesen** | Timeline-Ansicht des heutigen Tages auf dem Handy. Statt zur 85"-Tafel zu wechseln (auf dem Handy unleserlich), siehst du hier in einer Zeile pro Sauna, wer wann gießt. „Jetzt"-Marker als grüner Strich. |
 | **WM-Tipspiel** | Du darfst mittippen — `/wm` |
 | **Mitgliederliste sehen** | `/members` — alle Vereinsmitglieder |
@@ -533,7 +598,7 @@ Wenn du **kurzfristig** nicht kannst: Klick auf **✗ Absagen** bei deiner Schic
 
 ---
 
-## 9. 🛠️ Als CP-Verantwortlicher
+## 10. 🛠️ Als CP-Verantwortlicher
 
 **Default-Bereich:** `/cp`
 
@@ -628,7 +693,7 @@ Personal sieht die eigenen Schichten — andere Schichten kann der Mitarbeiter *
 
 ---
 
-## 10. ⚙️ Als Admin
+## 11. ⚙️ Als Admin
 
 **Default-Bereich:** `/planner` (mit zusätzlichem Admin-Menü)
 
@@ -674,7 +739,7 @@ Personen mit `is_wm_admin`-Flag (aber ohne Admin-Rolle) sehen unter `/admin` **n
 
 # Teil C — Features für Alle
 
-## 11. Mini-Feed
+## 12. Mini-Feed
 
 **Pfad:** `/feed`
 
@@ -709,7 +774,7 @@ Admin kann unter `/admin → Feed` Bilder/Kommentare löschen. Bei wiederholten 
 
 ---
 
-## 12. Mitglieder-Galerie & Profile
+## 13. Mitglieder-Galerie & Profile
 
 **Pfad:** `/members`
 
@@ -740,7 +805,7 @@ Klick auf eine Aufgießer-Karte → öffnet **Star-Profil** mit:
 
 ---
 
-## 13. WM-Tipspiel 2026
+## 14. WM-Tipspiel 2026
 
 **Pfad:** `/wm`
 
@@ -776,7 +841,7 @@ Live-Update bei jedem Spielergebnis. Top-3 bekommen am Saisonende ein **🥇/�
 
 ---
 
-## 14. Mein Profil & Erfolge
+## 15. Mein Profil & Erfolge
 
 **Pfad:** `/profile/<deine-id>` oder Klick auf den Avatar oben im Header.
 
@@ -823,12 +888,12 @@ Klick auf **„🏆 Trophäenwand"** für den vollen Überblick:
 ### 🔗 Integrationen
 
 Im Profil unten findest du **„🔗 Integrationen"** mit:
-- 📅 **Kalender-Abo** (siehe Kapitel 19)
-- ✈️ **Telegram-Bot** (siehe Kapitel 18)
+- 📅 **Kalender-Abo** (siehe Kapitel 20)
+- ✈️ **Telegram-Bot** (siehe Kapitel 19)
 
 ---
 
-## 15. Einlass-Code & PIN-Pool
+## 16. Einlass-Code & PIN-Pool
 
 Saunascaner nutzt einen **einheitlichen 4-stelligen PIN-Pool** für alle Rollen.
 
@@ -860,7 +925,7 @@ Saunascaner nutzt einen **einheitlichen 4-stelligen PIN-Pool** für alle Rollen.
 
 # Teil D — Werkzeuge & Geräte
 
-## 16. Tablet-Workflows
+## 17. Tablet-Workflows
 
 Saunascaner läuft auf mehreren Tablets im Vereinsraum — alle ohne Login, jeder Workflow für einen klar definierten Zweck.
 
@@ -887,7 +952,7 @@ QR-Code im Raum zeigt direkt auf diese Seite. Schnellanmeldung für Gäste in <3
 
 ---
 
-## 17. Die TV-Tafel im Detail
+## 18. Die TV-Tafel im Detail
 
 **Pfad:** `/dashboard` · 85"-Fernseher im Vereinsraum
 
@@ -929,7 +994,7 @@ Wenn 15 Min vor einem Slot kein Aufgießer eingetragen ist, wird automatisch ein
 
 ---
 
-## 18. Telegram-Bot
+## 19. Telegram-Bot
 
 Bot-Username: **@saunafreunde_bot**
 
@@ -979,7 +1044,7 @@ Bei Evakuierung schickt der Bot eine **Vollbild-rote Push-Nachricht** an alle ve
 
 ---
 
-## 19. Kalender-Abo (iCal)
+## 20. Kalender-Abo (iCal)
 
 Lass deine Aufgüsse automatisch in deinem Kalender erscheinen.
 
@@ -1008,7 +1073,7 @@ Falls jemand deinen Link bekommen hat: **„🔄 Token rotieren"** im Profil —
 
 ---
 
-## 20. Postfach
+## 21. Postfach
 
 **Pfad:** `/postfach`
 
@@ -1033,7 +1098,7 @@ Frag einen Admin — er kann dir eine Adresse zuweisen.
 
 # Teil E — Hintergrund-Mechanik
 
-## 21. App auf Home-Bildschirm (PWA)
+## 22. App auf Home-Bildschirm (PWA)
 
 Saunascaner ist eine **PWA (Progressive Web App)** — wie eine native App installierbar.
 
@@ -1063,7 +1128,7 @@ Ab jetzt: Icon am Home-Bildschirm öffnet die App im Vollbild — startet **dire
 
 ---
 
-## 22. Push-Benachrichtigungen
+## 23. Push-Benachrichtigungen
 
 Saunascaner kann dir Benachrichtigungen schicken — z.B.:
 
@@ -1079,7 +1144,7 @@ Saunascaner kann dir Benachrichtigungen schicken — z.B.:
 1. Beim ersten Login fragt der Browser nach Push-Erlaubnis → **„Zulassen"**
 2. Falls verpasst: Browser-Einstellungen → Benachrichtigungen → saunascaner.vercel.app → „Zulassen"
 
-**Auf iPhone:** funktioniert nur in der **installierten PWA-App** (siehe Kapitel 21), nicht im Safari-Browser.
+**Auf iPhone:** funktioniert nur in der **installierten PWA-App** (siehe Kapitel 22), nicht im Safari-Browser.
 
 ### Dedup-Queue
 
@@ -1087,7 +1152,7 @@ Saunascaner verhindert, dass du die gleiche Nachricht doppelt bekommst — auch 
 
 ---
 
-## 23. Notfall — Evakuierungs-Alarm
+## 24. Notfall — Evakuierungs-Alarm
 
 Aufgießer, Personal und Admins können in absoluten Notfällen den **Evakuierungs-Alarm** auslösen.
 
@@ -1110,7 +1175,7 @@ Wer ihn ausgelöst hat (oder Admin) klickt **„Alarm beenden"**. Erst dann vers
 
 ---
 
-## 24. Häufige Fragen + Kontakt
+## 25. Häufige Fragen + Kontakt
 
 ### Ich kann mich nicht anmelden — ich vergesse meine PINs
 Nutz den **Login-Link** (E-Mail-Adresse → Klick im Postfach → drin). Keine PINs nötig.
@@ -1159,7 +1224,7 @@ Wenn du einen Feed-Post mit einem deiner letzten Aufgüsse verknüpfst, erschein
 1. Anmelden mit Login-Link
 2. Warte auf Admin-Freigabe (max. 1 Tag)
 3. **Profil ausfüllen**: Avatar, Motto, Geburtstag
-4. **App auf Home-Bildschirm** installieren (Kapitel 20)
+4. **App auf Home-Bildschirm** installieren (Kapitel 22)
 5. **Push-Benachrichtigungen** aktivieren
 6. **Mitglieder-Galerie** durchblättern
 7. **Mini-Feed** anschauen, ein paar Reactions geben

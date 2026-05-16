@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { differenceInDays } from 'date-fns';
 import {
   useCurrentMember, useBrandSettings, brandAssetUrl,
   useOrgNews, useApprovedAromaRecipes,
+  useDeleteMyAccount,
 } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { PageBackground } from '@/components/PageBackground';
 import { MemberStatsCard } from '@/components/MemberStatsCard';
@@ -23,6 +25,9 @@ import { downloadBadge } from '@/lib/badge';
 // Auch für Admins zur Vorschau über /fan?preview=fan aufrufbar.
 export default function Fan() {
   const me = useCurrentMember();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+  const deleteAccount = useDeleteMyAccount();
   const [params] = useSearchParams();
   const previewMode = (params.get('preview') === '1' || params.get('preview') === 'fan') && isAdmin(me.data);
   const isReallyFan = isFan(me.data);
@@ -30,6 +35,27 @@ export default function Fan() {
   const brand = useBrandSettings();
   const news = useOrgNews();
   const recipes = useApprovedAromaRecipes();
+
+  const handleDeleteAccount = async () => {
+    const ok1 = window.confirm(
+      'Förderer-Account wirklich löschen?\n\n' +
+      'Alle deine Daten werden unwiderruflich entfernt:\n' +
+      '• Profil, Bewertungen, Favoriten, Badges\n' +
+      '• Beitragshistorie (paid_until, fan_since, Adresse)\n' +
+      '• Feed-Beiträge, Reactions\n\n' +
+      'Bereits gezahlte Beiträge werden nicht erstattet.'
+    );
+    if (!ok1) return;
+    const ok2 = window.confirm('Wirklich sicher? Diese Aktion kann nicht rückgängig gemacht werden.');
+    if (!ok2) return;
+    try {
+      await deleteAccount.mutateAsync();
+      await signOut();
+      navigate('/', { replace: true });
+    } catch (err) {
+      window.alert(`Löschen fehlgeschlagen: ${(err as Error).message}`);
+    }
+  };
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
@@ -219,6 +245,38 @@ export default function Fan() {
             <div className="mt-1 text-xs font-semibold text-forest-100">WM</div>
           </Link>
         </section>
+
+        {/* 8. GDPR — Recht auf Vergessen. Nur für echte Fans sichtbar. */}
+        {isReallyFan && (
+          <section className="rounded-3xl bg-forest-950/40 ring-1 ring-forest-800/40 p-5">
+            <details className="group">
+              <summary className="cursor-pointer text-xs font-semibold text-forest-400 hover:text-forest-200 list-none flex items-center gap-2">
+                <span className="transition group-open:rotate-90">▸</span>
+                Datenschutz & Account-Löschung
+              </summary>
+              <div className="mt-3 space-y-3 text-xs text-forest-300/80 leading-relaxed">
+                <p>
+                  Du kannst deinen Förderer-Account jederzeit selbst löschen. Alle Daten werden
+                  sofort entfernt (Profil, Bewertungen, Favoriten, Badges, Beitragshistorie,
+                  Feed-Beiträge). Es bleibt nichts zurück.
+                </p>
+                <p className="text-rose-300/80">
+                  <strong>Wichtig:</strong> Bereits gezahlte Beiträge werden nicht erstattet.
+                  Wenn du nur den aktuellen Beitragszeitraum nicht verlängern willst, lass den
+                  Zeitraum einfach ablaufen — du wirst dann nach 30 Tagen Karenz automatisch
+                  wieder zum Gast.
+                </p>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteAccount.isPending}
+                  className="rounded-lg bg-rose-500/20 px-4 py-2 text-xs font-semibold text-rose-200 ring-1 ring-rose-500/40 hover:bg-rose-500/30 disabled:opacity-50"
+                >
+                  {deleteAccount.isPending ? 'Lösche…' : '🗑 Förderer-Account endgültig löschen'}
+                </button>
+              </div>
+            </details>
+          </section>
+        )}
       </main>
     </PageBackground>
   );

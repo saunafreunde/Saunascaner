@@ -20,6 +20,7 @@ import { RatingCommentsCarousel } from '@/components/RatingCommentsCarousel';
 import { InfusionReactionBar } from '@/components/InfusionReactionBar';
 import { InfusionAnnounceButton } from '@/components/InfusionAnnounceButton';
 import { AufgussWishes } from '@/components/AufgussWishes';
+import { MyAromaRecipesEditor } from '@/components/aufgieser/MyAromaRecipesEditor';
 import { fmtClock } from '@/lib/time';
 import { isAdmin, isAufgieser } from '@/lib/roles';
 
@@ -188,6 +189,10 @@ export default function StarProfile() {
                   </button>
                 )}
               </div>
+
+              {/* Aroma-Rezepte: nur eigene Sicht — Saunameister submitten, Admin moderiert,
+                  approved erscheinen im /fan-Bereich als Premium-Content */}
+              {isMe && <MyAromaRecipesEditor memberId={star.id} />}
 
               {/* Foto-Galerie (kuratiert vom Aufgießer) */}
               <AufgieserPhotoGallery memberId={star.id} editable={isMe} />

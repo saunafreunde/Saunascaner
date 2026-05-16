@@ -4108,3 +4108,32 @@ export function usePendingAromaRecipes() {
     staleTime: 60_000,
   });
 }
+
+// GDPR-Self-Delete: nur für 'gast' und 'fan' erlaubt (Migration 0063).
+// Aktiv-Mitglieder müssen über Admin gelöscht werden.
+export function useDeleteMyAccount() {
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await need().rpc('delete_my_account');
+      if (error) throw error;
+    },
+  });
+}
+
+// Eigene Rezepte (pending + approved) für Saunameister-Submit-UI
+export function useMyAromaRecipes(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['aroma-recipes-mine', memberId],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('aroma_recipes')
+        .select('*')
+        .eq('created_by', memberId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<AromaRecipe & { approved: boolean; approved_at: string | null }>;
+    },
+    staleTime: 60_000,
+  });
+}
