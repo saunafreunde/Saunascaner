@@ -180,6 +180,15 @@ export type Member = {
   gast_referral_source: string | null;
   gast_consent_at: string | null;
   gast_signup_origin: string | null;
+  // Fan-Felder (Migration 0061 — Fördernde Mitgliedschaft)
+  paid_until: string | null;             // ISO-date oder null
+  fan_since: string | null;              // ISO-timestamptz oder null
+  fan_address: {
+    street?: string;
+    zip?: string;
+    city?: string;
+    country?: string;
+  } | null;
   created_at: string;
 };
 
@@ -3804,3 +3813,298 @@ export const useStatsFeedReactionDistribution = () => simpleStat<FeedReactionDis
 
 export type FollowNetworkRow = { kind: 'star' | 'fan'; member_id: string; name: string; avatar_path: string | null; role: string; n: number };
 export const useStatsFollowerNetwork = (limit = 8) => simpleStat<FollowNetworkRow[]>('follower-network', 'stats_follower_network', { p_limit: limit });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAN-UPGRADE (Migration 0061) — Förderndes Mitglied
+// Conversion-Pfad: Gast → Fan via Self-Antrag + Admin-Approve.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type FanAddress = {
+  street?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+};
+
+export type PendingFanUpgrade = {
+  request_id: string;
+  member_id: string;
+  member_name: string;
+  member_email: string | null;
+  member_role: MemberRole;
+  address: FanAddress;
+  iban: string | null;
+  requested_at: string;
+  member_signup_at: string;
+  member_rating_count: number;
+};
+
+export type MyFanUpgradeStatus = {
+  request_id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requested_at: string;
+  decided_at: string | null;
+  rejection_reason: string | null;
+};
+
+export function useRequestFanUpgrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { address: FanAddress; iban?: string | null }) => {
+      const { data, error } = await need().rpc('request_fan_upgrade', {
+        p_address: p.address,
+        p_iban: p.iban ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fan-upgrade-status'] });
+      qc.invalidateQueries({ queryKey: ['fan-upgrades-pending'] });
+    },
+  });
+}
+
+export function useMyFanUpgradeStatus() {
+  return useQuery({
+    queryKey: ['fan-upgrade-status'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('my_fan_upgrade_status');
+      if (error) throw error;
+      const rows = (data ?? []) as MyFanUpgradeStatus[];
+      return rows[0] ?? null;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function usePendingFanUpgrades() {
+  return useQuery({
+    queryKey: ['fan-upgrades-pending'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_pending_fan_upgrades');
+      if (error) throw error;
+      return (data ?? []) as PendingFanUpgrade[];
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useApproveFan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { request_id: string; paid_until: string }) => {
+      const { error } = await need().rpc('approve_fan', {
+        p_request_id: p.request_id,
+        p_paid_until: p.paid_until,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fan-upgrades-pending'] });
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
+    },
+  });
+}
+
+export function useRejectFan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { request_id: string; reason?: string }) => {
+      const { error } = await need().rpc('reject_fan', {
+        p_request_id: p.request_id,
+        p_reason: p.reason ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fan-upgrades-pending'] });
+    },
+  });
+}
+
+export function useSetMemberPaidUntil() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { member_id: string; paid_until: string | null }) => {
+      const { error } = await need().rpc('set_member_paid_until', {
+        p_member_id: p.member_id,
+        p_paid_until: p.paid_until,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] });
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ORG-NEWS (Migration 0062) — Vereins-Ankündigungen mit rollen-basierter Sichtbarkeit
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OrgNews = {
+  id: string;
+  title: string;
+  body: string;
+  pinned: boolean;
+  published_at: string;
+  expires_at: string | null;
+  cover_image_url: string | null;
+  target_min_role: 'gast' | 'fan' | 'member';
+  created_by_name: string | null;
+};
+
+export function useOrgNews() {
+  return useQuery({
+    queryKey: ['org-news'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_active_news');
+      if (error) throw error;
+      return (data ?? []) as OrgNews[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useCreateOrgNews() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: Pick<OrgNews, 'title' | 'body' | 'target_min_role'> & {
+      pinned?: boolean;
+      expires_at?: string | null;
+      cover_image_url?: string | null;
+    }) => {
+      const { error } = await need().from('org_news').insert({
+        title: p.title,
+        body: p.body,
+        pinned: p.pinned ?? false,
+        expires_at: p.expires_at ?? null,
+        cover_image_url: p.cover_image_url ?? null,
+        target_min_role: p.target_min_role,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['org-news'] });
+    },
+  });
+}
+
+export function useDeleteOrgNews() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().from('org_news').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['org-news'] });
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AROMA-REZEPTE (Migration 0062) — exklusiver Premium-Content für Fans+
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AromaRecipeIngredient = { name: string; drops?: number };
+
+export type AromaRecipe = {
+  id: string;
+  title: string;
+  description: string | null;
+  ingredients: AromaRecipeIngredient[];
+  sauna_type: 'finnisch' | 'bio' | 'kelo' | 'aufguss' | 'event' | null;
+  temperature_c: number | null;
+  created_by_name: string | null;
+  created_at: string;
+};
+
+export function useApprovedAromaRecipes() {
+  return useQuery({
+    queryKey: ['aroma-recipes-approved'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_approved_aroma_recipes');
+      if (error) throw error;
+      return (data ?? []) as AromaRecipe[];
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useCreateAromaRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      title: string;
+      description?: string | null;
+      ingredients: AromaRecipeIngredient[];
+      sauna_type?: AromaRecipe['sauna_type'];
+      temperature_c?: number | null;
+      created_by: string;
+    }) => {
+      const { error } = await need().from('aroma_recipes').insert({
+        title: p.title,
+        description: p.description ?? null,
+        ingredients: p.ingredients,
+        sauna_type: p.sauna_type ?? null,
+        temperature_c: p.temperature_c ?? null,
+        created_by: p.created_by,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['aroma-recipes-approved'] });
+      qc.invalidateQueries({ queryKey: ['aroma-recipes-pending'] });
+    },
+  });
+}
+
+export function useApproveAromaRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().from('aroma_recipes').update({
+        approved: true,
+        approved_at: new Date().toISOString(),
+      }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['aroma-recipes-approved'] });
+      qc.invalidateQueries({ queryKey: ['aroma-recipes-pending'] });
+    },
+  });
+}
+
+export function useDeleteAromaRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().from('aroma_recipes').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['aroma-recipes-approved'] });
+      qc.invalidateQueries({ queryKey: ['aroma-recipes-pending'] });
+    },
+  });
+}
+
+export function usePendingAromaRecipes() {
+  return useQuery({
+    queryKey: ['aroma-recipes-pending'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('aroma_recipes')
+        .select('*, members:created_by(name)')
+        .eq('approved', false)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<AromaRecipe & { approved: boolean; members: { name: string } | null }>;
+    },
+    staleTime: 60_000,
+  });
+}

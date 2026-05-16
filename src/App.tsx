@@ -46,6 +46,7 @@ const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
 const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
 const GastSignup      = lazy(() => import('@/routes/GastSignup'));
 const GastHome        = lazy(() => import('@/routes/Gast'));
+const FanHome         = lazy(() => import('@/routes/Fan'));
 const CheckinPin      = lazy(() => import('@/routes/CheckinPin'));
 const CheckinSignup   = lazy(() => import('@/routes/CheckinSignup'));
 const CheckinRate     = lazy(() => import('@/routes/CheckinRate'));
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="/postfach"          element={<RequireAuth><Postfach /></RequireAuth>} />
         <Route path="/hilfe"             element={<RequireAuth><Help /></RequireAuth>} />
         <Route path="/gast"                  element={<RequireAuth><GastHome /></RequireAuth>} />
+        <Route path="/fan"                   element={<RequireAuth><FanHome /></RequireAuth>} />
         <Route path="/unterstuetzer"         element={<RequireAuth><Unterstuetzer /></RequireAuth>} />
         <Route path="/mitarbeiter"           element={<RequireAuth><Mitarbeiter /></RequireAuth>} />
         <Route path="/cp"                    element={<RequireAuth><Cp /></RequireAuth>} />
@@ -123,6 +125,9 @@ function RootEntry() {
   // Eingeloggte Gäste → eigener Bereich /gast
   if (user && member.data?.role === 'gast') return <Navigate to="/gast" replace />;
 
+  // Eingeloggte Fans (Förderer) → eigener Bereich /fan
+  if (user && member.data?.role === 'fan') return <Navigate to="/fan" replace />;
+
   // CP-Verantwortlicher (Staff + is_personal_planer) → /cp als Default
   if (user && member.data?.role === 'staff' && member.data.is_personal_planer) {
     return <Navigate to="/cp" replace />;
@@ -143,6 +148,7 @@ function RootEntry() {
   return <Guest />;
 }
 
+// Pfade die Gäste UND Fans nicht erreichen dürfen (Aktiv-Mitglieder-only)
 const GAST_BLOCKED_PATHS = ['/planner', '/members', '/postfach'];
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -156,6 +162,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   // Gäste haben keinen Zugriff auf interne Mitglieder-Routen — Redirect zum Gäste-Bereich
   if (member.data?.role === 'gast' && GAST_BLOCKED_PATHS.some((p) => loc.pathname.startsWith(p))) {
     return <Navigate to="/gast" replace />;
+  }
+  // Fans haben die gleichen Blockaden wie Gäste (kein Planner/Members/Postfach), aber eigenen Bereich
+  if (member.data?.role === 'fan' && GAST_BLOCKED_PATHS.some((p) => loc.pathname.startsWith(p))) {
+    return <Navigate to="/fan" replace />;
+  }
+  // Fan-Bereich nur für Fan+ — Gast darf nicht (Premium-Content). Member+ dürfen lesen (Read-Only Vorschau).
+  if (loc.pathname.startsWith('/fan')
+      && member.data?.role === 'gast') {
+    return <Navigate to="/gast" replace />;
+  }
+  // Echte Gäste sollten nicht im Fan-Bereich landen, echte Fans nicht im Gast-Bereich
+  if (loc.pathname.startsWith('/gast') && member.data?.role === 'fan') {
+    return <Navigate to="/fan" replace />;
   }
   // Nicht-Aufgießer-Mitglieder gehören in den Unterstützer-Bereich, nicht in /planner
   if (

@@ -33,7 +33,7 @@ export type Infusion = {
   created_at: string;
 };
 
-export type MemberRole = 'gast' | 'member' | 'guest_aufgieser' | 'staff' | 'admin';
+export type MemberRole = 'gast' | 'fan' | 'member' | 'guest_aufgieser' | 'staff' | 'admin';
 
 export type StarStats = {
   total_aufguss: number;

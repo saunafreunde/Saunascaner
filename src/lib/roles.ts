@@ -34,6 +34,25 @@ export function isGast(m?: Member | null): boolean {
   return m?.role === 'gast';
 }
 
+/** Förderndes Mitglied: zahlt Beitrag, bekommt Premium-Vorteile (News, Aroma-Rezepte, Ausweis),
+ * aber keine Mitwirkungs-Pflicht und kein Stimmrecht. Zwischen Gast und Aktiv-Mitglied. */
+export function isFan(m?: Member | null): boolean {
+  return m?.role === 'fan';
+}
+
+/** Hat Premium-Berechtigungen (Fan oder höher) — für News-Feed, Aroma-Rezepte, etc. */
+export function isFanOrHigher(m?: Member | null): boolean {
+  if (!m) return false;
+  return ['fan', 'member', 'guest_aufgieser', 'staff', 'admin'].includes(m.role);
+}
+
+/** Beitragszeitraum läuft demnächst ab (< 28 Tage) — für Erinnerungs-UI. */
+export function isPaidMembershipExpiringSoon(m?: Member | null): boolean {
+  if (!m?.paid_until) return false;
+  const days = Math.ceil((new Date(m.paid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  return days >= 0 && days <= 28;
+}
+
 /** WM-Admin: darf WM-Tipspiel verwalten (Spiele anlegen/scoren), ohne voll-Admin zu sein. */
 export function isWmAdmin(m?: Member | null): boolean {
   return !!m?.is_wm_admin;
@@ -56,6 +75,7 @@ export function roleLabel(m?: Member | null): string {
   if (m.role === 'guest_aufgieser') return 'Gast-Aufgießer';
   if (m.role === 'staff') return m.is_personal_planer ? 'CP-Verantwortlicher' : 'Personal';
   if (m.role === 'gast') return 'Gast';
+  if (m.role === 'fan') return 'Fan';
   if (m.is_aufgieser) return 'Aufgießer';
   return 'Mitglied';
 }
@@ -66,6 +86,7 @@ export function roleEmoji(m?: Member | null): string {
   if (m.role === 'guest_aufgieser') return '🌍';
   if (m.role === 'staff') return m.is_personal_planer ? '🛠️' : '👨‍🍳';
   if (m.role === 'gast') return '👋';
+  if (m.role === 'fan') return '🤝';
   if (m.is_aufgieser) return '🧖';
   return '✅';
 }
@@ -76,6 +97,7 @@ export function roleAccentColor(role: MemberRole, isAufgieserFlag = false): stri
     case 'guest_aufgieser': return '#34d399'; // emerald-ish, frisches Grün für Gast-Aufgießer
     case 'staff': return '#94a3b8'; // slate
     case 'gast': return '#60a5fa'; // sky-400, frisch für Sauna-Besucher
+    case 'fan': return '#f472b6'; // rosa/pink — warm, „Fan-Energy"
     case 'member': return isAufgieserFlag ? '#fbbf24' : '#22c55e'; // amber für Aufgießer, forest für Mitglied
   }
 }

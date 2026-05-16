@@ -52,10 +52,16 @@ function fmtMemberNumber(n: number | null | undefined): string {
 
 function prettyRole(r: string): string {
   switch (r) {
-    case 'super_admin':  return 'Super-Admin';
-    case 'manager':      return 'Manager';
-    case 'guest_staff':  return 'Service-Personal';
-    default:             return 'Saunameister';
+    case 'super_admin':      return 'Super-Admin';
+    case 'manager':          return 'Manager';
+    case 'guest_staff':      return 'Service-Personal';
+    case 'admin':            return 'Vorstand';
+    case 'staff':            return 'Sauna-Personal';
+    case 'guest_aufgieser':  return 'Gast-Aufgießer';
+    case 'fan':              return 'Fan / Förderer';
+    case 'gast':             return 'Sauna-Gast';
+    case 'member':           return 'Mitglied';
+    default:                 return 'Saunameister';
   }
 }
 

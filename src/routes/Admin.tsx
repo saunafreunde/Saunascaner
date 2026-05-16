@@ -20,6 +20,7 @@ import {
   useAllPolls, useCreatePoll, useTogglePoll, fetchPollResults,
   useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
   useMyBadges,
+  usePendingFanUpgrades, useApproveFan, useRejectFan,
   type PollAnswerType, type Member,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
@@ -291,16 +292,117 @@ function MemberBadgesRow({ memberId }: { memberId: string }) {
   );
 }
 
+// Item-Komponente für Fan-Upgrade-Anträge — Admin kann paid_until setzen + bestätigen/ablehnen
+function FanUpgradeRequestItem({
+  request,
+  onApprove,
+  onReject,
+  isApproving,
+  isRejecting,
+}: {
+  request: import('@/lib/api').PendingFanUpgrade;
+  onApprove: (paid_until: string) => Promise<void>;
+  onReject: (reason: string) => Promise<void>;
+  isApproving: boolean;
+  isRejecting: boolean;
+}) {
+  // Default-Beitragszeitraum: 1 Jahr ab heute
+  const defaultPaidUntil = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().slice(0, 10);
+  }, []);
+  const [paidUntil, setPaidUntil] = useState(defaultPaidUntil);
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  return (
+    <li className="rounded-xl bg-forest-950/60 ring-1 ring-pink-500/20 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-pink-50">{request.member_name}</div>
+          <div className="text-xs text-forest-300/80">
+            {request.member_email ?? 'keine E-Mail'} · aktuell: {request.member_role}
+          </div>
+          <div className="text-[10px] text-forest-400/70 mt-0.5">
+            Antrag: {new Date(request.requested_at).toLocaleDateString('de-DE')} ·
+            Member seit {new Date(request.member_signup_at).toLocaleDateString('de-DE')} ·
+            {request.member_rating_count} Bewertungen
+          </div>
+        </div>
+      </div>
+      <div className="text-xs text-forest-200/90 bg-forest-900/50 rounded-lg p-2 mb-2 font-mono leading-tight">
+        {request.address.street}, {request.address.zip} {request.address.city}
+        {request.address.country && request.address.country !== 'DE' ? ` (${request.address.country})` : ''}
+        {request.iban && <div className="mt-1 text-forest-300">IBAN: {request.iban}</div>}
+      </div>
+
+      {!rejectMode ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-xs text-forest-300">
+            Beitrag bezahlt bis
+            <input
+              type="date"
+              value={paidUntil}
+              onChange={(e) => setPaidUntil(e.target.value)}
+              className="mt-1 block rounded-lg bg-forest-900/80 px-3 py-1.5 text-sm text-forest-100 ring-1 ring-forest-700/50"
+            />
+          </label>
+          <button
+            onClick={() => onApprove(paidUntil)}
+            disabled={isApproving}
+            className="rounded-lg bg-pink-500/30 px-4 py-2 text-xs font-semibold text-pink-100 ring-1 ring-pink-400/50 hover:bg-pink-500/40 disabled:opacity-50"
+          >
+            {isApproving ? 'Bestätige…' : '🤝 Als Fan bestätigen'}
+          </button>
+          <button
+            onClick={() => setRejectMode(true)}
+            className="rounded-lg bg-forest-900/60 px-3 py-2 text-xs text-forest-300 ring-1 ring-forest-700/40 hover:bg-rose-500/20 hover:text-rose-200"
+          >
+            Ablehnen
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Grund (optional, wird dem Antragsteller gezeigt)"
+            className="w-full rounded-lg bg-forest-900/80 px-3 py-1.5 text-sm text-forest-100 ring-1 ring-forest-700/50"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => onReject(rejectReason)}
+              disabled={isRejecting}
+              className="rounded-lg bg-rose-500/30 px-3 py-2 text-xs font-semibold text-rose-100 ring-1 ring-rose-400/50 hover:bg-rose-500/40 disabled:opacity-50"
+            >
+              {isRejecting ? 'Lehne ab…' : 'Ablehnen bestätigen'}
+            </button>
+            <button
+              onClick={() => { setRejectMode(false); setRejectReason(''); }}
+              className="rounded-lg bg-forest-900/60 px-3 py-2 text-xs text-forest-300 ring-1 ring-forest-700/40"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
 type MembersFilter =
-  | 'all' | 'member' | 'aufgieser' | 'guest_aufgieser' | 'gast'
+  | 'all' | 'gast' | 'fan' | 'member' | 'aufgieser' | 'guest_aufgieser'
   | 'staff' | 'cp_planer' | 'admin' | 'wm_admin' | 'revoked';
 
 const MEMBER_FILTER_META: Record<MembersFilter, { label: string; icon: string }> = {
   all:             { label: 'Alle',           icon: '👥' },
+  gast:            { label: 'Gäste',          icon: '👋' },
+  fan:             { label: 'Fans',           icon: '🤝' },
   member:          { label: 'Mitglieder',     icon: '✅' },
   aufgieser:       { label: 'Aufgießer',      icon: '🧖' },
   guest_aufgieser: { label: 'Gast-Aufgießer', icon: '🌍' },
-  gast:            { label: 'Gäste',          icon: '👋' },
   staff:           { label: 'Personal',       icon: '👨‍🍳' },
   cp_planer:       { label: 'CP-V',           icon: '🛠️' },
   admin:           { label: 'Admins',         icon: '⚙️' },
@@ -313,10 +415,11 @@ function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
   if (f === 'revoked') return !!m.revoked_at;
   if (m.revoked_at) return false;
   switch (f) {
+    case 'gast':            return m.role === 'gast';
+    case 'fan':             return m.role === 'fan';
     case 'member':          return m.role === 'member' && !m.is_aufgieser;
     case 'aufgieser':       return m.role === 'member' && m.is_aufgieser;
     case 'guest_aufgieser': return m.role === 'guest_aufgieser';
-    case 'gast':            return m.role === 'gast';
     case 'staff':           return m.role === 'staff';
     // cp_planer: Modifier-Flag auf Personal-Rolle
     case 'cp_planer':       return m.role === 'staff' && m.is_personal_planer === true;
@@ -327,17 +430,19 @@ function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
   }
 }
 
-// KPI-Reihenfolge in der Stats-Card (3×3-Raster, alle Modifier-Flags sichtbar)
+// KPI-Reihenfolge in der Stats-Card (4×3-Raster, alle Rollen + Modifier-Flags sichtbar).
+// Conversion-Pyramide von links oben (niedrigschwellig) nach rechts unten (hochschwellig).
 const STATS_ORDER: MembersFilter[] = [
-  'member', 'aufgieser', 'guest_aufgieser',
-  'staff', 'cp_planer', 'wm_admin',
-  'gast', 'admin', 'revoked',
+  'gast', 'fan', 'member',
+  'aufgieser', 'guest_aufgieser', 'staff',
+  'cp_planer', 'admin', 'wm_admin',
+  'revoked',
 ];
 
 // Rollen-Presets für den „Rolle wechseln"-Selector — gleiche Logik wie im Pending-Block.
 // `role` + `is_aufgieser` ergeben zusammen den Anzeige-Status (Aufgießer = member+is_aufgieser).
 type RolePreset = {
-  key: 'gast' | 'member' | 'aufgieser' | 'guest_aufgieser' | 'staff' | 'admin';
+  key: 'gast' | 'fan' | 'member' | 'aufgieser' | 'guest_aufgieser' | 'staff' | 'admin';
   label: string;
   icon: string;
   role: Member['role'];
@@ -348,13 +453,16 @@ type RolePreset = {
 
 const ROLE_PRESETS: RolePreset[] = [
   { key: 'gast',            label: 'Gast',            icon: '👋',  role: 'gast',            is_aufgieser: false,
-    hint: 'Nur Lesen/Feed, kein Planner',
+    hint: 'Sauna-Besucher, kostenlos, App-Light',
     btnClass: 'bg-sky-600/20 text-sky-100 ring-sky-500/40 hover:bg-sky-600/30' },
+  { key: 'fan',             label: 'Fan / Förderer',  icon: '🤝',  role: 'fan',             is_aufgieser: false,
+    hint: 'Zahlt Beitrag, bekommt News + Rezepte + Ausweis',
+    btnClass: 'bg-pink-500/20 text-pink-100 ring-pink-400/50 hover:bg-pink-500/30' },
   { key: 'member',          label: 'Mitglied/Helfer', icon: '✅',  role: 'member',          is_aufgieser: false,
-    hint: 'Vollmitglied ohne Aufgießer-Status',
+    hint: 'Aktiv-Mitglied (Stimmrecht, Helfer-Aufgaben)',
     btnClass: 'bg-forest-700/40 text-forest-100 ring-forest-500/40 hover:bg-forest-700/60' },
   { key: 'aufgieser',       label: 'Aufgießer',       icon: '🧖',  role: 'member',          is_aufgieser: true,
-    hint: 'Mitglied + Planner-Rechte',
+    hint: 'Saunameister — gießt aktiv Aufgüsse',
     btnClass: 'bg-amber-600/20 text-amber-100 ring-amber-500/40 hover:bg-amber-600/30' },
   { key: 'guest_aufgieser', label: 'Gast-Aufgießer',  icon: '🌍',  role: 'guest_aufgieser', is_aufgieser: false,
     hint: 'Externer Aufgießer (kein Vereinsmitglied)',
@@ -370,6 +478,7 @@ const ROLE_PRESETS: RolePreset[] = [
 // Mappt ein Member auf den passenden Preset-Key (für die Hervorhebung der aktuellen Rolle).
 function memberRolePresetKey(m: Member): RolePreset['key'] {
   if (m.role === 'gast') return 'gast';
+  if (m.role === 'fan') return 'fan';
   if (m.role === 'guest_aufgieser') return 'guest_aufgieser';
   if (m.role === 'staff') return 'staff';
   if (m.role === 'admin') return 'admin';
@@ -386,6 +495,9 @@ function MembersTab() {
   const approve = useApproveMember();
   const del = useDeleteMember();
   const me = useCurrentMember();
+  const pendingFanQ = usePendingFanUpgrades();
+  const approveFan = useApproveFan();
+  const rejectFan = useRejectFan();
   const brandQ = useBrandSettings();
   const frontBgUrl = brandAssetUrl(brandQ.data?.badge?.front_bg);
   const backBgUrl  = brandAssetUrl(brandQ.data?.badge?.back_bg);
@@ -469,6 +581,28 @@ function MembersTab() {
 
   return (
     <section className="space-y-4">
+      {/* Fan-Upgrade-Anträge: Gäste, die zu Fördernden Mitgliedern werden wollen */}
+      {(pendingFanQ.data?.length ?? 0) > 0 && (
+        <div className="rounded-2xl border-2 border-pink-500/50 bg-pink-950/20 p-4 ring-1 ring-pink-500/30 backdrop-blur">
+          <h2 className="text-base font-bold text-pink-100">🤝 Fan-Anträge ({pendingFanQ.data?.length})</h2>
+          <p className="mt-1 text-xs text-pink-200/80">
+            Diese Gäste wollen Fördernde Mitglieder werden. Setze den Beitragszeitraum (üblich: 1 Jahr) und bestätige nach Eingang der ersten Zahlung.
+          </p>
+          <ul className="mt-3 space-y-3">
+            {(pendingFanQ.data ?? []).map((r) => (
+              <FanUpgradeRequestItem
+                key={r.request_id}
+                request={r}
+                onApprove={(paid_until) => approveFan.mutateAsync({ request_id: r.request_id, paid_until })}
+                onReject={(reason) => rejectFan.mutateAsync({ request_id: r.request_id, reason })}
+                isApproving={approveFan.isPending}
+                isRejecting={rejectFan.isPending}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
       {(pendingQ.data?.length ?? 0) > 0 && (
         <div className="rounded-2xl border-2 border-amber-500/50 bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur">
           <h2 className="text-base font-bold text-amber-100">⏳ Wartet auf Freigabe ({pendingQ.data?.length})</h2>
@@ -523,6 +657,7 @@ function MembersTab() {
           <select value={newRole} onChange={(e) => setNewRole(e.target.value as Member['role'])}
             className="rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
             <option value="gast">Gast</option>
+            <option value="fan">Fan / Förderer</option>
             <option value="member">Mitglied</option>
             <option value="guest_aufgieser">Gast-Aufgießer</option>
             <option value="staff">Personal</option>
@@ -657,6 +792,11 @@ function MembersTab() {
                     {m.role === 'gast' && (
                       <span className="rounded-full bg-sky-500/20 px-2 text-[10px] font-bold text-sky-200">
                         👋 Gast{m.gast_referral_source ? ` · ${m.gast_referral_source}` : ''}
+                      </span>
+                    )}
+                    {m.role === 'fan' && (
+                      <span className="rounded-full bg-pink-500/20 px-2 text-[10px] font-bold text-pink-200">
+                        🤝 Fan{m.paid_until ? ` · bis ${new Date(m.paid_until).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}` : ''}
                       </span>
                     )}
                     {m.is_aufgieser && m.role === 'member' && (
