@@ -48,20 +48,55 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   wm:           { label: 'WM-Tipps',     icon: '🏆' },
 };
 
+// Zweistufige Gruppierung: 5 Hauptgruppen mit Sub-Tabs.
+// Reihenfolge der Sub-Tabs = visuelle Reihenfolge in der Sub-Pill-Leiste.
+type Group = 'operations' | 'members' | 'reports' | 'modules' | 'setup';
+
+const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = {
+  operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring'] },
+  members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'invitations'] },
+  reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen'] },
+  modules:    { label: 'Module',      icon: '📣', tabs: ['polls', 'tasks', 'feed', 'wm'] },
+  setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'handbook'] },
+};
+
 export default function Admin() {
   const { signOut } = useAuth();
   const me = useCurrentMember();
   const fullAdmin = isAdmin(me.data);
   const wmOnly = !fullAdmin && isWmAdmin(me.data);
-  const visibleTabs = useMemo<Tab[]>(
-    () => wmOnly ? ['wm'] : (Object.keys(TAB_META) as Tab[]),
+
+  // Zweistufige Navigation: Gruppe (oben) + Sub-Tab (darunter).
+  // WM-Only-Admin sieht ausschließlich die Module-Gruppe mit WM-Tipps als einzigem Sub-Tab.
+  const visibleGroups = useMemo<Group[]>(
+    () => wmOnly ? ['modules'] : (Object.keys(GROUP_META) as Group[]),
     [wmOnly]
   );
+  const [group, setGroup] = useState<Group>(wmOnly ? 'modules' : 'operations');
   const [tab, setTab] = useState<Tab>(wmOnly ? 'wm' : 'saunas');
+
+  // Sub-Tab-Liste der aktuellen Gruppe (für WM-Only nur 'wm')
+  const subTabs = useMemo<Tab[]>(
+    () => wmOnly ? ['wm'] : GROUP_META[group].tabs,
+    [group, wmOnly]
+  );
+
+  // Gruppen-Wechsel = automatisch ersten Sub-Tab der neuen Gruppe aktivieren.
+  // Klick auf bereits aktive Gruppe = no-op (behält aktuellen Sub-Tab, kein UX-Sprung).
+  const switchGroup = (g: Group) => {
+    if (g === group) return;
+    setGroup(g);
+    setTab(GROUP_META[g].tabs[0]);
+  };
+
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
+  const activeGroupRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     activeTabRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [tab]);
+  useEffect(() => {
+    activeGroupRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [group]);
 
   return (
     <div className="bg-schwarzwald-soft min-h-full text-slate-100">
@@ -89,21 +124,22 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Modern segmented tab bar — Scroll-Snap auf Mobile, Active-Tab auto-scrollt in den View */}
-        <div className="mx-auto max-w-6xl px-4 pb-2 -mt-1">
+        {/* Zweistufige Navigation: Gruppen-Reihe + Sub-Tab-Reihe. Beide horizontal scroll-snap auf Mobile. */}
+        <div className="mx-auto max-w-6xl px-4 pb-2 -mt-1 space-y-1.5">
+          {/* Reihe 1: Hauptgruppen (prominenter) */}
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin snap-x-tabs">
-            {visibleTabs.map((t) => {
-              const active = tab === t;
-              const meta = TAB_META[t];
+            {visibleGroups.map((g) => {
+              const active = group === g;
+              const meta = GROUP_META[g];
               return (
                 <button
-                  key={t}
-                  ref={active ? activeTabRef : undefined}
-                  onClick={() => setTab(t)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-2 min-h-[40px] text-xs sm:text-sm font-medium whitespace-nowrap transition ${
+                  key={g}
+                  ref={active ? activeGroupRef : undefined}
+                  onClick={() => switchGroup(g)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 min-h-[40px] text-xs sm:text-sm font-semibold whitespace-nowrap transition ${
                     active
                       ? 'bg-forest-500 text-forest-950 shadow-md ring-1 ring-forest-400'
-                      : 'text-forest-300 hover:bg-forest-900/60 hover:text-forest-100'
+                      : 'text-forest-300 hover:bg-forest-900/60 hover:text-forest-100 ring-1 ring-forest-800/40'
                   }`}
                 >
                   <span>{meta.icon}</span>
@@ -112,6 +148,31 @@ export default function Admin() {
               );
             })}
           </div>
+
+          {/* Reihe 2: Sub-Tabs der aktiven Gruppe (sekundär — kleinere Pills) */}
+          {subTabs.length > 1 && (
+            <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin snap-x-tabs">
+              {subTabs.map((t) => {
+                const active = tab === t;
+                const meta = TAB_META[t];
+                return (
+                  <button
+                    key={t}
+                    ref={active ? activeTabRef : undefined}
+                    onClick={() => setTab(t)}
+                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 min-h-[32px] text-[11px] sm:text-xs font-medium whitespace-nowrap transition ${
+                      active
+                        ? 'bg-forest-700/80 text-forest-100 ring-1 ring-forest-500/60'
+                        : 'text-forest-400 hover:bg-forest-900/60 hover:text-forest-200'
+                    }`}
+                  >
+                    <span>{meta.icon}</span>
+                    <span>{meta.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </header>
 
@@ -230,7 +291,9 @@ function MemberBadgesRow({ memberId }: { memberId: string }) {
   );
 }
 
-type MembersFilter = 'all' | 'member' | 'aufgieser' | 'guest_aufgieser' | 'gast' | 'staff' | 'admin' | 'revoked';
+type MembersFilter =
+  | 'all' | 'member' | 'aufgieser' | 'guest_aufgieser' | 'gast'
+  | 'staff' | 'cp_planer' | 'admin' | 'wm_admin' | 'revoked';
 
 const MEMBER_FILTER_META: Record<MembersFilter, { label: string; icon: string }> = {
   all:             { label: 'Alle',           icon: '👥' },
@@ -239,7 +302,9 @@ const MEMBER_FILTER_META: Record<MembersFilter, { label: string; icon: string }>
   guest_aufgieser: { label: 'Gast-Aufgießer', icon: '🌍' },
   gast:            { label: 'Gäste',          icon: '👋' },
   staff:           { label: 'Personal',       icon: '👨‍🍳' },
+  cp_planer:       { label: 'CP-V',           icon: '🛠️' },
   admin:           { label: 'Admins',         icon: '⚙️' },
+  wm_admin:        { label: 'WM-Admin',       icon: '🏆' },
   revoked:         { label: 'Gesperrt',       icon: '🚫' },
 };
 
@@ -253,10 +318,21 @@ function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
     case 'guest_aufgieser': return m.role === 'guest_aufgieser';
     case 'gast':            return m.role === 'gast';
     case 'staff':           return m.role === 'staff';
+    // cp_planer: Modifier-Flag auf Personal-Rolle
+    case 'cp_planer':       return m.role === 'staff' && m.is_personal_planer === true;
     case 'admin':           return m.role === 'admin';
+    // wm_admin: Modifier-Flag, kann auf jeder Rolle sitzen — daher rollen-unabhängig
+    case 'wm_admin':        return m.is_wm_admin === true;
     default: return true;
   }
 }
+
+// KPI-Reihenfolge in der Stats-Card (3×3-Raster, alle Modifier-Flags sichtbar)
+const STATS_ORDER: MembersFilter[] = [
+  'member', 'aufgieser', 'guest_aufgieser',
+  'staff', 'cp_planer', 'wm_admin',
+  'gast', 'admin', 'revoked',
+];
 
 function MembersTab() {
   const membersQ = useAllMembers();
@@ -279,6 +355,7 @@ function MembersTab() {
   const [error, setError] = useState<string | null>(null);
   const [postfachMember, setPostfachMember] = useState<Member | null>(null);
   const [filter, setFilter] = useState<MembersFilter>('all');
+  const [search, setSearch] = useState('');
 
   const allMembers = membersQ.data ?? [];
   const counts = useMemo(() => {
@@ -288,10 +365,15 @@ function MembersTab() {
     });
     return c;
   }, [allMembers]);
-  const filteredMembers = useMemo(
-    () => allMembers.filter((m) => memberMatchesFilter(m, filter)),
-    [allMembers, filter]
-  );
+  const filteredMembers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allMembers
+      .filter((m) => memberMatchesFilter(m, filter))
+      .filter((m) => {
+        if (!q) return true;
+        return m.name.toLowerCase().includes(q) || (m.email ?? '').toLowerCase().includes(q);
+      });
+  }, [allMembers, filter, search]);
 
   const emailAccountFor = (memberId: string) => accountsQ.data?.find((a) => a.member_id === memberId);
 
@@ -378,10 +460,67 @@ function MembersTab() {
         </p>
       </form>
 
+      {/* Stats-Card: Gesamtverteilung aller Rollen & Modifier-Flags. KPIs sind klickbar = setzen den Filter. */}
+      <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <div className="flex items-baseline justify-between gap-2 mb-3">
+          <h2 className="text-base font-semibold text-forest-100">
+            Rollen-Verteilung
+          </h2>
+          <span className="text-xs text-forest-400/80 tabular-nums">
+            {counts.all} aktiv · {counts.revoked} gesperrt
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {STATS_ORDER.map((f) => {
+            const meta = MEMBER_FILTER_META[f];
+            const active = filter === f;
+            const cnt = counts[f];
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 ring-1 transition text-left ${
+                  active
+                    ? 'bg-forest-500/20 ring-forest-400/60 text-forest-100'
+                    : 'bg-forest-900/60 ring-forest-800/40 text-forest-300 hover:bg-forest-800/70 hover:ring-forest-600/40'
+                }`}
+              >
+                <span className="text-lg leading-none">{meta.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-medium truncate">{meta.label}</div>
+                  <div className={`text-base font-bold tabular-nums leading-none mt-0.5 ${active ? 'text-forest-100' : 'text-forest-200'}`}>{cnt}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
         <h2 className="text-base font-semibold text-forest-100">
           Mitglieder ({allMembers.length})
         </h2>
+
+        {/* Suche: Name oder E-Mail */}
+        <div className="mt-3 relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-forest-400 pointer-events-none">🔎</span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Name oder E-Mail suchen…"
+            className="w-full rounded-lg bg-forest-900/80 pl-9 pr-9 py-2 text-sm text-forest-100 placeholder:text-forest-400/60 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-0.5 text-xs text-forest-400 hover:bg-forest-800/60 hover:text-forest-200"
+              aria-label="Suche leeren"
+            >
+              ✕
+            </button>
+          )}
+        </div>
 
         {/* Filter-Reiter */}
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -410,7 +549,11 @@ function MembersTab() {
         </div>
 
         {filteredMembers.length === 0 ? (
-          <p className="mt-6 text-center text-sm text-forest-400/70">Keine Mitglieder in dieser Kategorie.</p>
+          <p className="mt-6 text-center text-sm text-forest-400/70">
+            {search.trim()
+              ? `Keine Treffer für "${search.trim()}" in dieser Kategorie.`
+              : 'Keine Mitglieder in dieser Kategorie.'}
+          </p>
         ) : (
         <ul className="mt-3 divide-y divide-forest-800/40">
           {filteredMembers.map((m) => (
