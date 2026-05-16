@@ -334,6 +334,49 @@ const STATS_ORDER: MembersFilter[] = [
   'gast', 'admin', 'revoked',
 ];
 
+// Rollen-Presets für den „Rolle wechseln"-Selector — gleiche Logik wie im Pending-Block.
+// `role` + `is_aufgieser` ergeben zusammen den Anzeige-Status (Aufgießer = member+is_aufgieser).
+type RolePreset = {
+  key: 'gast' | 'member' | 'aufgieser' | 'guest_aufgieser' | 'staff' | 'admin';
+  label: string;
+  icon: string;
+  role: Member['role'];
+  is_aufgieser: boolean;
+  hint: string;
+  btnClass: string;
+};
+
+const ROLE_PRESETS: RolePreset[] = [
+  { key: 'gast',            label: 'Gast',            icon: '👋',  role: 'gast',            is_aufgieser: false,
+    hint: 'Nur Lesen/Feed, kein Planner',
+    btnClass: 'bg-sky-600/20 text-sky-100 ring-sky-500/40 hover:bg-sky-600/30' },
+  { key: 'member',          label: 'Mitglied/Helfer', icon: '✅',  role: 'member',          is_aufgieser: false,
+    hint: 'Vollmitglied ohne Aufgießer-Status',
+    btnClass: 'bg-forest-700/40 text-forest-100 ring-forest-500/40 hover:bg-forest-700/60' },
+  { key: 'aufgieser',       label: 'Aufgießer',       icon: '🧖',  role: 'member',          is_aufgieser: true,
+    hint: 'Mitglied + Planner-Rechte',
+    btnClass: 'bg-amber-600/20 text-amber-100 ring-amber-500/40 hover:bg-amber-600/30' },
+  { key: 'guest_aufgieser', label: 'Gast-Aufgießer',  icon: '🌍',  role: 'guest_aufgieser', is_aufgieser: false,
+    hint: 'Externer Aufgießer (kein Vereinsmitglied)',
+    btnClass: 'bg-emerald-600/20 text-emerald-100 ring-emerald-500/40 hover:bg-emerald-600/30' },
+  { key: 'staff',           label: 'Personal',        icon: '👨‍🍳', role: 'staff',           is_aufgieser: false,
+    hint: 'Sauna-Personal mit Anwesenheit + Personal-Slots',
+    btnClass: 'bg-slate-600/30 text-slate-100 ring-slate-500/40 hover:bg-slate-600/40' },
+  { key: 'admin',           label: 'Admin',           icon: '⚙️',  role: 'admin',           is_aufgieser: false,
+    hint: 'Vollzugriff auf Saunen, Mitglieder, WM, Branding',
+    btnClass: 'bg-violet-500/30 text-violet-100 ring-violet-400/50 hover:bg-violet-500/40' },
+];
+
+// Mappt ein Member auf den passenden Preset-Key (für die Hervorhebung der aktuellen Rolle).
+function memberRolePresetKey(m: Member): RolePreset['key'] {
+  if (m.role === 'gast') return 'gast';
+  if (m.role === 'guest_aufgieser') return 'guest_aufgieser';
+  if (m.role === 'staff') return 'staff';
+  if (m.role === 'admin') return 'admin';
+  if (m.role === 'member' && m.is_aufgieser) return 'aufgieser';
+  return 'member';
+}
+
 function MembersTab() {
   const membersQ = useAllMembers();
   const pendingQ = usePendingMembers();
@@ -356,6 +399,8 @@ function MembersTab() {
   const [postfachMember, setPostfachMember] = useState<Member | null>(null);
   const [filter, setFilter] = useState<MembersFilter>('all');
   const [search, setSearch] = useState('');
+  // Welches Mitglied hat den Rollen-Selector gerade aufgeklappt? (member-id oder null)
+  const [roleEditId, setRoleEditId] = useState<string | null>(null);
 
   const allMembers = membersQ.data ?? [];
   const counts = useMemo(() => {
@@ -376,6 +421,41 @@ function MembersTab() {
   }, [allMembers, filter, search]);
 
   const emailAccountFor = (memberId: string) => accountsQ.data?.find((a) => a.member_id === memberId);
+
+  // Rollen-Wechsel mit Self-Demotion-Schutz + Confirm für Admin-Übergänge.
+  // Reset is_personal_planer wenn die neue Rolle nicht 'staff' ist (CP-V braucht staff).
+  const applyRolePreset = (m: Member, preset: RolePreset) => {
+    const isSelf = m.id === me.data?.id;
+    const losingAdmin = m.role === 'admin' && preset.role !== 'admin';
+    const becomingAdmin = m.role !== 'admin' && preset.role === 'admin';
+
+    if (isSelf && losingAdmin) {
+      window.alert('Du kannst dich nicht selbst aus dem Admin entfernen.');
+      return;
+    }
+    if (becomingAdmin) {
+      const ok = window.confirm(
+        `"${m.name}" zum Admin machen?\n\nAdmins haben Vollzugriff auf Saunen, Mitglieder, WM und Branding.`
+      );
+      if (!ok) return;
+    }
+    if (losingAdmin) {
+      const ok = window.confirm(`Admin-Rechte von "${m.name}" entfernen?`);
+      if (!ok) return;
+    }
+
+    const patch: Partial<Member> & { id: string } = {
+      id: m.id,
+      role: preset.role,
+      is_aufgieser: preset.is_aufgieser,
+    };
+    // CP-V nur bei staff sinnvoll → bei Wechsel auf andere Rolle resetten
+    if (preset.role !== 'staff' && m.is_personal_planer) {
+      patch.is_personal_planer = false;
+    }
+    update.mutate(patch);
+    setRoleEditId(null);
+  };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -610,6 +690,18 @@ function MembersTab() {
                       </button>
                     );
                   })()}
+                  {/* Rolle wechseln — öffnet Preset-Panel mit allen 6 Rollen */}
+                  <button
+                    onClick={() => setRoleEditId(roleEditId === m.id ? null : m.id)}
+                    title="Rolle wechseln (Gast/Mitglied/Aufgießer/Gast-Aufgießer/Personal/Admin)"
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ${
+                      roleEditId === m.id
+                        ? 'bg-amber-500/30 text-amber-100 ring-amber-400/60'
+                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
+                    }`}
+                  >
+                    🎭 Rolle{roleEditId === m.id ? ' ▴' : ' ▾'}
+                  </button>
                   {/* Aufgieser-Toggle */}
                   <button
                     onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
@@ -715,6 +807,54 @@ function MembersTab() {
                   </button>
                 </div>
               </div>
+              {/* Rollen-Selector Panel — zeigt alle 6 Presets, aktuelle Rolle ist markiert */}
+              {roleEditId === m.id && (
+                <div className="mt-3 rounded-xl bg-forest-900/70 p-3 ring-1 ring-amber-500/30">
+                  <div className="flex items-baseline justify-between mb-2">
+                    <span className="text-[11px] uppercase tracking-wider text-amber-300/90 font-semibold">
+                      Rolle wechseln für {m.name}
+                    </span>
+                    <button
+                      onClick={() => setRoleEditId(null)}
+                      className="text-[10px] text-forest-400 hover:text-forest-200"
+                    >
+                      Schließen ✕
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {ROLE_PRESETS.map((preset) => {
+                      const isActive = memberRolePresetKey(m) === preset.key;
+                      const isSelfDemotion = m.id === me.data?.id && m.role === 'admin' && preset.role !== 'admin';
+                      return (
+                        <button
+                          key={preset.key}
+                          onClick={() => applyRolePreset(m, preset)}
+                          disabled={isActive || isSelfDemotion || update.isPending}
+                          title={isSelfDemotion ? 'Du kannst dich nicht selbst aus dem Admin entfernen' : preset.hint}
+                          className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isActive
+                              ? 'bg-forest-500/30 text-forest-50 ring-forest-400/60'
+                              : preset.btnClass
+                          }`}
+                        >
+                          <span className="text-base leading-none mt-0.5">{preset.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold flex items-center gap-1">
+                              {preset.label}
+                              {isActive && <span className="text-[9px] text-emerald-300">● aktiv</span>}
+                            </div>
+                            <div className="text-[10px] opacity-80 mt-0.5 leading-tight">{preset.hint}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-[10px] text-forest-400/80 leading-snug">
+                    Hinweis: Beim Wechsel auf eine andere Rolle als „Personal" wird die CP-V-Markierung automatisch entfernt.
+                    Aufgießer-Status, WM-Admin und CP-V kannst du auch über die Toggles oben separat verwalten.
+                  </p>
+                </div>
+              )}
               {m.is_aufgieser && <MemberCustomAttrsRow memberId={m.id} memberName={m.name} />}
               {m.is_aufgieser && <MemberBadgesRow memberId={m.id} />}
             </li>
