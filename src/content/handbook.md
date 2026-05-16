@@ -137,28 +137,42 @@ Diese Seiten kann **jeder** ohne Anmeldung aufrufen — typisch für Tablets, TV
 
 ### Zugangsmatrix — Wer kommt wohin?
 
-| Pfad | 👋 Gast | 🤝 Helfer | 🧖 Aufgießer | 🌍 Gast-Aufgießer | 👨‍🍳 Personal | 🛠️ CP-V | ⚙️ Admin |
+| Pfad | 👋 Gast | 🤝 Helfer | 🧖 Aufgießer | 🌍 G-Aufg. | 👨‍🍳 Personal | 🛠️ CP-V | ⚙️ Admin |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | `/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/gast` | ✅ | 🔁 | 🔁 | 🔁 | 🔁 | 🔁 | 👁️ |
-| `/unterstuetzer` | 🔁 | ✅ | 🔁 | 🔁 | 🔁 | 🔁 | 👁️ |
-| `/planner` | 🔁 | 🔁 | ✅ | ✅ | 🔁 | 🔁 | ✅ |
-| `/mitarbeiter` | 🔁 | 🔁 | 🔁 | 🔁 | ✅ | ✅ | 👁️ |
-| `/cp` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | 👁️ |
-| `/aufgieser` · `/aufgieser/:id` | ✅ | 🔁 | ✅ | ✅ | 🔁 | 🔁 | ✅ |
+| `/gast` | 🏠 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/unterstuetzer` | 🔁→/gast | 🏠 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/planner` | 🔁→/gast | 🔁→/unt | 🏠 | 🏠 | 🔁→/mit | 🔁→/mit | 🏠 |
+| `/mitarbeiter` | 🔁→/gast | ✅ | ✅ | ✅ | 🏠 | ✅ | ✅ |
+| `/cp` | 🔁→/ | 🔁→/ | 🔁→/ | 🔁→/ | 🔁→/mit | 🏠 | ✅ |
+| `/aufgieser` · `/aufgieser/:id` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/feed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/members` (Galerie) | 🔁 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/members` (Galerie) | 🔁→/gast | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/profile/:id` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/wm` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/postfach` | 🔁 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/postfach` | 🔁→/gast | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/hilfe` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/admin` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `/admin` (13 Tabs) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `/dev` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
-**Legende:** ✅ Vollzugriff · ❌ kein Zugang · 🔁 Weiterleitung in deinen Default-Bereich · 👁️ als Admin sichtbar (via Preview-Mode)
+**Legende:** 🏠 Default nach Login · ✅ technisch erreichbar · 🔁 Weiterleitung in deinen Default-Bereich · ❌ blockiert (NoAccess-Seite)
 
-> **Gast-Sperre — was Gäste *wirklich* nicht sehen:** nur `/planner`, `/members` (Mitglieder-Galerie) und `/postfach` werden für Gäste auf `/gast` umgeleitet. Alles andere (Aufgießer-Stars-Galerie `/aufgieser`, Einzelprofile `/profile/:id`, WM-Tipspiel `/wm`, Mini-Feed, Hilfe, TV-Tafel) ist für Gäste offen.
+> **Gast-Sperre — was Gäste *wirklich* nicht sehen:** nur `/planner`, `/members` (Mitglieder-Galerie) und `/postfach` werden für Gäste umgeleitet (`GAST_BLOCKED_PATHS` in `App.tsx`). Außerdem `/cp`, da CP-Verantwortlicher-only. Alles andere (Aufgießer-Stars-Galerie `/aufgieser`, Einzelprofile `/profile/:id`, WM-Tipspiel `/wm`, Mini-Feed, Hilfe, TV-Tafel) ist für Gäste offen.
 
 > **„Helfer" = „Unterstützer":** Im Verein nennen wir die Rolle **Helfer**, die URL heißt `/unterstuetzer`. Beide Begriffe beschreiben dasselbe: Vereinsmitglied ohne Aufgießer-Status. In der Einladungs-Maske steht der Button als **🤝 Helfer**.
+
+> **„Technisch erreichbar" vs. „im Menü sichtbar":** Die Matrix zeigt was **erreichbar** ist (kein Redirect im Code). Die **Bottom-Nav** auf dem Handy zeigt aber nur die Tabs, die zu deiner Rolle passen — du siehst also normalerweise nur deinen Default-Bereich und ein paar Standard-Tabs, kommst aber via Direkt-URL auf mehr.
+
+### Bottom-Nav pro Rolle (5 Tabs auf Mobile)
+
+| Rolle | Tab 1 | Tab 2 | Tab 3 | Tab 4 | Tab 5 |
+|---|---|---|---|---|---|
+| 👋 Gast | Bereich (/gast) | Tafel | Aufgießer | Feed | Profil |
+| 🤝 Helfer | Helfen (/unterstuetzer) | Tafel | Aufgießer | Feed | Profil |
+| 🧖 Aufg. / 🌍 G-Aufg. | Planner | Tafel | Aufgießer | Feed | Profil |
+| 👨‍🍳 Personal | Personal (/mitarbeiter) | Tafel | Aufgießer | Feed | Profil |
+| 🛠️ CP-V | CP (/cp) | Personal (/mitarbeiter) | Aufgießer | Feed | Profil |
+| ⚙️ Admin | Planner | Tafel | Feed | Admin | Profil |
 
 ### Deep-Links für Gäste
 
