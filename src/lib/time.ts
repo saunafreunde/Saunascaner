@@ -16,6 +16,9 @@ function fmtZonedDe(d: Date | string, pattern: string): string {
   return format(toZonedTime(d, TZ), pattern, { locale: de });
 }
 
+// Lang-Datum auf Deutsch: „Montag 18. Mai 2026"
+export const fmtDateLongDe = (d: Date | string) => fmtZonedDe(d, "EEEE d. MMMM yyyy");
+
 export function dayLabel(d: Date | string, now: Date = new Date()): 'heute' | 'morgen' | string {
   const local = toZonedTime(d, TZ);
   const today = toZonedTime(now, TZ);

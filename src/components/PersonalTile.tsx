@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import type { Infusion, Sauna } from '@/types/database';
-import { fmtClock, fmtDate, dayLabel } from '@/lib/time';
+import { fmtClock } from '@/lib/time';
 
 interface PersonalTileProps {
   infusion: Infusion;
@@ -15,10 +15,6 @@ interface PersonalTileProps {
  * der Personal-Aufguss ist eine Geste, kein Lückenfüller.
  */
 export function PersonalTile({ infusion, sauna, className = '', backgroundImage = null }: PersonalTileProps) {
-  const dayText = dayLabel(infusion.start_time);
-  const dateText = fmtDate(infusion.start_time);
-  const dateHeader = dayText === 'heute' ? null : `${dayText} · ${dateText}`;
-
   return (
     <motion.div
       layout
@@ -53,15 +49,6 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
           filter: 'blur(8px)',
         }}
       />
-
-      {/* Datum-Header oben rechts */}
-      {dateHeader && (
-        <div className="absolute top-1.5 right-3 z-20 rounded-md bg-forest-950/70 px-2 py-0.5 ring-1 ring-amber-500/30">
-          <span className="text-xs uppercase tracking-[0.2em] font-bold text-amber-200/90 leading-none">
-            {dateHeader}
-          </span>
-        </div>
-      )}
 
       <div className="relative z-10 flex flex-col flex-1 min-h-0 pl-2 gap-2">
         {/* Header-Zeile */}

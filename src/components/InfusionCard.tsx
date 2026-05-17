@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { differenceInMinutes } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
-import { fmtClock, dayLabel, fmtDate } from '@/lib/time';
+import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
 import BadgeChip from '@/components/BadgeChip';
@@ -40,10 +40,6 @@ export function InfusionCard({
 
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
-  // Klarer Datum-Header oben rechts (auf 85"-TV gut lesbar). Verhindert
-  // dass „14:00" implicit als „heute" missinterpretiert wird wenn der nächste
-  // Slot in Wahrheit erst übermorgen ist (Montag wird ja übersprungen).
-  const dateHeader = label === 'heute' ? null : `${label} · ${fmtDate(infusion.start_time)}`;
 
   const oils = (infusion.oils ?? []).filter(Boolean).slice(0, 3) as string[];
 
@@ -254,17 +250,6 @@ export function InfusionCard({
               )}
             </div>
           </div>
-
-          {dateHeader && (
-            <div className="absolute top-1.5 right-3 z-20 rounded-md bg-forest-950/70 px-2 py-0.5 ring-1 ring-forest-700/40">
-              <span
-                className="text-xs uppercase tracking-[0.2em] font-bold text-white/85 leading-none"
-                style={{ color: sauna.accent_color }}
-              >
-                {dateHeader}
-              </span>
-            </div>
-          )}
 
           {infusion.description && (
             <p className="relative mt-1 pl-2 text-slate-300/75 italic line-clamp-1 text-base">

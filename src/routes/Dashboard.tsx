@@ -7,7 +7,7 @@ import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { BirthdayBanner } from '@/components/BirthdayBanner';
-import { NextInfusionPill } from '@/components/NextInfusionPill';
+import { fmtDateLongDe } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useSaunas,
@@ -186,9 +186,18 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Header — leer links · Logo mittig · NextInfusionPill + Wetter rechts */}
+      {/* Header — Datum links · Logo mittig · Wetter rechts */}
       <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-8 pb-3">
-        <div className="justify-self-start" />
+        <div className="justify-self-start">
+          <div
+            className="rounded-2xl bg-white/5 backdrop-blur-xl ring-1 ring-white/10 px-5 py-3"
+            style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)' }}
+          >
+            <span className="text-2xl font-semibold text-white/95 tracking-wide">
+              {fmtDateLongDe(now)}
+            </span>
+          </div>
+        </div>
 
         <div className="justify-self-center">
           <img
@@ -202,8 +211,7 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="flex items-center gap-3 justify-self-end">
-          <NextInfusionPill now={now} infusions={infusions.data ?? []} />
+        <div className="justify-self-end">
           <WeatherWidget />
         </div>
       </header>
