@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QrScanner from 'qr-scanner';
-import { togglePresenceByCode, togglePresenceByEntryCode, usePresentMembers, useCurrentMember } from '@/lib/api';
+import { togglePresenceByCode, togglePresenceByCheckinPin, usePresentMembers, useCurrentMember } from '@/lib/api';
 import { fmtClock } from '@/lib/time';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 
@@ -94,11 +94,15 @@ export default function Scanner() {
     e.preventDefault();
     if (lockedUntil) return;
 
-    const trimmed = codeInput.trim();
-    if (!trimmed) return;
+    // Anmelde-PIN: nur Ziffern, exakt 4 Stellen
+    const trimmed = codeInput.replace(/\D/g, '').slice(0, 4);
+    if (trimmed.length !== 4) {
+      showToast({ kind: 'err', text: 'Bitte 4-stelligen Anmelde-PIN eingeben.' });
+      return;
+    }
 
     try {
-      const r = await togglePresenceByEntryCode(trimmed);
+      const r = await togglePresenceByCheckinPin(trimmed);
       playBeep();
       showToast({ kind: 'ok', text: `${r.name}: ${r.is_present ? 'eingecheckt ✅' : 'ausgecheckt 👋'}` });
       setCodeInput('');
@@ -106,6 +110,10 @@ export default function Scanner() {
       await present.refetch();
     } catch (e) {
       const msg = (e as Error).message ?? 'Fehler';
+      if (msg.includes('invalid_pin_format')) {
+        showToast({ kind: 'err', text: 'PIN muss 4 Ziffern haben.' });
+        return;
+      }
       if (msg.includes('unknown_or_revoked')) {
         const newAttempts = attempts + 1;
         if (newAttempts >= MAX_ATTEMPTS) {
@@ -115,7 +123,7 @@ export default function Scanner() {
           showToast({ kind: 'err', text: 'Zu viele Fehlversuche. Gerät für 2 Minuten gesperrt.' });
         } else {
           setAttempts(newAttempts);
-          showToast({ kind: 'err', text: `Unbekannter Code (${newAttempts}/${MAX_ATTEMPTS} Versuche).` });
+          showToast({ kind: 'err', text: `Unbekannter PIN (${newAttempts}/${MAX_ATTEMPTS} Versuche).` });
           setCodeInput('');
         }
       } else {
@@ -217,12 +225,12 @@ export default function Scanner() {
             onClick={() => { setMode('code'); setCodeInput(''); }}
             className="flex-1 rounded-3xl bg-forest-600/25 ring-2 ring-forest-500/50 flex flex-col items-center justify-center gap-4 hover:bg-forest-600/35 transition active:scale-[0.98]"
           >
-            <div className="text-7xl sm:text-8xl">🔑</div>
+            <div className="text-7xl sm:text-8xl">🔢</div>
             <div className="text-3xl sm:text-4xl font-black text-forest-100 text-center leading-tight">
-              Code<br />eingeben
+              Anmelde-PIN<br />eingeben
             </div>
             <div className="text-sm sm:text-base text-forest-300/70 text-center px-4">
-              Persönlichen Einlass-Code tippen
+              4-stelligen PIN tippen
             </div>
           </button>
         </div>
@@ -276,19 +284,25 @@ export default function Scanner() {
         <div className="flex h-screen w-screen items-center justify-center p-8">
           <div className="w-full max-w-md space-y-4">
             <div className="text-center mb-6">
-              <div className="text-5xl mb-3">🔑</div>
-              <h2 className="text-2xl font-bold text-forest-100">Einlass-Code eingeben</h2>
+              <div className="text-5xl mb-3">🔢</div>
+              <h2 className="text-2xl font-bold text-forest-100">Anmelde-PIN eingeben</h2>
+              <p className="text-xs text-forest-300/80 mt-2 leading-relaxed">
+                Dein 4-stelliger Anmelde-PIN — siehst du in deinem Bereich oben (Karte „Mein Check-in-PIN").
+              </p>
             </div>
 
             <form onSubmit={handleEntryCode} className="rounded-2xl bg-forest-950/70 p-6 ring-1 ring-forest-800/50 space-y-4">
               <input
-                type="text"
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
                 value={codeInput}
-                onChange={(e) => setCodeInput(e.target.value)}
-                placeholder="Dein persönlicher Code…"
+                onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="••••"
                 autoFocus
                 autoComplete="off"
-                className="w-full rounded-xl bg-forest-900/80 px-4 py-4 text-2xl text-center font-mono ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                className="w-full rounded-xl bg-forest-900/80 px-4 py-4 text-4xl text-center font-mono tracking-[0.5em] ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
               />
               {attempts > 0 && (
                 <p className="text-xs text-rose-300 text-center">
@@ -297,7 +311,7 @@ export default function Scanner() {
               )}
               <button
                 type="submit"
-                disabled={!codeInput.trim()}
+                disabled={codeInput.length !== 4}
                 className="w-full rounded-xl bg-forest-500 px-5 py-4 text-xl font-bold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60"
               >
                 Anmelden

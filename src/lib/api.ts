@@ -1287,6 +1287,16 @@ export async function togglePresenceByEntryCode(code: string) {
   return row as { member_id: string; name: string; is_present: boolean };
 }
 
+// Eingangs-Scanner: Anmelde-PIN ist der einheitliche 4-stellige checkin_pin
+// aus dem PIN-Pool (Migration 0051) — JEDES Mitglied hat einen, anders als
+// beim alten entry_code (selbst-gewählt, kaum genutzt).
+export async function togglePresenceByCheckinPin(pin: string) {
+  const { data, error } = await need().rpc('toggle_presence_by_checkin_pin', { p_pin: pin });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row as { member_id: string; name: string; is_present: boolean };
+}
+
 // Pre-Check ob ein Einlass-Code frei ist (Migration 0025).
 // true = frei (oder gehört mir bereits selbst — beim Re-Edit kein Konflikt).
 export async function checkEntryCodeAvailable(code: string): Promise<boolean> {
