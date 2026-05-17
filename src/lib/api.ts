@@ -112,6 +112,49 @@ export function useDeleteInfusion() {
   });
 }
 
+// ─── Kiosk-Varianten (Öl-Raum-Tablet, ohne Auth) ──────────────────────────
+// Identifiziert den Aufgießer per p_saunameister_id (vom Frontend übergeben)
+// statt per auth.uid(). Backend prüft is_present + is_aufgieser. (Migration 0070)
+
+export function useAddInfusionKiosk(saunameisterId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (i: NewInfusion) => {
+      if (!saunameisterId) throw new Error('Kein Aufgießer ausgewählt.');
+      const { data, error } = await need().rpc('create_infusion_kiosk', {
+        p_saunameister_id: saunameisterId,
+        p_sauna_id: i.sauna_id,
+        p_start_time: i.start_time,
+        p_duration_minutes: i.duration_minutes,
+        p_title: i.title,
+        p_description: i.description,
+        p_attributes: i.attributes,
+        p_oils: i.oils ?? null,
+        p_template_id: i.template_id,
+        p_team_infusion: i.team_infusion ?? false,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+  });
+}
+
+export function useDeleteInfusionKiosk(saunameisterId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!saunameisterId) throw new Error('Kein Aufgießer ausgewählt.');
+      const { error } = await need().rpc('cancel_infusion_kiosk', {
+        p_id: id,
+        p_saunameister_id: saunameisterId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+  });
+}
+
 // ─── Templates ────────────────────────────────────────────────────────────
 export type Template = {
   id: string;

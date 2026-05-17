@@ -5,7 +5,7 @@ import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationWithPhoto } from '@/lib/telegram';
 import {
-  useSaunas, useInfusions, useAddInfusion, useDeleteInfusion,
+  useSaunas, useInfusions, useAddInfusionKiosk, useDeleteInfusionKiosk,
   usePresentAufgieserPublic, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
   useMyCustomAttrs,
   isInfusionCancelLocked, INFUSION_CANCEL_LOCK_MINUTES,
@@ -13,7 +13,6 @@ import {
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID } from '@/lib/oils';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
-import { supabase } from '@/lib/supabase';
 
 // Aus vite.config.ts via `define`. Hilft beim Erkennen, ob das Tablet noch ein
 // veraltetes PWA-Bundle bedient (Hash am PIN-Screen mit dem aktuellen Deploy
@@ -99,27 +98,6 @@ function PinScreen({ onUnlock }: { onUnlock: () => void }) {
       <p className="absolute bottom-3 text-[10px] text-forest-700/60 font-mono tabular-nums select-text">
         Build {__APP_BUILD__.sha} · {new Date(__APP_BUILD__.time).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
       </p>
-    </div>
-  );
-}
-
-// ─── Tablet-Auth-Banner ───────────────────────────────────────────────────────
-// Wenn keine Auth-Session da ist, kann `create_infusion` nicht laufen
-// (RPC bricht mit "Nicht eingeloggt" ab). Zeigt Klartext-Hinweis statt
-// kryptischem Fehler beim Speichern.
-
-function TabletAuthBanner({ hasSession }: { hasSession: boolean | null }) {
-  if (hasSession !== false) return null;
-  return (
-    <div className="bg-amber-500/15 border-b-2 border-amber-500/60 px-4 py-3 text-center text-sm text-amber-100">
-      ⚠️ <strong>Tablet ist nicht angemeldet.</strong> Aufgüsse können erst gespeichert werden,
-      wenn das Tablet einmalig als Admin auf <code className="font-mono">saunascaner.vercel.app</code> eingeloggt war.
-      <a
-        href="/login"
-        className="ml-2 inline-block rounded-md bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-500 align-middle"
-      >
-        Jetzt einloggen →
-      </a>
     </div>
   );
 }
@@ -223,22 +201,8 @@ function OilRoomContent() {
   // das Tablet als anon läuft (RLS members_read_self ist nur für authenticated).
   const presentQ = usePresentAufgieserPublic();
   const evacQ = useActiveEvacuation();
-  const addInf = useAddInfusion();
-  const delInf = useDeleteInfusion();
   const trigEvac = useTriggerEvacuation();
   const endEvac = useEndEvacuation();
-
-  // Auth-Session prüfen: ohne Session bricht create_infusion intern ab.
-  // null = noch nicht geprüft (silent), true = OK, false = Banner zeigen.
-  const [hasSession, setHasSession] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!supabase) { setHasSession(false); return; }
-    supabase.auth.getSession().then(({ data }) => setHasSession(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setHasSession(!!session);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
 
   const saunas = saunasQ.data ?? [];
   const infusions = infusionsQ.data ?? [];
@@ -258,6 +222,11 @@ function OilRoomContent() {
       setSelectedMember({ id: presentAufgieser[0].id, name: presentAufgieser[0].name });
     }
   }, [presentAufgieser, selectedMember]);
+
+  // Kiosk-Hooks: identifizieren den Aufgießer per selectedMember.id, kein
+  // auth.uid() nötig — Tablet läuft bewusst anonym. (Migration 0070)
+  const addInf = useAddInfusionKiosk(selectedMember?.id ?? null);
+  const delInf = useDeleteInfusionKiosk(selectedMember?.id ?? null);
 
   // Custom attrs für den ausgewählten Aufgieser
   const customAttrsQ = useMyCustomAttrs(selectedMember?.id);
@@ -445,7 +414,6 @@ function OilRoomContent() {
   if (!selectedMember) {
     return (
       <div className="bg-schwarzwald-soft min-h-screen text-slate-100 flex flex-col">
-        <TabletAuthBanner hasSession={hasSession} />
         <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-4 text-center">
           <h1 className="text-xl font-bold text-forest-100">Öl-Raum · Aufguss planen</h1>
           <p className="text-xs text-forest-300/70 mt-0.5">Bitte auswählen, wer du bist</p>
@@ -543,7 +511,6 @@ function OilRoomContent() {
       {showOilPicker && (
         <OilPicker selected={oils} onChange={setOils} onClose={() => setShowOilPicker(false)} />
       )}
-      <TabletAuthBanner hasSession={hasSession} />
       <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-3 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-forest-100">Öl-Raum · Aufguss planen</h1>
@@ -732,10 +699,9 @@ function OilRoomContent() {
               {error && <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{error}</div>}
               {success && <div className="rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-200 ring-1 ring-emerald-500/30">✅ Aufguss eingetragen!</div>}
 
-              <button type="submit" disabled={addInf.isPending || hasSession === false}
-                title={hasSession === false ? 'Tablet nicht angemeldet — siehe Warnbanner oben' : undefined}
-                className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60 disabled:cursor-not-allowed">
-                {addInf.isPending ? 'Speichere…' : hasSession === false ? '🔒 Tablet nicht angemeldet' : 'Aufguss eintragen'}
+              <button type="submit" disabled={addInf.isPending}
+                className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60">
+                {addInf.isPending ? 'Speichere…' : 'Aufguss eintragen'}
               </button>
             </>
           )}
