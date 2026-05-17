@@ -14,6 +14,15 @@ export function useRealtimeSync() {
         () => qc.invalidateQueries({ queryKey: ['saunas'] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'infusions' },
         () => qc.invalidateQueries({ queryKey: ['infusions'] }))
+      // members: is_present-Toggle (Self-Check-in, Scanner-Check-in) muss live
+      // bei allen anderen Geräten ankommen — sonst sieht der User sich nicht
+      // in der Anwesenheitsliste obwohl er auf dem Handy eingecheckt ist.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['present'] });
+          qc.invalidateQueries({ queryKey: ['members'] });
+          qc.invalidateQueries({ queryKey: ['current-member'] });
+        })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_config' },
         () => qc.invalidateQueries({ queryKey: ['tv-settings'] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evacuation_events' },

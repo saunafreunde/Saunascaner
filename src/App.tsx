@@ -2,10 +2,11 @@ import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember } from '@/lib/api';
+import { useCurrentMember, useActiveEvacuation } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows
 const NO_BOTTOM_NAV_PATHS = [
@@ -62,6 +63,7 @@ export default function App() {
   useApplyStoredTheme();
   return (
     <Suspense fallback={<Splash />}>
+      <GlobalEvacuationOverlay />
       <div className="pb-[calc(env(safe-area-inset-bottom)+72px)] lg:pb-0 min-h-full">
         <Routes>
           <Route path="/" element={<RootEntry />} />
@@ -194,6 +196,22 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     return <Navigate to={member.data?.role === 'staff' ? '/mitarbeiter' : '/'} replace />;
   }
   return <>{children}</>;
+}
+
+// Globaler Evakuierungs-Overlay: aktiv auf JEDER Route außer /dashboard
+// (Dashboard hat seinen eigenen Audio-aware Overlay).
+// Triggert sobald useActiveEvacuation einen Eintrag liefert (Realtime via
+// useRealtimeSync → evacuation_events-Subscription). Der Overlay legt sich
+// als Fullscreen z-9999 über ALLES — egal welcher User eingeloggt ist
+// (auch nicht-eingeloggte Gäste auf öffentlichen Routen sehen den Alarm).
+function GlobalEvacuationOverlay() {
+  const evac = useActiveEvacuation();
+  const loc = useLocation();
+  // Dashboard rendert seinen eigenen Overlay (mit Audio-Unlock-Logik) — nicht
+  // doppelt zeigen, sonst gibt es zwei Sirenen.
+  if (loc.pathname.startsWith('/dashboard')) return null;
+  if (!evac.data) return null;
+  return <EvacuationOverlay triggeredBy={null} withSiren />;
 }
 
 function RequireAdmin({ children }: { children: React.ReactNode }) {
