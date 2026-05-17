@@ -17,11 +17,12 @@ export function GameHub() {
   const me = useCurrentMember();
   const myId = me.data?.id ?? null;
   const activeQ = useActiveMatchesForMe();
-  const open = useOpenMatches();
+  const openQ = useOpenMatches();
   const join = useJoinOpenMatch();
   const [tab, setTab] = useState<HubTab>('play');
 
   const active = activeQ.data ?? [];
+  const open = openQ.data ?? [];
   const yourTurnCount = active.filter((m) => m.my_turn).length;
 
   return (
