@@ -8,9 +8,10 @@ type LastEffect = { kind: string; triggered_at: string; nonce: string };
 //
 // Stale-Filter: ignoriert Effekte deren triggered_at älter als
 // STALE_THRESHOLD_MS ist. Verhindert „Effekt-Nachholen" nach Tafel-Reload
-// oder Tab-Wechsel. Eng gehalten, weil Realtime-Latency typischerweise < 2s.
+// oder Tab-Wechsel — aber großzügig genug, um Realtime-Reconnects
+// (Supabase parkt inaktive Tenants) zu verzeihen: 60s.
 
-const STALE_THRESHOLD_MS = 5_000;
+const STALE_THRESHOLD_MS = 60_000;
 
 export function EffectPlayer({ effect }: { effect: LastEffect }) {
   const entry = EFFECT_REGISTRY[effect.kind];

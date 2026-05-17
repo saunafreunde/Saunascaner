@@ -25,10 +25,11 @@ export function useTvStageState() {
       return (data ?? { manual_scenes: [], suppress_auto_season: false, last_effect: null }) as TvStageState;
     },
     // Realtime-Invalidation ist der primäre Update-Pfad; refetchInterval als
-    // Fallback falls die Subscription hängt. staleTime=0 sorgt dafür dass
-    // jede Invalidation sofort einen Re-Fetch triggert.
+    // Fallback falls die Subscription hängt (Supabase parkt inaktive Tenants
+    // alle paar Minuten — Reconnect dauert ein paar Sekunden, in denen
+    // Events verloren gehen können). 3s Polling fängt das ab.
     staleTime: 0,
-    refetchInterval: 30_000,
+    refetchInterval: 3_000,
   });
 }
 
