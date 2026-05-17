@@ -70,8 +70,23 @@ export function useAddInfusion() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (i: NewInfusion) => {
-      const { error } = await need().from('infusions').insert(i);
+      // Nutzt SECURITY-DEFINER-RPC statt direktem INSERT — klare deutsche Fehler
+      // bei Permission-Problemen statt generischem RLS-Error. (Migration 0069)
+      const { data, error } = await need().rpc('create_infusion', {
+        p_sauna_id: i.sauna_id,
+        p_start_time: i.start_time,
+        p_duration_minutes: i.duration_minutes,
+        p_title: i.title,
+        p_description: i.description,
+        p_attributes: i.attributes,
+        p_oils: i.oils ?? null,
+        p_saunameister_id: i.saunameister_id,
+        p_template_id: i.template_id,
+        p_team_infusion: i.team_infusion ?? false,
+        p_is_personal_fallback: false,
+      });
       if (error) throw error;
+      return data as string;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
   });
