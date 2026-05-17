@@ -160,6 +160,61 @@ export default function Scanner() {
 
   useEffect(() => () => stopCamera(), []);
 
+  // ─── Fullscreen-Lock für Scanner ──────────────────────────────────────────
+  // Der Scanner ist ein Tablet-/Kiosk-Workflow: Browser-Chrome stört.
+  // Wir versuchen den Vollbild-Modus zu erzwingen, sobald der User irgendwo
+  // tippt (Browser blockieren requestFullscreen ohne User-Gesture).
+  // Beim Verlassen der Route oder Escape-Taste wird sauber aufgeräumt.
+  const [isFullscreen, setIsFullscreen] = useState(
+    typeof document !== 'undefined' && !!document.fullscreenElement
+  );
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  // Auto-Trigger bei JEDER User-Geste (Click oder Touch) → wird beim ersten
+  // Tap auf der Seite scharf, Browser akzeptiert das als gültige User-Gesture.
+  useEffect(() => {
+    const tryEnter = () => {
+      if (document.fullscreenElement) return;
+      const el = document.documentElement;
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => { /* User blocked, button bleibt sichtbar */ });
+      }
+    };
+    // Erst-Trigger: opportunistisch (klappt nur wenn vorhergehende Geste noch im Browser-Buffer)
+    tryEnter();
+    // Auf JEDE User-Interaktion erneut versuchen — solange bis Fullscreen aktiv ist
+    const handler = () => {
+      tryEnter();
+    };
+    document.addEventListener('click', handler, { capture: true });
+    document.addEventListener('touchend', handler, { capture: true });
+    return () => {
+      document.removeEventListener('click', handler, { capture: true });
+      document.removeEventListener('touchend', handler, { capture: true });
+    };
+  }, []);
+
+  // Beim Verlassen der Scanner-Route: Vollbild beenden (Cleanup)
+  useEffect(() => {
+    return () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => { /* ignore */ });
+      }
+    };
+  }, []);
+
+  const enterFullscreen = () => {
+    const el = document.documentElement;
+    if (el.requestFullscreen && !document.fullscreenElement) {
+      el.requestFullscreen().catch(() => { /* ignore */ });
+    }
+  };
+
   const isLocked = lockedUntil !== null && now < lockedUntil;
   const remainingMs = lockedUntil ? Math.max(0, lockedUntil - now) : 0;
 
@@ -169,6 +224,18 @@ export default function Scanner() {
 
   return (
     <div className="bg-schwarzwald-soft min-h-screen text-slate-100 flex flex-col">
+
+      {/* Vollbild-Fallback: nur sichtbar wenn nicht im Vollbild (z.B. weil Browser
+          requestFullscreen blockiert hat). Verschwindet sobald der User reinkommt. */}
+      {!isFullscreen && (
+        <button
+          onClick={enterFullscreen}
+          className="fixed top-3 right-3 z-50 rounded-xl bg-amber-500/30 ring-1 ring-amber-400/60 px-3 py-2 text-xs font-semibold text-amber-100 backdrop-blur hover:bg-amber-500/40"
+          title="Browser-Chrome ausblenden (volle Bildschirmfläche)"
+        >
+          📺 Vollbild
+        </button>
+      )}
 
       {/* Gesperrt-Overlay */}
       {isLocked && (
