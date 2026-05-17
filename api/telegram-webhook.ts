@@ -59,6 +59,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sb = createClient(supaUrl, serviceKey);
 
+  // GET ?diag=1 → Telegram-Webhook-Diagnose (Bot-Info + Webhook-Status + letzte Fehler)
+  // Aufruf direkt im Browser: /api/telegram-webhook?diag=1
+  // Liefert:
+  //   - getMe: Bot-Username + ID (Token-Validität)
+  //   - getWebhookInfo: aktuell registrierte URL + pending_update_count +
+  //     last_error_date + last_error_message + max_connections
+  // Wenn last_error_message gesetzt ist oder url leer → Webhook ist defekt.
+  if (req.method === 'GET' && req.query.diag === '1') {
+    const [meRes, whRes] = await Promise.all([
+      fetch(`${TG_API(token)}/getMe`).then((r) => r.json()).catch((e) => ({ error: String(e) })),
+      fetch(`${TG_API(token)}/getWebhookInfo`).then((r) => r.json()).catch((e) => ({ error: String(e) })),
+    ]);
+    return res.status(200).json({
+      bot: meRes,
+      webhook: whRes,
+      expected_url: `${process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app'}/api/telegram-webhook`,
+      hint: 'Wenn webhook.result.url leer oder ungleich expected_url → /api/telegram-webhook?reregister=1 aufrufen.',
+    });
+  }
+
+  // GET ?reregister=1 → Webhook bei Telegram (neu) registrieren
+  // Liest TELEGRAM_WEBHOOK_SECRET aus Env und hängt es als ?secret=... an
+  // damit nur Telegram die URL hitten kann (sonst kann jeder die URL fluten).
+  if (req.method === 'GET' && req.query.reregister === '1') {
+    const baseUrl = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    const url = webhookSecret
+      ? `${baseUrl}/api/telegram-webhook?secret=${encodeURIComponent(webhookSecret)}`
+      : `${baseUrl}/api/telegram-webhook`;
+    const setRes = await fetch(`${TG_API(token)}/setWebhook`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        allowed_updates: ['message', 'callback_query'],
+        drop_pending_updates: false,
+      }),
+    }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+    const whInfo = await fetch(`${TG_API(token)}/getWebhookInfo`).then((r) => r.json()).catch(() => ({}));
+    return res.status(200).json({ set: setRes, webhook_now: whInfo, registered_url: url });
+  }
+
   // GET ?announce=1 → Cron-Hook (Personal-Fallback-Announce)
   if (req.method === 'GET' && req.query.announce === '1') {
     const cronSecret = process.env.CRON_SECRET;
