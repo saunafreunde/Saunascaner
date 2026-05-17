@@ -42,6 +42,10 @@ export const SCENE_REGISTRY: Record<string, SceneMeta> = {
   'fog':         { id: 'fog',         label: 'Nebel',              emoji: '🌫️', defaultSeason: null,                   component: lazy(() => import('./FogScene')) },
   'night':       { id: 'night',       label: 'Nacht-Modus',        emoji: '🌙',  defaultSeason: null,                   component: lazy(() => import('./NightScene')) },
 
+  // ── Demo / Präsentation ──
+  // Riesiger QR-Code für Mitglieder-Tour. Nur on-demand aktivieren.
+  'welcome-qr': { id: 'welcome-qr', label: 'Willkommens-QR (Tour)', emoji: '📢', defaultSeason: null, component: lazy(() => import('./WelcomeTourQrScene')) },
+
   // ── Toggle-Wrapper für bestehende Schwarzwald-Komponenten ──
   // Default off; im Theme „Wald lebt" zusammen aktiviert.
   'schwarzwald-heim': { id: 'schwarzwald-heim', label: 'Schwarzwald-Heim', emoji: '🏡', defaultSeason: null, component: lazy(() => import('./SchwarzwaldHomeScene')) },

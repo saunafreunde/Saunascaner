@@ -8,11 +8,12 @@ import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 
-// Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows
+// Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows + Welcome-Tour
 const NO_BOTTOM_NAV_PATHS = [
   '/dashboard', '/scanner', '/oil-room',
   '/checkin', '/checkin/signup', '/checkin/rate',
   '/gast-signup', '/login', '/forgot', '/reset-password',
+  '/tour',
   '/m/',
 ];
 
@@ -58,6 +59,7 @@ const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
 const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 const Feed            = lazy(() => import('@/routes/Feed'));
 const Bewerten        = lazy(() => import('@/routes/Bewerten'));
+const Tour            = lazy(() => import('@/routes/Tour'));
 
 export default function App() {
   useRealtimeSync();
@@ -87,6 +89,7 @@ export default function App() {
         <Route path="/aufgieser/:memberId"   element={<RequireAuth><StarProfile /></RequireAuth>} />
         <Route path="/feed"                  element={<RequireAuth><Feed /></RequireAuth>} />
         <Route path="/bewerten"              element={<RequireAuth><Bewerten /></RequireAuth>} />
+        <Route path="/tour"                  element={<Tour />} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
