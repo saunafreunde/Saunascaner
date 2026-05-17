@@ -3,7 +3,17 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'node:path';
 
+// Build-Identifier für Debug-Anzeige im UI (Ölraum-Kiosk).
+// Hilft, einen veralteten PWA-Cache von einem aktuellen Bundle zu unterscheiden.
+const __APP_BUILD__ = {
+  sha: (process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev').slice(0, 7),
+  time: new Date().toISOString(),
+};
+
 export default defineConfig({
+  define: {
+    __APP_BUILD__: JSON.stringify(__APP_BUILD__),
+  },
   plugins: [
     react(),
     VitePWA({

@@ -13,6 +13,12 @@ import {
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID } from '@/lib/oils';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
+import { supabase } from '@/lib/supabase';
+
+// Aus vite.config.ts via `define`. Hilft beim Erkennen, ob das Tablet noch ein
+// veraltetes PWA-Bundle bedient (Hash am PIN-Screen mit dem aktuellen Deploy
+// abgleichen).
+declare const __APP_BUILD__: { sha: string; time: string };
 
 // ─── PIN-Sperre ───────────────────────────────────────────────────────────────
 
@@ -89,6 +95,31 @@ function PinScreen({ onUnlock }: { onUnlock: () => void }) {
           ⌫
         </button>
       </div>
+
+      <p className="absolute bottom-3 text-[10px] text-forest-700/60 font-mono tabular-nums select-text">
+        Build {__APP_BUILD__.sha} · {new Date(__APP_BUILD__.time).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+      </p>
+    </div>
+  );
+}
+
+// ─── Tablet-Auth-Banner ───────────────────────────────────────────────────────
+// Wenn keine Auth-Session da ist, kann `create_infusion` nicht laufen
+// (RPC bricht mit "Nicht eingeloggt" ab). Zeigt Klartext-Hinweis statt
+// kryptischem Fehler beim Speichern.
+
+function TabletAuthBanner({ hasSession }: { hasSession: boolean | null }) {
+  if (hasSession !== false) return null;
+  return (
+    <div className="bg-amber-500/15 border-b-2 border-amber-500/60 px-4 py-3 text-center text-sm text-amber-100">
+      ⚠️ <strong>Tablet ist nicht angemeldet.</strong> Aufgüsse können erst gespeichert werden,
+      wenn das Tablet einmalig als Admin auf <code className="font-mono">saunascaner.vercel.app</code> eingeloggt war.
+      <a
+        href="/login"
+        className="ml-2 inline-block rounded-md bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-500 align-middle"
+      >
+        Jetzt einloggen →
+      </a>
     </div>
   );
 }
@@ -135,6 +166,15 @@ const DURATIONS = [10, 15, 20, 25, 30] as const;
 export default function OilRoom() {
   // Tablet-Vollbild: ab PIN-Screen schon aktiv, bleibt durch beide Subroutes
   const { isFullscreen, enterFullscreen } = useFullscreenLock();
+
+  // SW-Update bei jedem /oil-room-Mount triggern. registerType:'autoUpdate'
+  // (vite.config.ts) wartet sonst auf den nächsten Navigations-Roundtrip,
+  // was bei einem Tablet, das nie wirklich navigiert, ewig dauert.
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then((r) => r?.update()).catch(() => {});
+    }
+  }, []);
 
   // ─── PIN / Inaktivitäts-Sperre ─────────────────────────────────────────────
   const [locked, setLocked] = useState(true);
@@ -187,6 +227,18 @@ function OilRoomContent() {
   const delInf = useDeleteInfusion();
   const trigEvac = useTriggerEvacuation();
   const endEvac = useEndEvacuation();
+
+  // Auth-Session prüfen: ohne Session bricht create_infusion intern ab.
+  // null = noch nicht geprüft (silent), true = OK, false = Banner zeigen.
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!supabase) { setHasSession(false); return; }
+    supabase.auth.getSession().then(({ data }) => setHasSession(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setHasSession(!!session);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const saunas = saunasQ.data ?? [];
   const infusions = infusionsQ.data ?? [];
@@ -393,6 +445,7 @@ function OilRoomContent() {
   if (!selectedMember) {
     return (
       <div className="bg-schwarzwald-soft min-h-screen text-slate-100 flex flex-col">
+        <TabletAuthBanner hasSession={hasSession} />
         <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-4 text-center">
           <h1 className="text-xl font-bold text-forest-100">Öl-Raum · Aufguss planen</h1>
           <p className="text-xs text-forest-300/70 mt-0.5">Bitte auswählen, wer du bist</p>
@@ -490,6 +543,7 @@ function OilRoomContent() {
       {showOilPicker && (
         <OilPicker selected={oils} onChange={setOils} onClose={() => setShowOilPicker(false)} />
       )}
+      <TabletAuthBanner hasSession={hasSession} />
       <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-3 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-forest-100">Öl-Raum · Aufguss planen</h1>
@@ -678,9 +732,10 @@ function OilRoomContent() {
               {error && <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{error}</div>}
               {success && <div className="rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-200 ring-1 ring-emerald-500/30">✅ Aufguss eingetragen!</div>}
 
-              <button type="submit" disabled={addInf.isPending}
-                className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60">
-                {addInf.isPending ? 'Speichere…' : 'Aufguss eintragen'}
+              <button type="submit" disabled={addInf.isPending || hasSession === false}
+                title={hasSession === false ? 'Tablet nicht angemeldet — siehe Warnbanner oben' : undefined}
+                className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                {addInf.isPending ? 'Speichere…' : hasSession === false ? '🔒 Tablet nicht angemeldet' : 'Aufguss eintragen'}
               </button>
             </>
           )}
