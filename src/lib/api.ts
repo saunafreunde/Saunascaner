@@ -3,10 +3,68 @@ import { supabase } from './supabase';
 import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence, MemberRole, Invitation } from '@/types/database';
 import type { InfusionAttribute } from './attributes';
 import { type BrandSettings, mergeBrandDefaults, defaultBrandSettings } from '@/types/branding';
+import type { TvStageState } from './season';
 
 function need() {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
   return supabase;
+}
+
+// ─── TV-Bühne (Migration 0071) ────────────────────────────────────────────
+
+export function useTvStageState() {
+  return useQuery({
+    queryKey: ['tv-stage-state'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('tv_stage_state')
+        .select('manual_scenes, suppress_auto_season, last_effect')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? { manual_scenes: [], suppress_auto_season: false, last_effect: null }) as TvStageState;
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useSetStageManualScenes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { scenes: string[]; suppress_auto: boolean }) => {
+      const { error } = await need().rpc('set_stage_manual_scenes', {
+        p_scenes: p.scenes,
+        p_suppress_auto: p.suppress_auto,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tv-stage-state'] }),
+  });
+}
+
+export function useToggleStageScene() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { sceneId: string; active: boolean }) => {
+      const { error } = await need().rpc('set_stage_scene_toggle', {
+        p_scene_id: p.sceneId,
+        p_active: p.active,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tv-stage-state'] }),
+  });
+}
+
+export function useTriggerStageEffect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (kind: string) => {
+      const { error } = await need().rpc('trigger_stage_effect', { p_kind: kind });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tv-stage-state'] }),
+  });
 }
 
 // ─── Saunas ───────────────────────────────────────────────────────────────

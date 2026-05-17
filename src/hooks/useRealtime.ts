@@ -55,6 +55,9 @@ export function useRealtimeSync() {
           qc.invalidateQueries({ queryKey: ['support-tasks'] });
           qc.invalidateQueries({ queryKey: ['support-task-helpers'] });
         })
+      // TV-Bühne (Migration 0071): Admin steuert vom Handy, Tafel reagiert live
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tv_stage_state' },
+        () => qc.invalidateQueries({ queryKey: ['tv-stage-state'] }))
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);
