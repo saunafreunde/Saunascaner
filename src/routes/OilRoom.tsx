@@ -396,13 +396,37 @@ function OilRoomContent() {
 
         <div className="flex-1 flex flex-col items-center justify-center p-6">
           {presentAufgieser.length === 0 ? (
-            <div className="text-center space-y-3">
+            <div className="text-center space-y-4">
               <div className="text-4xl">😔</div>
               <p className="text-forest-300/70 text-base">Kein Aufgieser aktuell eingecheckt.</p>
               <p className="text-forest-300/50 text-sm">Bitte erst am Eingang einchecken.</p>
+              {/* Manueller Refresh — falls Realtime-Sub am Tablet nicht ankommt */}
+              <button
+                onClick={() => presentQ.refetch()}
+                disabled={presentQ.isFetching}
+                className="mt-4 rounded-xl bg-forest-600/30 px-6 py-3 text-base font-semibold text-forest-100 ring-1 ring-forest-500/40 hover:bg-forest-600/50 disabled:opacity-50 active:scale-95"
+              >
+                {presentQ.isFetching ? '⟳ Lade…' : '🔄 Aktualisieren'}
+              </button>
+              <p className="text-[10px] text-forest-400/60">
+                Automatische Aktualisierung alle 15 Sekunden
+              </p>
             </div>
           ) : (
             <div className="w-full max-w-md space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-forest-400">
+                  {presentAufgieser.length} Aufgießer eingecheckt
+                </span>
+                <button
+                  onClick={() => presentQ.refetch()}
+                  disabled={presentQ.isFetching}
+                  className="rounded-lg bg-forest-900/60 px-3 py-1.5 text-xs text-forest-300 ring-1 ring-forest-700/40 hover:bg-forest-800 disabled:opacity-50"
+                  title="Anwesenheit neu laden"
+                >
+                  {presentQ.isFetching ? '⟳' : '🔄'} Aktualisieren
+                </button>
+              </div>
               {presentAufgieser.map((p) => (
                 <button
                   key={p.id}

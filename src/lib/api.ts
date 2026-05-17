@@ -1251,6 +1251,10 @@ export function usePresentMembers() {
       if (error) throw error;
       return data as { id: string; name: string; last_scan_at: string | null; is_aufgieser: boolean; avatar_path: string | null }[];
     },
+    // Background-Polling als Fallback, falls Realtime-Sub am Tablet nicht ankommt
+    // (Background-Tab, Wifi-Wechsel, anonymous-User-Subscription-Issue):
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1423,6 +1427,12 @@ export function useActiveEvacuation() {
       if (error) throw error;
       return (data ?? null) as EvacuationEvent | null;
     },
+    // KRITISCH: Notfall-Alarm darf NICHT hängen bleiben wenn er auf einem anderen
+    // Gerät beendet wird. Realtime-Sub auf evacuation_events ist primär — aber
+    // 5s-Polling als Fallback garantiert dass spätestens nach 5s der Overlay
+    // verschwindet (Background-Tab, Wifi-Wechsel, Realtime-Reconnect-Probleme).
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
 }
 
