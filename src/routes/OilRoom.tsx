@@ -12,6 +12,7 @@ import {
 } from '@/lib/api';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID } from '@/lib/oils';
+import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 
 // ─── PIN-Sperre ───────────────────────────────────────────────────────────────
 
@@ -132,6 +133,9 @@ const DURATIONS = [10, 15, 20, 25, 30] as const;
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function OilRoom() {
+  // Tablet-Vollbild: ab PIN-Screen schon aktiv, bleibt durch beide Subroutes
+  const { isFullscreen, enterFullscreen } = useFullscreenLock();
+
   // ─── PIN / Inaktivitäts-Sperre ─────────────────────────────────────────────
   const [locked, setLocked] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -154,9 +158,20 @@ export default function OilRoom() {
     };
   }, [locked]);
 
-  if (locked) return <PinScreen onUnlock={() => setLocked(false)} />;
+  // Fallback-Button: nur sichtbar wenn Vollbild noch nicht aktiv ist
+  const FullscreenFallback = !isFullscreen ? (
+    <button
+      onClick={enterFullscreen}
+      className="fixed top-3 right-3 z-50 rounded-xl bg-amber-500/30 ring-1 ring-amber-400/60 px-3 py-2 text-xs font-semibold text-amber-100 backdrop-blur hover:bg-amber-500/40"
+      title="Browser-Chrome ausblenden (volle Bildschirmfläche)"
+    >
+      📺 Vollbild
+    </button>
+  ) : null;
 
-  return <OilRoomContent />;
+  if (locked) return <>{FullscreenFallback}<PinScreen onUnlock={() => setLocked(false)} /></>;
+
+  return <>{FullscreenFallback}<OilRoomContent /></>;
 }
 
 // ─── OilRoom-Inhalt (nach PIN-Entsperrung) ────────────────────────────────────
