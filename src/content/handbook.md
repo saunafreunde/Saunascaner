@@ -36,7 +36,7 @@ Klicke auf einen Direkt-Link, um direkt zur Funktion in der App zu springen.
 
 ### Admin-Funktionen (Direkt-Sprung pro Tab)
 
-Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 15 Tabs. Du springst direkt rein mit:
+Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 16 Tabs. Du springst direkt rein mit:
 
 **🔥 Operations**
 - [Saunen aktivieren/deaktivieren](/admin#saunas)
@@ -59,6 +59,7 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 15 Tabs. Du springst direkt rei
 - [📋 Abfragen erstellen](/admin#polls)
 - [🤝 Helfer-Aufgaben verwalten](/admin#tasks)
 - [🏆 WM-Spielplan + Ergebnisse](/admin#wm)
+- [🎭 **Bühne** — TV-Tafel steuern (Themes, Effekte, Welcome-QR)](/admin#stage) ⭐ neu
 
 **🎨 Setup**
 - [🎨 Branding (Logo, Farben, org_name)](/admin#branding)
@@ -68,10 +69,11 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 15 Tabs. Du springst direkt rei
 
 | Gerät | Was es ist | Direkt-Sprung |
 |---|---|---|
-| 📺 TV in der Sauna | Aufguss-Tafel-Vollbild | [/dashboard](/dashboard) |
+| 📺 TV in der Sauna | Aufguss-Tafel-Vollbild mit Bühne (Themes + Effekte) | [/dashboard](/dashboard) |
 | 📱 Eingangs-Scanner | QR-Code-Check-in | [/scanner](/scanner) |
 | 📱 Sauna-Tablet | PIN-Login + Aufguss anlegen + Notfall-Alarm | [/checkin](/checkin) |
-| 📱 Öl-Raum-Tablet | Aufgießer-Tools (PIN 1234) | [/oil-room](/oil-room) |
+| 📱 Öl-Raum-Tablet | Aufgießer-Tools — läuft anonym, Long-Press zum Entsperren | [/oil-room](/oil-room) |
+| 🎉 Welcome-Tour | Für Mitglieder-Präsentationen (8 Scroll-Sektionen, mit QR-Code-Overlay auf der Tafel) | [/tour](/tour) ⭐ neu |
 
 ---
 
@@ -920,7 +922,7 @@ Push geht **automatisch** an alle berechtigten Member (DB-Trigger).
 └────────────────────────────────────────────────────────────┘
 ```
 
-### Die 15 Admin-Tabs unter `/admin` — Übersicht
+### Die 16 Admin-Tabs unter `/admin` — Übersicht
 
 | Tab | Direkt-Sprung | Was du tust |
 |---|---|---|
@@ -938,6 +940,7 @@ Push geht **automatisch** an alle berechtigten Member (DB-Trigger).
 | 📋 Abfragen | [/admin#polls](/admin#polls) | Umfragen erstellen + Ergebnisse |
 | 🤝 Aufgaben | [/admin#tasks](/admin#tasks) | Helfer-Aufgaben anlegen, Zusagen freigeben |
 | 🏆 WM-Tipps | [/admin#wm](/admin#wm) | WM-Tipspiel administrieren |
+| 🎭 **Bühne** ⭐ neu | [/admin#stage](/admin#stage) | TV-Tafel-Bühne steuern: Saisonale Layer, Themes, One-Shot-Effekte |
 | 🎨 Branding | [/admin#branding](/admin#branding) | Logo, Farben, Vereinsname, Custom-Texte |
 | 📖 Handbuch | [/admin#handbook](/admin#handbook) | Handbuch-Editor + Broadcast |
 
@@ -1208,13 +1211,70 @@ QR-Code im Raum zeigt direkt auf diese Seite. Schnellanmeldung für Gäste in <3
 
 Solange in der „dran"-Sauna noch Personal-Fallback-Slots übrig sind, ist Planung in der Zweit-Sauna gesperrt. Sobald alle Garantie-Slots übernommen oder vorbei sind, öffnet sich die zweite Sauna automatisch.
 
-### Schwarzwald-Bühne
+### 🎭 Bühne — Saisonale Layer + Live-Effekte (Admin steuert)
 
-Im unteren Drittel läuft eine durchgehende Pure-CSS-Animation: Holzfäller, Spielplatz, Sauna-Hütte, Reh, Segelflieger, ferner Berg, Horizont-Dunst — Tiefenebenen für atmosphärische Wirkung. Komplett ohne JS-Timer.
+Die TV-Tafel ist eine Bühne mit drei Schichten, gesteuert vom Admin im Tab **🎭 Bühne**:
+
+**1. Saison-Auto-Layer** — automatisch nach Datum aktiviert:
+- 🎄 Weihnachten (1.-26. Dezember): Schnee + Lichterkette + Geschenke + Tannenbaum
+- ✨ Silvester (27.12.-6.1.): Schnee + Funken
+- 🎃 Halloween (letzte Oktober-Woche): Kürbisse + Geister + Fledermäuse + Spinnen
+- 🐰 Ostern (Karwoche): Ostereier + Osterhase
+- 🌸 Frühling (März-Mai): Kirschblüten + Schmetterlinge
+- ☀️ Sommer (Juni-August): Sonnenschirme + Libellen
+- 🍂 Herbst (Sep-Nov): fallende Blätter
+- ❄️ Winter (Dez-Feb): Schnee
+
+**2. Manuell zuschaltbare Layer** — Admin kann jederzeit per Checkbox ein-/ausschalten:
+- Atmosphäre: 🌧️ Regen · 🌫️ Nebel · 🌙 Nacht-Modus
+- Bewohner: 🏡 Schwarzwald-Heim · 🪓 Holzfäller · 🦌 Reh-Familie · 🛝 Spielplatz
+- Plus alle 16 Saison-Layer auch manuell
+
+**3. Themes (One-Click-Voreinstellungen)** — überschreibt die Auto-Saison:
+Standard · Winter · Weihnachten · Silvester · Fasching · Ostern · Frühling · Sommer-Fest · Herbst · Halloween · Nacht-Modus · Wald lebt
+
+**4. One-Shot-Effekte** — Admin klickt, Effekt läuft kurz über die Tafel (5s-Cooldown zwischen Klicks):
+
+| Effekt | Dauer | Was passiert |
+|---|---|---|
+| 🎆 Feuerwerk | 15s | 15 Raketen mit Burst-Effekten, mehrere Farben, leuchtende Funken |
+| 👹 Monster-Schreck | 5s | Riesiges Cartoon-Monster springt rein, Screen-Shake, roter Flash |
+| 🎊 Konfetti | 10s | 250 bunte Schnipsel in 3 Formen regnen herab |
+| 🎈 Luftballons | 10s | 35 Ballons steigen mit sanftem Schwanken auf |
+| ⚡ Blitz | 2.5s | 3 Blitze + 5 Flashes + Donner-Shake |
+| 🚀 Rakete | 6s | Rakete fliegt diagonal mit Streifen durch |
+| 🎂 Geburtstag | 8s | Torte mit Kerzen + Konfetti drumherum |
+| 🌠 Sternschnuppe | 3s | Leuchtende Sternschnuppe schießt diagonal |
+| 🦇 Fledermaus-Schwarm | 8s | 40 Fledermäuse mit glühenden Augen, Halloween-Vignette |
+| 🛸 UFO | 8s | UFO fliegt mit Lichtstrahl horizontal |
+| 🌪️ Tornado | 8s | Lila Wirbel kreuzt die Tafel |
+| 🌈 Regenbogen | 10s | 7-farbiger Bogen wird gezeichnet + Gold-Sparkles |
+| ❄️ Schneesturm | 7s | 400 Flocken + Wind-Streifen + heller Flash |
+| 💥 Explosion | 5s | Mega-Explosion mit 4 Schock-Wellen + Whiteout |
+| 🦄 Einhorn | 9s | Galoppierendes Einhorn mit Regenbogen-Mähne + Stern-Trail |
+| 🎵 Musik-Noten | 9s | 60 bunte Noten steigen schwingend auf |
+
+**Wann nutzen?** Geburtstage, neue Mitglieder, Vereins-Erfolge, Saunameister-Verabschiedungen, einfach für gute Stimmung. Mitglieder sehen es live auf dem TV — alle 3 Sekunden polled die Tafel, Effekte sind innerhalb von ~3 s sichtbar.
+
+**Diagnose im Admin-Tab:** Es gibt eine 🧪 **Lokal-Test-Sektion** — Klick rendert den Effekt direkt im Admin-Tab. Wenn er hier funktioniert aber auf der Tafel nicht: Realtime-Problem (selten — Supabase parkt inaktive Tenants). Wenn auch lokal nichts kommt: Bug, melden.
 
 ### Personal-Fallback
 
-Wenn 15 Min vor einem Slot kein Aufgießer eingetragen ist, wird automatisch ein **Personal-Aufguss** angezeigt (Standardtitel/-Öl aus `brand_settings`).
+Wenn 15 Min vor einem Slot kein Aufgießer eingetragen ist, wird automatisch ein **Personal-Aufguss** angezeigt (Standardtitel/-Öl aus `brand_settings`). Auf der Tafel als wertschätzende Karte „✨ Vom Personal serviert · Naturreine Aromen".
+
+### Welcome-Tour für Mitglieder-Präsentation (`/tour`)
+
+Für Vereins-Vorstellungen gibt es eine eigene **Welcome-Tour** (`/tour`, public ohne Login). 8 vertikale Scroll-Snap-Sektionen erklären die App:
+1. Hero mit Schnee-Effekt
+2. Aufguss-Tafel
+3. Bewerten & Sterne
+4. Feed & Fotos
+5. Badges & WM-Tipspiel
+6. Bühne
+7. Welche Rolle bist du? — 5 Karten mit „Probier's"-Direktlinks
+8. Call-to-Action „Jetzt mitmachen"
+
+**Im Vereinsraum:** Admin aktiviert die Scene **📢 Willkommens-QR (Tour)** im Bühne-Tab — auf der TV-Tafel erscheint ein riesiger QR-Code mit „🎉 Willkommen! Scan mit deinem Handy für eine kurze Tour". Alle scannen mit eigenem Handy und scrollen durch die Tour.
 
 ---
 
