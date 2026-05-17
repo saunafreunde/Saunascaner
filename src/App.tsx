@@ -2,7 +2,7 @@ import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useActiveEvacuation } from '@/lib/api';
+import { useCurrentMember, useActiveEvacuation, useEndEvacuation } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
@@ -204,14 +204,32 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 // useRealtimeSync → evacuation_events-Subscription). Der Overlay legt sich
 // als Fullscreen z-9999 über ALLES — egal welcher User eingeloggt ist
 // (auch nicht-eingeloggte Gäste auf öffentlichen Routen sehen den Alarm).
+//
+// "Alarm beenden"-Button im Overlay: nur für authentifizierte Vereinsmitglieder
+// (NICHT für Gast/Fan/anon) — sonst könnte ein Gast den Notfall stoppen.
+// Wichtig: auf Mobile blockt der Vollbild-Overlay alle anderen Beenden-Buttons,
+// daher MUSS der Button im Overlay selbst sein.
 function GlobalEvacuationOverlay() {
   const evac = useActiveEvacuation();
   const loc = useLocation();
-  // Dashboard rendert seinen eigenen Overlay (mit Audio-Unlock-Logik) — nicht
-  // doppelt zeigen, sonst gibt es zwei Sirenen.
+  const me = useCurrentMember();
+  const end = useEndEvacuation();
+
   if (loc.pathname.startsWith('/dashboard')) return null;
   if (!evac.data) return null;
-  return <EvacuationOverlay triggeredBy={null} withSiren />;
+
+  const role = me.data?.role;
+  const canEnd = role === 'admin' || role === 'staff'
+    || (role === 'member' && me.data?.is_aufgieser)
+    || role === 'guest_aufgieser';
+
+  return (
+    <EvacuationOverlay
+      triggeredBy={null}
+      withSiren
+      onEnd={canEnd ? async () => { await end.mutateAsync(evac.data!.id); } : undefined}
+    />
+  );
 }
 
 function RequireAdmin({ children }: { children: React.ReactNode }) {
