@@ -402,6 +402,22 @@ function ComposeModal({ draft, onClose, onSent }: {
     const trimmedTo = to.trim();
     if (!trimmedTo) return window.alert('Empfänger fehlt.');
     if (!body.trim()) return window.alert('Body fehlt.');
+
+    // Komma-getrennte Adressen splitten und jede einzeln validieren.
+    // Verhindert SMTP-Fehler 504 5.5.2 "Recipient address rejected" durch
+    // unvollständige Adressen wie "christoph@sauna-fds" (fehlende TLD).
+    const toList = trimmedTo.split(',').map((s) => s.trim()).filter(Boolean);
+    const ccList = cc.trim() ? cc.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const bccList = bcc.trim() ? bcc.split(',').map((s) => s.trim()).filter(Boolean) : [];
+
+    const invalids = [...toList, ...ccList, ...bccList].filter((addr) => !isValidEmail(addr));
+    if (invalids.length > 0) {
+      return window.alert(
+        `Ungültige E-Mail-Adresse(n):\n  ${invalids.join('\n  ')}\n\n` +
+        `Bitte gib die vollständige Adresse mit Domain an, z.B. "christoph@sauna-fds.de".`
+      );
+    }
+
     // Anhänge als base64 lesen
     const attachments = await Promise.all(files.map(async (f) => ({
       filename: f.name,
@@ -410,9 +426,9 @@ function ComposeModal({ draft, onClose, onSent }: {
     })));
     try {
       await send.mutateAsync({
-        to: trimmedTo.split(',').map((s) => s.trim()).filter(Boolean),
-        cc: cc.trim() ? cc.split(',').map((s) => s.trim()) : undefined,
-        bcc: bcc.trim() ? bcc.split(',').map((s) => s.trim()) : undefined,
+        to: toList,
+        cc: ccList.length ? ccList : undefined,
+        bcc: bccList.length ? bccList : undefined,
         subject: subject.trim() || '(kein Betreff)',
         text: body,
         in_reply_to: draft?.inReplyTo,
@@ -491,4 +507,13 @@ async function fileToBase64(file: File): Promise<string> {
     r.onerror = () => rej(r.error);
     r.readAsDataURL(file);
   });
+}
+
+// Vollständige E-Mail-Adresse: local@host.tld mit mind. 2-Zeichen TLD.
+// Verhindert SMTP-Rejects wie "504 5.5.2 Recipient address rejected: need fully-qualified address"
+// bei abgeschnittenen Domains (z.B. "christoph@sauna-fds" statt "christoph@sauna-fds.de").
+function isValidEmail(addr: string): boolean {
+  // Optional: "Name <email@host.de>" Format wird durch die Regex auch unterstützt
+  const stripped = addr.replace(/^.*<([^>]+)>\s*$/, '$1').trim();
+  return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(stripped);
 }

@@ -17,6 +17,16 @@ import nodemailer from 'nodemailer';
 import { authenticate } from './_auth.js';
 import { makeServiceClient } from './_email_helpers.js';
 
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
+// Vollständige E-Mail: local@host.tld mit mind. 2-Zeichen TLD nach dem letzten Punkt.
+// Akzeptiert auch das "Name <addr@host.de>"-Format aus Adressbüchern.
+function isValidEmailAddress(addr: string): boolean {
+  if (typeof addr !== 'string') return false;
+  const stripped = addr.replace(/^.*<([^>]+)>\s*$/, '$1').trim();
+  return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(stripped);
+}
+
 // ─── Credentials-Helper ──────────────────────────────────────────────────
 async function getCredsForCurrentUser(memberId: string) {
   const svc = makeServiceClient();
@@ -240,6 +250,20 @@ async function handleSend(req: VercelRequest, res: VercelResponse, cred: Cred, m
     attachments?: { filename: string; content: string; contentType?: string }[];
   };
   if (!to || (!text && !html)) return res.status(400).json({ error: 'to + text|html required' });
+
+  // Defense in Depth: Server-side Email-Validierung verhindert SMTP-Reject 504 5.5.2
+  // (unvollständige Adressen wie "christoph@sauna-fds" ohne TLD).
+  const toArr = Array.isArray(to) ? to : [to];
+  const ccArr = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
+  const bccArr = bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : [];
+  const allRecipients = [...toArr, ...ccArr, ...bccArr];
+  const invalids = allRecipients.filter((addr) => !isValidEmailAddress(addr));
+  if (invalids.length > 0) {
+    return res.status(400).json({
+      error: `invalid_recipient: ${invalids.join(', ')} (need fully-qualified address like name@example.de)`,
+      invalid_recipients: invalids,
+    });
+  }
 
   const svc = makeServiceClient();
   const { data: m } = await svc.from('members').select('name').eq('id', memberId).maybeSingle();
