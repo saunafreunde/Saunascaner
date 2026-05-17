@@ -14,7 +14,7 @@ export type EffectMeta = {
 export const EFFECT_REGISTRY: Record<string, EffectMeta> = {
   'fireworks': {
     id: 'fireworks', label: 'Feuerwerk', emoji: '🎆',
-    durationMs: 10_000,
+    durationMs: 15_000,
     component: lazy(() => import('./FireworksEffect')),
   },
   'monster-scare': {
@@ -24,17 +24,17 @@ export const EFFECT_REGISTRY: Record<string, EffectMeta> = {
   },
   'confetti': {
     id: 'confetti', label: 'Konfetti', emoji: '🎊',
-    durationMs: 8_000,
+    durationMs: 10_000,
     component: lazy(() => import('./ConfettiEffect')),
   },
   'balloons': {
     id: 'balloons', label: 'Luftballons', emoji: '🎈',
-    durationMs: 8_000,
+    durationMs: 10_000,
     component: lazy(() => import('./BalloonsEffect')),
   },
   'lightning': {
     id: 'lightning', label: 'Blitz', emoji: '⚡',
-    durationMs: 1_500,
+    durationMs: 2_500,
     component: lazy(() => import('./LightningEffect')),
   },
   'rocket': {
@@ -54,7 +54,7 @@ export const EFFECT_REGISTRY: Record<string, EffectMeta> = {
   },
   'bat-swarm': {
     id: 'bat-swarm', label: 'Fledermaus-Schwarm', emoji: '🦇',
-    durationMs: 6_000,
+    durationMs: 8_000,
     component: lazy(() => import('./BatSwarmEffect')),
   },
   'ufo': {
