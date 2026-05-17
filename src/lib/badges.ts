@@ -9,6 +9,7 @@ export type BadgeCategory =
   | 'community'   // Follows, Pioneer
   | 'season'      // Saison + Geburtstag + Adlerauge
   | 'support'     // Helfer-Einsätze (Unterstützer)
+  | 'games'       // Mini-Game-Hub /spiele
   | 'special';    // sonstige (Pioneer-Aufgießer, WM, etc.)
 
 export type BadgeDefinition = {
@@ -506,7 +507,29 @@ export const SUPPORT_BADGES: BadgeDefinition[] = [
     tier: 'gold', category: 'support', threshold: 10 },
 ];
 
-export const ALL_BADGES: BadgeDefinition[] = [...MILESTONE_BADGES, ...SPECIAL_BADGES, ...GAST_BADGES, ...SUPPORT_BADGES];
+// Mini-Game-Hub /spiele (Migrationen 0073+0074)
+export const GAME_BADGES: BadgeDefinition[] = [
+  { id: 'games_first_win', emoji: '🥇', label: 'Erster Sieg',
+    description: 'Dein erster Sieg gegen einen anderen Mitspieler.',
+    tier: 'bronze', category: 'games' },
+  { id: 'tetris_king', emoji: '🧱', label: 'Tetris-König',
+    description: 'Tetris-Highscore von mindestens 10 000 erreicht.',
+    tier: 'gold', category: 'games', threshold: 10000 },
+  { id: 'tetris_legend', emoji: '👑', label: 'Tetris-Legende',
+    description: 'Tetris-Highscore von mindestens 50 000 — beeindruckend.',
+    tier: 'platinum', category: 'games', threshold: 50000 },
+  { id: 'chess_master', emoji: '♟️', label: 'Schach-Meister',
+    description: '10 Schach-Siege — kühlster Kopf am Brett.',
+    tier: 'silver', category: 'games', threshold: 10 },
+  { id: 'chess_grandmaster', emoji: '♛', label: 'Schach-Großmeister',
+    description: '50 Schach-Siege — Verein zittert vor dir.',
+    tier: 'gold', category: 'games', threshold: 50 },
+  { id: 'g2048_solver', emoji: '2️⃣', label: '2048-Knacker',
+    description: 'Die 2048-Kachel im Spiel 2048 erreicht.',
+    tier: 'silver', category: 'games' },
+];
+
+export const ALL_BADGES: BadgeDefinition[] = [...MILESTONE_BADGES, ...SPECIAL_BADGES, ...GAST_BADGES, ...SUPPORT_BADGES, ...GAME_BADGES];
 
 // Labels für Galerie-Gruppen
 export const CATEGORY_LABEL: Record<BadgeCategory, { emoji: string; label: string }> = {
@@ -518,6 +541,7 @@ export const CATEGORY_LABEL: Record<BadgeCategory, { emoji: string; label: strin
   community:  { emoji: '❤️', label: 'Community' },
   season:     { emoji: '🌟', label: 'Saison' },
   support:    { emoji: '🤝', label: 'Helfer' },
+  games:      { emoji: '🎮', label: 'Spiele' },
   special:    { emoji: '🏅', label: 'Spezial' },
 };
 

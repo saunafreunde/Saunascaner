@@ -60,6 +60,9 @@ const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 const Feed            = lazy(() => import('@/routes/Feed'));
 const Bewerten        = lazy(() => import('@/routes/Bewerten'));
 const Tour            = lazy(() => import('@/routes/Tour'));
+const Games           = lazy(() => import('@/routes/Games'));
+const GameSolo        = lazy(() => import('@/routes/GameSolo'));
+const GameMatch       = lazy(() => import('@/routes/GameMatch'));
 
 export default function App() {
   useRealtimeSync();
@@ -90,6 +93,9 @@ export default function App() {
         <Route path="/feed"                  element={<RequireAuth><Feed /></RequireAuth>} />
         <Route path="/bewerten"              element={<RequireAuth><Bewerten /></RequireAuth>} />
         <Route path="/tour"                  element={<Tour />} />
+        <Route path="/spiele"                element={<RequireAuth><Games /></RequireAuth>} />
+        <Route path="/spiele/solo/:kind"     element={<RequireAuth><GameSolo /></RequireAuth>} />
+        <Route path="/spiele/match/:matchId" element={<RequireAuth><GameMatch /></RequireAuth>} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

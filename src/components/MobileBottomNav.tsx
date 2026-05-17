@@ -1,29 +1,35 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useCurrentMember, useMyEmailAccount, useRatableInfusions } from '@/lib/api';
+import { useActiveMatchesForMe } from '@/lib/games';
 import { isAdmin, isAufgieser, isFan, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
 
 // Bottom-Nav fixed unten, nur auf Mobile (`lg:hidden`).
 // Pro Rolle 5 Haupt-Routen. Mit Safe-Area-Padding (iOS-Notch, Android-Gesture-Bar).
 //
 // Tab 2 ist ein Smart-Slot, der je nach Daten-Lage wechselt:
-//   1. Bewertbare Aufgüsse offen UND Mail leer  → 📝 Bewerten (Badge)
-//   2. Mail-Account vorhanden                   → 📬 Mail (Badge bei unread)
-//   3. Bewertbare Aufgüsse offen                → 📝 Bewerten (Badge)
-//   4. Fallback                                 → 👥 Mitglieder
-// Die ehemals hier verlinkte „Tafel" ist nur fürs TV gedacht und über
-// /dashboard direkt erreichbar — auf Mobile bringt sie nichts.
+//   1. „Du bist dran" in laufendem Spiel       → 🎮 Spiele (Badge mit Anzahl)
+//   2. Bewertbare Aufgüsse offen UND Mail leer  → 📝 Bewerten (Badge)
+//   3. Mail-Account vorhanden                   → 📬 Mail (Badge bei unread)
+//   4. Bewertbare Aufgüsse offen                → 📝 Bewerten (Badge)
+//   5. Fallback                                 → 👥 Mitglieder
+// „Du bist dran" hat oberste Priorität — die Person hängt im Match.
 
 type NavItem = { path: string; label: string; icon: string; badge?: number };
 
 function useSmartSlot(memberId: string | null): NavItem {
   const mailQ = useMyEmailAccount();
   const ratableQ = useRatableInfusions(memberId);
+  const activeGamesQ = useActiveMatchesForMe();
 
   const mail = mailQ.data;
   const mailUnread = mail?.unread_count ?? 0;
   const pending = (ratableQ.data ?? []).filter((i) => !i.already_rated).length;
+  const yourTurn = (activeGamesQ.data ?? []).filter((g) => g.my_turn).length;
 
-  // Bewerten hat Vorrang, wenn was offen ist und Mail nichts Neues hat
+  // Du bist dran in laufendem Spiel → Vorrang
+  if (yourTurn > 0) {
+    return { path: '/spiele', label: 'Du bist dran', icon: '🎮', badge: yourTurn };
+  }
   if (pending > 0 && mailUnread === 0) {
     return { path: '/bewerten', label: 'Bewerten', icon: '📝', badge: pending };
   }

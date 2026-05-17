@@ -58,6 +58,13 @@ export function useRealtimeSync() {
       // TV-Bühne (Migration 0071): Admin steuert vom Handy, Tafel reagiert live
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tv_stage_state' },
         () => qc.invalidateQueries({ queryKey: ['tv-stage-state'] }))
+      // Game-Hub (Migration 0073): Lobby + Active-List müssen aktuell sein
+      // (einzelne Matches haben in /spiele/match/:id einen dedizierten Channel)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games_match' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['games-active-mine'] });
+          qc.invalidateQueries({ queryKey: ['games-open'] });
+        })
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);

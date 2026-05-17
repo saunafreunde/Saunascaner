@@ -11,6 +11,7 @@ import { WmStandMini } from '@/components/WmStandMini';
 import BadgeShowcase from '@/components/BadgeShowcase';
 import { MemberStatsCard } from '@/components/MemberStatsCard';
 import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
+import { GameStatsCard } from '@/components/games/GameStatsCard';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { PushPermission } from '@/components/PushPermission';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
@@ -326,6 +327,7 @@ export default function Profile() {
         {isMyself && m.role !== 'gast' && (
           <>
             <MemberStatsCard memberId={m.id} />
+            <GameStatsCard memberId={m.id} />
             <MemberAchievementsGallery memberId={m.id} />
           </>
         )}
