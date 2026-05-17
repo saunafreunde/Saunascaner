@@ -1258,6 +1258,24 @@ export function usePresentMembers() {
   });
 }
 
+// Anwesende Aufgießer ohne Login-Requirement (für Öl-Raum-Tablet).
+// Nutzt RPC list_present_aufgieser (Migration 0068, SECURITY DEFINER) die auch
+// für anonyme Clients erreichbar ist — die normale .from('members')-Query
+// scheitert dort an der members_read_self-Policy (only authenticated).
+export function usePresentAufgieserPublic() {
+  return useQuery({
+    queryKey: ['present-aufgieser-public'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_present_aufgieser');
+      if (error) throw error;
+      return (data ?? []) as { member_id: string; name: string; last_scan_at: string | null }[];
+    },
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+}
+
 // ─── Self-Presence (Migration 0050) ──────────────────────────────────────
 
 export function useToggleMyPresence() {

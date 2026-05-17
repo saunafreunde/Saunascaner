@@ -6,7 +6,7 @@ import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationWithPhoto } from '@/lib/telegram';
 import {
   useSaunas, useInfusions, useAddInfusion, useDeleteInfusion,
-  usePresentMembers, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
+  usePresentAufgieserPublic, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
   useMyCustomAttrs,
   isInfusionCancelLocked, INFUSION_CANCEL_LOCK_MINUTES,
 } from '@/lib/api';
@@ -179,7 +179,9 @@ export default function OilRoom() {
 function OilRoomContent() {
   const saunasQ = useSaunas();
   const infusionsQ = useInfusions();
-  const presentQ = usePresentMembers();
+  // Public-RPC statt direkter .from('members')-Query — funktioniert auch wenn
+  // das Tablet als anon läuft (RLS members_read_self ist nur für authenticated).
+  const presentQ = usePresentAufgieserPublic();
   const evacQ = useActiveEvacuation();
   const addInf = useAddInfusion();
   const delInf = useDeleteInfusion();
@@ -189,8 +191,10 @@ function OilRoomContent() {
   const saunas = saunasQ.data ?? [];
   const infusions = infusionsQ.data ?? [];
 
+  // RPC liefert schon nur Aufgießer/Gast-Aufgießer/Admin — kein Frontend-Filter nötig.
+  // Felder: { member_id, name, last_scan_at }
   const presentAufgieser = useMemo(
-    () => (presentQ.data ?? []).filter((p) => p.is_aufgieser),
+    () => (presentQ.data ?? []).map((p) => ({ id: p.member_id, name: p.name })),
     [presentQ.data]
   );
 
