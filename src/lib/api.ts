@@ -311,6 +311,8 @@ export type Member = {
   star_accent_color: string | null;
   // Lieblings-Aromen (Migration 0046)
   favorite_oils: string[];
+  // Game-Hub Opt-in (Migration 0075): PvP-Sieg im Feed teilen
+  feed_share_game_wins: boolean;
   // Gast-Felder (Migration 0040)
   gast_referral_source: string | null;
   gast_consent_at: string | null;
@@ -370,6 +372,21 @@ export function useSetMotto() {
       qc.invalidateQueries({ queryKey: ['current-member'] });
       qc.invalidateQueries({ queryKey: ['member'] });
       qc.invalidateQueries({ queryKey: ['members-directory'] });
+    },
+  });
+}
+
+// ─── Feed-Share: PvP-Sieg im Feed teilen (opt-in) ──────────────────────
+export function useSetFeedShareGameWins() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (share: boolean) => {
+      const { error } = await need().rpc('set_my_feed_share_game_wins', { p_share: share });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
     },
   });
 }
@@ -3662,13 +3679,15 @@ export function useMarkWishFulfilled() {
 // ─── Mini-Insta-Feed (Migration 0052) ─────────────────────────────────────
 export type FeedReactionType = 'fire' | 'water' | 'leaf' | 'crown' | 'theater';
 
+export type FeedPostKind = 'photo' | 'game_achievement' | 'game_win' | 'vereins_highscore';
+
 export type FeedPost = {
   id: string;
   author_id: string;
   author_name: string;
   author_avatar: string | null;
   author_role: string;
-  image_path: string;
+  image_path: string | null;
   caption: string | null;
   infusion_id: string | null;
   infusion_title: string | null;
@@ -3678,6 +3697,8 @@ export type FeedPost = {
   created_at: string;
   reaction_counts: Partial<Record<FeedReactionType, number>>;
   my_reactions: FeedReactionType[];
+  post_kind: FeedPostKind;
+  meta: Record<string, unknown>;
 };
 
 export type FeedFilter = { oil?: string | null; infusion?: string | null };

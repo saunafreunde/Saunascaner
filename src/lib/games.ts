@@ -60,6 +60,15 @@ export type LeaderboardEntry = {
   created_at: string;
 };
 
+export type HallOfFameEntry = {
+  kind: GameKind;
+  member_id: string;
+  name: string;
+  avatar_path: string | null;
+  score: number;
+  created_at: string;
+};
+
 export type GameMemberStats = {
   highscores: Partial<Record<GameKind, number>>;
   pvp: Partial<Record<GameKind, { wins: number; losses: number; draws: number }>>;
@@ -155,6 +164,22 @@ export function useGameLeaderboard(kind: GameKind, period: 'all' | 'month' | 'we
       return (data ?? []) as LeaderboardEntry[];
     },
     staleTime: 30_000,
+  });
+}
+
+// ─── Query: Hall of Fame (Top-1 pro Spiel-Kind, für Tafel + GameHub) ───
+
+export function useGamesHallOfFame(period: 'all' | 'month' | 'week' = 'all') {
+  return useQuery({
+    queryKey: ['games-hall-of-fame', period],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('games_get_top_per_kind', { p_period: period });
+      if (error) throw error;
+      return (data ?? []) as HallOfFameEntry[];
+    },
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
   });
 }
 

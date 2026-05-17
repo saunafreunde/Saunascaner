@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useGameMemberStats, type GameKind } from '@/lib/games';
+import { useCurrentMember, useSetFeedShareGameWins } from '@/lib/api';
 import { GAME_LABELS } from './registry';
 
 export function GameStatsCard({ memberId }: { memberId: string }) {
   const statsQ = useGameMemberStats(memberId);
+  const me = useCurrentMember();
+  const isMyself = me.data?.id === memberId;
+  const setShare = useSetFeedShareGameWins();
   const s = statsQ.data;
   const hasAny = !!s && (
     Object.keys(s.highscores ?? {}).length > 0 ||
@@ -67,6 +71,25 @@ export function GameStatsCard({ memberId }: { memberId: string }) {
             </>
           )}
         </>
+      )}
+
+      {/* Opt-in: PvP-Sieg im Feed teilen (nur eigenes Profil) */}
+      {isMyself && me.data && (
+        <label className="mt-3 flex items-center gap-3 rounded-xl bg-forest-950/40 p-3 cursor-pointer ring-1 ring-forest-800/40 hover:bg-forest-950/60 transition">
+          <input
+            type="checkbox"
+            checked={!!me.data.feed_share_game_wins}
+            disabled={setShare.isPending}
+            onChange={(e) => setShare.mutate(e.target.checked)}
+            className="h-4 w-4 accent-amber-500"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-forest-100">PvP-Siege im Feed teilen</div>
+            <div className="text-xs text-forest-400">
+              Wenn aktiv: Schach-/Vier-Gewinnt-Siege werden automatisch im Mini-Insta-Feed gepostet.
+            </div>
+          </div>
+        </label>
       )}
     </section>
   );

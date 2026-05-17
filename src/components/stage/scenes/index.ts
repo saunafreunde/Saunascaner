@@ -46,6 +46,9 @@ export const SCENE_REGISTRY: Record<string, SceneMeta> = {
   // Riesiger QR-Code für Mitglieder-Tour. Nur on-demand aktivieren.
   'welcome-qr': { id: 'welcome-qr', label: 'Willkommens-QR (Tour)', emoji: '📢', defaultSeason: null, component: lazy(() => import('./WelcomeTourQrScene')) },
 
+  // Spiele-Champions oben auf der Tafel. Nur on-demand aktivieren (z.B. bei Spiele-Vereinsabenden).
+  'games-hall-of-fame': { id: 'games-hall-of-fame', label: 'Spiele Hall of Fame', emoji: '🏆', defaultSeason: null, component: lazy(() => import('./GamesHallOfFameScene')) },
+
   // ── Toggle-Wrapper für bestehende Schwarzwald-Komponenten ──
   // Default off; im Theme „Wald lebt" zusammen aktiviert.
   'schwarzwald-heim': { id: 'schwarzwald-heim', label: 'Schwarzwald-Heim', emoji: '🏡', defaultSeason: null, component: lazy(() => import('./SchwarzwaldHomeScene')) },
