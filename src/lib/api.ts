@@ -77,11 +77,20 @@ export function useAddInfusion() {
   });
 }
 
+// Aufguss absagen: HART gesperrt ab 60 Min vor Start für Aufgießer (Migration 0066).
+// Admin darf jederzeit. RPC liefert deutsche Fehlermeldung bei Sperre.
+export const INFUSION_CANCEL_LOCK_MINUTES = 60;
+
+export function isInfusionCancelLocked(startTime: string | Date, nowMs: number = Date.now()): boolean {
+  const startMs = typeof startTime === 'string' ? new Date(startTime).getTime() : startTime.getTime();
+  return startMs - nowMs < INFUSION_CANCEL_LOCK_MINUTES * 60 * 1000;
+}
+
 export function useDeleteInfusion() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await need().from('infusions').delete().eq('id', id);
+      const { error } = await need().rpc('cancel_my_infusion', { p_id: id });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),

@@ -8,6 +8,7 @@ import {
   useSaunas, useInfusions, useAddInfusion, useDeleteInfusion,
   usePresentMembers, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
   useMyCustomAttrs,
+  isInfusionCancelLocked, INFUSION_CANCEL_LOCK_MINUTES,
 } from '@/lib/api';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID } from '@/lib/oils';
@@ -637,10 +638,23 @@ function OilRoomContent() {
                       ))}
                     </div>
                   </div>
-                  <button onClick={() => delInf.mutate(i.id)}
-                    className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">
-                    Löschen
-                  </button>
+                  {(() => {
+                    const locked = isInfusionCancelLocked(i.start_time);
+                    return (
+                      <button
+                        onClick={() => delInf.mutate(i.id, {
+                          onError: (e) => window.alert((e as Error).message),
+                        })}
+                        disabled={locked}
+                        title={locked
+                          ? `Steht bereits auf der Tafel — Absage ab ${INFUSION_CANCEL_LOCK_MINUTES} Min vor Start gesperrt`
+                          : undefined}
+                        className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                      >
+                        {locked ? '🔒 Absage gesperrt' : 'Löschen'}
+                      </button>
+                    );
+                  })()}
                 </li>
               ))}
             </ul>

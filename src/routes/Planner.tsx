@@ -1189,7 +1189,9 @@ export default function Planner() {
               meisterName={meisterName}
               getCoNames={getCoNames}
               isJoined={isJoined}
-              onDeleteInfusion={(id) => delInf.mutate(id)}
+              onDeleteInfusion={(id) => delInf.mutate(id, {
+                onError: (e) => window.alert((e as Error).message),
+              })}
               onJoinTeam={(id) => m && joinTeam.mutate(
                 { infusion_id: id, member_id: m.id },
                 { onError: (e) => window.alert((e as Error).message) },
