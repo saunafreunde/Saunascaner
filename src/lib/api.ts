@@ -28,8 +28,13 @@ export function useTvStageState() {
     // Fallback falls die Subscription hängt (Supabase parkt inaktive Tenants
     // alle paar Minuten — Reconnect dauert ein paar Sekunden, in denen
     // Events verloren gehen können). 3s Polling fängt das ab.
+    // refetchIntervalInBackground: true — kritisch, weil die TV-Tafel im
+    // Browser-Tab im Hintergrund läuft (Admin klickt parallel im Vordergrund).
+    // Sonst pausiert React Query das Polling und Effects sind beim Tab-Switch
+    // schon stale (>60s).
     staleTime: 0,
     refetchInterval: 3_000,
+    refetchIntervalInBackground: true,
   });
 }
 
