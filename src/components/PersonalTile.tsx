@@ -22,18 +22,19 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 20, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0, y: 20, scale: 0.98, rotateX: 1.5 }}
+      animate={{ opacity: 1, y: 0, scale: 1, rotateX: 1.5 }}
       exit={{ opacity: 0, y: -20, scale: 0.96 }}
       transition={{ layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.35 } }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl backdrop-blur-xl ring-1 ring-amber-500/20 p-3 ${className}`}
+      className={`relative flex flex-col overflow-hidden rounded-2xl backdrop-blur-xl ring-1 ring-amber-500/25 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.10] before:to-transparent before:pointer-events-none before:content-[''] p-3 ${className}`}
       style={{
+        transformOrigin: '50% 100%',
         background: backgroundImage
           ? `linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(2,6,12,0.78) 60%), url(${backgroundImage})`
           : 'linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(8,18,12,0.55) 50%, rgba(8,18,12,0.55) 100%)',
         backgroundSize: backgroundImage ? 'cover' : undefined,
         backgroundPosition: backgroundImage ? 'center' : undefined,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.32), 0 16px 40px rgba(0,0,0,0.4), 0 0 32px rgba(245,158,11,0.22)',
       }}
     >
       {/* Sauna-Akzent-Streifen links */}

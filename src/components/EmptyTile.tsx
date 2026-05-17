@@ -20,20 +20,24 @@ export function EmptyTile({ sauna, className = '', backgroundImage = null, slotT
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 20, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0, y: 20, scale: 0.98, rotateX: 1.5 }}
+      animate={{ opacity: 1, y: 0, scale: 1, rotateX: 1.5 }}
       exit={{ opacity: 0, y: -20, scale: 0.96 }}
       transition={{ layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.35 } }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 ring-white/10 ${backgroundImage ? '' : 'bg-white/[0.03]'} p-2 backdrop-blur-xl ${className}`}
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 ring-white/10 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.07] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/[0.03]'} p-2 backdrop-blur-xl ${className}`}
       style={
         backgroundImage
           ? {
+              transformOrigin: '50% 100%',
               backgroundImage: `linear-gradient(rgba(2,6,12,0.72), rgba(2,6,12,0.72)), url(${backgroundImage})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 24px rgba(0,0,0,0.25)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.28), 0 12px 32px rgba(0,0,0,0.32)',
             }
-          : { boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 24px rgba(0,0,0,0.25)' }
+          : {
+              transformOrigin: '50% 100%',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.28), 0 12px 32px rgba(0,0,0,0.32)',
+            }
       }
     >
       <span

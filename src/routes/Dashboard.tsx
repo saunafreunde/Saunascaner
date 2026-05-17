@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { differenceInMinutes } from 'date-fns';
+import { AnimatePresence } from 'framer-motion';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -8,7 +7,7 @@ import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { BirthdayBanner } from '@/components/BirthdayBanner';
-import { fmtClock, fmtDateTimeDeCompact } from '@/lib/time';
+import { NextInfusionPill } from '@/components/NextInfusionPill';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useSaunas,
@@ -100,19 +99,6 @@ export default function Dashboard() {
       .slice(0, 3);
   };
 
-  // ── Kuckuckstür-Logik ──────────────────────────────────────────────────
-  const nextInfusion = useMemo(() =>
-    (infusions.data ?? [])
-      .filter((i) => new Date(i.start_time) > now)
-      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
-      .at(0) ?? null,
-    [infusions.data, now]
-  );
-
-  const minutesUntilNext = nextInfusion
-    ? differenceInMinutes(new Date(nextInfusion.start_time), now)
-    : 999;
-
   // Audio still beim ersten User-Klick irgendwo im Dokument entsperren —
   // ohne den nervenden 'Ton aktivieren'-Button.
   useEffect(() => {
@@ -200,53 +186,9 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Header — Datum-Pill links (kompakt deutsch), Logo mittig, Wetter rechts */}
+      {/* Header — leer links · Logo mittig · NextInfusionPill + Wetter rechts */}
       <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-8 pb-3">
-        <div className="justify-self-start flex items-center gap-3">
-          <div
-            className="rounded-2xl bg-white/5 backdrop-blur-xl ring-1 ring-white/10 px-5 py-3"
-            style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)' }}
-          >
-            <span className="text-2xl font-semibold tabular-nums text-white/95 tracking-wide">
-              {fmtDateTimeDeCompact(now)}
-            </span>
-          </div>
-          <AnimatePresence>
-            {minutesUntilNext > 0 && minutesUntilNext <= 10 && nextInfusion && (
-              <motion.div
-                initial={{ width: 0, opacity: 0, scale: 0.85 }}
-                animate={{ width: 'auto', opacity: 1, scale: 1 }}
-                exit={{ width: 0, opacity: 0, scale: 0.85 }}
-                transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1] }}
-                style={{ overflow: 'hidden' }}
-              >
-                <div
-                  className="rounded-2xl px-4 py-3 ring-1 ring-amber-400/40 backdrop-blur-xl whitespace-nowrap"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(245,158,11,0.04))',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 32px rgba(245,158,11,0.18)',
-                  }}
-                >
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-amber-300/90 leading-none">
-                    Nächster Aufguss
-                  </div>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <span className="text-2xl font-semibold tabular-nums text-amber-100 leading-none">
-                      {fmtClock(nextInfusion.start_time)}
-                    </span>
-                    <motion.span
-                      animate={{ opacity: [0.6, 1, 0.6] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                      className="text-xs font-semibold text-amber-300 leading-none"
-                    >
-                      in {minutesUntilNext} Min
-                    </motion.span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <div className="justify-self-start" />
 
         <div className="justify-self-center">
           <img
@@ -260,7 +202,8 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="flex items-center gap-4 justify-self-end">
+        <div className="flex items-center gap-3 justify-self-end">
+          <NextInfusionPill now={now} infusions={infusions.data ?? []} />
           <WeatherWidget />
         </div>
       </header>

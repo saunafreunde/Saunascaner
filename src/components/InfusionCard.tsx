@@ -57,12 +57,12 @@ export function InfusionCard({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 30, scale: 0.98 }}
+      initial={{ opacity: 0, y: 30, scale: 0.98, rotateX: 1.5 }}
       animate={{
-        opacity: 1, y: 0, scale: 1,
+        opacity: 1, y: 0, scale: 1, rotateX: 1.5,
         boxShadow: imminent
           ? [`0 0 0 0 ${sauna.accent_color}55`, `0 0 0 14px ${sauna.accent_color}00`, `0 0 0 0 ${sauna.accent_color}55`]
-          : '0 0 0 0 rgba(0,0,0,0)',
+          : `inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.32), 0 16px 40px rgba(0,0,0,0.4), 0 0 28px ${sauna.accent_color}22`,
       }}
       exit={{ opacity: 0, y: -30, scale: 0.96 }}
       transition={{
@@ -70,7 +70,7 @@ export function InfusionCard({
         opacity: { duration: 0.35 },
         boxShadow: imminent ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 },
       }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 ${backgroundImage ? '' : 'bg-white/[0.04]'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.10] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/[0.04]'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
         running
           ? 'ring-emerald-400/50'
           : imminent
@@ -78,7 +78,7 @@ export function InfusionCard({
             : 'ring-white/10'
       } ${className}`}
       style={{
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)',
+        transformOrigin: '50% 100%',
         ...(imminent ? { borderColor: sauna.accent_color } : {}),
         ...(backgroundImage ? {
           backgroundImage: `linear-gradient(rgba(2,6,12,0.62), rgba(2,6,12,0.62)), url(${backgroundImage})`,

@@ -1,4 +1,6 @@
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
 import { isSameDay, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -7,17 +9,19 @@ export const TZ = 'Europe/Berlin';
 export const fmtClock = (d: Date | string) => formatInTimeZone(d, TZ, 'HH:mm');
 export const fmtDate  = (d: Date | string) => formatInTimeZone(d, TZ, 'dd.MM.yyyy');
 
-// Kompakt einzeilig auf Deutsch: „So · 17.05.2026 · 21:54". Genutzt im
-// Tafel-Header.
-export const fmtDateTimeDeCompact = (d: Date | string) =>
-  formatInTimeZone(d, TZ, "EE '·' dd.MM.yyyy '·' HH:mm", { locale: de });
+// date-fns-tz v3.x reicht die `locale`-Option in formatInTimeZone NICHT zuverlässig
+// durch — englische Wochentage erscheinen. Stattdessen: erst in Berliner Zeit
+// konvertieren, dann mit format + locale aus date-fns korrekt formatieren.
+function fmtZonedDe(d: Date | string, pattern: string): string {
+  return format(toZonedTime(d, TZ), pattern, { locale: de });
+}
 
 export function dayLabel(d: Date | string, now: Date = new Date()): 'heute' | 'morgen' | string {
   const local = toZonedTime(d, TZ);
   const today = toZonedTime(now, TZ);
   if (isSameDay(local, today)) return 'heute';
   if (isSameDay(local, addDays(today, 1))) return 'morgen';
-  return formatInTimeZone(d, TZ, 'EEEE');
+  return fmtZonedDe(d, 'EEEE');
 }
 
 // Letzter HH:05-Zeitpunkt <= now (Tafel-Rotationsgrenze).

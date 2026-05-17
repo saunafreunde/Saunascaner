@@ -102,8 +102,8 @@ export function SaunaTileColumn({
         </span>
       </div>
 
-      {/* 5 fixed tile slots */}
-      <div className="flex-1 min-h-0 p-2 flex flex-col gap-2">
+      {/* 5 fixed tile slots — perspective hier gesetzt, damit Karten-rotateX (3D-Tilt) wirkt */}
+      <div className="flex-1 min-h-0 p-2 flex flex-col gap-2" style={{ perspective: '1400px', perspectiveOrigin: '50% 40%' }}>
         <AnimatePresence initial={false} mode="popLayout">
           {tiles.map(({ infusion: inf, slotTime }, slotIndex) =>
             inf ? (
