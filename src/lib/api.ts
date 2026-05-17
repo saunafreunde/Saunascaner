@@ -4066,10 +4066,9 @@ export function useApproveAromaRecipe() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await need().from('aroma_recipes').update({
-        approved: true,
-        approved_at: new Date().toISOString(),
-      }).eq('id', id);
+      // Über RPC (statt direktem UPDATE) damit approved_by auf den aktuellen
+      // Admin gesetzt wird — Audit-Trail. Admin-Check passiert serverseitig.
+      const { error } = await need().rpc('approve_aroma_recipe', { p_id: id });
       if (error) throw error;
     },
     onSuccess: () => {
