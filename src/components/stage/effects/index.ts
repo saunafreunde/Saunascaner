@@ -62,6 +62,37 @@ export const EFFECT_REGISTRY: Record<string, EffectMeta> = {
     durationMs: 8_000,
     component: lazy(() => import('./UfoEffect')),
   },
+  // ── Neue epische Effekte ──
+  'tornado': {
+    id: 'tornado', label: 'Tornado', emoji: '🌪️',
+    durationMs: 8_000,
+    component: lazy(() => import('./TornadoEffect')),
+  },
+  'rainbow': {
+    id: 'rainbow', label: 'Regenbogen', emoji: '🌈',
+    durationMs: 10_000,
+    component: lazy(() => import('./RainbowEffect')),
+  },
+  'snowstorm': {
+    id: 'snowstorm', label: 'Schneesturm', emoji: '❄️',
+    durationMs: 7_000,
+    component: lazy(() => import('./SnowstormEffect')),
+  },
+  'explosion': {
+    id: 'explosion', label: 'Explosion', emoji: '💥',
+    durationMs: 5_000,
+    component: lazy(() => import('./ExplosionEffect')),
+  },
+  'unicorn': {
+    id: 'unicorn', label: 'Einhorn', emoji: '🦄',
+    durationMs: 9_000,
+    component: lazy(() => import('./UnicornEffect')),
+  },
+  'music-notes': {
+    id: 'music-notes', label: 'Musik-Noten', emoji: '🎵',
+    durationMs: 9_000,
+    component: lazy(() => import('./MusicNotesEffect')),
+  },
 };
 
 export const EFFECT_IDS = Object.keys(EFFECT_REGISTRY);
