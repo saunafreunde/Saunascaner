@@ -70,14 +70,15 @@ export function InfusionCard({
         opacity: { duration: 0.35 },
         boxShadow: imminent ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 },
       }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl border ${backgroundImage ? '' : 'bg-forest-950/55'} ${compact ? 'p-3' : 'p-5'} backdrop-blur ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 ${backgroundImage ? '' : 'bg-white/[0.04]'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
         running
-          ? 'border-emerald-400/50 ring-1 ring-emerald-400/30'
+          ? 'ring-emerald-400/50'
           : imminent
-            ? 'border-transparent'
-            : 'border-forest-800/40'
+            ? 'ring-transparent'
+            : 'ring-white/10'
       } ${className}`}
       style={{
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)',
         ...(imminent ? { borderColor: sauna.accent_color } : {}),
         ...(backgroundImage ? {
           backgroundImage: `linear-gradient(rgba(2,6,12,0.62), rgba(2,6,12,0.62)), url(${backgroundImage})`,

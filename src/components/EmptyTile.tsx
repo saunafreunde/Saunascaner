@@ -24,15 +24,16 @@ export function EmptyTile({ sauna, className = '', backgroundImage = null, slotT
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -20, scale: 0.96 }}
       transition={{ layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.35 } }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl border border-forest-800/40 ${backgroundImage ? '' : 'bg-forest-950/55'} p-2 backdrop-blur ${className}`}
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 ring-white/10 ${backgroundImage ? '' : 'bg-white/[0.03]'} p-2 backdrop-blur-xl ${className}`}
       style={
         backgroundImage
           ? {
               backgroundImage: `linear-gradient(rgba(2,6,12,0.72), rgba(2,6,12,0.72)), url(${backgroundImage})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 24px rgba(0,0,0,0.25)',
             }
-          : undefined
+          : { boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 24px rgba(0,0,0,0.25)' }
       }
     >
       <span

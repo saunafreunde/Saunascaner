@@ -8,7 +8,7 @@ import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { BirthdayBanner } from '@/components/BirthdayBanner';
-import { fmtClock } from '@/lib/time';
+import { fmtClock, fmtDateTimeDeCompact } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useSaunas,
@@ -200,12 +200,17 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Header — Uhr links (+ 2. Uhr 10min vor Aufguss), Logo mittig, Wetter rechts */}
+      {/* Header — Datum-Pill links (kompakt deutsch), Logo mittig, Wetter rechts */}
       <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-8 pb-3">
         <div className="justify-self-start flex items-center gap-3">
-          <span className="rounded-xl bg-forest-950/70 px-4 py-2 text-2xl font-semibold tabular-nums ring-1 ring-forest-800/60">
-            {fmtClock(now)}
-          </span>
+          <div
+            className="rounded-2xl bg-white/5 backdrop-blur-xl ring-1 ring-white/10 px-5 py-3"
+            style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)' }}
+          >
+            <span className="text-2xl font-semibold tabular-nums text-white/95 tracking-wide">
+              {fmtDateTimeDeCompact(now)}
+            </span>
+          </div>
           <AnimatePresence>
             {minutesUntilNext > 0 && minutesUntilNext <= 10 && nextInfusion && (
               <motion.div
@@ -216,17 +221,17 @@ export default function Dashboard() {
                 style={{ overflow: 'hidden' }}
               >
                 <div
-                  className="rounded-xl px-4 py-2 ring-1 backdrop-blur whitespace-nowrap"
+                  className="rounded-2xl px-4 py-3 ring-1 ring-amber-400/40 backdrop-blur-xl whitespace-nowrap"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(8,18,12,0.65))',
-                    boxShadow: 'inset 0 0 0 1px rgba(245,158,11,0.4), 0 0 22px rgba(245,158,11,0.18)',
+                    background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(245,158,11,0.04))',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 32px rgba(245,158,11,0.18)',
                   }}
                 >
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-amber-300/80 leading-none">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-amber-300/90 leading-none">
                     Nächster Aufguss
                   </div>
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="text-2xl font-semibold tabular-nums text-amber-200 leading-none">
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-2xl font-semibold tabular-nums text-amber-100 leading-none">
                       {fmtClock(nextInfusion.start_time)}
                     </span>
                     <motion.span

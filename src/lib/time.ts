@@ -1,10 +1,16 @@
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { isSameDay, addDays } from 'date-fns';
+import { de } from 'date-fns/locale';
 
 export const TZ = 'Europe/Berlin';
 
 export const fmtClock = (d: Date | string) => formatInTimeZone(d, TZ, 'HH:mm');
 export const fmtDate  = (d: Date | string) => formatInTimeZone(d, TZ, 'dd.MM.yyyy');
+
+// Kompakt einzeilig auf Deutsch: „So · 17.05.2026 · 21:54". Genutzt im
+// Tafel-Header.
+export const fmtDateTimeDeCompact = (d: Date | string) =>
+  formatInTimeZone(d, TZ, "EE '·' dd.MM.yyyy '·' HH:mm", { locale: de });
 
 export function dayLabel(d: Date | string, now: Date = new Date()): 'heute' | 'morgen' | string {
   const local = toZonedTime(d, TZ);
