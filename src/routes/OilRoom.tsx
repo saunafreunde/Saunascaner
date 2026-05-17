@@ -19,81 +19,68 @@ import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 // abgleichen).
 declare const __APP_BUILD__: { sha: string; time: string };
 
-// ─── PIN-Sperre ───────────────────────────────────────────────────────────────
+// ─── Sperrbildschirm ──────────────────────────────────────────────────────────
+// Schützt das Tablet nur vor versehentlichem Antippen — Vereinstür ist der
+// echte Zugang. Kein PIN, weil das vorher mit dem persönlichen Check-in-PIN
+// kollidieren konnte. Stattdessen: Knopf 3 Sekunden gedrückt halten.
 
-const LOCK_PIN = '1234';
 const INACTIVITY_MS = 3 * 60 * 1000;
+const UNLOCK_HOLD_MS = 3000;
 
-function PinScreen({ onUnlock }: { onUnlock: () => void }) {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
+function UnlockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const [progress, setProgress] = useState(0);
+  const tickRef = useRef<ReturnType<typeof setInterval> | undefined>();
+  const startRef = useRef<number>(0);
+  const doneRef = useRef(false);
 
-  function press(digit: string) {
-    if (pin.length >= 4) return;
-    const next = pin + digit;
-    setPin(next);
-    setError(false);
-    if (next.length === 4) {
-      if (next === LOCK_PIN) {
+  function start() {
+    if (doneRef.current) return;
+    startRef.current = performance.now();
+    setProgress(0);
+    tickRef.current = setInterval(() => {
+      const elapsed = performance.now() - startRef.current;
+      const pct = Math.min(100, (elapsed / UNLOCK_HOLD_MS) * 100);
+      setProgress(pct);
+      if (elapsed >= UNLOCK_HOLD_MS && !doneRef.current) {
+        doneRef.current = true;
+        clearInterval(tickRef.current);
         onUnlock();
-      } else {
-        setError(true);
-        setTimeout(() => { setPin(''); setError(false); }, 700);
       }
-    }
+    }, 50);
+  }
+  function cancel() {
+    clearInterval(tickRef.current);
+    if (!doneRef.current) setProgress(0);
   }
 
-  function backspace() {
-    setPin((p) => p.slice(0, -1));
-    setError(false);
-  }
+  useEffect(() => () => clearInterval(tickRef.current), []);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-8 gap-8">
       <div className="text-6xl">🔒</div>
       <h1 className="text-2xl font-bold text-forest-100">Öl-Raum</h1>
+      <p className="text-sm text-forest-300/70 text-center max-w-xs">
+        Zum Entsperren den Knopf 3 Sekunden gedrückt halten
+      </p>
 
-      {/* PIN-Anzeige */}
-      <div className="flex gap-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={`w-5 h-5 rounded-full transition ${
-              i < pin.length
-                ? error ? 'bg-rose-400' : 'bg-forest-400'
-                : 'bg-forest-800'
-            }`}
-          />
-        ))}
-      </div>
-
-      {error && <p className="text-sm text-rose-300">Falscher Code</p>}
-
-      {/* Numpad */}
-      <div className="grid grid-cols-3 gap-3 w-64">
-        {['1','2','3','4','5','6','7','8','9'].map((d) => (
-          <button
-            key={d}
-            onClick={() => press(d)}
-            className="h-16 rounded-2xl bg-forest-900/80 text-2xl font-bold text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-800 active:scale-95 transition"
-          >
-            {d}
-          </button>
-        ))}
-        <div /> {/* spacer */}
-        <button
-          onClick={() => press('0')}
-          className="h-16 rounded-2xl bg-forest-900/80 text-2xl font-bold text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-800 active:scale-95 transition"
-        >
-          0
-        </button>
-        <button
-          onClick={backspace}
-          className="h-16 rounded-2xl bg-forest-900/60 text-xl text-forest-300 ring-1 ring-forest-800/50 hover:bg-forest-900 active:scale-95 transition"
-        >
-          ⌫
-        </button>
-      </div>
+      <button
+        type="button"
+        onPointerDown={start}
+        onPointerUp={cancel}
+        onPointerLeave={cancel}
+        onPointerCancel={cancel}
+        onContextMenu={(e) => e.preventDefault()}
+        className="relative w-56 h-56 rounded-full overflow-hidden ring-4 ring-forest-700/50 bg-forest-900/80 select-none touch-none active:ring-forest-400 transition"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+        <div
+          className="absolute bottom-0 left-0 right-0 bg-forest-500 transition-[height] duration-75"
+          style={{ height: `${progress}%` }}
+        />
+        <span className="relative z-10 text-forest-100 font-bold text-xl">
+          {progress > 0 ? `Halten… ${Math.round(progress)}%` : '🔓 Entsperren'}
+        </span>
+      </button>
 
       <p className="absolute bottom-3 text-[10px] text-forest-700/60 font-mono tabular-nums select-text">
         Build {__APP_BUILD__.sha} · {new Date(__APP_BUILD__.time).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -187,7 +174,7 @@ export default function OilRoom() {
     </button>
   ) : null;
 
-  if (locked) return <>{FullscreenFallback}<PinScreen onUnlock={() => setLocked(false)} /></>;
+  if (locked) return <>{FullscreenFallback}<UnlockScreen onUnlock={() => setLocked(false)} /></>;
 
   return <>{FullscreenFallback}<OilRoomContent /></>;
 }
