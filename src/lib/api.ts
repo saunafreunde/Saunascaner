@@ -4092,6 +4092,69 @@ export function useDeleteAromaRecipe() {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVITY-LOG (Migration 0065) — Audit-Trail aller wichtigen Vereins-Aktionen
+// Admin-only via RLS. Filter nach Zeit-Range + Aktor + Aktions-Prefix.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ActivityLogRow = {
+  id: string;
+  occurred_at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_role: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  target_label: string | null;
+  details: Record<string, unknown> | null;
+};
+
+export type ActivityLogFilter = {
+  from?: string | null;            // ISO-timestamptz
+  until?: string | null;           // ISO-timestamptz
+  actor_id?: string | null;
+  action_prefix?: string | null;   // z.B. 'member.' für alle Mitglieder-Aktionen
+  limit?: number;
+  offset?: number;
+};
+
+export function useActivityLog(filter: ActivityLogFilter = {}) {
+  return useQuery({
+    queryKey: ['activity-log', filter],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_activity_log', {
+        p_from: filter.from ?? null,
+        p_until: filter.until ?? null,
+        p_actor_id: filter.actor_id ?? null,
+        p_action_prefix: filter.action_prefix ?? null,
+        p_limit: filter.limit ?? 200,
+        p_offset: filter.offset ?? 0,
+      });
+      if (error) throw error;
+      return (data ?? []) as ActivityLogRow[];
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useActivityLogCount(filter: Omit<ActivityLogFilter, 'limit' | 'offset'> = {}) {
+  return useQuery({
+    queryKey: ['activity-log-count', filter],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('count_activity_log', {
+        p_from: filter.from ?? null,
+        p_until: filter.until ?? null,
+        p_actor_id: filter.actor_id ?? null,
+        p_action_prefix: filter.action_prefix ?? null,
+      });
+      if (error) throw error;
+      return (data ?? 0) as number;
+    },
+    staleTime: 30_000,
+  });
+}
+
 export function usePendingAromaRecipes() {
   return useQuery({
     queryKey: ['aroma-recipes-pending'],

@@ -9,6 +9,7 @@ import { FeedModerationTab } from '@/components/admin/FeedModerationTab';
 import { AuswertungenTab } from '@/components/admin/AuswertungenTab';
 import { OrgNewsAdminTab } from '@/components/admin/OrgNewsAdminTab';
 import { AromaRecipesAdminTab } from '@/components/admin/AromaRecipesAdminTab';
+import { ActivityLogTab } from '@/components/admin/ActivityLogTab';
 import { PostfachDialog } from '@/components/admin/PostfachDialog';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { HandbookTab } from '@/components/admin/HandbookTab';
@@ -33,7 +34,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm' | 'news' | 'aroma';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm' | 'news' | 'aroma' | 'activity';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:       { label: 'Saunen',       icon: '🔥' },
@@ -43,6 +44,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   presence:     { label: 'Anwesenheit',  icon: '🟢' },
   stats:        { label: 'Statistik',    icon: '📊' },
   auswertungen: { label: 'Auswertungen', icon: '📈' },
+  activity:     { label: 'Aktivität',    icon: '📋' },
   branding:     { label: 'Branding',     icon: '🎨' },
   handbook:     { label: 'Handbuch',     icon: '📖' },
   polls:        { label: 'Abfragen',     icon: '📋' },
@@ -60,7 +62,7 @@ type Group = 'operations' | 'members' | 'reports' | 'modules' | 'setup';
 const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = {
   operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring'] },
   members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'invitations'] },
-  reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen'] },
+  reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen', 'activity'] },
   modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'aroma', 'feed', 'polls', 'tasks', 'wm'] },
   setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'handbook'] },
 };
@@ -197,6 +199,7 @@ export default function Admin() {
         {tab === 'wm' && <WmAdminTab />}
         {tab === 'news' && <OrgNewsAdminTab />}
         {tab === 'aroma' && <AromaRecipesAdminTab />}
+        {tab === 'activity' && <ActivityLogTab />}
       </div>
     </div>
   );
