@@ -219,9 +219,10 @@ function GlobalEvacuationOverlay() {
   if (!evac.data) return null;
 
   const role = me.data?.role;
+  // Alle Vereinsmitglieder dürfen beenden: Admin, Personal, ALLE Mitglieder
+  // (Helfer + Aufgießer), Gast-Aufgießer. Ausgeschlossen: anon, gast, fan.
   const canEnd = role === 'admin' || role === 'staff'
-    || (role === 'member' && me.data?.is_aufgieser)
-    || role === 'guest_aufgieser';
+    || role === 'member' || role === 'guest_aufgieser';
 
   return (
     <EvacuationOverlay

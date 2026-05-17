@@ -400,7 +400,7 @@ function OilRoomContent() {
 
         <div className="flex-1 flex flex-col items-center justify-center p-6">
           {presentAufgieser.length === 0 ? (
-            <div className="text-center space-y-4">
+            <div className="text-center space-y-4 max-w-md">
               <div className="text-4xl">😔</div>
               <p className="text-forest-300/70 text-base">Kein Aufgieser aktuell eingecheckt.</p>
               <p className="text-forest-300/50 text-sm">Bitte erst am Eingang einchecken.</p>
@@ -410,11 +410,36 @@ function OilRoomContent() {
                 disabled={presentQ.isFetching}
                 className="mt-4 rounded-xl bg-forest-600/30 px-6 py-3 text-base font-semibold text-forest-100 ring-1 ring-forest-500/40 hover:bg-forest-600/50 disabled:opacity-50 active:scale-95"
               >
-                {presentQ.isFetching ? '⟳ Lade…' : '🔄 Aktualisieren'}
+                {presentQ.isFetching ? '⟳ Lade…' : '🔄 Daten aktualisieren'}
               </button>
               <p className="text-[10px] text-forest-400/60">
-                Automatische Aktualisierung alle 15 Sekunden
+                Automatische Aktualisierung alle 10 Sekunden
               </p>
+              {/* Hard-Reload für Service-Worker-Cache-Probleme:
+                  PWA cached die alte JS-Version → API-Aufrufe gehen ins Leere.
+                  location.reload() lädt frische JS aus dem Netz. */}
+              <div className="mt-6 pt-4 border-t border-forest-800/40">
+                <p className="text-[11px] text-forest-400/70 mb-2">
+                  Trotz Check-in noch nicht sichtbar?
+                </p>
+                <button
+                  onClick={async () => {
+                    // Service-Worker explicit aufräumen, falls vorhanden
+                    if ('serviceWorker' in navigator) {
+                      const regs = await navigator.serviceWorker.getRegistrations();
+                      await Promise.all(regs.map((r) => r.update()));
+                    }
+                    // Cache-Buster: window.location.reload()
+                    window.location.reload();
+                  }}
+                  className="rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-200 ring-1 ring-amber-500/40 hover:bg-amber-500/30 active:scale-95"
+                >
+                  ⚙️ App neu laden (Cache leeren)
+                </button>
+                <p className="text-[10px] text-forest-400/50 mt-2 leading-relaxed">
+                  Hilft wenn das Tablet eine alte App-Version aus dem PWA-Cache zeigt.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="w-full max-w-md space-y-3">
