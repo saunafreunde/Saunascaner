@@ -24,7 +24,11 @@ export function useTvStageState() {
       if (error) throw error;
       return (data ?? { manual_scenes: [], suppress_auto_season: false, last_effect: null }) as TvStageState;
     },
-    refetchInterval: 60_000,
+    // Realtime-Invalidation ist der primäre Update-Pfad; refetchInterval als
+    // Fallback falls die Subscription hängt. staleTime=0 sorgt dafür dass
+    // jede Invalidation sofort einen Re-Fetch triggert.
+    staleTime: 0,
+    refetchInterval: 30_000,
   });
 }
 

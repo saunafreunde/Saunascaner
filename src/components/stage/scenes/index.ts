@@ -44,6 +44,7 @@ export const SCENE_REGISTRY: Record<string, SceneMeta> = {
 
   // ── Toggle-Wrapper für bestehende Schwarzwald-Komponenten ──
   // Default off; im Theme „Wald lebt" zusammen aktiviert.
+  'schwarzwald-heim': { id: 'schwarzwald-heim', label: 'Schwarzwald-Heim', emoji: '🏡', defaultSeason: null, component: lazy(() => import('./SchwarzwaldHomeScene')) },
   'holzfaeller': { id: 'holzfaeller', label: 'Holzfäller',         emoji: '🪓',  defaultSeason: null,                   component: lazy(() => import('./HolzfaellerScene')) },
   'reh':         { id: 'reh',         label: 'Reh-Familie',        emoji: '🦌',  defaultSeason: null,                   component: lazy(() => import('./RehScene')) },
   'playground':  { id: 'playground',  label: 'Spielplatz',         emoji: '🛝',  defaultSeason: null,                   component: lazy(() => import('./PlaygroundScene')) },

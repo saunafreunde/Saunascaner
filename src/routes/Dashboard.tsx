@@ -189,7 +189,7 @@ export default function Dashboard() {
   };
 
   return (
-    <PageBackground page="dashboard" variant="strong" className="h-screen overflow-hidden flex flex-col">
+    <PageBackground page="dashboard" variant="strong" noImage className="h-screen overflow-hidden flex flex-col">
       <ParticleCanvas activeSaunaCount={activeSaunas.length} />
       <AnimatePresence>
         {evac.data && (
@@ -262,7 +262,7 @@ export default function Dashboard() {
 
       <BirthdayBanner />
 
-      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-6 pb-32 flex gap-4">
+      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-6 pb-4 flex gap-4">
         {renderMain()}
       </main>
 

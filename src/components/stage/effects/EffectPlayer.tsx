@@ -6,22 +6,24 @@ type LastEffect = { kind: string; triggered_at: string; nonce: string };
 // Spielt den zuletzt ausgelösten Effekt einmal ab. Wird per `key={nonce}` neu
 // gemounted bei jedem RPC-Trigger.
 //
-// Hört nach `durationMs` der Effect-Definition auf zu rendern (self-unmount via
-// State-Toggle). Wenn der Stage-Reload alte triggered_at-Werte sieht (> 30s
-// her), ignoriert die Komponente sie sofort — verhindert „Effekt-Nachholen"
-// nach Tafel-Reload.
+// Stale-Filter: ignoriert Effekte deren triggered_at älter als
+// STALE_THRESHOLD_MS ist. Verhindert „Effekt-Nachholen" nach Tafel-Reload
+// oder Tab-Wechsel. Eng gehalten, weil Realtime-Latency typischerweise < 2s.
 
-const STALE_THRESHOLD_MS = 30_000;
+const STALE_THRESHOLD_MS = 5_000;
 
 export function EffectPlayer({ effect }: { effect: LastEffect }) {
   const entry = EFFECT_REGISTRY[effect.kind];
 
-  // Stale-Check direkt beim Mount — kein useState/effect nötig wenn schon zu alt
   const triggeredAtMs = new Date(effect.triggered_at).getTime();
   const ageMs = Date.now() - triggeredAtMs;
   const isStale = ageMs > STALE_THRESHOLD_MS;
 
   const [done, setDone] = useState(isStale);
+
+  // Diagnose-Log (TODO: nach Fix-Bestätigung entfernen)
+  // eslint-disable-next-line no-console
+  console.log('[EffectPlayer] mount', { kind: effect.kind, ageMs, isStale, hasEntry: !!entry });
 
   useEffect(() => {
     if (isStale || !entry) return;
@@ -37,7 +39,7 @@ export function EffectPlayer({ effect }: { effect: LastEffect }) {
   return (
     <div
       className="pointer-events-none fixed inset-0 overflow-hidden"
-      style={{ zIndex: 50 }}
+      style={{ zIndex: 100 }}
       aria-hidden="true"
     >
       <Suspense fallback={null}>

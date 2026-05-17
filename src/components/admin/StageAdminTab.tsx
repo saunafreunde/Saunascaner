@@ -4,6 +4,7 @@ import {
 } from '@/lib/api';
 import { SCENE_REGISTRY } from '@/components/stage/scenes';
 import { EFFECT_REGISTRY } from '@/components/stage/effects';
+import { EffectPlayer } from '@/components/stage/effects/EffectPlayer';
 import { activeScenesForState, currentSeasonLabel, THEME_PRESETS } from '@/lib/season';
 
 // Admin-Tab „🎭 Bühne": steuert TV-Tafel-Szenarien + Effekte.
@@ -21,6 +22,19 @@ export function StageAdminTab() {
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
+
+  // Lokal-Test: spielt einen Effect IM ADMIN-TAB ab (umgeht Realtime).
+  // So lässt sich isolieren ob ein Bug im Render-Layer oder in der
+  // Realtime-Strecke steckt. Synthetic nonce, damit jede Klick-Wiederholung
+  // den EffectPlayer neu mountet.
+  const [localTest, setLocalTest] = useState<{ kind: string; triggered_at: string; nonce: string } | null>(null);
+  function playLocal(kind: string) {
+    setLocalTest({
+      kind,
+      triggered_at: new Date().toISOString(),
+      nonce: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    });
+  }
 
   const state = stateQ.data;
   const active = activeScenesForState(now, state ?? null);
@@ -201,6 +215,32 @@ export function StageAdminTab() {
           </p>
         )}
       </section>
+
+      {/* ── Lokal-Test (Diagnose) ── */}
+      <section className="rounded-2xl bg-forest-950/40 ring-1 ring-forest-800/40 p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-forest-400 mb-2">
+          🧪 Lokal-Test (umgeht Realtime — testet nur die Render-Strecke)
+        </h2>
+        <p className="text-[11px] text-forest-400/80 mb-2">
+          Wenn der Effekt hier sichtbar ist aber auf der Tafel nicht: Realtime-Problem.
+          Wenn hier auch nichts kommt: Render-Problem.
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {Object.values(EFFECT_REGISTRY).map((eff) => (
+            <button
+              key={eff.id}
+              onClick={() => playLocal(eff.id)}
+              className="rounded-md bg-forest-900/60 ring-1 ring-forest-700/40 px-2 py-1 text-[11px] text-forest-200 hover:bg-forest-800"
+            >
+              {eff.emoji} {eff.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Lokal-Render-Slot. EffectPlayer rendert mit fixed inset-0, z-100 →
+          erscheint über dem ganzen Admin-UI für die Dauer des Effekts. */}
+      {localTest && <EffectPlayer key={localTest.nonce} effect={localTest} />}
     </div>
   );
 }

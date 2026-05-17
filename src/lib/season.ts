@@ -113,7 +113,7 @@ export const THEME_PRESETS: { id: string; label: string; emoji: string; scenes: 
   { id: 'herbst',        label: 'Herbst',           emoji: '🍂',  scenes: ['autumn-leaves'] },
   { id: 'halloween',     label: 'Halloween',        emoji: '🎃',  scenes: ['pumpkins', 'ghosts', 'bats', 'spiders', 'night'] },
   { id: 'nacht',         label: 'Nacht-Modus',      emoji: '🌙',  scenes: ['night'] },
-  { id: 'wald-live',     label: 'Wald lebt',        emoji: '🌲',  scenes: ['holzfaeller', 'reh', 'playground'] },
+  { id: 'wald-live',     label: 'Wald lebt',        emoji: '🌲',  scenes: ['schwarzwald-heim', 'holzfaeller', 'reh', 'playground'] },
 ];
 
 // State-Form (aus DB, gespiegelt vom api.ts-Hook).
