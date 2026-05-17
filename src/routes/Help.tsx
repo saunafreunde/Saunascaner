@@ -125,6 +125,23 @@ export default function Help() {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeSlug]}
+            components={{
+              // Interne Links (starten mit /) via React-Router → kein Full-Page-Reload.
+              // Externe Links (http://...) und Anker-Links (#kapitel-X) bleiben native <a>.
+              a({ href, children, ...props }) {
+                const isInternal = typeof href === 'string'
+                  && href.startsWith('/')
+                  && !href.startsWith('//');
+                if (isInternal) {
+                  return (
+                    <Link to={href} className="handbook-direct-link" {...(props as React.AnchorHTMLAttributes<HTMLAnchorElement>)}>
+                      {children}
+                    </Link>
+                  );
+                }
+                return <a href={href} {...props}>{children}</a>;
+              },
+            }}
           >
             {HANDBOOK_MARKDOWN}
           </ReactMarkdown>
@@ -141,6 +158,25 @@ export default function Help() {
         .prose-handbook ul, .prose-handbook ol { margin: 0.75rem 0; padding-left: 1.5rem; }
         .prose-handbook li { margin: 0.25rem 0; }
         .prose-handbook code { background: rgba(8,18,12,0.7); color: #fbbf24; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, monospace; }
+        /* ASCII-UI-Mockups: monospaced, kein Wrap, schmaler Fixed-Width-Font, leichter Schwarzwald-Tint */
+        .prose-handbook pre {
+          background: rgba(8,18,12,0.85);
+          border: 1px solid rgba(124,74,26,0.35);
+          border-radius: 8px;
+          padding: 0.85rem 1rem;
+          overflow-x: auto;
+          margin: 1rem 0;
+          line-height: 1.35;
+        }
+        .prose-handbook pre code {
+          background: transparent !important;
+          color: #e8f5e8 !important;
+          padding: 0 !important;
+          font-size: 0.8rem;
+          font-family: 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+          white-space: pre;
+          display: block;
+        }
         .prose-handbook blockquote { border-left: 3px solid #fbbf24; padding: 0.5rem 1rem; margin: 1rem 0; background: rgba(8,18,12,0.4); border-radius: 0 8px 8px 0; color: #a8c8a8; font-style: italic; }
         .prose-handbook table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
         .prose-handbook th, .prose-handbook td { border: 1px solid rgba(124,74,26,0.3); padding: 0.5rem 0.75rem; text-align: left; }
@@ -148,6 +184,21 @@ export default function Help() {
         .prose-handbook tbody tr:nth-child(odd) { background: rgba(8,18,12,0.3); }
         .prose-handbook a { color: #fbbf24; text-decoration: underline; }
         .prose-handbook a:hover { color: #fcd34d; }
+        /* Direkt-Sprung-Buttons: interne Links zu App-Funktionen — auffälliger als Anker-Links */
+        .prose-handbook a.handbook-direct-link {
+          display: inline-flex; align-items: center; gap: 0.25rem;
+          padding: 0.15rem 0.6rem; margin: 0 0.15rem;
+          border-radius: 9999px;
+          background: rgba(251, 191, 36, 0.15);
+          border: 1px solid rgba(251, 191, 36, 0.35);
+          text-decoration: none; font-size: 0.85em; font-weight: 600;
+          transition: background 120ms;
+        }
+        .prose-handbook a.handbook-direct-link:hover {
+          background: rgba(251, 191, 36, 0.25);
+          border-color: rgba(251, 191, 36, 0.6);
+        }
+        .prose-handbook a.handbook-direct-link::after { content: ' →'; }
         .prose-handbook hr { border: 0; border-top: 1px solid rgba(124,74,26,0.4); margin: 2rem 0; }
         .prose-handbook strong { color: #f5f5dc; font-weight: 700; }
         .prose-handbook em { color: #fde68a; }

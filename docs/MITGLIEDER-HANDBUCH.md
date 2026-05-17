@@ -3,7 +3,75 @@
 > Die App der **Saunafreunde Schwarzwald e.V.** für Aufguss-Planung, Mitglieder-Verwaltung, WM-Tipspiel, Mini-Feed und vieles mehr.
 >
 > **Live unter:** [saunascaner.vercel.app](https://saunascaner.vercel.app)
-> **Stand:** 15.05.2026
+> **Stand:** 17.05.2026
+
+---
+
+## 🎯 Direkt-Sprung zu allen Funktionen
+
+Klicke auf einen Direkt-Link, um direkt zur Funktion in der App zu springen.
+
+### Für alle eingeloggten Mitglieder
+
+| Funktion | Was du dort kannst | Direkt-Sprung |
+|---|---|---|
+| 📺 **TV-Tafel** | Live-Aufguss-Plan für TV/Tablet | [/dashboard](/dashboard) |
+| 🌟 **Aufgießer-Übersicht** | Star-Karten aller Aufgießer + Favoriten setzen | [/aufgieser](/aufgieser) |
+| 📸 **Mini-Feed** | 1-Bild-Posts + 5 Bühnen-Reactions | [/feed](/feed) |
+| 🏆 **WM-Tipspiel** | 104 Spiele tippen, Joker, Final-Tipp | [/wm](/wm) |
+| 📅 **Kalender-Abo** | iCal-Feed deiner Aufgüsse | [/profile/me](/profile/me) |
+| 📖 **Handbuch** | Diese Seite | [/hilfe](/hilfe) |
+
+### Pro Rolle: dein Default-Bereich
+
+| Rolle | Default-Bereich | Direkt-Sprung |
+|---|---|---|
+| 👋 Gast | Gast-Bereich mit PIN, Stats, Badges, Fan-Antrag | [/gast](/gast) |
+| 🤝 **Fan / Förderer** | News-Feed, Aroma-Rezepte, Fan-Ausweis | [/fan](/fan) |
+| 🤝 Helfer / Unterstützer | Helfer-Aufgaben + Verein-Galerie | [/unterstuetzer](/unterstuetzer) |
+| 🧖 Aufgießer | Aufguss-Planner (6 Tage voraus) | [/planner](/planner) |
+| 👨‍🍳 Personal | Mitarbeiter-Bereich + Personal-Fallback | [/mitarbeiter](/mitarbeiter) |
+| 🛠️ CP-Verantwortlicher | Schichtplan + Anwesenheits-Export + anonyme Ratings | [/cp](/cp) |
+| ⚙️ Admin | Admin-Hauptseite mit 5 Tab-Gruppen | [/admin](/admin) |
+
+### Admin-Funktionen (Direkt-Sprung pro Tab)
+
+Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 15 Tabs. Du springst direkt rein mit:
+
+**🔥 Operations**
+- [Saunen aktivieren/deaktivieren](/admin#saunas)
+- [Live-Anwesenheit ansehen](/admin#presence)
+- [Stamm-Slots verwalten](/admin#recurring)
+
+**👥 Mitglieder**
+- [Mitgliederliste + Rollen-Wechsel + Fan-Anträge](/admin#members)
+- [Einladungen verschicken](/admin#invitations)
+
+**📊 Auswertung**
+- [Statistik-Dashboard](/admin#stats)
+- [20 Charts (Auswertungen)](/admin#auswertungen)
+- [📋 Aktivitäts-Log (wer hat was wann)](/admin#activity)
+
+**📣 Module**
+- [📣 Vereins-News veröffentlichen](/admin#news)
+- [🌿 Aroma-Rezepte moderieren](/admin#aroma)
+- [📸 Feed-Moderation](/admin#feed)
+- [📋 Abfragen erstellen](/admin#polls)
+- [🤝 Helfer-Aufgaben verwalten](/admin#tasks)
+- [🏆 WM-Spielplan + Ergebnisse](/admin#wm)
+
+**🎨 Setup**
+- [🎨 Branding (Logo, Farben, org_name)](/admin#branding)
+- [📖 Handbuch-Editor](/admin#handbook)
+
+### Tablet- & TV-Modi
+
+| Gerät | Was es ist | Direkt-Sprung |
+|---|---|---|
+| 📺 TV in der Sauna | Aufguss-Tafel-Vollbild | [/dashboard](/dashboard) |
+| 📱 Eingangs-Scanner | QR-Code-Check-in | [/scanner](/scanner) |
+| 📱 Sauna-Tablet | PIN-Login + Aufguss anlegen + Notfall-Alarm | [/checkin](/checkin) |
+| 📱 Öl-Raum-Tablet | Aufgießer-Tools (PIN 1234) | [/oil-room](/oil-room) |
 
 ---
 
@@ -217,9 +285,36 @@ Deine Rolle siehst du oben im Header neben deinem Avatar.
 
 ## 5. 👋 Als Gast
 
-**Default-Bereich:** `/gast`
+**Default-Bereich:** [/gast](/gast)
 
 Du bist Gast — herzlich willkommen! Der Gast-Bereich ist **kein abgespeckter Modus**, sondern eine eigene, sehr durchdachte Erfahrung. Du hast ein vollständiges Profil, eigene Statistiken, ein Favoriten-System für Aufgießer und kannst Aufgüsse bewerten. Nur Vereins-spezifische Bereiche (Planning, Mitglieder-Galerie, Postfach) sind für dich gesperrt.
+
+### So sieht dein Bereich aus
+
+```
+┌─ Hallo {Dein Name} 👋 ──────────── 🧭 Quick-Nav ─┐
+├──────────────────────────────────────────────────┤
+│  [Avatar]  Stefan B.    motto: „Sauna ist Liebe" │
+│            👋 Gast · seit 14.03.2026             │
+├──────────────────────────────────────────────────┤
+│ ⏳ Du hast 2 unbewertete Aufgüsse                │
+│    [Birke 🌿 14.05 19:00] [Eukalyptus 15.05 …]   │
+├──────────────────────────────────────────────────┤
+│ 📱 Dein Tablet-Check-in-PIN:    4 7 1 1          │
+├──────────────────────────────────────────────────┤
+│ 📊 Stats:  8 Besuche · 23 Bewertungen · 5 Fans   │
+│            🏅 12 von 67+ Badges erreicht          │
+├──────────────────────────────────────────────────┤
+│ ⭐ Deine Favoriten (3):                          │
+│    [Christoph 🧖] [Bernd 🧖] [Stephanie 🧖]      │
+├──────────────────────────────────────────────────┤
+│ 🤝 Werde Fan unserer Saunameister                │  ← ab 5 Bewertungen
+│    📣 News · 🌿 Rezepte · 🏅 Fan-Ausweis         │     (Milestone-Trigger)
+│                          [🤝 Fan-Antrag stellen] │
+└──────────────────────────────────────────────────┘
+```
+
+**Schnellzugriff:** [Mein Gast-Bereich](/gast) · [Aufgießer ansehen](/aufgieser) · [Mini-Feed](/feed) · [WM-Tipps](/wm)
 
 ### So wirst du Gast — drei Wege
 
@@ -357,7 +452,44 @@ Du gefällst dem Verein und möchtest dauerhaft dabei sein? Sprich einen ⚙️ 
 
 ## 6. 🤝 Als Fan / Förderer
 
+**Default-Bereich:** [/fan](/fan)
+
 > Du bist Sauna-Gast, willst aber näher dran sein — ohne dich zu verpflichten? Das **Förderndes Mitglied** ist der saubere Zwischenschritt zwischen Gast und Aktiv-Mitglied.
+
+### So sieht dein Bereich aus
+
+```
+┌─ Hallo Fan {Dein Name} 🤝 ─────── Förderer · Saunafreunde ─┐
+├────────────────────────────────────────────────────────────┤
+│ [Avatar]  Stefan B.    motto: „Saunameister-Fan seit 2026" │
+├────────────────────────────────────────────────────────────┤
+│ 🏅 Förderer-Status                       [🏅 Fan-Ausweis] │
+│ Förderer-Mitgliedschaft gültig bis 31.12.2026              │
+│ Fan seit 17.05.2026                                        │
+├────────────────────────────────────────────────────────────┤
+│ 📣 Aus dem Verein                  exklusiv für Förderer  │
+│  📌 Sommerfest am 21.06.2026 — Anmeldung läuft!            │
+│  ────────────────────────────────────────                  │
+│  Neue Sauna-Aufgüsse jeden Freitag mit Christoph           │
+│  ────────────────────────────────────────                  │
+│  Putz-Aktion am 12.06.2026 — Helfer willkommen             │
+├────────────────────────────────────────────────────────────┤
+│ 🌿 Aroma-Rezepte unserer Saunameister                     │
+│  ┌──────────────────┐ ┌──────────────────┐                │
+│  │ Birkenwald-Frische│ │ Eukalyptus-Power │                │
+│  │ • Birke · 5 Tr.   │ │ • Eukalyptus · 7 │                │
+│  │ • Limette · 3 Tr. │ │ • Pfefferminze   │                │
+│  │ 🌡️ 90°C · finnisch│ │ 🌡️ 80°C · bio    │                │
+│  │ — Christoph W.    │ │ — Bernd K.       │                │
+│  └──────────────────┘ └──────────────────┘                │
+├────────────────────────────────────────────────────────────┤
+│ ⏳ Pending-Ratings · 🆔 PIN · 📊 Stats · 🏅 Badges        │
+├────────────────────────────────────────────────────────────┤
+│ ▸ Datenschutz & Account-Löschung                           │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Schnellzugriff:** [Mein Fan-Bereich](/fan) · [Aufgießer](/aufgieser) · [Mini-Feed](/feed) · [WM-Tipps](/wm)
 
 ### Was ist ein Fan?
 
@@ -695,27 +827,119 @@ Personal sieht die eigenen Schichten — andere Schichten kann der Mitarbeiter *
 
 ## 11. ⚙️ Als Admin
 
-**Default-Bereich:** `/planner` (mit zusätzlichem Admin-Menü)
+**Default-Bereich:** [/planner](/planner) (mit zusätzlichem Admin-Menü) · **Admin-Hauptseite:** [/admin](/admin)
 
-Du hast Vollzugriff auf alle Bereiche und kannst über `/admin` die App komplett verwalten.
+Du hast Vollzugriff auf alle Bereiche und kannst über [/admin](/admin) die App komplett verwalten.
 
-### Die 13 Admin-Tabs unter `/admin`
+### So sieht die Admin-Hauptseite aus
 
-| Tab | Was du tust |
-|---|---|
-| **🛁 Saunas** | Saunen ein/ausschalten, Temperatur-Modi, Farbe, Sortierung |
-| **👥 Members** | Mitglieder anlegen, Rollen ändern, sperren/entsperren, PINs zurücksetzen |
-| **📨 Invitations** | Einladungen verschicken — **6 Rollen-Buttons**: Aufgießer · Helfer · Gast-Aufgießer · Personal · Gast · Admin |
-| **📅 Recurring** | Stamm-Slots verwalten — Anträge freigeben, materialisieren |
-| **🟢 Presence** | Live-Anwesenheit, manuelle Korrekturen |
-| **📊 Stats** | Aufguss-Statistiken pro Aufgießer/Monat |
-| **📈 Auswertungen** | PDF-Reports, Datenexporte |
-| **🎨 Branding** | `brand_settings` — Logo, Farben, Vereinsname, Custom-Texte |
-| **📖 Handbook** | Dieses Handbuch verschicken (Email-Broadcast, Telegram, WhatsApp, PDF) |
-| **📊 Polls** | Umfragen erstellen + Ergebnisse |
-| **🤝 Tasks** | Helfer-Aufgaben anlegen, Zusagen freigeben |
-| **📸 Feed** | Feed-Moderation (Bilder, Kommentare) |
-| **🏆 WM** | WM-Tipspiel administrieren (nur sichtbar bei `is_wm_admin`) |
+```
+┌─ ⚙️ Admin · Stammdaten · Steuerung · Branding ──── 🌙 🧭 Abmelden ─┐
+│                                                                    │
+│  🔥 Operations  👥 Mitglieder  📊 Auswertung  📣 Module  🎨 Setup  │  ← Gruppe
+│  ──────────────                                                    │
+│  🔥 Saunen   🟢 Anwesenheit   📅 Stamm-Slots                       │  ← Sub-Tab
+│                                                                    │
+└─────────────────── (Tab-Content unten) ─────────────────────────────┘
+```
+
+15 Tabs in 5 Gruppen — Direkt-Sprung zu jedem Tab:
+
+**🔥 Operations** [Saunen](/admin#saunas) · [Anwesenheit](/admin#presence) · [Stamm-Slots](/admin#recurring)
+**👥 Mitglieder** [Mitgliederliste](/admin#members) · [Einladungen](/admin#invitations)
+**📊 Auswertung** [Statistik](/admin#stats) · [Auswertungen](/admin#auswertungen) · [📋 Aktivitäts-Log](/admin#activity)
+**📣 Module** [📣 News](/admin#news) · [🌿 Aroma-Rezepte](/admin#aroma) · [📸 Feed](/admin#feed) · [📋 Abfragen](/admin#polls) · [🤝 Aufgaben](/admin#tasks) · [🏆 WM-Tipps](/admin#wm)
+**🎨 Setup** [Branding](/admin#branding) · [Handbuch](/admin#handbook)
+
+### Mitgliederverwaltung im Detail [→ direkt hin](/admin#members)
+
+```
+┌─ 👥 Mitgliederliste ───────────────────────────────────────┐
+│  🤝 Fan-Anträge (2)   ⏳ Wartet auf Freigabe (1)          │  ← Pending oben
+├────────────────────────────────────────────────────────────┤
+│  📊 Rollen-Verteilung (37 aktiv · 1 gesperrt)              │
+│  ┌───────────┬───────────┬───────────┐                     │
+│  │ 👋 Gast 9 │ 🤝 Fan 3  │ ✅ Mitgl 8 │                     │
+│  │ 🧖 Auf. 5 │ 🌍 GA 3   │ 👨‍🍳 Pers 4 │                     │
+│  │ 🛠️ CP 1   │ ⚙️ Adm 1  │ 🏆 WM-A 2  │                     │
+│  └───────────┴───────────┴───────────┘                     │
+├────────────────────────────────────────────────────────────┤
+│  🔎 Suche nach Name oder E-Mail …               [✕ Clear] │
+├────────────────────────────────────────────────────────────┤
+│  Stefan B.  🤝 Fan · bis 31.12.26   stefan@…              │
+│      📧 Postfach · 🎭 Rolle ▾ · 🔥 Aufgieser · Ausweis ·  │
+│      Sperren · 🗑                                          │
+│                                                            │
+│  Bernd K.   🧖 Aufgieser · 🏆 WM-Admin    bernd@…         │
+│      …                                                     │
+└────────────────────────────────────────────────────────────┘
+```
+
+**🎭 Rolle ▾ klicken** öffnet ein Panel mit 6 Basis-Rollen-Presets + Zusatz-Rechte-Checkboxen (🏆 WM-Admin, 🛠️ CP-V).
+
+### News-Editor [→ direkt hin](/admin#news)
+
+```
+┌─ 📣 Vereins-News                           [+ Neue News] ─┐
+├────────────────────────────────────────────────────────────┤
+│  Titel: __Sommerfest 21.06.2026________________            │
+│  Inhalt: ┌──────────────────────────────────┐              │
+│          │ Liebe Saunafreunde, am 21.06.    │              │
+│          │ veranstalten wir das traditionelle│              │
+│          │ Sommerfest ab 18:00 Uhr…         │              │
+│          └──────────────────────────────────┘              │
+│  Sichtbar ab: [🤝 Fans & höher ▾]                          │
+│  Sichtbar bis: 22.06.2026                                  │
+│  ☑ 📌 Oben festpinnen                                      │
+│                                                            │
+│        [📣 Veröffentlichen + Push senden]                 │
+└────────────────────────────────────────────────────────────┘
+```
+
+Push geht **automatisch** an alle berechtigten Member (DB-Trigger).
+
+### Aktivitäts-Log [→ direkt hin](/admin#activity)
+
+```
+┌─ 📋 Aktivitäts-Log                          347 Einträge ─┐
+├────────────────────────────────────────────────────────────┤
+│  [📅 Heute] [📆 Woche*] [🗓️ Monat] [∞ Alle] [⚙️ Custom]   │
+├────────────────────────────────────────────────────────────┤
+│  Mitglied: [— Alle —          ▾]                           │
+│  Kategorie:[📋 Alle ▾]  Mitgl/Aufg/Fan/News/Rezept/Notfall│
+├────────────────────────────────────────────────────────────┤
+│  🎭 Rolle gewechselt · Stefan B.                           │
+│      Christoph W. · admin · 17.05.26 · 14:32              │
+│      ▸ Details                                             │
+│                                                            │
+│  ✓ Fan-Antrag bestätigt · Bernd K.                         │
+│      Christoph W. · admin · 17.05.26 · 14:30              │
+│                                                            │
+│  🚨 Notfall-Alarm ausgelöst                                │
+│      System · 17.05.26 · 12:15                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Die 15 Admin-Tabs unter `/admin` — Übersicht
+
+| Tab | Direkt-Sprung | Was du tust |
+|---|---|---|
+| 🔥 Saunen | [/admin#saunas](/admin#saunas) | Saunen ein/ausschalten, Temperatur-Modi, Farbe |
+| 🟢 Anwesenheit | [/admin#presence](/admin#presence) | Live-Anwesenheit, manuelle Korrekturen |
+| 📅 Stamm-Slots | [/admin#recurring](/admin#recurring) | Recurring-Slot-Anträge freigeben |
+| 👥 Mitglieder | [/admin#members](/admin#members) | Rollen-Wechsel, Fan-Anträge, Sperren, Ausweise |
+| ✉️ Einladungen | [/admin#invitations](/admin#invitations) | 7 Rollen-Buttons für Einladungs-Versand |
+| 📊 Statistik | [/admin#stats](/admin#stats) | Aufguss-Stats pro Aufgießer/Monat |
+| 📈 Auswertungen | [/admin#auswertungen](/admin#auswertungen) | 20 Charts (Aufgießer/Aktivität/Aromen/Mitglieder/Bewertungen/Social) |
+| 📋 **Aktivität** | [/admin#activity](/admin#activity) | Audit-Log: wer hat was wann gemacht |
+| 📣 News | [/admin#news](/admin#news) | Vereins-Ankündigungen veröffentlichen (Push automatisch) |
+| 🌿 Aroma | [/admin#aroma](/admin#aroma) | Saunameister-Rezepte freigeben |
+| 📸 Feed | [/admin#feed](/admin#feed) | Feed-Moderation (Bilder, Kommentare) |
+| 📋 Abfragen | [/admin#polls](/admin#polls) | Umfragen erstellen + Ergebnisse |
+| 🤝 Aufgaben | [/admin#tasks](/admin#tasks) | Helfer-Aufgaben anlegen, Zusagen freigeben |
+| 🏆 WM-Tipps | [/admin#wm](/admin#wm) | WM-Tipspiel administrieren |
+| 🎨 Branding | [/admin#branding](/admin#branding) | Logo, Farben, Vereinsname, Custom-Texte |
+| 📖 Handbuch | [/admin#handbook](/admin#handbook) | Handbuch-Editor + Broadcast |
 
 ### Admin-Preview-Mode 👁️
 

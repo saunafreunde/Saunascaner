@@ -79,8 +79,33 @@ export default function Admin() {
     () => wmOnly ? ['modules'] : (Object.keys(GROUP_META) as Group[]),
     [wmOnly]
   );
-  const [group, setGroup] = useState<Group>(wmOnly ? 'modules' : 'operations');
-  const [tab, setTab] = useState<Tab>(wmOnly ? 'wm' : 'saunas');
+
+  // Deep-Linking via URL-Hash: /admin#members springt direkt zum Mitglieder-Tab.
+  // Wird vom Handbuch genutzt (Direkt-Sprung-Buttons).
+  const initialTab = useMemo<Tab>(() => {
+    if (wmOnly) return 'wm';
+    const hash = (typeof window !== 'undefined' ? window.location.hash.slice(1) : '') as Tab;
+    return hash && hash in TAB_META ? hash : 'saunas';
+  }, [wmOnly]);
+  const initialGroup = useMemo<Group>(() => {
+    if (wmOnly) return 'modules';
+    const groupFromTab = (Object.keys(GROUP_META) as Group[])
+      .find((g) => GROUP_META[g].tabs.includes(initialTab));
+    return groupFromTab ?? 'operations';
+  }, [wmOnly, initialTab]);
+
+  const [group, setGroup] = useState<Group>(initialGroup);
+  const [tab, setTab] = useState<Tab>(initialTab);
+
+  // URL-Hash bei Tab-Wechsel mit-aktualisieren (Browser-Back funktioniert dadurch)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !wmOnly) {
+      const currentHash = window.location.hash.slice(1);
+      if (currentHash !== tab) {
+        window.history.replaceState(null, '', `${window.location.pathname}#${tab}`);
+      }
+    }
+  }, [tab, wmOnly]);
 
   // Sub-Tab-Liste der aktuellen Gruppe (für WM-Only nur 'wm')
   const subTabs = useMemo<Tab[]>(
