@@ -77,10 +77,28 @@ export function StageAdminTab() {
     }
   }
 
+  // Cooldown auf Effect-Buttons: 5s nach letztem Klick disabled.
+  // Verhindert dass schnelle Klick-Folgen (z.B. 3x in 15s, siehe API-Logs)
+  // sich gegenseitig überschreiben — jeder neue Trigger ersetzt last_effect,
+  // wodurch der EffectPlayer per nonce-key unmounted und alte Effects
+  // mid-render abgebrochen werden.
+  const [effectCooldownUntil, setEffectCooldownUntil] = useState(0);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (effectCooldownUntil <= Date.now()) return;
+    const t = setInterval(() => setTick((n) => n + 1), 250);
+    return () => clearInterval(t);
+  }, [effectCooldownUntil]);
+  const cooldownRemainingMs = Math.max(0, effectCooldownUntil - Date.now());
+  const isCoolingDown = cooldownRemainingMs > 0;
+
   async function handleEffect(kind: string) {
+    if (isCoolingDown) return;
     try {
+      setEffectCooldownUntil(Date.now() + 5_000);
       await triggerEffect.mutateAsync(kind);
     } catch (e) {
+      setEffectCooldownUntil(0);
       window.alert((e as Error).message);
     }
   }
@@ -199,15 +217,22 @@ export function StageAdminTab() {
             <button
               key={eff.id}
               onClick={() => handleEffect(eff.id)}
-              disabled={triggerEffect.isPending}
-              className="rounded-xl bg-amber-500/15 ring-1 ring-amber-500/40 px-3 py-3 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 active:scale-95 transition disabled:opacity-50 flex flex-col items-center gap-1"
+              disabled={triggerEffect.isPending || isCoolingDown}
+              className="rounded-xl bg-amber-500/15 ring-1 ring-amber-500/40 px-3 py-3 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center gap-1"
             >
               <span className="text-2xl" aria-hidden>{eff.emoji}</span>
               <span>{eff.label}</span>
-              <span className="text-[10px] text-amber-300/60">{Math.round(eff.durationMs / 1000)}s</span>
+              <span className="text-[10px] text-amber-300/60">
+                {isCoolingDown ? `${Math.ceil(cooldownRemainingMs / 1000)}s…` : `${Math.round(eff.durationMs / 1000)}s`}
+              </span>
             </button>
           ))}
         </div>
+        {isCoolingDown && (
+          <p className="text-[11px] text-amber-300/70 mt-2 italic">
+            ⏱ Bitte {Math.ceil(cooldownRemainingMs / 1000)}s warten — vorheriger Effekt läuft noch (sonst überschreibt der Neue ihn auf der Tafel).
+          </p>
+        )}
         {state?.last_effect && (
           <p className="text-[11px] text-forest-400 mt-3">
             Zuletzt ausgelöst: <strong>{EFFECT_REGISTRY[state.last_effect.kind]?.label ?? state.last_effect.kind}</strong>{' '}

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import type { Sauna } from '@/types/database';
-import { fmtClock } from '@/lib/time';
+import { fmtClock, fmtDate, dayLabel } from '@/lib/time';
 
 interface EmptyTileProps {
   sauna: Sauna;
@@ -10,6 +10,13 @@ interface EmptyTileProps {
 }
 
 export function EmptyTile({ sauna, className = '', backgroundImage = null, slotTime = null }: EmptyTileProps) {
+  // Datum-Label oben: "heute" / "morgen" / Wochentag — verhindert dass Tafel-
+  // Betrachter „14:00" automatisch als „heute" missinterpretiert wenn der
+  // nächste verfügbare Slot in Wahrheit übermorgen ist (z.B. Montag wird
+  // übersprungen → Slots von Sonntag-Abend springen auf Dienstag).
+  const dayText = slotTime ? dayLabel(slotTime) : null;
+  const dateText = slotTime ? fmtDate(slotTime) : null;
+
   return (
     <motion.div
       layout
@@ -33,6 +40,15 @@ export function EmptyTile({ sauna, className = '', backgroundImage = null, slotT
         className="absolute inset-y-0 left-0 w-1.5 opacity-50"
         style={{ backgroundColor: sauna.accent_color }}
       />
+      {/* Datum-Label oben rechts (klein) */}
+      {dayText && (
+        <span
+          className="absolute top-1.5 right-2 z-10 text-[10px] uppercase tracking-[0.15em] font-bold text-white/70"
+          aria-label={`${dayText} ${dateText}`}
+        >
+          {dayText} · {dateText}
+        </span>
+      )}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center select-none px-2 gap-1">
         {slotTime && (
           <span
