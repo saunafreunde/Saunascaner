@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCurrentMember } from '@/lib/api';
 import { useGameLeaderboard, type GameKind } from '@/lib/games';
-import { GAME_LABELS } from './registry';
+import { GAME_LABELS, GAME_REGISTRY } from './registry';
 import { Avatar } from '@/components/Avatar';
 
-const SOLO_KINDS_AVAILABLE: GameKind[] = ['tetris']; // Phase 1 nur Tetris; weitere Spiele füllen sich automatisch
+// Alle Solo-Spiele aus der Registry (Phase 1 + 2 = Tetris, Memory, Snake, 2048, Solitaire, Sudoku)
+const SOLO_KINDS_AVAILABLE: GameKind[] = (Object.keys(GAME_REGISTRY) as GameKind[]).filter(
+  (k) => GAME_REGISTRY[k]?.mode === 'solo',
+);
 const PERIODS: Array<{ id: 'all' | 'month' | 'week'; label: string }> = [
   { id: 'all',   label: 'Gesamt' },
   { id: 'month', label: 'Monat' },

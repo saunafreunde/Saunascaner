@@ -9,7 +9,9 @@ import { GAME_LABELS, GAME_REGISTRY } from './registry';
 import { Avatar } from '@/components/Avatar';
 import { LeaderboardSection } from './LeaderboardSection';
 
-const PHASE1_KINDS: GameKind[] = ['tetris', 'connect4', 'chess'];
+// Alle in der Registry registrierten Spiele anzeigen (Phase 1 + 1.5 + 2 = 14).
+// Nicht-implementierte Kinds (kein Registry-Eintrag) werden automatisch ausgeblendet.
+const ACTIVE_KINDS: GameKind[] = (Object.keys(GAME_REGISTRY) as GameKind[]);
 
 type HubTab = 'play' | 'leaderboard';
 
@@ -100,7 +102,7 @@ export function GameHub() {
           <section>
             <h2 className="mb-2 text-sm font-semibold text-forest-300 uppercase tracking-wider">Solo</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {PHASE1_KINDS.filter((k) => GAME_REGISTRY[k]?.mode === 'solo').map((k) => (
+              {ACTIVE_KINDS.filter((k) => GAME_REGISTRY[k]?.mode === 'solo').map((k) => (
                 <SoloCard key={k} kind={k} />
               ))}
             </div>
@@ -110,7 +112,7 @@ export function GameHub() {
           <section>
             <h2 className="mb-2 text-sm font-semibold text-forest-300 uppercase tracking-wider">Gegeneinander</h2>
             <div className="grid grid-cols-1 gap-3">
-              {PHASE1_KINDS.filter((k) => GAME_REGISTRY[k]?.mode !== 'solo').map((k) => {
+              {ACTIVE_KINDS.filter((k) => GAME_REGISTRY[k]?.mode !== 'solo').map((k) => {
                 const meta = GAME_REGISTRY[k]!;
                 return <PvPLauncher key={k} kind={k} label={meta.label} emoji={meta.emoji} short={meta.short} myId={myId} />;
               })}
