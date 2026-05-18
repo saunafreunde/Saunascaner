@@ -6,7 +6,6 @@ import { ATTR_BY_ID } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
 import BadgeChip from '@/components/BadgeChip';
 import type { BadgeDefinition } from '@/lib/badges';
-import { useTextFit } from '@/hooks/useTextFit';
 
 const IMMINENT_MIN = 10;
 
@@ -43,12 +42,8 @@ export function InfusionCard({
 
   const oils = (infusion.oils ?? []).filter(Boolean).slice(0, 3) as string[];
 
-  // Echtes Shrink-to-Fit für den Titel via ResizeObserver — px-genau.
-  const titleText = `${infusion.title}${infusion.team_infusion ? '  👥' : ''}`;
-  const { containerRef: titleContainerRef, textRef: titleTextRef } = useTextFit<HTMLDivElement, HTMLHeadingElement>(
-    titleText,
-    { maxFontPx: 44, minFontPx: 14 },
-  );
+  // useTextFit entfernt (gab dynamische font-size die fixe TV-Größen überschrieb).
+  // Compact-Mode nutzt jetzt fixe Tailwind-Klassen für robuste 1080p/4K-Skalierung.
 
   return (
     <motion.div
@@ -91,123 +86,101 @@ export function InfusionCard({
       />
 
       {compact ? (
-        <div className="flex flex-col flex-1 min-h-0 pl-2 gap-3">
-          {/* Header-Zeile (full-width): Uhrzeit-Chip + Titel-Container bis zum Rand */}
-          <div className="flex items-stretch gap-3 flex-shrink-0 h-[12%] min-h-[44px]">
+        <div className="flex flex-col flex-1 min-h-0 pl-2 gap-2.5">
+          {/* Header-Zeile: Uhrzeit-Chip + Titel — fixe Schriftgrößen statt vw/cqi
+              (skaliert robust auf 1080p UND 4K-TVs gleich) */}
+          <div className="flex items-stretch gap-2.5 flex-shrink-0">
             <div
-              className="rounded-xl px-3 flex items-center justify-center backdrop-blur-md flex-shrink-0"
+              className="rounded-xl px-3 py-1 flex items-center justify-center backdrop-blur-md flex-shrink-0"
               style={{
                 background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
               }}
             >
               <span
-                className="font-bold tabular-nums leading-none whitespace-nowrap"
+                className="font-bold tabular-nums leading-none whitespace-nowrap text-2xl"
                 style={{
                   color: sauna.accent_color,
                   textShadow: `0 0 10px ${sauna.accent_color}55`,
-                  fontSize: '1.8vw',
                 }}
               >
                 {fmtClock(infusion.start_time)}
               </span>
             </div>
             <div
-              ref={titleContainerRef}
-              className="relative flex-1 rounded-xl px-6 flex items-center justify-center backdrop-blur-md min-w-0 overflow-hidden"
+              className="relative flex-1 rounded-xl px-4 py-1 flex items-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
                 background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
-              <h3
-                ref={titleTextRef}
-                className="font-bold text-slate-50 leading-tight text-center whitespace-nowrap"
-              >
+              <h3 className="font-bold text-slate-50 leading-tight truncate w-full text-xl">
                 {infusion.title}
                 {infusion.team_infusion && <span className="ml-2 text-amber-300">👥</span>}
               </h3>
             </div>
           </div>
 
-          {/* Body: linke Spalte (Attribute + Christoph) + rechte Spalte (Öle volle Höhe) */}
-          <div className="flex-1 flex gap-3 min-h-0">
-            {/* Linke Spalte */}
-            <div className="flex-1 min-w-0 flex flex-col">
-              {infusion.attributes.length > 0 && (
-                <div
-                  className="flex-1 min-h-0 flex flex-wrap items-start content-start gap-x-2.5 gap-y-1 overflow-hidden"
-                  style={{ containerType: 'inline-size' }}
-                >
-                  {infusion.attributes.map((a) => {
-                    const meta = ATTR_BY_ID[a];
-                    if (!meta) return null;
-                    return (
-                      <span
-                        key={a}
-                        title={meta.label}
-                        className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-forest-100/95 max-w-full"
-                        style={{ fontSize: 'clamp(10px, 4.2cqi, 14px)' }}
-                      >
-                        <span aria-hidden style={{ fontSize: 'clamp(11px, 5cqi, 16px)', lineHeight: 1 }}>
-                          {meta.emoji}
-                        </span>
-                        <span className="truncate">{meta.label}</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Footer: Meister, immer fest unten in der linken Spalte */}
-              <div className="mt-auto pt-2 text-forest-300/80 truncate flex-shrink-0" style={{ fontSize: 'clamp(11px, 0.9vw, 16px)' }}>
-                {meisterName ?? '—'}
-                {meisterMeta?.isGuest && (
-                  <span className="text-emerald-300/90"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
-                )}
-                {coNames && coNames.length > 0 && (
-                  <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Rechte Spalte: Öle als Pillen/Chips untereinander */}
-            {oils.length > 0 && (
-              <div
-                className="flex-shrink-0 flex flex-col justify-center gap-2"
-                style={{
-                  width: '38%',
-                  maxWidth: '180px',
-                }}
-              >
-                {oils.map((oilId, i) => {
-                  const o = OIL_BY_ID[oilId];
-                  if (!o) return null;
+          {/* Body: Attribute (Pills) + Öle (Pills) + Meister */}
+          <div className="flex-1 min-h-0 flex flex-col gap-2">
+            {/* Attribute als Pills mit Hintergrund — JETZT klar sichtbar */}
+            {infusion.attributes.length > 0 && (
+              <div className="flex flex-wrap items-start gap-1.5">
+                {infusion.attributes.map((a) => {
+                  const meta = ATTR_BY_ID[a];
+                  if (!meta) return null;
                   return (
-                    <div
-                      key={`${i}-${oilId}`}
-                      className="flex items-center gap-2 whitespace-nowrap max-w-full overflow-hidden box-border rounded-full"
+                    <span
+                      key={a}
+                      title={meta.label}
+                      className="inline-flex items-center gap-1 rounded-full backdrop-blur px-2.5 py-1 text-sm font-medium text-forest-100/95"
                       style={{
-                        containerType: 'inline-size',
-                        padding: '4px 12px',
-                        background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(120,75,20,0.4))',
-                        boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.4)',
+                        background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
+                        boxShadow: `inset 0 0 0 1px ${sauna.accent_color}40`,
                       }}
                     >
-                      <span aria-hidden className="flex-shrink-0" style={{ fontSize: 'clamp(13px, 14cqi, 22px)', lineHeight: 1 }}>
-                        {o.emoji}
-                      </span>
-                      <span
-                        className="font-semibold text-amber-100/95 min-w-0 truncate"
-                        style={{ fontSize: 'clamp(10px, 9cqi, 15px)' }}
-                      >
-                        {o.name}
-                      </span>
-                    </div>
+                      <span aria-hidden>{meta.emoji}</span>
+                      <span>{meta.label}</span>
+                    </span>
                   );
                 })}
               </div>
             )}
+
+            {/* Öle als Pills mit Hintergrund */}
+            {oils.length > 0 && (
+              <div className="flex flex-wrap items-start gap-1.5">
+                {oils.map((oilId, i) => {
+                  const o = OIL_BY_ID[oilId];
+                  if (!o) return null;
+                  return (
+                    <span
+                      key={`${i}-${oilId}`}
+                      title={o.name}
+                      className="inline-flex items-center gap-1 rounded-full backdrop-blur px-2.5 py-1 text-sm font-semibold text-amber-100/95"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(120,75,20,0.45))',
+                        boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.45)',
+                      }}
+                    >
+                      <span aria-hidden>{o.emoji}</span>
+                      <span>{o.name}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Footer: Meister, fest unten */}
+            <div className="mt-auto pt-1 text-base text-forest-300/85 truncate flex-shrink-0">
+              {meisterName ?? '—'}
+              {meisterMeta?.isGuest && (
+                <span className="text-emerald-300/90"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+              )}
+              {coNames && coNames.length > 0 && (
+                <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
+              )}
+            </div>
           </div>
         </div>
       ) : (
