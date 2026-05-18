@@ -14,7 +14,7 @@ import { Avatar } from '@/components/Avatar';
 import { PhotoCarousel } from '@/components/PhotoCarousel';
 import { PhotoUploadButton } from '@/components/PhotoUploadButton';
 
-type Filter = 'all' | 'aufgieser' | 'present';
+type Filter = 'all' | 'aufgieser' | 'present' | 'cp_employee' | 'family';
 
 export default function Members() {
   const { signOut } = useAuth();
@@ -33,6 +33,8 @@ export default function Members() {
     return members.filter((m) => {
       if (filter === 'aufgieser' && !m.is_aufgieser) return false;
       if (filter === 'present' && !m.is_present) return false;
+      if (filter === 'cp_employee' && !m.is_cp_employee) return false;
+      if (filter === 'family' && !(m.family_has_partner || m.family_children_count > 0)) return false;
       if (!q) return true;
       const hay = `${m.name} ${m.sauna_name ?? ''}`.toLowerCase();
       return hay.includes(q);
@@ -43,6 +45,8 @@ export default function Members() {
     all: members.length,
     aufgieser: members.filter((m) => m.is_aufgieser).length,
     present: members.filter((m) => m.is_present).length,
+    cp_employee: members.filter((m) => m.is_cp_employee).length,
+    family: members.filter((m) => m.family_has_partner || m.family_children_count > 0).length,
   };
 
   return (
@@ -85,10 +89,16 @@ export default function Members() {
             placeholder="🔍 Name oder Aufguss-Name suchen…"
             className="flex-1 rounded-xl bg-forest-950/70 px-4 py-2.5 text-sm ring-1 ring-forest-800/50 backdrop-blur focus:outline-none focus:ring-2 focus:ring-forest-400"
           />
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 flex-wrap">
             <FilterPill label={`Alle ${counts.all}`} active={filter === 'all'} onClick={() => setFilter('all')} />
             <FilterPill label={`🧖 Aufgieser ${counts.aufgieser}`} active={filter === 'aufgieser'} onClick={() => setFilter('aufgieser')} />
             <FilterPill label={`🟢 Anwesend ${counts.present}`} active={filter === 'present'} onClick={() => setFilter('present')} />
+            {counts.cp_employee > 0 && (
+              <FilterPill label={`👨‍🍳 CP ${counts.cp_employee}`} active={filter === 'cp_employee'} onClick={() => setFilter('cp_employee')} />
+            )}
+            {counts.family > 0 && (
+              <FilterPill label={`👨‍👩‍👧 Familie ${counts.family}`} active={filter === 'family'} onClick={() => setFilter('family')} />
+            )}
           </div>
         </div>
 
@@ -220,6 +230,20 @@ function MemberCard({ m, todayMD }: { m: MemberDirectoryEntry; todayMD: string }
             {m.is_aufgieser && m.role !== 'guest_aufgieser' && <span className="text-amber-300">· Aufgieser</span>}
             {m.role === 'admin' && <span className="text-violet-300">· Admin</span>}
           </div>
+          {(m.is_cp_employee || m.family_has_partner || m.family_children_count > 0) && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {m.is_cp_employee && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200 ring-1 ring-amber-500/40">
+                  👨‍🍳 CP-Mitarbeiter
+                </span>
+              )}
+              {(m.family_has_partner || m.family_children_count > 0) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold text-sky-200 ring-1 ring-sky-500/40">
+                  👨‍👩‍👧 Familie
+                </span>
+              )}
+            </div>
+          )}
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-forest-500">
             {memberSince && <span>seit {memberSince}</span>}
             {birthdayMD && (

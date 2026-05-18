@@ -6,6 +6,7 @@ import {
   type RatableInfusion,
 } from '@/lib/api';
 import { RatingForm } from '@/components/RatingForm';
+import { CheckinFamilyModal } from '@/components/CheckinFamilyModal';
 import { supabase } from '@/lib/supabase';
 import { fmtClock } from '@/lib/time';
 
@@ -23,6 +24,22 @@ export default function CheckinRate() {
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
   const [autoLogoutAt, setAutoLogoutAt] = useState<number>(() => Date.now() + 30_000);
   const [timeLeft, setTimeLeft] = useState(30);
+  // Familien-Modal nach PIN-Check-in (Daten kommen via sessionStorage aus /checkin)
+  const [familyModal, setFamilyModal] = useState<{ name: string; partner: boolean; childrenCount: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('pending_family_modal');
+      if (!raw) return;
+      sessionStorage.removeItem('pending_family_modal');
+      const parsed = JSON.parse(raw) as { name?: string; family_has_partner?: boolean; family_children_count?: number };
+      setFamilyModal({
+        name: parsed.name ?? 'Gast',
+        partner: !!parsed.family_has_partner,
+        childrenCount: parsed.family_children_count ?? 0,
+      });
+    } catch { /* ignore */ }
+  }, []);
 
   // Idle-Timer: 30s ohne Aktivität → Logout. Bei aktivem Modal pausiert.
   const resetIdle = () => setAutoLogoutAt(Date.now() + 30_000);
@@ -188,6 +205,17 @@ export default function CheckinRate() {
             setActiveInfusion(null);
             resetIdle();
           }}
+        />
+      )}
+
+      {/* Familien-Modal (nach PIN-Checkin, wenn Mitglied Familie konfiguriert hat) */}
+      {familyModal && (
+        <CheckinFamilyModal
+          open
+          memberName={familyModal.name}
+          familyHasPartner={familyModal.partner}
+          familyChildrenCount={familyModal.childrenCount}
+          onClose={() => { setFamilyModal(null); resetIdle(); }}
         />
       )}
     </div>

@@ -1043,6 +1043,61 @@ function MembersTab() {
                           </div>
                         </div>
                       </button>
+
+                      {/* CP-Mitarbeiter: Mitglied arbeitet zusätzlich für CP (Migration 0076) */}
+                      <button
+                        onClick={() => update.mutate({ id: m.id, is_cp_employee: !m.is_cp_employee })}
+                        disabled={update.isPending}
+                        title="Mitglied arbeitet zusätzlich als Mitarbeiter für den CP — taucht in der Evak-Übersicht in der Mitarbeiter-Spalte auf"
+                        className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 ${
+                          m.is_cp_employee
+                            ? 'bg-orange-500/20 text-orange-100 ring-orange-400/50'
+                            : 'bg-forest-800/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
+                        }`}
+                      >
+                        <span className="text-base leading-none mt-0.5">{m.is_cp_employee ? '☑' : '☐'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">👨‍🍳 CP-Mitarbeiter</div>
+                          <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                            Mitglied arbeitet zusätzlich für den CP
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Familien-Mitgliedschaft Konfiguration (Migration 0076) */}
+                    <div className="mt-3 rounded-lg bg-forest-900/40 p-2 ring-1 ring-forest-700/30">
+                      <div className="text-[11px] text-forest-400 mb-1.5 font-semibold uppercase tracking-wider">
+                        👨‍👩‍👧 Familien-Mitgliedschaft
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-stretch">
+                        <button
+                          onClick={() => update.mutate({ id: m.id, family_has_partner: !m.family_has_partner })}
+                          disabled={update.isPending}
+                          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ring-1 transition disabled:opacity-50 ${
+                            m.family_has_partner
+                              ? 'bg-sky-500/20 text-sky-100 ring-sky-400/50'
+                              : 'bg-forest-800/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
+                          }`}
+                        >
+                          <span>{m.family_has_partner ? '☑' : '☐'}</span>
+                          <span>👫 Partner angemeldet</span>
+                        </button>
+                        <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-forest-800/60 ring-1 ring-forest-700/40">
+                          <span className="text-xs text-forest-200">👶 Kinder:</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={8}
+                            value={m.family_children_count ?? 0}
+                            onChange={(e) => {
+                              const n = Math.max(0, Math.min(8, Number(e.target.value) || 0));
+                              update.mutate({ id: m.id, family_children_count: n });
+                            }}
+                            className="w-14 rounded-md bg-forest-950/80 px-2 py-1 text-xs text-forest-100 ring-1 ring-forest-700/50 tabular-nums"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 

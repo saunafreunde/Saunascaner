@@ -313,6 +313,12 @@ export type Member = {
   favorite_oils: string[];
   // Game-Hub Opt-in (Migration 0075): PvP-Sieg im Feed teilen
   feed_share_game_wins: boolean;
+  // Mitarbeiter + Familien-Mitgliedschaft (Migration 0076)
+  is_cp_employee: boolean;
+  family_has_partner: boolean;
+  family_children_count: number;
+  present_with_partner: boolean;
+  present_children_count: number;
   // Gast-Felder (Migration 0040)
   gast_referral_source: string | null;
   gast_consent_at: string | null;
@@ -373,6 +379,54 @@ export function useSetMotto() {
       qc.invalidateQueries({ queryKey: ['member'] });
       qc.invalidateQueries({ queryKey: ['members-directory'] });
     },
+  });
+}
+
+// ─── Familien-Mitgliedschaft: aktuelle Anwesenheits-Auswahl (Migration 0076) ─
+export function useSetMyPresentFamily() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { with_partner: boolean; children_count: number }) => {
+      const { error } = await need().rpc('set_my_present_family', {
+        p_with_partner: p.with_partner,
+        p_children_count: p.children_count,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['present'] });
+      qc.invalidateQueries({ queryKey: ['present-full'] });
+    },
+  });
+}
+
+// Vollständige Anwesenheits-Liste für Evak-Overlay (Migration 0076)
+export type PresentFullEntry = {
+  id: string;
+  name: string;
+  avatar_path: string | null;
+  role: string;
+  is_aufgieser: boolean;
+  is_personal_planer: boolean;
+  is_cp_employee: boolean;
+  present_with_partner: boolean;
+  present_children_count: number;
+  is_worker: boolean;
+};
+
+export function usePresentFull() {
+  return useQuery({
+    queryKey: ['present-full'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_present_full');
+      if (error) throw error;
+      return (data ?? []) as PresentFullEntry[];
+    },
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -618,6 +672,10 @@ export type MemberDirectoryEntry = {
   motto: string | null;
   avatar_path: string | null;
   home_group: string | null;
+  // Migration 0076: Mitarbeiter-Flag + Familien-Mitgliedschaft
+  is_cp_employee: boolean;
+  family_has_partner: boolean;
+  family_children_count: number;
   created_at: string;
 };
 
@@ -1455,11 +1513,13 @@ export async function togglePresenceByEntryCode(code: string) {
 // Eingangs-Scanner: Anmelde-PIN ist der einheitliche 4-stellige checkin_pin
 // aus dem PIN-Pool (Migration 0051) — JEDES Mitglied hat einen, anders als
 // beim alten entry_code (selbst-gewählt, kaum genutzt).
+// Migration 0076 erweitert um needs_family_modal (true wenn beim Einchecken
+// die Familien-Auswahl gezeigt werden soll).
 export async function togglePresenceByCheckinPin(pin: string) {
   const { data, error } = await need().rpc('toggle_presence_by_checkin_pin', { p_pin: pin });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
-  return row as { member_id: string; name: string; is_present: boolean };
+  return row as { member_id: string; name: string; is_present: boolean; needs_family_modal: boolean };
 }
 
 // Pre-Check ob ein Einlass-Code frei ist (Migration 0025).

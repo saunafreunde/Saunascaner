@@ -1,13 +1,31 @@
+import { useState } from 'react';
 import { useToggleMyPresence, useCurrentMember } from '@/lib/api';
+import { hasFamilyMembership } from '@/lib/roles';
+import { CheckinFamilyModal } from '@/components/CheckinFamilyModal';
 
 // Anwesenheits-Toggle für eingeloggte Member.
 // Zeigt großen Button: "Ich bin in der Sauna" oder "Ich gehe jetzt".
+// Nach Check-in mit Familien-Mitgliedschaft öffnet sich automatisch das
+// Familien-Auswahl-Modal (Migration 0076).
 export function MyPresenceToggle() {
   const me = useCurrentMember();
   const toggle = useToggleMyPresence();
+  const [showFamilyModal, setShowFamilyModal] = useState(false);
   const isPresent = !!me.data?.is_present;
 
   if (!me.data) return null;
+
+  async function onClick() {
+    const willBeCheckedIn = !isPresent; // Voraussagen
+    try {
+      await toggle.mutateAsync();
+      if (willBeCheckedIn && hasFamilyMembership(me.data)) {
+        setShowFamilyModal(true);
+      }
+    } catch {
+      /* Error vom Hook gehandhabt */
+    }
+  }
 
   return (
     <section className="rounded-3xl ring-1 backdrop-blur p-5 transition"
@@ -38,7 +56,7 @@ export function MyPresenceToggle() {
           </p>
         </div>
         <button
-          onClick={() => toggle.mutate()}
+          onClick={onClick}
           disabled={toggle.isPending}
           className={`rounded-2xl px-5 py-3 font-semibold whitespace-nowrap shadow-lg transition active:scale-95 disabled:opacity-50 ${
             isPresent
@@ -53,6 +71,14 @@ export function MyPresenceToggle() {
               : '✅ Ich bin da'}
         </button>
       </div>
+
+      <CheckinFamilyModal
+        open={showFamilyModal}
+        memberName={me.data.name}
+        familyHasPartner={me.data.family_has_partner}
+        familyChildrenCount={me.data.family_children_count}
+        onClose={() => setShowFamilyModal(false)}
+      />
     </section>
   );
 }

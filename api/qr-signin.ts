@@ -111,11 +111,16 @@ async function handlePinCheckin(
   const url = linkData?.properties?.action_link;
   if (!url) return res.status(500).json({ error: 'no_action_link' });
 
+  const needsFamilyModal = !!(m.family_has_partner || (m.family_children_count ?? 0) > 0);
+
   return res.status(200).json({
     url,
     member_id: m.id,
     name: m.name,
     role: m.role,
+    needs_family_modal: needsFamilyModal,
+    family_has_partner: !!m.family_has_partner,
+    family_children_count: m.family_children_count ?? 0,
   });
 }
 

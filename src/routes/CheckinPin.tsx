@@ -66,6 +66,17 @@ export default function CheckinPin() {
       if (!r.ok) throw new Error(data.error ?? 'PIN unbekannt');
 
       setWelcomeName(data.name ?? 'Gast');
+      // Familien-Modal-Hinweis für /checkin/rate via sessionStorage
+      // (Magic-Link macht einen Full-Page-Reload, React-State geht verloren)
+      if (data.needs_family_modal) {
+        try {
+          sessionStorage.setItem('pending_family_modal', JSON.stringify({
+            name: data.name ?? 'Gast',
+            family_has_partner: !!data.family_has_partner,
+            family_children_count: data.family_children_count ?? 0,
+          }));
+        } catch { /* sessionStorage nicht verfügbar — nicht kritisch */ }
+      }
       // Browser folgt dem Magic-Link → Session wird gesetzt → Redirect zu /checkin/rate
       window.location.href = data.url;
     } catch (e) {

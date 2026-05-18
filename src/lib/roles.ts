@@ -24,6 +24,22 @@ export function isStaff(m?: Member | null): boolean {
   return m?.role === 'staff';
 }
 
+/** Mitglied (oder Gast/Fan), das zusätzlich für den CP arbeitet. Migration 0076. */
+export function isCpEmployee(m?: Member | null): boolean {
+  return !!m?.is_cp_employee;
+}
+
+/** Wer im Notfall in die „Mitarbeiter"-Spalte der Evakuierungs-Übersicht gehört:
+ * fest angestelltes Personal (role=staff) ODER Mitglied mit is_cp_employee=true. */
+export function isWorker(m?: Member | null): boolean {
+  return isStaff(m) || isCpEmployee(m);
+}
+
+/** Mitglied mit Familien-Mitgliedschaft (Partner oder mindestens 1 Kind angemeldet). */
+export function hasFamilyMembership(m?: Member | null): boolean {
+  return !!m && (m.family_has_partner || m.family_children_count > 0);
+}
+
 /** CP-Verantwortlicher: Personal mit erweiterten Rechten (Schicht-Planung, Anwesenheits-Export, anonyme Bewertungs-Analyse). */
 export function isPersonalPlaner(m?: Member | null): boolean {
   return !!m?.is_personal_planer;
