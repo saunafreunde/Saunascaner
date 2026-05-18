@@ -34,14 +34,31 @@ export function InfusionCard({
   backgroundImage?: string | null;
 }) {
   const start = new Date(infusion.start_time);
+  const end = new Date(infusion.end_time);
   const minsToStart = differenceInMinutes(start, now);
   const imminent = minsToStart >= 0 && minsToStart <= IMMINENT_MIN;
-  const running = now >= start && now < new Date(infusion.end_time);
+  const running = now >= start && now < end;
+  const past = now >= end;
 
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
 
   const oils = (infusion.oils ?? []).filter(Boolean).slice(0, 3) as string[];
+
+  // Countdown-Text bis Start (oder Status falls läuft/vorbei).
+  // Wird sekündlich/minütlich aktualisiert via Parent-`now`-Prop (alle 5s im Dashboard).
+  function countdownText(): string {
+    if (past) return 'Beendet';
+    if (running) {
+      const minsLeft = differenceInMinutes(end, now);
+      return minsLeft > 0 ? `läuft · noch ${minsLeft} Min` : 'läuft';
+    }
+    if (minsToStart <= 0) return 'startet jetzt';
+    if (minsToStart < 60) return `in ${minsToStart} Min`;
+    const h = Math.floor(minsToStart / 60);
+    const m = minsToStart % 60;
+    return m > 0 ? `in ${h}h ${m} Min` : `in ${h}h`;
+  }
 
   // useTextFit entfernt (gab dynamische font-size die fixe TV-Größen überschrieb).
   // Compact-Mode nutzt jetzt fixe Tailwind-Klassen für robuste 1080p/4K-Skalierung.
@@ -193,12 +210,13 @@ export function InfusionCard({
             </div>
           )}
 
-          {/* Footer: Meister + Co-Aufgießer + Dauer — fest unten */}
+          {/* Footer: Meister + Co-Aufgießer (links) · Aktuelle Uhrzeit + Countdown (rechts).
+              Anstelle der statischen "X Min Dauer" jetzt: was ist gerade los? */}
           <div
-            className="mt-auto pt-1 flex items-baseline justify-between gap-3 text-forest-200/90 flex-shrink-0"
+            className="mt-auto pt-1 flex items-end justify-between gap-3 text-forest-200/90 flex-shrink-0"
             style={{ fontSize: 'clamp(11px, 3cqh, 18px)' }}
           >
-            <span className="min-w-0">
+            <span className="min-w-0 leading-tight">
               {meisterName ?? '—'}
               {meisterMeta?.isGuest && (
                 <span className="text-emerald-300/90"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
@@ -207,9 +225,23 @@ export function InfusionCard({
                 <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
               )}
             </span>
-            <span className="tabular-nums whitespace-nowrap font-medium flex-shrink-0">
-              {infusion.duration_minutes} Min
-            </span>
+            <div className="flex flex-col items-end leading-none whitespace-nowrap flex-shrink-0">
+              <span
+                className="tabular-nums font-bold text-slate-50"
+                style={{ fontSize: 'clamp(13px, 3.6cqh, 22px)' }}
+              >
+                {fmtClock(now)}
+              </span>
+              <span
+                className={`tabular-nums font-medium mt-0.5 ${
+                  running ? 'text-emerald-300' : past ? 'text-forest-400' : 'text-amber-300'
+                }`}
+                style={{ fontSize: 'clamp(10px, 2.6cqh, 16px)' }}
+              >
+                {running && <span className="mr-1">●</span>}
+                {countdownText()}
+              </span>
+            </div>
           </div>
 
           {/* Badges (max 3) — wenn vorhanden */}
