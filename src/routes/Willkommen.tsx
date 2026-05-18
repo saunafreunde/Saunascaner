@@ -26,7 +26,7 @@ export default function Willkommen() {
     <div className="min-h-screen bg-schwarzwald-soft flex flex-col items-center justify-center p-6">
       <header className="text-center mb-10">
         <img
-          src={logoUrl}
+          src={logoUrl ?? '/icons/icon-512.png'}
           alt={orgName}
           className="mx-auto h-24 w-24 rounded-2xl object-cover ring-2 ring-amber-500/40 shadow-xl shadow-black/40 mb-5"
         />
