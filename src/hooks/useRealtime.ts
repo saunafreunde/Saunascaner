@@ -65,6 +65,13 @@ export function useRealtimeSync() {
           qc.invalidateQueries({ queryKey: ['games-active-mine'] });
           qc.invalidateQueries({ queryKey: ['games-open'] });
         })
+      // Notification-Inbox (Migration 0077): live-updaten wenn neue
+      // Notification reinkommt oder mark_read passiert
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notification_queue' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['my-notifications'] });
+          qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
+        })
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);

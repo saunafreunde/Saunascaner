@@ -23,6 +23,7 @@ import {
 import { OIL_BY_ID } from '@/lib/oils';
 import { Avatar } from '@/components/Avatar';
 import AvatarPicker from '@/components/AvatarPicker';
+import { FollowButton } from '@/components/FollowButton';
 
 export default function Profile() {
   const { memberId } = useParams<{ memberId: string }>();
@@ -148,6 +149,11 @@ export default function Profile() {
                 {birthdayMD && <span className="text-pink-300">· 🎂 {format(parse(m.birthday!, 'yyyy-MM-dd', new Date()), 'd. MMMM', { locale: de })}</span>}
               </div>
             </div>
+            {!isMyself && me.data && (
+              <div className="shrink-0">
+                <FollowButton memberId={m.id} />
+              </div>
+            )}
           </div>
 
           {/* Motto */}

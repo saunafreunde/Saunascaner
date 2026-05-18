@@ -382,6 +382,73 @@ export function useSetMotto() {
   });
 }
 
+// ─── Notification-Inbox (Migration 0077) ────────────────────────────────
+
+export type InboxNotification = {
+  id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+  read_at: string | null;
+};
+
+export function useMyNotifications(limit = 30) {
+  return useQuery({
+    queryKey: ['my-notifications', limit],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_notifications', { p_limit: limit });
+      if (error) throw error;
+      return (data ?? []) as InboxNotification[];
+    },
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useUnreadNotificationsCount() {
+  return useQuery({
+    queryKey: ['my-notifications-unread'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('count_unread_notifications');
+      if (error) throw error;
+      return (data ?? 0) as number;
+    },
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('mark_notification_read', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-notifications'] });
+      qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('mark_all_notifications_read');
+      if (error) throw error;
+      return (data ?? 0) as number;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-notifications'] });
+      qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
+    },
+  });
+}
+
 // ─── Familien-Mitgliedschaft: aktuelle Anwesenheits-Auswahl (Migration 0076) ─
 export function useSetMyPresentFamily() {
   const qc = useQueryClient();

@@ -9,6 +9,10 @@ import { isAdmin } from '@/lib/roles';
 import { FeedPostCard } from '@/components/feed/FeedPostCard';
 import { FeedComposeModal } from '@/components/feed/FeedComposeModal';
 import { FeedFilterSheet } from '@/components/feed/FeedFilterSheet';
+import { PeopleTab } from '@/components/feed/PeopleTab';
+import { NotificationBell } from '@/components/NotificationBell';
+
+type FeedView = 'posts' | 'people';
 
 export default function Feed() {
   const me = useCurrentMember();
@@ -18,6 +22,14 @@ export default function Feed() {
 
   const [composeOpen, setComposeOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [view, setView] = useState<FeedView>(() => (params.get('view') === 'people' ? 'people' : 'posts'));
+
+  function switchView(v: FeedView) {
+    setView(v);
+    const next = new URLSearchParams(params);
+    if (v === 'people') next.set('view', 'people'); else next.delete('view');
+    setParams(next, { replace: true });
+  }
 
   const feed = useFeed({ oil: oilFilter, infusion: infusionFilter });
   const adminDel = useAdminDeleteFeedPost();
@@ -67,10 +79,32 @@ export default function Feed() {
           <span className="text-2xl">📸</span>
           <h1 className="text-base font-semibold text-forest-100">Feed</h1>
         </div>
+        <NotificationBell />
         {meIsAdmin ? <AdminQuickNav variant="icons" /> : <MemberQuickNav />}
       </header>
 
       <main className="mx-auto w-full max-w-xl px-3 sm:px-4 py-4 space-y-4">
+        {/* Tab-Switcher: Beiträge / Personen */}
+        <div className="flex gap-1 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/40">
+          <button
+            type="button"
+            onClick={() => switchView('posts')}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              view === 'posts' ? 'bg-forest-700/80 text-forest-100' : 'text-forest-400 hover:text-forest-200'
+            }`}
+          >📸 Beiträge</button>
+          <button
+            type="button"
+            onClick={() => switchView('people')}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              view === 'people' ? 'bg-forest-700/80 text-forest-100' : 'text-forest-400 hover:text-forest-200'
+            }`}
+          >👥 Personen</button>
+        </div>
+
+        {view === 'people' && <PeopleTab />}
+
+        {view === 'posts' && (<>
         {/* Filter-Bar */}
         <div className="flex items-center gap-2">
           <button
@@ -136,6 +170,7 @@ export default function Feed() {
             💡 Bei Problemen Beitrag melden: <Link to="/hilfe" className="underline">/hilfe</Link>
           </p>
         )}
+        </>)}
       </main>
 
       {/* Compose-FAB — auf Mobile über Bottom-Nav (+72px) + Safe-Area, auf Desktop unten rechts */}
