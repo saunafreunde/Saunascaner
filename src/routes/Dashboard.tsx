@@ -29,26 +29,8 @@ import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { Stage } from '@/components/stage/Stage';
 
-// ── Werbe-Sidebar: 3× 16:9 Tafeln ────────────────────────────────────────────
-function AdSidebar({ urls }: { urls: string[] }) {
-  const items = urls.length > 0 ? urls.slice(0, 3) : [null, null, null];
-  return (
-    <aside className="w-[300px] flex-shrink-0 flex flex-col gap-3 justify-start">
-      {items.map((url, i) => (
-        <div
-          key={i}
-          className="aspect-video w-full rounded-2xl overflow-hidden bg-forest-950/60 ring-1 ring-forest-800/40 flex items-center justify-center"
-        >
-          {url ? (
-            <img src={url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-forest-500/40 text-xs uppercase tracking-widest">Werbefläche</span>
-          )}
-        </div>
-      ))}
-    </aside>
-  );
-}
+// AdSidebar (Werbe-Spalten) entfernt — Sauna-Tiles bekommen jetzt die
+// volle Breite, damit Attribute-Badges + Aufgieser-Info sichtbar sind.
 
 export default function Dashboard() {
   useWakeLock(true);
@@ -152,10 +134,6 @@ export default function Dashboard() {
     } catch { /* TV-Browser-App ignoriert Fullscreen-API */ }
   }
 
-  const adImageUrls = (brand.data?.ads ?? [])
-    .map((a) => publicAssetUrl(a.image_path))
-    .filter((u): u is string => Boolean(u));
-
   const allInfusions = infusions.data ?? [];
 
   // ── Layout je nach Sauna-Anzahl ──────────────────────────────────────
@@ -187,35 +165,9 @@ export default function Dashboard() {
       );
     };
 
-    if (activeSaunas.length === 1) {
-      // 1 Sauna: [Werbung] [Sauna mittig] [Werbung]
-      return (
-        <>
-          <AdSidebar urls={adImageUrls} />
-          {column(0)}
-          <AdSidebar urls={adImageUrls} />
-        </>
-      );
-    }
-
-    if (activeSaunas.length === 2) {
-      // 2 Saunen: [Sauna 1] [Werbung Mitte] [Sauna 2]
-      return (
-        <>
-          {column(0)}
-          <AdSidebar urls={adImageUrls} />
-          {column(1)}
-        </>
-      );
-    }
-
-    // 3+ Saunen: alle Saunen + Werbung rechts
-    return (
-      <>
-        {activeSaunas.map((_, i) => column(i))}
-        <AdSidebar urls={adImageUrls} />
-      </>
-    );
+    // Alle Saunen-Spalten ohne Werbung — Tiles nutzen den ganzen TV-Platz,
+    // gleichmäßig verteilt via flex-1 (auch bei 1, 2, 3+ Saunen).
+    return <>{activeSaunas.map((_, i) => column(i))}</>;
   };
 
   return (
