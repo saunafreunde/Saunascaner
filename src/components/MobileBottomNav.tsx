@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useCurrentMember, useMyEmailAccount, useRatableInfusions } from '@/lib/api';
+import { useCurrentMember, useMyEmailAccount, useRatableInfusions, useUnreadDmsCount } from '@/lib/api';
 import { useActiveMatchesForMe } from '@/lib/games';
 import { isAdmin, isAufgieser, isFan, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
 
@@ -7,12 +7,13 @@ import { isAdmin, isAufgieser, isFan, isGast, isPersonalPlaner, isStaff, isVerei
 // Pro Rolle 5 Haupt-Routen. Mit Safe-Area-Padding (iOS-Notch, Android-Gesture-Bar).
 //
 // Tab 2 ist ein Smart-Slot, der je nach Daten-Lage wechselt:
-//   1. „Du bist dran" in laufendem Spiel       → 🎮 Spiele (Badge mit Anzahl)
-//   2. Bewertbare Aufgüsse offen UND Mail leer  → 📝 Bewerten (Badge)
-//   3. Mail-Account vorhanden                   → 📬 Mail (Badge bei unread)
-//   4. Bewertbare Aufgüsse offen                → 📝 Bewerten (Badge)
-//   5. Fallback                                 → 👥 Mitglieder
-// „Du bist dran" hat oberste Priorität — die Person hängt im Match.
+//   1. Ungelesene DMs                           → ✉️ Nachrichten (höchste Prio)
+//   2. „Du bist dran" in laufendem Spiel       → 🎮 Spiele (Badge mit Anzahl)
+//   3. Bewertbare Aufgüsse offen UND Mail leer  → 📝 Bewerten (Badge)
+//   4. Mail-Account vorhanden                   → 📬 Mail (Badge bei unread)
+//   5. Bewertbare Aufgüsse offen                → 📝 Bewerten (Badge)
+//   6. Fallback                                 → 👥 Mitglieder
+// DMs haben oberste Priorität — sonst geht eine Nachricht unter.
 
 type NavItem = { path: string; label: string; icon: string; badge?: number };
 
@@ -20,13 +21,19 @@ function useSmartSlot(memberId: string | null): NavItem {
   const mailQ = useMyEmailAccount();
   const ratableQ = useRatableInfusions(memberId);
   const activeGamesQ = useActiveMatchesForMe();
+  const dmUnreadQ = useUnreadDmsCount();
 
   const mail = mailQ.data;
   const mailUnread = mail?.unread_count ?? 0;
   const pending = (ratableQ.data ?? []).filter((i) => !i.already_rated).length;
   const yourTurn = (activeGamesQ.data ?? []).filter((g) => g.my_turn).length;
+  const dmUnread = dmUnreadQ.data ?? 0;
 
-  // Du bist dran in laufendem Spiel → Vorrang
+  // Ungelesene DMs → Vorrang
+  if (dmUnread > 0) {
+    return { path: '/dm', label: 'Nachrichten', icon: '✉️', badge: dmUnread };
+  }
+  // Du bist dran in laufendem Spiel
   if (yourTurn > 0) {
     return { path: '/spiele', label: 'Du bist dran', icon: '🎮', badge: yourTurn };
   }

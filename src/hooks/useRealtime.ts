@@ -75,6 +75,13 @@ export function useRealtimeSync() {
       // Feed-Kommentare (Migration 0078): pro post_id invalidieren
       .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_post_comments' },
         () => qc.invalidateQueries({ queryKey: ['feed-comments'] }))
+      // DM-Hub-Liste (Migration 0079): einzelne Conversation hat eigenen
+      // Channel in /dm/:id — hier nur Inbox + Bottom-Nav-Counter aktuell halten
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['dm-conversations'] });
+          qc.invalidateQueries({ queryKey: ['dm-unread'] });
+        })
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);

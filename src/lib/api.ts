@@ -382,6 +382,113 @@ export function useSetMotto() {
   });
 }
 
+// ─── Direct Messages (Migration 0079) ───────────────────────────────────
+
+export type DmConversation = {
+  conversation_id: string;
+  other_id: string;
+  other_name: string;
+  other_avatar: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  last_body: string | null;
+};
+
+export type DmMessage = {
+  id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+  is_mine: boolean;
+};
+
+export function useMyConversations() {
+  return useQuery({
+    queryKey: ['dm-conversations'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_conversations');
+      if (error) throw error;
+      return (data ?? []) as DmConversation[];
+    },
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useConversationMessages(convId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['dm-messages', convId],
+    enabled: !!convId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_conversation_messages', { p_conv_id: convId });
+      if (error) throw error;
+      return (data ?? []) as DmMessage[];
+    },
+    staleTime: 0,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useUnreadDmsCount() {
+  return useQuery({
+    queryKey: ['dm-unread'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('count_unread_dms');
+      if (error) throw error;
+      return (data ?? 0) as number;
+    },
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useGetOrCreateConversation() {
+  return useMutation({
+    mutationFn: async (otherId: string) => {
+      const { data, error } = await need().rpc('dm_get_or_create_conversation', { p_other_id: otherId });
+      if (error) throw error;
+      return data as string;
+    },
+  });
+}
+
+export function useSendDmMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { convId: string; body: string }) => {
+      const { data, error } = await need().rpc('dm_send_message', {
+        p_conv_id: p.convId,
+        p_body: p.body,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['dm-messages', vars.convId] });
+      qc.invalidateQueries({ queryKey: ['dm-conversations'] });
+    },
+  });
+}
+
+export function useMarkDmRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (convId: string) => {
+      const { error } = await need().rpc('dm_mark_read', { p_conv_id: convId });
+      if (error) throw error;
+    },
+    onSuccess: (_d, convId) => {
+      qc.invalidateQueries({ queryKey: ['dm-messages', convId] });
+      qc.invalidateQueries({ queryKey: ['dm-conversations'] });
+      qc.invalidateQueries({ queryKey: ['dm-unread'] });
+    },
+  });
+}
+
 // ─── Feed-Kommentare (Migration 0078) ───────────────────────────────────
 
 export type FeedComment = {

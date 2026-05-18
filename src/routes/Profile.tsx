@@ -24,6 +24,7 @@ import { OIL_BY_ID } from '@/lib/oils';
 import { Avatar } from '@/components/Avatar';
 import AvatarPicker from '@/components/AvatarPicker';
 import { FollowButton } from '@/components/FollowButton';
+import { DmButton } from '@/components/DmButton';
 
 export default function Profile() {
   const { memberId } = useParams<{ memberId: string }>();
@@ -150,8 +151,9 @@ export default function Profile() {
               </div>
             </div>
             {!isMyself && me.data && (
-              <div className="shrink-0">
+              <div className="shrink-0 flex flex-col gap-2">
                 <FollowButton memberId={m.id} />
+                <DmButton memberId={m.id} compact />
               </div>
             )}
           </div>
