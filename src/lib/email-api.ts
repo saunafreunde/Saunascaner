@@ -10,12 +10,23 @@ async function authHeaders(): Promise<Record<string, string>> {
     : { 'content-type': 'application/json' };
 }
 
-async function postfachRequest<T>(action: string, params?: Record<string, string | number>, body?: unknown): Promise<T> {
-  const query = new URLSearchParams({ action, ...(params ?? {}) } as Record<string, string>);
+async function postfachRequest<T>(
+  action: string,
+  params?: Record<string, string | number>,
+  body?: unknown,
+  accountId?: string | null,
+): Promise<T> {
+  const queryObj: Record<string, string> = { action, ...(params ?? {}) } as Record<string, string>;
+  if (accountId) queryObj.account = accountId;
+  const query = new URLSearchParams(queryObj);
+  // Bei POST mit accountId: account_id auch in body (server akzeptiert beide Wege)
+  const finalBody = body && accountId
+    ? { ...(body as Record<string, unknown>), account_id: accountId }
+    : body;
   const r = await fetch(`/api/postfach?${query}`, {
-    method: body ? 'POST' : 'GET',
+    method: finalBody ? 'POST' : 'GET',
     headers: await authHeaders(),
-    body: body ? JSON.stringify(body) : undefined,
+    body: finalBody ? JSON.stringify(finalBody) : undefined,
   });
   const json = await r.json();
   if (!r.ok) throw new Error(json.error ?? 'request failed');
@@ -73,22 +84,25 @@ export type EmailMessage = {
 };
 
 // ─── Hooks ───────────────────────────────────────────────────────────────
-export function useFolders() {
+// Alle Hooks akzeptieren optional `accountId` für geteilte Postfächer
+// (Migration 0080). Wenn null/undefined → persönlicher Account des Users.
+
+export function useFolders(accountId?: string | null) {
   return useQuery({
-    queryKey: ['postfach', 'folders'],
+    queryKey: ['postfach', 'folders', accountId ?? 'self'],
     queryFn: async () => {
-      const r = await postfachRequest<{ folders: EmailFolder[] }>('folders');
+      const r = await postfachRequest<{ folders: EmailFolder[] }>('folders', undefined, undefined, accountId);
       return r.folders;
     },
     staleTime: 5 * 60_000,
   });
 }
 
-export function useMessages(folder: string, limit = 50) {
+export function useMessages(folder: string, limit = 50, accountId?: string | null) {
   return useQuery({
-    queryKey: ['postfach', 'messages', folder, limit],
+    queryKey: ['postfach', 'messages', accountId ?? 'self', folder, limit],
     queryFn: async () => {
-      const r = await postfachRequest<{ folder: string; messages: EmailMessageHeader[] }>('messages', { folder, limit });
+      const r = await postfachRequest<{ folder: string; messages: EmailMessageHeader[] }>('messages', { folder, limit }, undefined, accountId);
       return r.messages;
     },
     refetchInterval: 60_000,
@@ -96,19 +110,19 @@ export function useMessages(folder: string, limit = 50) {
   });
 }
 
-export function useMessage(folder: string, uid: number | null) {
+export function useMessage(folder: string, uid: number | null, accountId?: string | null) {
   return useQuery({
-    queryKey: ['postfach', 'message', folder, uid],
+    queryKey: ['postfach', 'message', accountId ?? 'self', folder, uid],
     enabled: !!folder && !!uid,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const r = await postfachRequest<EmailMessage>('message', { folder, uid: uid! });
+      const r = await postfachRequest<EmailMessage>('message', { folder, uid: uid! }, undefined, accountId);
       return r;
     },
   });
 }
 
-export function useSendMail() {
+export function useSendMail(accountId?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (p: {
@@ -122,43 +136,64 @@ export function useSendMail() {
       references?: string[];
       attachments?: { filename: string; content: string; contentType?: string }[];
     }) => {
-      return await postfachRequest<{ ok: true; messageId: string }>('send', undefined, p);
+      return await postfachRequest<{ ok: true; messageId: string }>('send', undefined, p, accountId);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['postfach', 'messages'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['postfach', 'messages'] });
+      qc.invalidateQueries({ queryKey: ['account-tickets'] });
+    },
   });
 }
 
-export function useMarkMessage() {
+export function useMarkMessage(accountId?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (p: { folder: string; uid: number; seen?: boolean; flagged?: boolean }) => {
-      return await postfachRequest<{ ok: true }>('mark', undefined, p);
+      return await postfachRequest<{ ok: true }>('mark', undefined, p, accountId);
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['postfach', 'messages', vars.folder] }),
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['postfach', 'messages', accountId ?? 'self', vars.folder] }),
   });
 }
 
-export function useMoveMessage() {
+export function useMoveMessage(accountId?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (p: { folder: string; uid: number; to: string }) => {
-      return await postfachRequest<{ ok: true }>('move', undefined, p);
+      return await postfachRequest<{ ok: true }>('move', undefined, p, accountId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['postfach', 'messages'] }),
   });
 }
 
-export function useDeleteMessage() {
+export function useDeleteMessage(accountId?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (p: { folder: string; uid: number }) => {
-      return await postfachRequest<{ ok: true }>('delete', undefined, p);
+      return await postfachRequest<{ ok: true }>('delete', undefined, p, accountId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['postfach', 'messages'] }),
   });
 }
 
+// Trigger des Shared-Ticket-Pollings (Cron-Action, Frontend-Aufruf für sofortigen Refresh).
+// CRON_SECRET-Header wird hier NICHT gesetzt — der Endpoint akzeptiert Aufrufe ohne Header
+// solange env CRON_SECRET nicht gesetzt ist.
+export async function pollSharedTickets(): Promise<{ ok: boolean; polled: number }> {
+  try {
+    const r = await fetch('/api/postfach?action=poll-shared-tickets', { method: 'GET' });
+    const json = await r.json();
+    return json;
+  } catch {
+    return { ok: false, polled: 0 };
+  }
+}
+
 // Anhang-Download-URL bauen (für direkten <a href>-Download oder fetch)
-export function attachmentUrl(folder: string, uid: number, part: number): string {
-  return `/api/postfach?action=attachment&folder=${encodeURIComponent(folder)}&uid=${uid}&part=${part}`;
+export function attachmentUrl(folder: string, uid: number, part: number, accountId?: string | null): string {
+  const q = new URLSearchParams({
+    action: 'attachment',
+    folder, uid: String(uid), part: String(part),
+    ...(accountId ? { account: accountId } : {}),
+  });
+  return `/api/postfach?${q}`;
 }

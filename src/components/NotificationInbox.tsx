@@ -17,6 +17,7 @@ const KIND_EMOJI: Record<string, string> = {
   dm_received:            '✉️',
   aufguss_announced:      '🧖',
   shift_cancelled_broadcast: '⚠️',
+  shared_email_inbound:   '📧',
 };
 
 export function NotificationInbox({ onClose }: { onClose: () => void }) {
@@ -34,6 +35,7 @@ export function NotificationInbox({ onClose }: { onClose: () => void }) {
     if (n.kind === 'game_challenge' && typeof p.match_id === 'string') return `/spiele/match/${p.match_id}`;
     if (n.kind === 'post_commented' && typeof p.post_id === 'string') return `/feed`;
     if (n.kind === 'dm_received' && typeof p.conversation_id === 'string') return `/dm/${p.conversation_id}`;
+    if (n.kind === 'shared_email_inbound') return `/postfach?view=shared`;
     return null;
   }
 

@@ -1544,6 +1544,209 @@ export function useAdminEmailAccounts() {
   });
 }
 
+// ─── Shared-Inbox-Ticket-System (Migration 0080) ─────────────────────────
+
+export type SharedAccount = {
+  account_id: string;
+  email_address: string;
+  display_name: string | null;
+  unread_count: number;
+  open_ticket_count: number;
+};
+
+export type EmailTicketStatus = 'open' | 'in_progress' | 'answered' | 'closed';
+
+export type EmailTicket = {
+  id: string;
+  thread_key: string;
+  subject: string | null;
+  from_address: string | null;
+  status: EmailTicketStatus;
+  locked_by: string | null;
+  locked_by_name: string | null;
+  locked_at: string | null;
+  last_inbound_at: string | null;
+  last_outbound_at: string | null;
+  message_count: number;
+  last_imap_uid: number | null;
+};
+
+export type SharedAdmin = {
+  member_id: string;
+  name: string;
+  avatar_path: string | null;
+  granted_at: string;
+};
+
+export function useMySharedAccounts() {
+  return useQuery({
+    queryKey: ['my-shared-accounts'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_shared_accounts');
+      if (error) throw error;
+      return (data ?? []) as SharedAccount[];
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useAccountTickets(
+  accountId: string | null | undefined,
+  status: EmailTicketStatus | null = null,
+) {
+  return useQuery({
+    queryKey: ['account-tickets', accountId, status],
+    enabled: !!accountId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_account_tickets', {
+        p_account_id: accountId,
+        p_status: status,
+        p_limit: 50,
+      });
+      if (error) throw error;
+      return (data ?? []) as EmailTicket[];
+    },
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useSharedAccountAdmins(accountId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['shared-account-admins', accountId],
+    enabled: !!accountId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_shared_account_admins', { p_account_id: accountId });
+      if (error) throw error;
+      return (data ?? []) as SharedAdmin[];
+    },
+  });
+}
+
+export function useLockEmailTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { ticketId: string; force?: boolean }) => {
+      const { error } = await need().rpc('email_ticket_lock', {
+        p_ticket_id: p.ticketId,
+        p_force: p.force ?? false,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-tickets'] }),
+  });
+}
+
+export function useUnlockEmailTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ticketId: string) => {
+      const { error } = await need().rpc('email_ticket_unlock', { p_ticket_id: ticketId });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-tickets'] }),
+  });
+}
+
+export function useSetEmailTicketStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { ticketId: string; status: EmailTicketStatus }) => {
+      const { error } = await need().rpc('email_ticket_set_status', {
+        p_ticket_id: p.ticketId,
+        p_status: p.status,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-tickets'] }),
+  });
+}
+
+export function useGrantSharedEmailAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      email: string;
+      password: string;
+      imap_host?: string;
+      imap_port?: number;
+      smtp_host?: string;
+      smtp_port?: number;
+      display_name?: string | null;
+    }) => {
+      const { data, error } = await need().rpc('grant_shared_email_account', {
+        p_email: p.email,
+        p_password: p.password,
+        p_imap_host: p.imap_host ?? 'w01b00df.kasserver.com',
+        p_imap_port: p.imap_port ?? 993,
+        p_smtp_host: p.smtp_host ?? 'w01b00df.kasserver.com',
+        p_smtp_port: p.smtp_port ?? 465,
+        p_display_name: p.display_name ?? null,
+      });
+      if (error) throw error;
+      return data as EmailAccount;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-email-accounts'] });
+      qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
+    },
+  });
+}
+
+export function useGrantSharedEmailAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { accountId: string; memberId: string }) => {
+      const { error } = await need().rpc('grant_shared_email_admin', {
+        p_account_id: p.accountId,
+        p_member_id: p.memberId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['shared-account-admins', vars.accountId] });
+      qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
+    },
+  });
+}
+
+export function useRevokeSharedEmailAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { accountId: string; memberId: string }) => {
+      const { error } = await need().rpc('revoke_shared_email_admin', {
+        p_account_id: p.accountId,
+        p_member_id: p.memberId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['shared-account-admins', vars.accountId] });
+      qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
+    },
+  });
+}
+
+export function useMarkAccountShared() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { accountId: string; shared: boolean }) => {
+      const { error } = await need().rpc('mark_account_shared', {
+        p_account_id: p.accountId,
+        p_shared: p.shared,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-email-accounts'] });
+      qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
+    },
+  });
+}
+
 export function useGrantEmailAccount() {
   const qc = useQueryClient();
   return useMutation({

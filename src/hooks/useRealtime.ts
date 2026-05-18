@@ -82,6 +82,13 @@ export function useRealtimeSync() {
           qc.invalidateQueries({ queryKey: ['dm-conversations'] });
           qc.invalidateQueries({ queryKey: ['dm-unread'] });
         })
+      // Shared-Email-Tickets (Migration 0080): Lock-Updates + Status-Wechsel
+      // sollen live bei allen Admins ankommen, damit niemand doppelt bearbeitet
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'email_tickets' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['account-tickets'] });
+          qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
+        })
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);

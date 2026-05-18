@@ -4,7 +4,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { format, isToday, isYesterday } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useMyEmailAccount } from '@/lib/api';
+import { useCurrentMember, useMyEmailAccount, useMySharedAccounts } from '@/lib/api';
 import {
   useFolders, useMessages, useMessage,
   useSendMail, useMarkMessage, useDeleteMessage,
@@ -15,17 +15,20 @@ import { Avatar } from '@/components/Avatar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
+import { SharedTicketsView } from '@/components/postfach/SharedTicketsView';
 
 export default function Postfach() {
   const { signOut } = useAuth();
   const me = useCurrentMember();
   const accountQ = useMyEmailAccount();
+  const sharedQ = useMySharedAccounts();
   const nav = useNavigate();
 
   const [selectedFolder, setSelectedFolder] = useState<string>('INBOX');
   const [selectedUid, setSelectedUid] = useState<number | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState<{ to?: string; subject?: string; body?: string; inReplyTo?: string; references?: string[] } | null>(null);
+  const [view, setView] = useState<'personal' | 'shared'>('personal');
 
   const foldersQ = useFolders();
   const messagesQ = useMessages(selectedFolder, 50);
@@ -34,7 +37,13 @@ export default function Postfach() {
   if (accountQ.isLoading || me.isLoading) {
     return <div className="bg-schwarzwald-soft min-h-full grid place-items-center p-6 text-forest-300">Lade Postfach…</div>;
   }
-  if (!accountQ.data) {
+
+  const sharedAccounts = sharedQ.data ?? [];
+  const hasPersonal = !!accountQ.data;
+  const hasShared = sharedAccounts.length > 0;
+
+  // Weder persönlich noch shared → Hinweis
+  if (!hasPersonal && !hasShared) {
     return (
       <div className="bg-schwarzwald-soft min-h-full grid place-items-center p-6">
         <div className="max-w-md rounded-2xl bg-forest-950/80 p-6 ring-1 ring-forest-800/50 space-y-3 text-center">
@@ -51,6 +60,8 @@ export default function Postfach() {
     );
   }
 
+  // Wenn nur shared (kein persönlicher Account) → direkt shared anzeigen
+  const effectiveView: 'personal' | 'shared' = !hasPersonal && hasShared ? 'shared' : view;
   const isAdmin = me.data?.role === 'admin';
 
   return (
@@ -64,18 +75,26 @@ export default function Postfach() {
             </Link>
             <div className="min-w-0">
               <h1 className="text-sm sm:text-base font-semibold text-forest-100 leading-tight truncate">📬 Postfach</h1>
-              <p className="text-[10px] sm:text-xs text-forest-400 truncate font-mono">{accountQ.data.email_address}</p>
+              <p className="text-[10px] sm:text-xs text-forest-400 truncate font-mono">
+                {effectiveView === 'personal' && accountQ.data
+                  ? accountQ.data.email_address
+                  : '🏢 Vereins-Postfach'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => { setComposeDraft(null); setComposeOpen(true); }}
-              className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-bold text-amber-950">
-              ✉️ Neu
-            </button>
-            <button onClick={() => messagesQ.refetch()}
-              className="rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900">
-              {messagesQ.isFetching ? '…' : '↻'}
-            </button>
+            {effectiveView === 'personal' && (
+              <button onClick={() => { setComposeDraft(null); setComposeOpen(true); }}
+                className="rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-bold text-amber-950">
+                ✉️ Neu
+              </button>
+            )}
+            {effectiveView === 'personal' && (
+              <button onClick={() => messagesQ.refetch()}
+                className="rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-900">
+                {messagesQ.isFetching ? '…' : '↻'}
+              </button>
+            )}
             <ThemeToggle compact />
             {isAdmin ? <AdminQuickNav variant="icons" /> : <MemberQuickNav myMemberId={me.data?.id} />}
             <button onClick={() => signOut()}
@@ -84,8 +103,39 @@ export default function Postfach() {
             </button>
           </div>
         </div>
+        {/* Tab-Switcher (nur wenn beides verfügbar) */}
+        {hasPersonal && hasShared && (
+          <div className="mx-auto max-w-7xl flex gap-1 px-4 sm:px-6 pb-2">
+            <button
+              onClick={() => { setView('personal'); setSelectedUid(null); }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                view === 'personal' ? 'bg-amber-500 text-amber-950' : 'bg-forest-900/60 text-forest-300 ring-1 ring-forest-700/40 hover:bg-forest-900'
+              }`}
+            >📥 Persönlich</button>
+            <button
+              onClick={() => { setView('shared'); setSelectedUid(null); }}
+              className={`relative rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                view === 'shared' ? 'bg-amber-500 text-amber-950' : 'bg-forest-900/60 text-forest-300 ring-1 ring-forest-700/40 hover:bg-forest-900'
+              }`}
+            >
+              🏢 Vereins-Postfach
+              {sharedAccounts.reduce((s, a) => s + (a.open_ticket_count ?? 0), 0) > 0 && (
+                <span className="ml-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 tabular-nums">
+                  {sharedAccounts.reduce((s, a) => s + (a.open_ticket_count ?? 0), 0)}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </header>
 
+      {effectiveView === 'shared' && (
+        <div className="mx-auto max-w-7xl w-full flex-1 min-h-0">
+          <SharedTicketsView accounts={sharedAccounts} />
+        </div>
+      )}
+
+      {effectiveView === 'personal' && hasPersonal && (
       <div className="mx-auto max-w-7xl w-full flex-1 flex gap-3 p-3 sm:p-4 min-h-0">
         {/* Sidebar: Ordner */}
         <aside className="w-44 flex-shrink-0 hidden lg:block">
@@ -134,8 +184,10 @@ export default function Postfach() {
           )}
         </section>
       </div>
+      )}
 
-      {/* Mobile Ordner-Switcher */}
+      {/* Mobile Ordner-Switcher (nur in Personal-View) */}
+      {effectiveView === 'personal' && hasPersonal && (
       <div className="lg:hidden border-t border-forest-800/40 bg-forest-950/90 px-3 py-2 flex gap-1 overflow-x-auto">
         {(foldersQ.data ?? []).slice(0, 6).map((f) => (
           <button key={f.path}
@@ -149,6 +201,7 @@ export default function Postfach() {
           </button>
         ))}
       </div>
+      )}
 
       {composeOpen && (
         <ComposeModal
