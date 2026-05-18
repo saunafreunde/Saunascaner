@@ -43,8 +43,11 @@ export function AtelierTabs({
   const currentTime = now ?? new Date();
   const isUpcoming = (i: Infusion) => new Date(i.end_time) > currentTime;
   const upcomingMine = myInfusions.filter(isUpcoming);
-  const canDelete = (i: Infusion) => isAdmin && isUpcoming(i);
   const isOwn = (i: Infusion) => myMemberId !== undefined && i.saunameister_id === myMemberId;
+  // Löschen erlaubt für: Admin (jeden Aufguss) oder eigene Aufgüsse (Aufgießer).
+  // Die SQL cancel_my_infusion-RPC erzwingt zusätzlich das 60-Min-Lock-Fenster
+  // (Aufgießer können nur bis 60 Min vor Start absagen, Admins jederzeit).
+  const canDelete = (i: Infusion) => isUpcoming(i) && (isAdmin || isOwn(i));
   const canJoinOrLeave = (i: Infusion) => i.team_infusion && !isOwn(i);
   const handleDelete = (i: Infusion) => {
     const ok = window.confirm(

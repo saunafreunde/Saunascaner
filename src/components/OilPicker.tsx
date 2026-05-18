@@ -2,13 +2,16 @@ import { useMemo, useRef, useState } from 'react';
 import {
   OILS_BY_CATEGORY, OIL_BY_ID, OIL_BY_NUMBER,
   CATEGORY_LABELS, CATEGORY_ORDER, normalizeOilSlots,
+  MAX_OIL_SLOTS,
 } from '@/lib/oils';
 
 type Props = {
-  selected: (string | null)[];                  // [Runde 1, Runde 2, Runde 3]
+  selected: (string | null)[];                  // [Runde 1 … Runde MAX_OIL_SLOTS]
   onChange: (oils: (string | null)[]) => void;
   onClose: () => void;
 };
+
+const EMPTY_SLOTS: (string | null)[] = Array.from({ length: MAX_OIL_SLOTS }, () => null);
 
 export default function OilPicker({ selected, onChange, onClose }: Props) {
   const slots = useMemo(() => normalizeOilSlots(selected), [selected]);
@@ -46,7 +49,7 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
   }
 
   function clearAll() {
-    onChange([null, null, null]);
+    onChange([...EMPTY_SLOTS]);
     setActiveRound(0);
   }
 

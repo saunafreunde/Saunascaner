@@ -237,7 +237,7 @@ function OilRoomContent() {
   const [duration, setDuration] = useState<number>(15);
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
   const [customAttrIds, setCustomAttrIds] = useState<string[]>([]);
-  const [oils, setOils] = useState<(string | null)[]>([null, null, null]);
+  const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: 6 }, () => null) as (string | null)[]);
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -289,7 +289,7 @@ function OilRoomContent() {
     setTitle('');
     setAttrs([]);
     setCustomAttrIds([]);
-    setOils([null, null, null]);
+    setOils(Array.from({ length: 6 }, () => null) as (string | null)[]);
     setDuration(15);
   }
 

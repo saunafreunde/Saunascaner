@@ -43,7 +43,7 @@ export function InfusionCard({
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
 
-  const oils = (infusion.oils ?? []).filter(Boolean).slice(0, 3) as string[];
+  const oils = (infusion.oils ?? []).filter(Boolean) as string[];
 
   // Countdown-Text bis Start (oder Status falls läuft/vorbei).
   // Wird sekündlich/minütlich aktualisiert via Parent-`now`-Prop (alle 5s im Dashboard).

@@ -336,7 +336,7 @@ export default function Planner() {
   const [slot, setSlot] = useState<string>('15:00');
   const [title, setTitle] = useState('');
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
-  const [oils, setOils] = useState<(string | null)[]>([null, null, null]);
+  const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: 6 }, () => null) as (string | null)[]);
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [teamInfusion, setTeamInfusion] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -494,7 +494,7 @@ export default function Planner() {
     setTitle('');
     setAttrs([]);
     setCustomAttrIds([]);
-    setOils([null, null, null]);
+    setOils(Array.from({ length: 6 }, () => null) as (string | null)[]);
     setTeamInfusion(false);
   }
 
@@ -831,11 +831,13 @@ export default function Planner() {
               </div>
             </Card>
 
-          {(isAufgieser || isStaff) && (
+          {/* Evakuierungs-Alarm: NUR Admins dürfen ihn hier auslösen.
+              Aufgießer/Staff/Mitglieder lösen ihn am Öl-Tablet (/oil-room) aus. */}
+          {isAdmin && (
             <div className="rounded-2xl border-2 border-rose-600/60 bg-rose-950/40 p-4 ring-1 ring-rose-500/30 backdrop-blur">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-rose-200">🚨 Notfall</h2>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-rose-200">🚨 Notfall (Admin)</h2>
                   <p className="mt-0.5 text-xs text-rose-200/80">Vollbild-Alarm + Telegram</p>
                 </div>
                 <button type="button" disabled={trigEvac.isPending || !!evacuation} onClick={triggerEvacuation}
