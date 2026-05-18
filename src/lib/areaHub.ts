@@ -21,6 +21,7 @@ export const NO_AREA_HUB_PATHS = [
   '/dashboard',
   '/scanner',
   '/oil-room',
+  '/willkommen',
   '/checkin',
   '/checkin/signup',
   '/checkin/rate',

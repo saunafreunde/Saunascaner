@@ -12,6 +12,7 @@ import { AreaHubGate } from '@/components/AreaHubGate';
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows + Welcome-Tour
 const NO_BOTTOM_NAV_PATHS = [
   '/dashboard', '/scanner', '/oil-room',
+  '/willkommen',
   '/checkin', '/checkin/signup', '/checkin/rate',
   '/gast-signup', '/login', '/forgot', '/reset-password',
   '/tour',
@@ -53,6 +54,7 @@ const FanHome         = lazy(() => import('@/routes/Fan'));
 const CheckinPin      = lazy(() => import('@/routes/CheckinPin'));
 const CheckinSignup   = lazy(() => import('@/routes/CheckinSignup'));
 const CheckinRate     = lazy(() => import('@/routes/CheckinRate'));
+const Willkommen      = lazy(() => import('@/routes/Willkommen'));
 const Unterstuetzer   = lazy(() => import('@/routes/Unterstuetzer'));
 const Mitarbeiter     = lazy(() => import('@/routes/Mitarbeiter'));
 const Cp              = lazy(() => import('@/routes/Cp'));
@@ -105,6 +107,7 @@ export default function App() {
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/gast-signup"    element={<GastSignup />} />
+        <Route path="/willkommen"     element={<Willkommen />} />
         <Route path="/checkin"        element={<CheckinPin />} />
         <Route path="/checkin/signup" element={<CheckinSignup />} />
         <Route path="/checkin/rate"   element={<CheckinRate />} />

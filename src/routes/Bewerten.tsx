@@ -4,6 +4,7 @@ import {
   useRatableInfusions, useMeisterDirectory, useSaunas, useCurrentMember,
   type RatableInfusion,
 } from '@/lib/api';
+import { isAufgieser } from '@/lib/roles';
 import { RatingForm } from '@/components/RatingForm';
 import { fmtClock } from '@/lib/time';
 
@@ -31,7 +32,9 @@ export default function Bewerten() {
       <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-4">
         <h1 className="text-xl font-bold text-forest-100">⭐ Aufgüsse bewerten</h1>
         <p className="text-xs text-forest-300/70 mt-0.5">
-          Deine besuchten Aufgüsse — möglich bis am Folgetag 12:00 Uhr.
+          {isAufgieser(me.data)
+            ? 'Deine bewertbaren Aufgüsse — bis 3 Stunden nach Aufguss-Ende.'
+            : 'Deine besuchten Aufgüsse — möglich bis am Folgetag 12:00 Uhr.'}
         </p>
       </header>
 

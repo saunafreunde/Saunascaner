@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { RATING_CATEGORIES, type RatingCategoryId } from '@/lib/ratingCategories';
-import { useSubmitRating, useMyRatingForInfusion, type RatableInfusion } from '@/lib/api';
+import { useSubmitRating, useMyRatingForInfusion, useCurrentMember, type RatableInfusion } from '@/lib/api';
+import { isAufgieser } from '@/lib/roles';
 import { RatingStars } from './RatingStars';
 import { EchoPromptModal } from './feed/EchoPromptModal';
 
@@ -27,10 +29,31 @@ const EMPTY_RATINGS: Ratings = {
 
 const ERROR_MESSAGES: Record<string, string> = {
   not_present: 'Du musst eingecheckt sein, um zu bewerten.',
-  rating_window_expired: 'Das Bewertungsfenster (3 Stunden) ist abgelaufen.',
+  not_attended_that_day: 'Du warst an diesem Tag nicht eingecheckt — Bewertung ist nicht möglich.',
+  rating_window_expired: 'Das Bewertungsfenster (bis Folgetag 12:00 Uhr) ist abgelaufen.',
+  rating_window_expired_aufgieser: 'Das 3-Stunden-Fenster für Aufgießer ist abgelaufen.',
   infusion_not_finished: 'Dieser Aufguss läuft noch.',
   self_rating_not_allowed: 'Du kannst deinen eigenen Aufguss nicht bewerten.',
+  infusion_not_found: 'Aufguss nicht gefunden.',
 };
+
+const TZ = 'Europe/Berlin';
+
+// Berechnet den rolen-spezifischen Bewertungs-Deadline:
+//  • Aufgießer: end_time + 3h
+//  • Andere (Gast/Fan/Helfer/Staff/CP/Admin): Tag+1 12:00 in Berlin-Zeit
+// Synchron mit submit_rating() in Migration 0082.
+function computeWindowClose(startTimeIso: string, endTimeIso: string, isAufg: boolean): Date {
+  if (isAufg) return new Date(new Date(endTimeIso).getTime() + 3 * 60 * 60 * 1000);
+  const startBerlin = toZonedTime(startTimeIso, TZ);
+  const dayPlus1NoonWall = new Date(
+    startBerlin.getFullYear(),
+    startBerlin.getMonth(),
+    startBerlin.getDate() + 1,
+    12, 0, 0, 0,
+  );
+  return fromZonedTime(dayPlus1NoonWall, TZ);
+}
 
 export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess }: RatingFormProps) {
   const [ratings, setRatings] = useState<Ratings>(EMPTY_RATINGS);
@@ -40,6 +63,8 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
 
   const myRatingQ = useMyRatingForInfusion(infusion.id, memberId);
   const submitRating = useSubmitRating();
+  const meQ = useCurrentMember();
+  const isAufg = isAufgieser(meQ.data);
 
   // Pre-fill if already rated
   useEffect(() => {
@@ -60,8 +85,8 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
   const allFilled = Object.values(ratings).every((v) => v !== null);
   const isEditing = !!myRatingQ.data;
 
-  // Countdown until window closes
-  const windowClose = new Date(new Date(infusion.end_time).getTime() + 3 * 60 * 60 * 1000);
+  // Countdown until window closes — rolen-spezifisch (siehe Migration 0082)
+  const windowClose = computeWindowClose(infusion.start_time, infusion.end_time, isAufg);
   const timeLeft = formatDistanceToNow(windowClose, { locale: de, addSuffix: false });
 
   async function handleSubmit() {
