@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCurrentMember } from '@/lib/api';
 import { useGameMatch, useMakeMove, useResignMatch, mySlotInMatch, type Slot } from '@/lib/games';
 

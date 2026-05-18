@@ -71,13 +71,6 @@ function generate(holes = 45): { puzzle: Grid; solution: Grid } {
   return { puzzle, solution };
 }
 
-function isComplete(g: Grid): boolean {
-  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
-    if (g[r][c] === 0) return false;
-  }
-  return true;
-}
-
 function findMistakes(g: Grid, sol: Grid): Mistakes {
   const m: Mistakes = Array.from({ length: 9 }, () => Array<boolean>(9).fill(false));
   for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {

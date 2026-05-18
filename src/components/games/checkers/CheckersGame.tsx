@@ -13,10 +13,6 @@ const PIECE_BG: Record<Slot, string> = {
   a: 'bg-amber-300 shadow-amber-400/60',
   b: 'bg-slate-700 shadow-slate-800/60',
 };
-const KING_RING: Record<Slot, string> = {
-  a: 'ring-amber-100',
-  b: 'ring-slate-300',
-};
 
 type Sel = { r: number; c: number } | null;
 
