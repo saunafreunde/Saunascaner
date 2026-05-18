@@ -92,32 +92,7 @@ function infusionKey(saunaId: string, d: Date): string {
   return `${saunaId}|${y}-${mo < 10 ? '0' + mo : mo}-${da < 10 ? '0' + da : da} ${h < 10 ? '0' + h : h}:${mn < 10 ? '0' + mn : mn}`;
 }
 
-// Start-Tag der Wochen-Seite (Mo=1, Di=2 …). weekOffset=0 → aktuelle Woche.
-// mondayOpen=true → Woche startet bei Mo, sonst Di (klassischer Vereins-Ruhetag).
-function weekStartDate(weekOffset: number, mondayOpen: boolean): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dow = today.getDay(); // 0=So..6=Sa
-  const startDow = mondayOpen ? 1 : 2; // Mo oder Di
-  // Diff zum gewünschten Wochenstart
-  let diffToStart: number;
-  if (mondayOpen) {
-    // Mo-Start: Mo=0, Di=-1, …, So=-6
-    diffToStart = dow === 0 ? -6 : -(dow - 1);
-  } else {
-    // Di-Start: Mo=-6, Di=0, Mi=-1, Do=-2, Fr=-3, Sa=-4, So=-5
-    diffToStart = dow === 1 ? -6 : dow === 0 ? -5 : -(dow - 2);
-  }
-  void startDow; // nur für Lesbarkeit/Doku
-  return addDays(today, diffToStart + weekOffset * 7);
-}
-
-// Wochenansicht: 6 Tage (Di–So) ODER 7 Tage (Mo–So) je nach Admin-Setting.
-function weekDays(weekOffset: number, mondayOpen: boolean): Date[] {
-  const start = weekStartDate(weekOffset, mondayOpen);
-  const length = mondayOpen ? 7 : 6;
-  return Array.from({ length }, (_, i) => addDays(start, i));
-}
+// Tagesansicht — keine Wochen-Helpers mehr benötigt (vorher weekDays/weekStartDate).
 
 function isSameYMD(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -348,13 +323,12 @@ export default function Planner() {
   }
 
   // ─── Aufguss-Formular ───────────────────────────────────────────────────
-  // Rollen-basiertes Planungs-Fenster (in Wochen):
-  //   Admin: unbegrenzt (Cap 26)
-  //   Gast-Aufgießer: 4 Wochen voraus
-  //   Aufgießer/Staff: 2 Wochen voraus
-  const MAX_WEEK_OFFSET = isAdmin ? 26 : isGuestAufgieser ? 4 : isStaff ? 0 : 2;
+  // Rollen-basiertes Planungs-Fenster (in TAGEN):
+  //   Admin: unbegrenzt (Cap ~6 Monate)
+  //   Gast-Aufgießer: 4 Wochen voraus = 28 Tage
+  //   Aufgießer/Staff: 2 Wochen voraus = 14 Tage
+  const MAX_DAY_OFFSET = isAdmin ? 182 : isGuestAufgieser ? 28 : isStaff ? 0 : 14;
 
-  const [weekOffset, setWeekOffset] = useState<number>(0);
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const t = new Date(); t.setHours(0, 0, 0, 0); return t;
   });
@@ -373,15 +347,28 @@ export default function Planner() {
   }, [saunaId, saunas]);
 
   const todayDate = useMemo(() => { const t = new Date(); t.setHours(0,0,0,0); return t; }, []);
-  const visibleDays = useMemo(() => weekDays(weekOffset, mondayOpen), [weekOffset, mondayOpen]);
+  // Tagesansicht: nur der selectedDate ist sichtbar (statt ganzer Woche).
+  const visibleDays = useMemo(() => [selectedDate], [selectedDate]);
 
-  // selectedDate auto-anpassen wenn man die Woche wechselt: erster Nicht-Vergangenheit-Tag
-  useEffect(() => {
-    const stillVisible = visibleDays.some((d) => isSameYMD(d, selectedDate));
-    if (stillVisible) return;
-    const firstUsable = visibleDays.find((d) => d.getTime() >= todayDate.getTime() && d.getDay() !== 1) ?? visibleDays[0];
-    setSelectedDate(firstUsable);
-  }, [visibleDays, selectedDate, todayDate]);
+  // Tag-Offset (für Pager-Begrenzung + Anzeige). Negative Werte = Vergangenheit.
+  const dayOffset = useMemo(() => {
+    const diffMs = selectedDate.getTime() - todayDate.getTime();
+    return Math.round(diffMs / (24 * 60 * 60 * 1000));
+  }, [selectedDate, todayDate]);
+
+  // Pager-Helper: 1 Tag vor/zurück; Mo überspringen falls nicht offen.
+  function shiftDay(direction: -1 | 1) {
+    let next = addDays(selectedDate, direction);
+    // Skip-Mo wenn Toggle aus (nicht-planbarer Tag)
+    if (next.getDay() === 1 && !mondayOpen) {
+      next = addDays(next, direction);
+    }
+    // Begrenzungen: nicht in Vergangenheit, nicht über MAX_DAY_OFFSET
+    const nextOffset = Math.round((next.getTime() - todayDate.getTime()) / (24 * 60 * 60 * 1000));
+    if (nextOffset < 0) return;
+    if (nextOffset > MAX_DAY_OFFSET) return;
+    setSelectedDate(next);
+  }
 
   const infusionByKey = useMemo(() => {
     const map = new Map<string, Infusion>();
@@ -940,29 +927,29 @@ export default function Planner() {
           <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
             <h2 className="text-sm font-semibold text-forest-100 uppercase tracking-wider">Neuen Aufguss eintragen</h2>
 
-            {/* ── WOCHEN-PAGER ─────────────────────────────────────────── */}
+            {/* ── TAGES-PAGER ─────────────────────────────────────────── */}
             <div className="flex items-center justify-between gap-2 rounded-xl bg-forest-900/40 px-3 py-2 ring-1 ring-forest-800/40">
               <button
                 type="button"
-                onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
-                disabled={weekOffset === 0}
+                onClick={() => shiftDay(-1)}
+                disabled={dayOffset === 0}
                 className="rounded-lg bg-forest-900/70 min-h-[44px] px-3.5 py-2 text-sm font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >◀ Woche</button>
+              >◀ Tag</button>
               <div className="text-center">
-                <div className="text-xs font-semibold text-forest-100">
-                  {weekOffset === 0 ? 'Diese Woche' : weekOffset === 1 ? 'Nächste Woche' : `In ${weekOffset} Wochen`}
+                <div className="text-sm font-semibold text-forest-100">
+                  {dayOffset === 0 ? 'Heute' : dayOffset === 1 ? 'Morgen' : `In ${dayOffset} Tagen`}
                 </div>
-                <div className="text-[10px] text-forest-400 tabular-nums">
-                  {format(visibleDays[0], 'dd.MM.')} – {format(visibleDays[visibleDays.length - 1], 'dd.MM.yyyy')}
+                <div className="text-[11px] text-forest-400 tabular-nums">
+                  {WEEKDAY_LABEL_DE[selectedDate.getDay()]}, {format(selectedDate, 'dd.MM.yyyy')}
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setWeekOffset((o) => Math.min(MAX_WEEK_OFFSET, o + 1))}
-                disabled={weekOffset >= MAX_WEEK_OFFSET}
-                title={weekOffset >= MAX_WEEK_OFFSET ? `Maximal ${MAX_WEEK_OFFSET} Wochen im Voraus planen` : ''}
+                onClick={() => shiftDay(1)}
+                disabled={dayOffset >= MAX_DAY_OFFSET}
+                title={dayOffset >= MAX_DAY_OFFSET ? `Maximal ${MAX_DAY_OFFSET} Tage im Voraus planen` : ''}
                 className="rounded-lg bg-forest-900/70 min-h-[44px] px-3.5 py-2 text-sm font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >Woche ▶</button>
+              >Tag ▶</button>
             </div>
 
             {/* ── LEGENDE ─────────────────────────────────────────────── */}
@@ -973,7 +960,7 @@ export default function Planner() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-violet-500/70" /> mein Aufguss</span>
             </div>
 
-            {/* ── 6 TAGE STAPEL ──────────────────────────────────────── */}
+            {/* ── TAG ANZEIGE ────────────────────────────────────────── */}
             <div className="space-y-3">
               {visibleDayContexts.map(({ date: d, ctx }) => {
                 const isSelected = isSameYMD(d, selectedDate);

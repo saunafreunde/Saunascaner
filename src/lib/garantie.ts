@@ -15,31 +15,34 @@ export type GarantieOpts = {
   mondayOpen?: boolean;
 };
 
-// DEMO-MODUS (für Präsentation): Slots gehen bis 22 Uhr statt 20 Uhr.
-// Zurück zu 20 Uhr: LAST_SLOT_HOUR_DEMO auf 20 setzen.
-const LAST_SLOT_HOUR_DEMO = 22;
+// Normale Vereins-Aufgusszeiten:
+//   • Di/Mi/Do: 13–20 Uhr (8 Slots)
+//   • Fr/Sa/So: 11–20 Uhr (10 Slots)
+//   • Mo: geschlossen (außer mondayOpen=true → wie Sa/So 11–20)
+//   • Fr-Spezial: 11/12/13 immer 80°C
+const LAST_SLOT_HOUR = 20;
+const DITHU_START_HOUR = 13;
 
 export function garantieTemperatureFor(date: Date, opts: GarantieOpts = {}): 80 | 100 | null {
   const dow = date.getDay();
   const hour = date.getHours();
   const mondayOpen = opts.mondayOpen ?? false;
-  const lastHour = LAST_SLOT_HOUR_DEMO;
 
   if (dow === 1) {
     if (!mondayOpen) return null;
     // Mo offen → wie Sa/So
-    if (hour < 11 || hour > lastHour) return null;
+    if (hour < 11 || hour > LAST_SLOT_HOUR) return null;
     return ((hour - 11) % 2 === 0) ? 80 : 100;
   }
 
   if (dow === 5) {
     if (hour >= 11 && hour <= 13) return 80;
-    if (hour < 14 || hour > lastHour) return null;
+    if (hour < 14 || hour > LAST_SLOT_HOUR) return null;
     return ((hour - 14) % 2 === 0) ? 100 : 80;
   }
 
-  const startHour = (dow >= 2 && dow <= 4) ? 14 : 11;
-  if (hour < startHour || hour > lastHour) return null;
+  const startHour = (dow >= 2 && dow <= 4) ? DITHU_START_HOUR : 11;
+  if (hour < startHour || hour > LAST_SLOT_HOUR) return null;
   return ((hour - startHour) % 2 === 0) ? 80 : 100;
 }
 
@@ -49,21 +52,20 @@ export function isGarantieSlot(date: Date, opts: GarantieOpts = {}): boolean {
 
 // Hilfsfunktion: alle Slot-Stunden eines Wochentags (für UI-Default + Sperr-Check).
 // Bei Mo + mondayOpen=true → wie Sa/So.
-// DEMO-MODUS: bis 22 Uhr (statt vorher 20 Uhr).
 export function slotHoursForWeekday(weekday: number, opts: GarantieOpts = {}): number[] {
   const mondayOpen = opts.mondayOpen ?? false;
-  // 11..22 Uhr = [11, 12, ..., 22] = 12 Slots
-  const elevenToTwentytwo = Array.from({ length: LAST_SLOT_HOUR_DEMO - 11 + 1 }, (_, i) => 11 + i);
-  // 14..22 Uhr = [14, 15, ..., 22] = 9 Slots
-  const fourteenToTwentytwo = Array.from({ length: LAST_SLOT_HOUR_DEMO - 14 + 1 }, (_, i) => 14 + i);
+  // 11..20 = [11, 12, ..., 20] = 10 Slots (Fr/Sa/So + Mo wenn offen)
+  const elevenToTwenty = Array.from({ length: LAST_SLOT_HOUR - 11 + 1 }, (_, i) => 11 + i);
+  // 13..20 = [13, 14, ..., 20] = 8 Slots (Di/Mi/Do)
+  const dithuHours = Array.from({ length: LAST_SLOT_HOUR - DITHU_START_HOUR + 1 }, (_, i) => DITHU_START_HOUR + i);
 
   if (weekday === 1) {
-    return mondayOpen ? elevenToTwentytwo : [];
+    return mondayOpen ? elevenToTwenty : [];
   }
   if (weekday >= 2 && weekday <= 4) {
-    return fourteenToTwentytwo;
+    return dithuHours;
   }
-  return elevenToTwentytwo;
+  return elevenToTwenty;
 }
 
 export const WEEKDAY_LABEL_DE: Record<number, string> = {
