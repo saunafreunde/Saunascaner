@@ -2254,6 +2254,51 @@ export function useUpdateTvSettings() {
   });
 }
 
+// ─── Schedule-Settings (Migration 0083) ───────────────────────────────────
+// Admin-konfigurierbare Wochenplan- + Tafel-Settings:
+//   - monday_open: ob Montag als Aufguss-Tag offen ist
+//   - tiles_per_column: 3 oder 4 Aufgüsse pro Sauna-Spalte auf /dashboard
+export type ScheduleSettings = {
+  monday_open: boolean;
+  tiles_per_column: 3 | 4;
+};
+
+const SCHEDULE_DEFAULTS: ScheduleSettings = { monday_open: false, tiles_per_column: 3 };
+
+export function useScheduleSettings() {
+  return useQuery<ScheduleSettings>({
+    queryKey: ['schedule-settings'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_schedule_settings');
+      if (error) throw error;
+      // RPC liefert jsonb mit den beiden Keys
+      const obj = (data ?? {}) as Partial<ScheduleSettings>;
+      return {
+        monday_open: !!obj.monday_open,
+        tiles_per_column: (obj.tiles_per_column === 4 ? 4 : 3) as 3 | 4,
+      };
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useSetScheduleSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ScheduleSettings) => {
+      const { error } = await need().rpc('set_schedule_settings', {
+        p_monday_open: input.monday_open,
+        p_tiles_per_column: input.tiles_per_column,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule-settings'] }),
+  });
+}
+
+/** Synchrone Default-Settings — für Pure-Function-Aufrufer ohne React-Context. */
+export const SCHEDULE_DEFAULT_SETTINGS: ScheduleSettings = SCHEDULE_DEFAULTS;
+
 // ─── Polls ────────────────────────────────────────────────────────────────
 export type PollAnswerType = 'text' | 'yesno' | 'choice' | 'number';
 

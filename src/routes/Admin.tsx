@@ -26,6 +26,7 @@ import {
   useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
   useMyBadges,
   usePendingFanUpgrades, useApproveFan, useRejectFan,
+  useScheduleSettings, useSetScheduleSettings,
   type PollAnswerType, type Member,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
@@ -240,32 +241,102 @@ function SaunasTab() {
   const saunasQ = useSaunas();
   const toggle = useToggleSauna();
   return (
+    <div className="space-y-4">
+      <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
+        <h2 className="text-base font-semibold text-forest-100">Saunen</h2>
+        <p className="mt-1 text-xs text-forest-300/70">
+          Aktive Saunen erscheinen auf der Tafel. Layout passt sich automatisch an die Anzahl an.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {(saunasQ.data ?? []).map((s) => (
+            <li key={s.id} className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-3 ring-1 ring-forest-800/40"
+                style={{ borderLeft: `4px solid ${s.accent_color}` }}>
+              <div>
+                <div className="text-sm font-semibold">{s.name}</div>
+                <div className="text-xs text-forest-300/70">{s.temperature_label}</div>
+              </div>
+              <button
+                onClick={() => toggle.mutate({ id: s.id, is_active: !s.is_active })}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold ring-1 ${
+                  s.is_active
+                    ? 'bg-emerald-500 text-emerald-950 ring-emerald-400'
+                    : 'bg-forest-900/80 text-forest-300 ring-forest-700/50'
+                }`}
+              >
+                {s.is_active ? 'Aktiv' : 'Inaktiv'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <ScheduleSettingsCard />
+    </div>
+  );
+}
+
+// Wochenplan + Tafel-Anzeige (Migration 0083)
+function ScheduleSettingsCard() {
+  const schedQ = useScheduleSettings();
+  const setSched = useSetScheduleSettings();
+  const monday = !!schedQ.data?.monday_open;
+  const tiles = (schedQ.data?.tiles_per_column ?? 3) as 3 | 4;
+
+  function updateMonday(next: boolean) {
+    void setSched.mutateAsync({ monday_open: next, tiles_per_column: tiles });
+  }
+  function updateTiles(next: 3 | 4) {
+    void setSched.mutateAsync({ monday_open: monday, tiles_per_column: next });
+  }
+
+  return (
     <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
-      <h2 className="text-base font-semibold text-forest-100">Saunen</h2>
+      <h2 className="text-base font-semibold text-forest-100">📅 Wochenplan & Tafel-Anzeige</h2>
       <p className="mt-1 text-xs text-forest-300/70">
-        Aktive Saunen erscheinen auf der Tafel. Layout passt sich automatisch an die Anzahl an.
+        Aufguss-Tage und Anzahl der angezeigten Aufgüsse auf der TV-Tafel einstellen.
       </p>
-      <ul className="mt-3 space-y-2">
-        {(saunasQ.data ?? []).map((s) => (
-          <li key={s.id} className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-3 ring-1 ring-forest-800/40"
-              style={{ borderLeft: `4px solid ${s.accent_color}` }}>
-            <div>
-              <div className="text-sm font-semibold">{s.name}</div>
-              <div className="text-xs text-forest-300/70">{s.temperature_label}</div>
+
+      <div className="mt-4 space-y-3">
+        <label className="flex items-start gap-3 rounded-lg bg-forest-900/60 px-3 py-3 ring-1 ring-forest-800/40 cursor-pointer hover:bg-forest-900/80 transition">
+          <input
+            type="checkbox"
+            checked={monday}
+            disabled={setSched.isPending || schedQ.isLoading}
+            onChange={(e) => updateMonday(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-amber-500"
+          />
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-forest-100">Montag geöffnet</div>
+            <div className="text-xs text-forest-300/70 mt-0.5">
+              Wenn aktiv: Mo wird wie Sa/So behandelt (Aufgüsse 11–20 Uhr, alternierend startend mit 80°C).
+              Standard: Mo ist Ruhetag.
             </div>
-            <button
-              onClick={() => toggle.mutate({ id: s.id, is_active: !s.is_active })}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold ring-1 ${
-                s.is_active
-                  ? 'bg-emerald-500 text-emerald-950 ring-emerald-400'
-                  : 'bg-forest-900/80 text-forest-300 ring-forest-700/50'
-              }`}
-            >
-              {s.is_active ? 'Aktiv' : 'Inaktiv'}
-            </button>
-          </li>
-        ))}
-      </ul>
+          </div>
+        </label>
+
+        <div className="rounded-lg bg-forest-900/60 px-3 py-3 ring-1 ring-forest-800/40">
+          <div className="text-sm font-semibold text-forest-100 mb-2">Aufgüsse pro Sauna-Spalte auf der Tafel</div>
+          <div className="flex gap-2">
+            {([3, 4] as const).map((n) => (
+              <button
+                key={n}
+                onClick={() => updateTiles(n)}
+                disabled={setSched.isPending || schedQ.isLoading}
+                className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold ring-1 transition ${
+                  tiles === n
+                    ? 'bg-amber-500 text-amber-950 ring-amber-400'
+                    : 'bg-forest-900/80 text-forest-300 ring-forest-700/50 hover:bg-forest-800'
+                }`}
+              >
+                {n} {n === 3 ? '(Standard)' : '(mehr Vorschau)'}
+              </button>
+            ))}
+          </div>
+          <div className="text-[11px] text-forest-400 mt-2">
+            Wirkt sich auf alle Sauna-Spalten auf <code>/dashboard</code> aus.
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

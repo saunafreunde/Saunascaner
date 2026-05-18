@@ -44,6 +44,7 @@ import {
   useMyRecurringSlots, useApplyRecurringSlot, useRevokeMyRecurringSlot,
   useAbsences, useAddAbsence, useDeleteAbsence,
   useTakeoverPersonalFallback, type Template,
+  useScheduleSettings,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
@@ -66,19 +67,12 @@ function fmtDuration(ms: number): string {
   return `${m}min`;
 }
 
-function getAvailableSlots(forDate: Date): string[] {
-  const day = forDate.getDay(); // 0=So, 1=Mo, ..., 6=Sa
-  // Mo: keine Aufgüsse (Ruhetag)
-  if (day === 1) return [];
-  // Di/Mi/Do: 14:00–20:00 (7 Slots)
-  if (day === 2 || day === 3 || day === 4) {
-    return Array.from({ length: 7 }, (_, i) =>
-      `${String(14 + i).padStart(2, '0')}:00`
-    );
-  }
-  // Fr/Sa/So: 11:00–20:00 (10 Slots)
-  return Array.from({ length: 10 }, (_, i) =>
-    `${String(11 + i).padStart(2, '0')}:00`
+// Slot-Stunden via zentrale garantie.ts (Single Source of Truth).
+// mondayOpen kommt aus schedule_settings (Migration 0083) — bei true
+// werden auch am Montag Slots (11–20 wie Sa/So) angeboten.
+function getAvailableSlots(forDate: Date, mondayOpen: boolean): string[] {
+  return slotHoursForWeekday(forDate.getDay(), { mondayOpen }).map(
+    (h) => `${String(h).padStart(2, '0')}:00`,
   );
 }
 
@@ -166,6 +160,8 @@ export default function Planner() {
   const pollsQ = useMyPolls();
   const updateEntryCode = useUpdateEntryCode();
   const meisterDir = useMeisterDirectory();
+  const scheduleQ = useScheduleSettings();
+  const mondayOpen = !!scheduleQ.data?.monday_open;
 
   const addInf = useAddInfusion();
   const takeoverFallback = useTakeoverPersonalFallback();
@@ -398,14 +394,15 @@ export default function Planner() {
 
   const dayContextOf = useCallback((date: Date): DayContext => {
     const isMonday = date.getDay() === 1;
+    const isMondayBlocked = isMonday && !mondayOpen; // mondayOpen aus schedule_settings
     const isPast = date.getTime() < todayDate.getTime();
-    const availableSlots = getAvailableSlots(date);
+    const availableSlots = getAvailableSlots(date, mondayOpen);
     const garantieSlotsOpen: DayContext['garantieSlotsOpen'] = [];
-    if (!isMonday) {
+    if (!isMondayBlocked) {
       const weekday = date.getDay();
-      for (const h of slotHoursForWeekday(weekday)) {
+      for (const h of slotHoursForWeekday(weekday, { mondayOpen })) {
         const slotDate = setMinutes(setHours(date, h), 0);
-        const tempC = garantieTemperatureFor(slotDate);
+        const tempC = garantieTemperatureFor(slotDate, { mondayOpen });
         if (tempC === null) continue;
         const garantieSauna = saunas.find((s) => s.temperature_label === `${tempC}°C` && s.is_active);
         if (!garantieSauna) continue;
@@ -414,8 +411,8 @@ export default function Planner() {
         if (!hasReal) garantieSlotsOpen.push({ hour: h, saunaName: garantieSauna.name, tempC });
       }
     }
-    return { date, isMonday, isPast, availableSlots, garantieSlotsOpen };
-  }, [todayDate, saunas, infusionByKey]);
+    return { date, isMonday: isMondayBlocked, isPast, availableSlots, garantieSlotsOpen };
+  }, [todayDate, saunas, infusionByKey, mondayOpen]);
 
   const slotStatusFor = useCallback((date: Date, saunaIdLookup: string, hhmm: string): SlotStatus => {
     const start = slotToDate(date, hhmm);
@@ -461,12 +458,12 @@ export default function Planner() {
   // ─── durch echte Aufgießer (nicht Personal-Fallback) belegt sind.
   const isGarantieSauna = useMemo(() => {
     const start = slotToDate(selectedDate, slot);
-    const temp = garantieTemperatureFor(start);
+    const temp = garantieTemperatureFor(start, { mondayOpen });
     if (temp === null) return false;
     const sauna = saunas.find((s) => s.id === saunaId);
     if (!sauna) return false;
     return sauna.temperature_label === `${temp}°C`;
-  }, [selectedDate, slot, saunaId, saunas]);
+  }, [selectedDate, slot, saunaId, saunas, mondayOpen]);
 
   const garantieSlotsOpenToday = selectedDayCtx.garantieSlotsOpen;
   const secondarySaunaBlocked = !isGarantieSauna && garantieSlotsOpenToday.length > 0;
@@ -1531,7 +1528,8 @@ function StammSlotPanel({
     if (!saunaId && activeSaunas[0]) setSaunaId(activeSaunas[0].id);
   }, [saunaId, activeSaunas]);
 
-  const slotHours = slotHoursForWeekday(weekday);
+  const sched = useScheduleSettings();
+  const slotHours = slotHoursForWeekday(weekday, { mondayOpen: !!sched.data?.monday_open });
   useEffect(() => {
     if (slotHours.length > 0 && !slotHours.includes(hour)) {
       setHour(slotHours[Math.floor(slotHours.length / 2)] ?? slotHours[0]);
@@ -1605,7 +1603,7 @@ function StammSlotPanel({
           <label className="text-[10px] text-forest-300">Wochentag</label>
           <select value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}
             className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400">
-            {[2,3,4,5,6,0].map((d) => (
+            {(sched.data?.monday_open ? [1,2,3,4,5,6,0] : [2,3,4,5,6,0]).map((d) => (
               <option key={d} value={d}>{WEEKDAY_LABEL_DE[d]}</option>
             ))}
           </select>

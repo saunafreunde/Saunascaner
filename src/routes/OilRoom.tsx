@@ -7,12 +7,13 @@ import { sendEvacuationWithPhoto } from '@/lib/telegram';
 import {
   useSaunas, useInfusions, useAddInfusionKiosk, useDeleteInfusionKiosk,
   usePresentAufgieserPublic, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
-  useMyCustomAttrs,
+  useMyCustomAttrs, useScheduleSettings,
   isInfusionCancelLocked, INFUSION_CANCEL_LOCK_MINUTES,
 } from '@/lib/api';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID } from '@/lib/oils';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
+import { slotHoursForWeekday } from '@/lib/garantie';
 
 // Aus vite.config.ts via `define`. Hilft beim Erkennen, ob das Tablet noch ein
 // veraltetes PWA-Bundle bedient (Hash am PIN-Screen mit dem aktuellen Deploy
@@ -91,9 +92,12 @@ function UnlockScreen({ onUnlock }: { onUnlock: () => void }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getAvailableSlots(forDate: Date): string[] {
-  if (forDate.getDay() === 1) return [];
-  return Array.from({ length: 10 }, (_, i) => `${String(11 + i).padStart(2, '0')}:00`);
+// Slot-Stunden via zentrale garantie.ts (Single Source of Truth). Bei Mo:
+// abhängig von schedule_settings.monday_open (siehe Migration 0083).
+function getAvailableSlots(forDate: Date, mondayOpen: boolean): string[] {
+  return slotHoursForWeekday(forDate.getDay(), { mondayOpen }).map(
+    (h) => `${String(h).padStart(2, '0')}:00`,
+  );
 }
 
 function slotToDate(day: 'today' | 'tomorrow', hhmm: string): Date {
@@ -184,6 +188,7 @@ export default function OilRoom() {
 function OilRoomContent() {
   const saunasQ = useSaunas();
   const infusionsQ = useInfusions();
+  const scheduleQ = useScheduleSettings();
   // Public-RPC statt direkter .from('members')-Query — funktioniert auch wenn
   // das Tablet als anon läuft (RLS members_read_self ist nur für authenticated).
   const presentQ = usePresentAufgieserPublic();
@@ -191,8 +196,13 @@ function OilRoomContent() {
   const trigEvac = useTriggerEvacuation();
   const endEvac = useEndEvacuation();
 
-  const saunas = saunasQ.data ?? [];
+  // Nur aktive Saunen anbieten — Bug-Fix: Tablet zeigte vorher auch deaktivierte.
+  const saunas = useMemo(
+    () => (saunasQ.data ?? []).filter((s) => s.is_active),
+    [saunasQ.data],
+  );
   const infusions = infusionsQ.data ?? [];
+  const mondayOpen = !!scheduleQ.data?.monday_open;
 
   // RPC liefert schon nur Aufgießer/Gast-Aufgießer/Admin — kein Frontend-Filter nötig.
   // Felder: { member_id, name, last_scan_at }
@@ -241,11 +251,12 @@ function OilRoomContent() {
   const todayDate = new Date();
   const tomorrowDate = addDays(todayDate, 1);
   const availableSlots = useMemo(
-    () => getAvailableSlots(day === 'today' ? todayDate : tomorrowDate),
+    () => getAvailableSlots(day === 'today' ? todayDate : tomorrowDate, mondayOpen),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [day]
+    [day, mondayOpen]
   );
-  const isMondaySelected = (day === 'today' ? todayDate : tomorrowDate).getDay() === 1;
+  // Mo blockiert nur wenn Admin Mo nicht geöffnet hat (Migration 0083).
+  const isMondaySelected = (day === 'today' ? todayDate : tomorrowDate).getDay() === 1 && !mondayOpen;
 
   useEffect(() => {
     if (availableSlots.length > 0 && !availableSlots.includes(slot)) {

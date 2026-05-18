@@ -7,7 +7,7 @@ import { PersonalTile } from '@/components/PersonalTile';
 import type { BadgeDefinition } from '@/lib/badges';
 import { slotHoursForWeekday } from '@/lib/garantie';
 
-const TILES_PER_COLUMN = 3;
+const TILES_PER_COLUMN_DEFAULT = 3;
 
 interface SaunaTileColumnProps {
   sauna: Sauna;
@@ -18,6 +18,10 @@ interface SaunaTileColumnProps {
   coNames: (infusionId: string) => string[];
   now: Date;
   tileBgs?: (string | null)[];
+  /** Anzahl angezeigter Aufguss-Tiles pro Spalte (Admin-Setting, 3 oder 4). */
+  tilesPerColumn?: 3 | 4;
+  /** Wenn true: Mo wird als Slot-Tag einbezogen (Admin-Setting). */
+  mondayOpen?: boolean;
 }
 
 /**
@@ -25,7 +29,7 @@ interface SaunaTileColumnProps {
  * (Mo wird übersprungen). So sind alle Sauna-Spalten synchron auf die
  * gleiche Stunden-Achse ausgerichtet.
  */
-function nextSlotStarts(n: number, from: Date): Date[] {
+function nextSlotStarts(n: number, from: Date, mondayOpen: boolean): Date[] {
   const result: Date[] = [];
   const cursor = new Date(from);
   cursor.setMinutes(0, 0, 0);
@@ -33,7 +37,7 @@ function nextSlotStarts(n: number, from: Date): Date[] {
   const startHour = from.getHours();
   while (result.length < n && dayOffset < 8) {
     const weekday = (from.getDay() + dayOffset) % 7;
-    const hours = slotHoursForWeekday(weekday);
+    const hours = slotHoursForWeekday(weekday, { mondayOpen });
     for (const h of hours) {
       if (dayOffset === 0 && h < startHour) continue;
       const slot = new Date(from);
@@ -58,11 +62,16 @@ export function SaunaTileColumn({
   coNames,
   now,
   tileBgs = [],
+  tilesPerColumn = TILES_PER_COLUMN_DEFAULT,
+  mondayOpen = false,
 }: SaunaTileColumnProps) {
-  // Wir rendern die nächsten 3 Slot-Stunden (synchron über alle Saunen).
+  // Wir rendern die nächsten N Slot-Stunden (synchron über alle Saunen).
   // Pro Slot wird in DIESER Sauna geprüft, ob ein Aufguss vorhanden ist.
-  // Wenn nicht → EmptyTile mit Uhrzeit.
-  const slots = useMemo(() => nextSlotStarts(TILES_PER_COLUMN, now), [now]);
+  // N ist Admin-konfigurierbar via schedule_settings (3 oder 4).
+  const slots = useMemo(
+    () => nextSlotStarts(tilesPerColumn, now, mondayOpen),
+    [now, tilesPerColumn, mondayOpen],
+  );
 
   const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date })[]>(() => {
     return slots.map((slotStart) => {

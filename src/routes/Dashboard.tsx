@@ -18,6 +18,7 @@ import {
   publicAssetUrl,
   useCoAufgieser,
   useAllMembersBadges,
+  useScheduleSettings,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
 import type { BadgeDefinition } from '@/lib/badges';
@@ -58,6 +59,9 @@ export default function Dashboard() {
   const evac = useActiveEvacuation();
   const brand = useBrandSettings();
   const allBadgesQ = useAllMembersBadges();
+  const scheduleQ = useScheduleSettings();
+  const tilesPerColumn = scheduleQ.data?.tiles_per_column ?? 3;
+  const mondayOpen = !!scheduleQ.data?.monday_open;
 
   const [audioReady, setAudioReady] = useState(false);
 
@@ -139,6 +143,8 @@ export default function Dashboard() {
           coNames={coNamesForInfusion}
           now={now}
           tileBgs={brand.data?.tile_bgs?.[saunaId] ?? []}
+          tilesPerColumn={tilesPerColumn}
+          mondayOpen={mondayOpen}
         />
       );
     };
