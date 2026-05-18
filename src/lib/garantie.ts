@@ -15,26 +15,31 @@ export type GarantieOpts = {
   mondayOpen?: boolean;
 };
 
+// DEMO-MODUS (für Präsentation): Slots gehen bis 22 Uhr statt 20 Uhr.
+// Zurück zu 20 Uhr: LAST_SLOT_HOUR_DEMO auf 20 setzen.
+const LAST_SLOT_HOUR_DEMO = 22;
+
 export function garantieTemperatureFor(date: Date, opts: GarantieOpts = {}): 80 | 100 | null {
   const dow = date.getDay();
   const hour = date.getHours();
   const mondayOpen = opts.mondayOpen ?? false;
+  const lastHour = LAST_SLOT_HOUR_DEMO;
 
   if (dow === 1) {
     if (!mondayOpen) return null;
     // Mo offen → wie Sa/So
-    if (hour < 11 || hour > 20) return null;
+    if (hour < 11 || hour > lastHour) return null;
     return ((hour - 11) % 2 === 0) ? 80 : 100;
   }
 
   if (dow === 5) {
     if (hour >= 11 && hour <= 13) return 80;
-    if (hour < 14 || hour > 20) return null;
+    if (hour < 14 || hour > lastHour) return null;
     return ((hour - 14) % 2 === 0) ? 100 : 80;
   }
 
   const startHour = (dow >= 2 && dow <= 4) ? 14 : 11;
-  if (hour < startHour || hour > 20) return null;
+  if (hour < startHour || hour > lastHour) return null;
   return ((hour - startHour) % 2 === 0) ? 80 : 100;
 }
 
@@ -43,16 +48,22 @@ export function isGarantieSlot(date: Date, opts: GarantieOpts = {}): boolean {
 }
 
 // Hilfsfunktion: alle Slot-Stunden eines Wochentags (für UI-Default + Sperr-Check).
-// Bei Mo + mondayOpen=true → wie Sa/So (11-20).
+// Bei Mo + mondayOpen=true → wie Sa/So.
+// DEMO-MODUS: bis 22 Uhr (statt vorher 20 Uhr).
 export function slotHoursForWeekday(weekday: number, opts: GarantieOpts = {}): number[] {
   const mondayOpen = opts.mondayOpen ?? false;
+  // 11..22 Uhr = [11, 12, ..., 22] = 12 Slots
+  const elevenToTwentytwo = Array.from({ length: LAST_SLOT_HOUR_DEMO - 11 + 1 }, (_, i) => 11 + i);
+  // 14..22 Uhr = [14, 15, ..., 22] = 9 Slots
+  const fourteenToTwentytwo = Array.from({ length: LAST_SLOT_HOUR_DEMO - 14 + 1 }, (_, i) => 14 + i);
+
   if (weekday === 1) {
-    return mondayOpen ? [11, 12, 13, 14, 15, 16, 17, 18, 19, 20] : [];
+    return mondayOpen ? elevenToTwentytwo : [];
   }
   if (weekday >= 2 && weekday <= 4) {
-    return [14, 15, 16, 17, 18, 19, 20];
+    return fourteenToTwentytwo;
   }
-  return [11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+  return elevenToTwentytwo;
 }
 
 export const WEEKDAY_LABEL_DE: Record<number, string> = {

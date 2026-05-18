@@ -118,6 +118,12 @@ export function useInfusions() {
       if (error) throw error;
       return data as Infusion[];
     },
+    // 5s-Polling als Realtime-Fallback — TV-Tafel zeigt neue Aufgüsse
+    // garantiert binnen 5s an, auch wenn Supabase-Realtime parkiert.
+    // Memory: feedback_saunascaner_tv_buehne (Supabase-Tenant-Parking-Issue).
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
   });
 }
 

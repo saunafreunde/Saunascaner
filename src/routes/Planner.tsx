@@ -92,22 +92,31 @@ function infusionKey(saunaId: string, d: Date): string {
   return `${saunaId}|${y}-${mo < 10 ? '0' + mo : mo}-${da < 10 ? '0' + da : da} ${h < 10 ? '0' + h : h}:${mn < 10 ? '0' + mn : mn}`;
 }
 
-// Tuesday of the calendar week (Mo=1, Di=2 …). weekOffset=0 → aktuelle Woche.
-function tuesdayOfWeek(weekOffset: number): Date {
+// Start-Tag der Wochen-Seite (Mo=1, Di=2 …). weekOffset=0 → aktuelle Woche.
+// mondayOpen=true → Woche startet bei Mo, sonst Di (klassischer Vereins-Ruhetag).
+function weekStartDate(weekOffset: number, mondayOpen: boolean): Date {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  // weekday: 0=So..6=Sa — wir wollen Di als Wochenstart
-  const dow = today.getDay();
-  // Diff zum Di der aktuellen Woche (negativ wenn heute Mo/So, sonst positiv-rückwärts)
-  // Mo: -6 (vorherige Di), Di: 0, Mi: -1, Do: -2, Fr: -3, Sa: -4, So: -5
-  const diffToTue = dow === 1 ? -6 : dow === 0 ? -5 : -(dow - 2);
-  return addDays(today, diffToTue + weekOffset * 7);
+  const dow = today.getDay(); // 0=So..6=Sa
+  const startDow = mondayOpen ? 1 : 2; // Mo oder Di
+  // Diff zum gewünschten Wochenstart
+  let diffToStart: number;
+  if (mondayOpen) {
+    // Mo-Start: Mo=0, Di=-1, …, So=-6
+    diffToStart = dow === 0 ? -6 : -(dow - 1);
+  } else {
+    // Di-Start: Mo=-6, Di=0, Mi=-1, Do=-2, Fr=-3, Sa=-4, So=-5
+    diffToStart = dow === 1 ? -6 : dow === 0 ? -5 : -(dow - 2);
+  }
+  void startDow; // nur für Lesbarkeit/Doku
+  return addDays(today, diffToStart + weekOffset * 7);
 }
 
-// 6 Tage einer Wochen-Seite: Di, Mi, Do, Fr, Sa, So
-function weekDays(weekOffset: number): Date[] {
-  const tue = tuesdayOfWeek(weekOffset);
-  return Array.from({ length: 6 }, (_, i) => addDays(tue, i));
+// Wochenansicht: 6 Tage (Di–So) ODER 7 Tage (Mo–So) je nach Admin-Setting.
+function weekDays(weekOffset: number, mondayOpen: boolean): Date[] {
+  const start = weekStartDate(weekOffset, mondayOpen);
+  const length = mondayOpen ? 7 : 6;
+  return Array.from({ length }, (_, i) => addDays(start, i));
 }
 
 function isSameYMD(a: Date, b: Date): boolean {
@@ -364,7 +373,7 @@ export default function Planner() {
   }, [saunaId, saunas]);
 
   const todayDate = useMemo(() => { const t = new Date(); t.setHours(0,0,0,0); return t; }, []);
-  const visibleDays = useMemo(() => weekDays(weekOffset), [weekOffset]);
+  const visibleDays = useMemo(() => weekDays(weekOffset, mondayOpen), [weekOffset, mondayOpen]);
 
   // selectedDate auto-anpassen wenn man die Woche wechselt: erster Nicht-Vergangenheit-Tag
   useEffect(() => {
