@@ -1,5 +1,5 @@
 export const RATING_CATEGORIES = [
-  { id: 'chemie',          emoji: '🧪', label: 'Chemie im Raum',     tip: 'Wie gut war die Aufgusslösung?' },
+  { id: 'chemie',          emoji: '✨', label: 'Stimmung im Raum',   tip: 'Wie war die Stimmung beim Aufguss?' },
   { id: 'luftbewegung',    emoji: '💨', label: 'Luftbewegung',       tip: 'War die Wedelbewegung spürbar?' },
   { id: 'wedeltechnik',    emoji: '🌊', label: 'Wedeltechnik',       tip: 'Gleichmäßigkeit und Rhythmus' },
   { id: 'hitzeniveau',     emoji: '🌡️', label: 'Hitzeniveau',        tip: 'War die Intensität angenehm?' },

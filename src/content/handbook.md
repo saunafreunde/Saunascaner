@@ -1094,7 +1094,7 @@ Andere Mitglieder bewerten deine Aufgüsse anonym in **6 Kategorien**:
 
 | Kategorie | Was bewertet wird |
 |---|---|
-| 🧪 Chemie | Wie passend war das Öl-Set? |
+| ✨ Stimmung | Wie war die Stimmung beim Aufguss? |
 | 🌀 Luftbewegung | Wie geschmeidig war das Wedeln? |
 | 🪭 Wedeltechnik | Sauber, kontrolliert, kreativ? |
 | 🌡️ Hitzeniveau | Stimmt die Intensität? |

@@ -9,7 +9,7 @@ import {
 import { OIL_BY_ID } from '@/lib/oils';
 import { StatsCard } from './StatsCard';
 
-const CATEGORY_LABELS = ['Chemie', 'Luft', 'Wedeln', 'Hitze', 'Musik', 'Duft'];
+const CATEGORY_LABELS = ['Stimmung', 'Luft', 'Wedeln', 'Hitze', 'Musik', 'Duft'];
 
 export function AufgieserStatsSection() {
   return (

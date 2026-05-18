@@ -7,7 +7,7 @@ interface Props {
 }
 
 const AXES: { key: keyof Omit<RatingData, 'sample_size'>; label: string; emoji: string }[] = [
-  { key: 'chemie',          label: 'Chemie',      emoji: '⚗️' },
+  { key: 'chemie',          label: 'Stimmung',    emoji: '✨' },
   { key: 'luftbewegung',    label: 'Luft',        emoji: '💨' },
   { key: 'wedeltechnik',    label: 'Wedel',       emoji: '🌬️' },
   { key: 'hitzeniveau',     label: 'Hitze',       emoji: '🔥' },
