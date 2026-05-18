@@ -1518,6 +1518,8 @@ export type EmailAccount = {
   granted_at: string;
   last_sync_at: string | null;
   unread_count: number;
+  // Migration 0080: geteiltes Postfach (mehrere Admins teilen sich den Zugriff)
+  is_shared: boolean;
   created_at: string;
 };
 

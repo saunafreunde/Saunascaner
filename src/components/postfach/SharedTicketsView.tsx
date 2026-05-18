@@ -7,7 +7,7 @@ import {
   type SharedAccount, type EmailTicket, type EmailTicketStatus,
 } from '@/lib/api';
 import {
-  useMessages, useMessage, useSendMail, useMarkMessage,
+  useMessage, useSendMail, useMarkMessage,
   attachmentUrl, pollSharedTickets,
 } from '@/lib/email-api';
 import { Avatar } from '@/components/Avatar';

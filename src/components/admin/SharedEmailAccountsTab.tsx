@@ -5,6 +5,8 @@ import {
   useAllMembers, useRevokeEmailAccount,
   type EmailAccount, type Member,
 } from '@/lib/api';
+// useGrantSharedEmailAccount wird im Modal benutzt, useMarkAccountShared im
+// "Persönlich → Geteilt"-Button.
 import { Avatar } from '@/components/Avatar';
 
 // Admin-Tab: Geteilte Vereins-Postfächer verwalten (Migration 0080).
@@ -13,7 +15,6 @@ import { Avatar } from '@/components/Avatar';
 // - Pro Konto verwalten welche Admins/Personal Zugriff hat
 export function SharedEmailAccountsTab() {
   const accountsQ = useAdminEmailAccounts();
-  const grantShared = useGrantSharedEmailAccount();
   const markShared = useMarkAccountShared();
   const revoke = useRevokeEmailAccount();
 
