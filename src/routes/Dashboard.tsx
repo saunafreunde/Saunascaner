@@ -114,6 +114,28 @@ export default function Dashboard() {
     return () => document.removeEventListener('pointerdown', tryUnlock);
   }, []);
 
+  // TV-Vollbild: beim ersten User-Klick (OK-Taste der TV-Fernbedienung)
+  // Fullscreen-API triggern. Browser-Sicherheits-Constraint: nur mit
+  // User-Gesture möglich, nicht spontan beim Page-Load.
+  // Plus: fullscreenchange-Listener für den Hint-Overlay.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const tryFullscreen = async () => {
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+        }
+      } catch { /* TV-Browser unterstützt kein Fullscreen — ignoriert */ }
+    };
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('pointerdown', tryFullscreen, { once: true });
+    document.addEventListener('fullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('pointerdown', tryFullscreen);
+      document.removeEventListener('fullscreenchange', onChange);
+    };
+  }, []);
+
   const adImageUrls = (brand.data?.ads ?? [])
     .map((a) => publicAssetUrl(a.image_path))
     .filter((u): u is string => Boolean(u));
@@ -181,7 +203,7 @@ export default function Dashboard() {
   };
 
   return (
-    <PageBackground page="dashboard" variant="strong" noImage className="h-screen overflow-hidden flex flex-col">
+    <PageBackground page="dashboard" variant="strong" noImage className="h-screen overflow-hidden flex flex-col cursor-none select-none">
       <ParticleCanvas activeSaunaCount={activeSaunas.length} />
       <AnimatePresence>
         {evac.data && (
@@ -236,6 +258,14 @@ export default function Dashboard() {
       <div className="fixed bottom-2 right-3 z-40 pointer-events-none">
         <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
       </div>
+
+      {/* TV-Vollbild-Hint: nur sichtbar solange Browser nicht im Fullscreen-Mode.
+          Verschwindet automatisch nach erstem User-Klick (= Fullscreen aktiviert). */}
+      {!isFullscreen && (
+        <div className="fixed bottom-4 right-4 z-50 rounded-xl bg-amber-500/90 px-4 py-2 text-sm font-semibold text-amber-950 ring-1 ring-amber-300 shadow-2xl shadow-black/60 animate-pulse pointer-events-none">
+          👆 Bildschirm berühren für Vollbild
+        </div>
+      )}
     </PageBackground>
   );
 }
