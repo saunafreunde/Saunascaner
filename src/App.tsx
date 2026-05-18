@@ -7,6 +7,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
+import { AreaHubGate } from '@/components/AreaHubGate';
 
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows + Welcome-Tour
 const NO_BOTTOM_NAV_PATHS = [
@@ -112,6 +113,7 @@ export default function App() {
         <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />
         <Route path="*"          element={<Navigate to="/" replace />} />
         </Routes>
+        <AreaHubGate />
       </div>
       <BottomNavGate />
     </Suspense>
