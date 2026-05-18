@@ -3,7 +3,7 @@
 > Die App der **Saunafreunde Schwarzwald e.V.** für Aufguss-Planung, Mitglieder-Verwaltung, WM-Tipspiel, Mini-Feed und vieles mehr.
 >
 > **Live unter:** [saunascaner.vercel.app](https://saunascaner.vercel.app)
-> **Stand:** 17.05.2026
+> **Stand:** 19.05.2026
 
 ---
 
@@ -17,7 +17,9 @@ Klicke auf einen Direkt-Link, um direkt zur Funktion in der App zu springen.
 |---|---|---|
 | 📺 **TV-Tafel** | Live-Aufguss-Plan für TV/Tablet | [/dashboard](/dashboard) |
 | 🌟 **Aufgießer-Übersicht** | Star-Karten aller Aufgießer + Favoriten setzen | [/aufgieser](/aufgieser) |
-| 📸 **Mini-Feed** | 1-Bild-Posts + 5 Bühnen-Reactions | [/feed](/feed) |
+| 📸 **Mini-Feed** | 1-Bild-Posts + Reactions + Kommentare + Personen-Tab | [/feed](/feed) |
+| ✉️ **Direkt-Nachrichten** | 1:1-Chat mit anderen Mitgliedern | [/dm](/dm) ⭐ neu |
+| 🎮 **Spiele-Hub** | Tetris-Highscore, Vier Gewinnt live, Schach async | [/spiele](/spiele) ⭐ neu |
 | 🏆 **WM-Tipspiel** | 104 Spiele tippen, Joker, Final-Tipp | [/wm](/wm) |
 | 📅 **Kalender-Abo** | iCal-Feed deiner Aufgüsse | [/profile/me](/profile/me) |
 | 📖 **Handbuch** | Diese Seite | [/hilfe](/hilfe) |
@@ -36,7 +38,7 @@ Klicke auf einen Direkt-Link, um direkt zur Funktion in der App zu springen.
 
 ### Admin-Funktionen (Direkt-Sprung pro Tab)
 
-Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 16 Tabs. Du springst direkt rein mit:
+Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 17 Tabs. Du springst direkt rein mit:
 
 **🔥 Operations**
 - [Saunen aktivieren/deaktivieren](/admin#saunas)
@@ -44,8 +46,9 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 16 Tabs. Du springst direkt rei
 - [Stamm-Slots verwalten](/admin#recurring)
 
 **👥 Mitglieder**
-- [Mitgliederliste + Rollen-Wechsel + Fan-Anträge](/admin#members)
+- [Mitgliederliste + Rollen-Wechsel + Fan-Anträge + CP-Mitarbeiter-Flag + Familien-Konfig](/admin#members)
 - [Einladungen verschicken](/admin#invitations)
+- [📧 **Vereins-Postfach** — geteilte Mail-Accounts verwalten (info@sauna-fds.de)](/admin#shared_email) ⭐ neu
 
 **📊 Auswertung**
 - [Statistik-Dashboard](/admin#stats)
@@ -102,6 +105,10 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 16 Tabs. Du springst direkt rei
 14. [WM-Tipspiel 2026](#14-wm-tipspiel-2026)
 15. [Mein Profil & Erfolge](#15-mein-profil--erfolge)
 16. [Einlass-Code & PIN-Pool](#16-einlass-code--pin-pool)
+26. [🎮 Spiele-Hub](#26--spiele-hub) ⭐ neu
+27. [✉️ Direkt-Nachrichten](#27-%EF%B8%8F-direkt-nachrichten) ⭐ neu
+28. [🔔 Benachrichtigungs-Inbox](#28--benachrichtigungs-inbox) ⭐ neu
+29. [👨‍👩‍👧 Familien-Mitgliedschaft](#29--familien-mitgliedschaft) ⭐ neu
 
 **Teil D — Werkzeuge & Geräte**
 
@@ -110,6 +117,7 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 16 Tabs. Du springst direkt rei
 19. [Telegram-Bot](#19-telegram-bot)
 20. [Kalender-Abo (iCal)](#20-kalender-abo-ical)
 21. [Postfach](#21-postfach)
+30. [📧 Vereins-Postfach (Ticket-System)](#30--vereins-postfach-ticket-system) ⭐ neu
 
 **Teil E — Hintergrund-Mechanik**
 
@@ -1516,13 +1524,226 @@ Wenn du einen Feed-Post mit einem deiner letzten Aufgüsse verknüpfst, erschein
 
 ---
 
+## 26. 🎮 Spiele-Hub
+
+Unter [/spiele](/spiele) findest du den **Mini-Game-Hub** mit kleinen Spielen, die du allein oder gegen andere Vereinsmitglieder spielen kannst.
+
+### Was es gibt
+
+Aktuell drei Spiele in drei verschiedenen Modi:
+
+| Spiel | Modus | Wie es läuft |
+|---|---|---|
+| 🧱 **Tetris** | Solo / Highscore | Klassisches Tetris, Tastatur (←→↓↑/Leertaste) oder Touch-Buttons. Bei ≥100 Punkten kommt dein Score in die **Bestenliste** |
+| 🔴 **Vier Gewinnt** | Live PvP | Beide Spieler gleichzeitig online, **Echtzeit**-Züge. Lade Mitspieler ein oder warte offen |
+| ♟️ **Schach** | Async (zeitversetzt) | Zieh wann du willst — Gegner bekommt eine **Push-Notification**, kann später ziehen. Wie auf chess.com |
+
+### Wie's funktioniert
+
+**Solo spielen**: Auf der Spiel-Karte im Hub klicken, Spiel öffnet sich. Bei Tetris: Game Over → Score landet automatisch in der Bestenliste.
+
+**Jemanden herausfordern**: Auf Vier-Gewinnt/Schach-Karte klicken → entweder **„🪑 Offen warten"** (jeder kann beitreten) oder **„⚔ Herausfordern"** → Mitglied wählen → Push-Notification geht raus.
+
+**Beitreten**: Im Hub erscheinen unten **„Offene Tische"** — klick auf „Beitreten" und das Spiel startet.
+
+### Bestenliste
+
+Im Hub-Tab **„🏆 Bestenliste"**:
+- Spiel-Filter (Tetris/2048/…)
+- Zeitraum-Filter (Gesamt/Monat/Woche)
+- Top 10 mit 🥇🥈🥉-Medaillen
+- Dein eigener Rang wird unten angezeigt
+- Auf jeder Spiel-Karte im Hub erscheint außerdem **„👑 Top: Stefan · 14.230"** als Mini-Vorschau
+
+### Game-Badges (in deinem Profil)
+
+- 🥇 **games_first_win** — dein erster PvP-Sieg
+- 🧱 **tetris_king** — Tetris-Score ≥ 10.000
+- 🧱 **tetris_legend** — Tetris-Score ≥ 50.000
+- ♟️ **chess_master** — 10 Schach-Siege
+- ♛ **chess_grandmaster** — 50 Schach-Siege
+
+### Im Feed
+
+Automatische Posts bei besonderen Erfolgen:
+- **Persönlicher Rekord** (smaragdgrüne Karte) — z.B. „Anna hat einen neuen Tetris-Bestwert: 8.500"
+- **Vereins-Rekord** (Gold-Karte mit Krone) — wenn du alle im Verein übertriffst
+- **PvP-Sieg** (rosa Karte) — nur wenn du es im Profil → 🎮 Spiele → Checkbox „PvP-Siege im Feed teilen" **aktiviert** hast (Default: aus)
+
+### Bottom-Nav-Hinweis
+
+Wenn du in einem async-Match dran bist, zeigt der Smart-Slot in der Bottom-Nav **„🎮 Du bist dran"** mit Badge-Counter — so vergisst du keine offenen Schach-Partien.
+
+### Hall of Fame auf der Tafel
+
+Der Admin kann im Bühne-Tab die Scene **„🏆 Spiele Hall of Fame"** aktivieren. Dann erscheint oben auf der TV-Tafel ein Gold-Banner mit den aktuellen Top-Spielern pro Spiel — perfekt für Vereinsabende mit Spiele-Wettkampf.
+
+---
+
+## 27. ✉️ Direkt-Nachrichten
+
+Du kannst jedem Mitglied private Nachrichten schicken. Eingang unter [/dm](/dm).
+
+### Eine Konversation starten
+
+1. Auf das **Profil** eines Mitglieds gehen (z.B. via Mitglieder-Galerie oder Personen-Tab im Feed)
+2. Neben dem Avatar findest du den Button **„✉️ Nachricht"**
+3. Klick öffnet einen Chat — die erste Nachricht wird sofort live verschickt
+
+### Im Chat
+
+- **Realtime**: Tippt der Gegenüber, erscheint die Nachricht binnen 1-3 Sekunden ohne Reload
+- **Tagesanzeige**: Heute / Gestern / Wochentag als Überschrift zwischen Nachrichten verschiedener Tage
+- **Lesen-Häkchen**: Eine **✓** bei gesendet, **✓✓** wenn der Gegenüber sie gesehen hat
+
+### Push-Notification
+
+Bei neuer Nachricht bekommst du eine **Push-Notification** (wenn aktiviert) + 🔔-Badge im Feed-Header. Außerdem zeigt die Bottom-Nav unten **„✉️ Nachrichten (n)"** mit Counter — höchste Priorität, lässt also Spiele/Bewerten/Mail unten erstmal weg, solange ungelesene DMs offen sind.
+
+### Inbox
+
+[/dm](/dm) zeigt alle deine Konversationen sortiert nach „letzte Aktivität". Pro Eintrag: Avatar, Name, letzter Nachrichten-Text, relative Zeit, Unread-Badge.
+
+---
+
+## 28. 🔔 Benachrichtigungs-Inbox
+
+Im Feed-Header oben rechts findest du das **🔔 Bell-Icon** mit einem orangenen Badge wenn du ungelesene Benachrichtigungen hast.
+
+### Was hier erscheint
+
+- 🌟 **Neuer Fan** — jemand folgt dir
+- 💬 **Neuer Kommentar** — jemand hat unter deinem Beitrag kommentiert
+- ✉️ **Neue Nachricht** — ungelesene DM
+- ♟️ **Du bist dran** — async-Spiel wartet auf dich
+- 🎮 **Herausforderung** — jemand will gegen dich spielen
+- 🧖 **Aufguss angekündigt** — Aufgießer den du folgst hat einen neuen geplant
+- 📧 **Neue Vereins-Mail** — wenn du Admin bist: neue Mail im Vereins-Postfach
+- ⚠️ **Schicht-Absage** — wenn jemand eine Personal-Schicht abgesagt hat
+
+### So bedienst du sie
+
+- **Klick auf eine Notification** → markiert sie als gelesen + springt direkt zur entsprechenden Stelle (Profil/Match/Feed/DM)
+- **„Alle gelesen"** rechts oben → markiert alle als gelesen ohne zu navigieren
+
+Die Inbox merkt sich die letzten 30 Notifications und löscht ältere automatisch.
+
+---
+
+## 29. 👨‍👩‍👧 Familien-Mitgliedschaft
+
+Wenn du eine **Familien-Mitgliedschaft** beim Verein hast (Beitrag erlaubt Partner + Kinder mitzubringen), wirst du beim Check-in gefragt, **wer heute mit dabei ist**.
+
+### Wie's funktioniert
+
+**Einmalig vom Admin/Personal eingerichtet**: Im Admin-Tab → 👥 Mitglieder wird bei deinem Eintrag konfiguriert:
+- „👫 Partner angemeldet" (Checkbox)
+- „👶 Kinder" (Anzahl, 0-8)
+
+Das ist die **Konfiguration** — wer maximal mitkommen darf.
+
+**Beim Check-in (PIN oder Self-Toggle)**: Sobald du eingecheckt bist, öffnet sich ein Modal:
+
+> **Wer ist heute dabei?**
+> ☐ Partner / Partnerin dabei
+> 👶 Kinder dabei: [0] [1] [2]
+>
+> [ Allein da ]  [ ✓ Bestätigen ]
+
+Klick auf **„Allein da"** = niemand mit dabei. **„Bestätigen"** speichert deine Auswahl.
+
+**Beim Auschecken**: Familie wird automatisch zurückgesetzt — niemand bleibt versehentlich „mit Familie" eingecheckt nachdem du das Vereinshaus verlassen hast.
+
+### In der Mitglieder-Übersicht
+
+Familien-Mitglieder bekommen ein **„👨‍👩‍👧 Familie"**-Badge in der Galerie. Es gibt auch einen Filter-Pill „Familie" um sie schnell zu finden.
+
+### In der Evakuierung
+
+Falls der Alarm ausgelöst wird, sieht das Personal sofort wie viele Personen draußen sein müssen:
+
+```
+🚨 EVAKUIERUNG
+👨‍🍳 5 Mitarbeiter · 🤝 12 Mitglieder · ⭐ 7 Angehörige · 👥 24 Gesamt
+
+┌─────────────────────────┬─────────────────────────┐
+│ 👨‍🍳 MITARBEITER (5)     │ 🤝 MITGLIEDER (12)      │
+│ • Stefan Müller ⭐⭐    │ • Anna Schmidt ⭐       │
+│ • Marie Wagner          │ • Lena Fischer ⭐×3     │
+│ ...                     │ ...                     │
+└─────────────────────────┴─────────────────────────┘
+```
+
+Jeder Stern hinter einem Namen = ein anwesender Familienangehöriger (Partner oder Kind).
+
+---
+
+## 30. 📧 Vereins-Postfach (Ticket-System)
+
+Das Postfach **info@sauna-fds.de** wird **gemeinsam** von allen Admins (Christoph, Stephanie, Johannes) bearbeitet. Damit niemand doppelt antwortet oder eine Mail vergisst, läuft es als **Ticket-System**.
+
+### Wo zu finden
+
+[/postfach](/postfach) → oben Tab-Switcher **„📥 Persönlich | 🏢 Vereins-Postfach"**. Der zweite Tab ist nur sichtbar wenn du als Bearbeiter freigeschaltet bist (Admins automatisch, weitere via Admin → 👥 Mitglieder → 📧 Vereins-Postfach → „Hinzufügen").
+
+### Vier Status pro Mail
+
+| Status | Was es bedeutet |
+|---|---|
+| 🔴 **Offen** | Neue Mail vom Kunden, niemand bearbeitet sie |
+| 🟡 **In Bearbeitung** | Jemand hat die Mail geöffnet und arbeitet daran (mit Lock) |
+| 🟢 **Beantwortet** | Antwort wurde versendet, wartet auf neue Mail des Kunden |
+| ⚪ **Geschlossen** | Manuell als erledigt markiert |
+
+### Lock-System
+
+Sobald du eine Mail im Vereins-Postfach öffnest, wird sie für die anderen Admins gesperrt:
+- Status springt auf „In Bearbeitung"
+- Stephanie sieht via Realtime sofort den Banner **„🔒 Christoph bearbeitet seit 2 Min"**
+- Sie kann mit **„⚠️ Übernehmen"** den Lock übernehmen (Bestätigung nötig)
+- Wenn du wegklickst ohne zu antworten: Lock geht weg, Status zurück auf „Offen"
+- **Auto-Expire**: Lock läuft nach **10 Minuten** ab — falls jemand die App schließt während er bearbeitet
+
+### Antworten
+
+Beim Senden einer Antwort:
+- Status → „🟢 Beantwortet"
+- Lock wird automatisch freigegeben
+- Wenn der Kunde später wieder antwortet → Status wieder „🔴 Offen" + Notification an alle Bearbeiter
+
+### Tickets verwalten
+
+- **Filter-Pills oben** (Offen / In Bearbeitung / Beantwortet / Geschlossen / Alle)
+- **„↻ Synchronisieren"** rechts oben → holt die letzten 50 Mails vom IMAP-Server (passiert auch automatisch alle 2 Min wenn der Cron läuft)
+- **„✓ Schließen"** im Detail-Banner → Status manuell auf „Geschlossen" (bei Spam o.ä.)
+- **„↺ Wieder öffnen"** wenn der Kunde erneut schreibt — passiert sonst automatisch
+
+### Notifications
+
+Bei neuer Mail bekommen **alle Bearbeiter** gleichzeitig:
+- 🔔 Notification in der Inbox („📧 Neue Vereins-Mail · Kunde: Betreff…")
+- Push (wenn aktiviert)
+- Zähler im Tab-Header (z.B. „🏢 Vereins-Postfach **3**")
+
+### Berechtigungen verwalten (nur Admin)
+
+Im Admin-Bereich **👥 Mitglieder → 📧 Vereins-Postfach**:
+- „＋ Neue Adresse" → neuen geteilten Account anlegen (IMAP/SMTP-Daten + Passwort)
+- Bei jedem Account: „＋ Hinzufügen" → weitere Bearbeiter freischalten (z.B. Personal)
+- „Entziehen" pro Bearbeiter → entfernt Zugriff
+- „Entteilen" → Account wieder als persönlich markieren (alle Bearbeiter verlieren Zugriff)
+- Neue Admins werden automatisch zu allen geteilten Accounts hinzugefügt (Trigger 0081)
+
+---
+
 ## Kontakt
 
 Bei Problemen oder Fragen:
 
-- **E-Mail:** [info@sauna-fds.de](mailto:info@sauna-fds.de)
+- **E-Mail:** [info@sauna-fds.de](mailto:info@sauna-fds.de) (kommt als Ticket bei allen Admins an!)
 - **Im Verein:** sprich einen ⚙️ Admin an
 - **Telegram:** @saunafreunde_bot — `/help` für Befehlsübersicht
+- **Direkt in der App:** **✉️ Nachricht**-Button auf jedem Profil
 
 ---
 
