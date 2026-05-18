@@ -214,8 +214,10 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Header — Datum links · Logo mittig · Wetter rechts */}
-      <header className="flex-shrink-0 mx-auto w-full max-w-[1920px] grid grid-cols-3 items-center px-8 pt-8 pb-3">
+      {/* Header — Datum links · Logo mittig · Wetter rechts.
+          KEIN max-w mehr — Tafel nutzt komplette TV-Breite (auch auf 4K).
+          Vorher max-w-[1920px] führte zu schwarzen Pillarbox-Rändern auf 4K-TVs. */}
+      <header className="flex-shrink-0 w-full grid grid-cols-3 items-center px-8 pt-8 pb-3">
         <div className="justify-self-start">
           <div
             className="rounded-2xl bg-white/5 backdrop-blur-xl ring-1 ring-white/10 px-5 py-3"
@@ -246,7 +248,7 @@ export default function Dashboard() {
 
       <BirthdayBanner />
 
-      <main className="flex-1 min-h-0 mx-auto w-full max-w-[1920px] px-6 pb-4 flex gap-4">
+      <main className="flex-1 min-h-0 w-full px-6 pb-4 flex gap-4">
         {renderMain()}
       </main>
 
@@ -259,12 +261,22 @@ export default function Dashboard() {
         <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
       </div>
 
-      {/* TV-Vollbild-Hint: nur sichtbar solange Browser nicht im Fullscreen-Mode.
-          Verschwindet automatisch nach erstem User-Klick (= Fullscreen aktiviert). */}
+      {/* TV-Vollbild-Trigger: klickbarer Button unten rechts.
+          Verschwindet sobald document.fullscreenElement existiert. */}
       {!isFullscreen && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-xl bg-amber-500/90 px-4 py-2 text-sm font-semibold text-amber-950 ring-1 ring-amber-300 shadow-2xl shadow-black/60 animate-pulse pointer-events-none">
-          👆 Bildschirm berühren für Vollbild
-        </div>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              if (document.documentElement.requestFullscreen) {
+                await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+              }
+            } catch { /* TV-Browser unterstützt kein Fullscreen */ }
+          }}
+          className="fixed bottom-4 right-4 z-50 rounded-2xl bg-amber-500 px-6 py-4 text-base font-bold text-amber-950 ring-2 ring-amber-300 shadow-2xl shadow-black/60 animate-pulse cursor-pointer active:scale-95 transition"
+        >
+          🔳 Tippen für Vollbild
+        </button>
       )}
     </PageBackground>
   );
