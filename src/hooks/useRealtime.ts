@@ -72,6 +72,9 @@ export function useRealtimeSync() {
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
           qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
         })
+      // Feed-Kommentare (Migration 0078): pro post_id invalidieren
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_post_comments' },
+        () => qc.invalidateQueries({ queryKey: ['feed-comments'] }))
       .subscribe();
     return () => { supabase!.removeChannel(ch); };
   }, [qc]);

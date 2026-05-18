@@ -12,6 +12,7 @@ import { OIL_BY_ID } from '@/lib/oils';
 import { isAdmin } from '@/lib/roles';
 import { Avatar } from '@/components/Avatar';
 import { PostReactionBar } from './PostReactionBar';
+import { CommentThread } from './CommentThread';
 
 type Props = {
   post: FeedPost;
@@ -130,13 +131,16 @@ export function FeedPostCard({ post, onPickOil, onPickInfusion, onAdminDelete }:
       )}
 
       {/* Reactions */}
-      <div className="px-3 pt-3 pb-3">
+      <div className="px-3 pt-3 pb-2">
         <PostReactionBar
           postId={post.id}
           counts={post.reaction_counts}
           myReactions={post.my_reactions}
         />
       </div>
+
+      {/* Kommentare (Migration 0078) */}
+      <CommentThread postId={post.id} />
     </article>
   );
 }

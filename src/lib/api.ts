@@ -382,6 +382,61 @@ export function useSetMotto() {
   });
 }
 
+// ─── Feed-Kommentare (Migration 0078) ───────────────────────────────────
+
+export type FeedComment = {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar: string | null;
+  body: string;
+  created_at: string;
+  is_mine: boolean;
+};
+
+export function useFeedComments(postId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['feed-comments', postId],
+    enabled: !!postId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_post_comments', { p_post_id: postId });
+      if (error) throw error;
+      return (data ?? []) as FeedComment[];
+    },
+    staleTime: 10_000,
+  });
+}
+
+export function useCreateComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { postId: string; body: string }) => {
+      const { data, error } = await need().rpc('create_post_comment', {
+        p_post_id: p.postId,
+        p_body: p.body,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['feed-comments', vars.postId] });
+    },
+  });
+}
+
+export function useDeleteComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { commentId: string; postId: string }) => {
+      const { error } = await need().rpc('delete_my_comment', { p_id: p.commentId });
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['feed-comments', vars.postId] });
+    },
+  });
+}
+
 // ─── Notification-Inbox (Migration 0077) ────────────────────────────────
 
 export type InboxNotification = {
