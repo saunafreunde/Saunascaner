@@ -16,12 +16,12 @@ export type GarantieOpts = {
 };
 
 // Normale Vereins-Aufgusszeiten:
-//   • Di/Mi/Do: 13–20 Uhr (8 Slots)
+//   • Di/Mi/Do: 14–20 Uhr (7 Slots)
 //   • Fr/Sa/So: 11–20 Uhr (10 Slots)
 //   • Mo: geschlossen (außer mondayOpen=true → wie Sa/So 11–20)
 //   • Fr-Spezial: 11/12/13 immer 80°C
 const LAST_SLOT_HOUR = 20;
-const DITHU_START_HOUR = 13;
+const DITHU_START_HOUR = 14;
 
 export function garantieTemperatureFor(date: Date, opts: GarantieOpts = {}): 80 | 100 | null {
   const dow = date.getDay();
