@@ -5,8 +5,18 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
+import { useAttributeColors, useOilColors } from '@/lib/api';
 import BadgeChip from '@/components/BadgeChip';
 import type { BadgeDefinition } from '@/lib/badges';
+
+// Helper: hex-Farbe + alpha-Suffix → rgba-Hintergrund.
+// Z.B. tintBg('#f59e0b', 0.33) → "linear-gradient(135deg, #f59e0b55, rgba(8,18,12,0.55))"
+function tintBg(hex: string): string {
+  return `linear-gradient(135deg, ${hex}33, rgba(8,18,12,0.6))`;
+}
+function tintRing(hex: string): string {
+  return `inset 0 0 0 1px ${hex}55`;
+}
 
 const IMMINENT_MIN = 10;
 
@@ -33,6 +43,13 @@ export function InfusionCard({
   className?: string;
   backgroundImage?: string | null;
 }) {
+  // Color-Overrides (Admin-konfigurierbar via Migration 0088).
+  // Fallback wenn nicht gesetzt: sauna.accent_color (Attribute) bzw.
+  // amber-Default (Öle) — wie vorher.
+  const attrColors = useAttributeColors();
+  const oilColors = useOilColors();
+  const colorForAttr = (id: string): string => attrColors.data?.[id] ?? sauna.accent_color;
+  const colorForOil = (id: string): string => oilColors.data?.[id] ?? '#f59e0b';
   const start = new Date(infusion.start_time);
   const end = new Date(infusion.end_time);
   const minsToStart = differenceInMinutes(start, now);
@@ -168,6 +185,7 @@ export function InfusionCard({
               {infusion.attributes.map((a) => {
                 const meta = ATTR_BY_ID[a];
                 if (!meta) return null;
+                const c = colorForAttr(a);
                 return (
                   <span
                     key={`a-${a}`}
@@ -177,8 +195,8 @@ export function InfusionCard({
                       fontSize: 'clamp(10px, 2.8cqh, 16px)',
                       padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)',
                       gap: 'clamp(2px, 0.5cqh, 5px)',
-                      background: `linear-gradient(135deg, ${sauna.accent_color}33, rgba(8,18,12,0.6))`,
-                      boxShadow: `inset 0 0 0 1px ${sauna.accent_color}50`,
+                      background: tintBg(c),
+                      boxShadow: tintRing(c),
                     }}
                   >
                     <span aria-hidden>{meta.emoji}</span>
@@ -189,6 +207,7 @@ export function InfusionCard({
               {oils.map((oilId, i) => {
                 const o = OIL_BY_ID[oilId];
                 if (!o) return null;
+                const c = colorForOil(oilId);
                 return (
                   <span
                     key={`o-${i}-${oilId}`}
@@ -198,8 +217,8 @@ export function InfusionCard({
                       fontSize: 'clamp(10px, 2.8cqh, 16px)',
                       padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)',
                       gap: 'clamp(2px, 0.5cqh, 5px)',
-                      background: 'linear-gradient(135deg, rgba(245,158,11,0.28), rgba(120,75,20,0.5))',
-                      boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.55)',
+                      background: tintBg(c),
+                      boxShadow: tintRing(c),
                     }}
                   >
                     <span aria-hidden>{o.emoji}</span>

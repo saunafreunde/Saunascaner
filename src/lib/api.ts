@@ -186,6 +186,130 @@ export function useDeleteInfusion() {
   });
 }
 
+// ─── Update + Transfer (Migration 0088) ───────────────────────────────────
+
+export type UpdateInfusionInput = {
+  id: string;
+  title?: string;
+  description?: string | null;
+  attributes?: string[];
+  oils?: (string | null)[];
+  team_infusion?: boolean;
+  duration_minutes?: number;
+};
+
+const UPDATE_INFUSION_ERROR_LABELS: Record<string, string> = {
+  not_authenticated: 'Nicht eingeloggt.',
+  infusion_not_found: 'Aufguss nicht gefunden.',
+  not_owner: 'Du bist nicht der Aufgießer.',
+  lock_window_active: 'Bearbeiten gesperrt — weniger als 60 Min bis Start (Admin kontaktieren).',
+};
+
+export function useUpdateInfusion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateInfusionInput) => {
+      const { data, error } = await need().rpc('update_infusion', {
+        p_id: input.id,
+        p_title: input.title ?? null,
+        p_description: input.description ?? null,
+        p_attributes: input.attributes ?? null,
+        p_oils: input.oils ?? null,
+        p_team_infusion: input.team_infusion ?? null,
+        p_duration_minutes: input.duration_minutes ?? null,
+      });
+      if (error) throw error;
+      const result = data as string;
+      if (result !== 'ok') {
+        throw new Error(UPDATE_INFUSION_ERROR_LABELS[result] ?? result);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+  });
+}
+
+const TRANSFER_INFUSION_ERROR_LABELS: Record<string, string> = {
+  not_authenticated: 'Nicht eingeloggt.',
+  infusion_not_found: 'Aufguss nicht gefunden.',
+  not_owner: 'Du bist nicht der Aufgießer.',
+  lock_window_active: 'Übergeben gesperrt — weniger als 60 Min bis Start (Admin kontaktieren).',
+  target_not_aufgieser: 'Empfänger ist kein Aufgießer.',
+  already_owner: 'Der Aufguss gehört dem Empfänger bereits.',
+};
+
+export function useTransferInfusion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; toMemberId: string }) => {
+      const { data, error } = await need().rpc('transfer_infusion', {
+        p_id: input.id,
+        p_to_member_id: input.toMemberId,
+      });
+      if (error) throw error;
+      const result = data as string;
+      if (result !== 'ok') {
+        throw new Error(TRANSFER_INFUSION_ERROR_LABELS[result] ?? result);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+  });
+}
+
+// ─── Color-Overrides (Migration 0088) ─────────────────────────────────────
+// system_config('attribute_colors') + ('oil_colors') jeweils jsonb { id: hex }
+
+export function useAttributeColors() {
+  return useQuery<Record<string, string>>({
+    queryKey: ['attribute-colors'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_attribute_colors');
+      if (error) throw error;
+      return (data ?? {}) as Record<string, string>;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useOilColors() {
+  return useQuery<Record<string, string>>({
+    queryKey: ['oil-colors'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_oil_colors');
+      if (error) throw error;
+      return (data ?? {}) as Record<string, string>;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useSetAttributeColor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { attr: string; color: string | null }) => {
+      const { error } = await need().rpc('set_attribute_color', {
+        p_attr: input.attr,
+        p_color: input.color ?? '',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['attribute-colors'] }),
+  });
+}
+
+export function useSetOilColor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { oil: string; color: string | null }) => {
+      const { error } = await need().rpc('set_oil_color', {
+        p_oil: input.oil,
+        p_color: input.color ?? '',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['oil-colors'] }),
+  });
+}
+
 // ─── Kiosk-Varianten (Öl-Raum-Tablet, ohne Auth) ──────────────────────────
 // Identifiziert den Aufgießer per p_saunameister_id (vom Frontend übergeben)
 // statt per auth.uid(). Backend prüft is_present + is_aufgieser. (Migration 0070)

@@ -15,6 +15,7 @@ import { BrandingTab } from '@/components/admin/BrandingTab';
 import { HandbookTab } from '@/components/admin/HandbookTab';
 import { StageAdminTab } from '@/components/admin/StageAdminTab';
 import { SharedEmailAccountsTab } from '@/components/admin/SharedEmailAccountsTab';
+import { ColorsAdminTab } from '@/components/admin/ColorsAdminTab';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import {
   useSaunas, useToggleSauna,
@@ -37,7 +38,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm' | 'news' | 'aroma' | 'activity' | 'stage' | 'shared_email';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm' | 'news' | 'aroma' | 'activity' | 'stage' | 'shared_email' | 'colors';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:       { label: 'Saunen',       icon: '🔥' },
@@ -58,6 +59,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   aroma:        { label: 'Aroma',        icon: '🌿' },
   stage:        { label: 'Bühne',        icon: '🎭' },
   shared_email: { label: 'Vereins-Postfach', icon: '📧' },
+  colors:       { label: 'Farben',       icon: '🎨' },
 };
 
 // Zweistufige Gruppierung: 5 Hauptgruppen mit Sub-Tabs.
@@ -69,7 +71,7 @@ const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = 
   members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'invitations', 'shared_email'] },
   reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen', 'activity'] },
   modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'aroma', 'feed', 'polls', 'tasks', 'wm', 'stage'] },
-  setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'handbook'] },
+  setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'colors', 'handbook'] },
 };
 
 export default function Admin() {
@@ -232,6 +234,7 @@ export default function Admin() {
         {tab === 'activity' && <ActivityLogTab />}
         {tab === 'stage' && <StageAdminTab />}
         {tab === 'shared_email' && <SharedEmailAccountsTab />}
+        {tab === 'colors' && <ColorsAdminTab />}
       </div>
     </div>
   );

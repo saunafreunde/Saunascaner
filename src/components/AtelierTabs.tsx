@@ -4,6 +4,8 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import type { Template } from '@/lib/api';
+import { EditInfusionModal } from '@/components/EditInfusionModal';
+import { TransferInfusionModal } from '@/components/TransferInfusionModal';
 
 type TabId = 'mine' | 'templates';
 
@@ -44,10 +46,11 @@ export function AtelierTabs({
   const isUpcoming = (i: Infusion) => new Date(i.end_time) > currentTime;
   const upcomingMine = myInfusions.filter(isUpcoming);
   const isOwn = (i: Infusion) => myMemberId !== undefined && i.saunameister_id === myMemberId;
-  // Löschen erlaubt für: Admin (jeden Aufguss) oder eigene Aufgüsse (Aufgießer).
-  // Die SQL cancel_my_infusion-RPC erzwingt zusätzlich das 60-Min-Lock-Fenster
-  // (Aufgießer können nur bis 60 Min vor Start absagen, Admins jederzeit).
+  // Löschen / Bearbeiten / Übergeben — erlaubt für: Admin (alle) oder
+  // eigene Aufgüsse (Aufgießer). Server-Side: 60-Min-Lock für nicht-Admins.
   const canDelete = (i: Infusion) => isUpcoming(i) && (isAdmin || isOwn(i));
+  const canEdit = canDelete;
+  const canTransfer = canDelete;
   const canJoinOrLeave = (i: Infusion) => i.team_infusion && !isOwn(i);
   const handleDelete = (i: Infusion) => {
     const ok = window.confirm(
@@ -56,6 +59,8 @@ export function AtelierTabs({
     if (ok) onDeleteInfusion(i.id);
   };
   const [tab, setTab] = useState<TabId>('mine');
+  const [editTarget, setEditTarget] = useState<Infusion | null>(null);
+  const [transferTarget, setTransferTarget] = useState<Infusion | null>(null);
 
   const saunaColor = (id: string) => saunas.find((s) => s.id === id)?.accent_color ?? '#22c55e';
   const saunaName = (id: string) => saunas.find((s) => s.id === id)?.name ?? '?';
@@ -154,9 +159,19 @@ export function AtelierTabs({
                             onLeave={() => onLeaveTeam(i.id)}
                           />
                         )}
+                        {canEdit(i) && (
+                          <button onClick={() => setEditTarget(i)}
+                            title="Aufguss bearbeiten"
+                            className="rounded-md px-2 py-1 text-xs text-sky-300 hover:bg-sky-500/10 ring-1 ring-sky-500/20">✏️</button>
+                        )}
+                        {canTransfer(i) && (
+                          <button onClick={() => setTransferTarget(i)}
+                            title="Aufguss an anderen Aufgießer übergeben"
+                            className="rounded-md px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 ring-1 ring-amber-500/20">↗️</button>
+                        )}
                         {canDelete(i) && (
                           <button onClick={() => handleDelete(i)}
-                            title="Admin: Aufguss löschen"
+                            title="Aufguss löschen"
                             className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 ring-1 ring-rose-500/20">🗑</button>
                         )}
                       </div>
@@ -192,6 +207,20 @@ export function AtelierTabs({
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Edit + Transfer Modale */}
+      {editTarget && (
+        <EditInfusionModal
+          infusion={editTarget}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+      {transferTarget && (
+        <TransferInfusionModal
+          infusion={transferTarget}
+          onClose={() => setTransferTarget(null)}
+        />
+      )}
     </div>
   );
 }
