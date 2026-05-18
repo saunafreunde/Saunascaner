@@ -118,7 +118,11 @@ export default function Dashboard() {
   // Fullscreen-API triggern. Browser-Sicherheits-Constraint: nur mit
   // User-Gesture möglich, nicht spontan beim Page-Load.
   // Plus: fullscreenchange-Listener für den Hint-Overlay.
+  const HINT_STORAGE_KEY = 'dashboard_fullscreen_hint_dismissed';
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem(HINT_STORAGE_KEY) === '1'; } catch { return false; }
+  });
   useEffect(() => {
     const tryFullscreen = async () => {
       try {
@@ -135,6 +139,18 @@ export default function Dashboard() {
       document.removeEventListener('fullscreenchange', onChange);
     };
   }, []);
+
+  async function dismissHintAndTryFullscreen() {
+    // Hint sofort ausblenden — egal ob die Browser-Fullscreen-API klappt.
+    // Persistieren in localStorage damit nach Reload weg bleibt.
+    setHintDismissed(true);
+    try { localStorage.setItem(HINT_STORAGE_KEY, '1'); } catch { /* ignored */ }
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      }
+    } catch { /* TV-Browser-App ignoriert Fullscreen-API */ }
+  }
 
   const adImageUrls = (brand.data?.ads ?? [])
     .map((a) => publicAssetUrl(a.image_path))
@@ -262,20 +278,16 @@ export default function Dashboard() {
       </div>
 
       {/* TV-Vollbild-Trigger: klickbarer Button unten rechts.
-          Verschwindet sobald document.fullscreenElement existiert. */}
-      {!isFullscreen && (
+          Verschwindet wenn Browser-Fullscreen aktiv ODER User manuell weggeklickt
+          (Klick versucht Fullscreen, blendet aber trotzdem aus — auch wenn die
+          TV-Browser-App die Fullscreen-API ignoriert). Persistiert via localStorage. */}
+      {!isFullscreen && !hintDismissed && (
         <button
           type="button"
-          onClick={async () => {
-            try {
-              if (document.documentElement.requestFullscreen) {
-                await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-              }
-            } catch { /* TV-Browser unterstützt kein Fullscreen */ }
-          }}
+          onClick={dismissHintAndTryFullscreen}
           className="fixed bottom-4 right-4 z-50 rounded-2xl bg-amber-500 px-6 py-4 text-base font-bold text-amber-950 ring-2 ring-amber-300 shadow-2xl shadow-black/60 animate-pulse cursor-pointer active:scale-95 transition"
         >
-          🔳 Tippen für Vollbild
+          🔳 Tippen für Vollbild · ✕ Ausblenden
         </button>
       )}
     </PageBackground>
