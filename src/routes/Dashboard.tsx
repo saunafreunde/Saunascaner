@@ -2,12 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
-import { WeatherWidget } from '@/components/WeatherWidget';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { PageBackground } from '@/components/PageBackground';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
-import { BirthdayBanner } from '@/components/BirthdayBanner';
-import { fmtDateLongDe } from '@/lib/time';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useSaunas,
@@ -15,7 +12,6 @@ import {
   useMeisterDirectory,
   useActiveEvacuation,
   useBrandSettings,
-  publicAssetUrl,
   useCoAufgieser,
   useAllMembersBadges,
   useScheduleSettings,
@@ -182,41 +178,10 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Header — Datum links · Logo mittig · Wetter rechts.
-          KEIN max-w mehr — Tafel nutzt komplette TV-Breite (auch auf 4K).
-          Vorher max-w-[1920px] führte zu schwarzen Pillarbox-Rändern auf 4K-TVs. */}
-      <header className="flex-shrink-0 w-full grid grid-cols-3 items-center px-8 pt-8 pb-3">
-        <div className="justify-self-start">
-          <div
-            className="rounded-2xl bg-white/5 backdrop-blur-xl ring-1 ring-white/10 px-5 py-3"
-            style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)' }}
-          >
-            <span className="text-2xl font-semibold text-white/95 tracking-wide">
-              {fmtDateLongDe(now)}
-            </span>
-          </div>
-        </div>
+      {/* Header (Datum/Logo/Wetter) und BirthdayBanner entfernt — Tafel zeigt
+          NUR noch die Aufguss-Tiles, mit voller Höhe + Breite für jede Karte. */}
 
-        <div className="justify-self-center">
-          <img
-            src={(() => {
-              // Banner-Variante bevorzugt für Dashboard-Header, sonst Icon
-              const path = brand.data?.logo?.banner ?? brand.data?.logo?.icon;
-              return path ? (publicAssetUrl(path) ?? '/icons/icon-512.png') : '/icons/icon-512.png';
-            })()}
-            alt="Saunafreunde Schwarzwald"
-            className="h-24 w-auto rounded-2xl drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)]"
-          />
-        </div>
-
-        <div className="justify-self-end">
-          <WeatherWidget />
-        </div>
-      </header>
-
-      <BirthdayBanner />
-
-      <main className="flex-1 min-h-0 w-full px-6 pb-4 flex gap-4">
+      <main className="flex-1 min-h-0 w-full px-4 py-4 flex gap-4">
         {renderMain()}
       </main>
 

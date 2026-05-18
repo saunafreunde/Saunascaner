@@ -86,19 +86,19 @@ export function InfusionCard({
       />
 
       {compact ? (
-        <div className="flex flex-col flex-1 min-h-0 pl-2 gap-2.5">
-          {/* Header-Zeile: Uhrzeit-Chip + Titel — fixe Schriftgrößen statt vw/cqi
-              (skaliert robust auf 1080p UND 4K-TVs gleich) */}
-          <div className="flex items-stretch gap-2.5 flex-shrink-0">
+        <div className="flex flex-col flex-1 min-h-0 pl-3 gap-3">
+          {/* Header-Zeile: Uhrzeit-Chip + Titel — fixe Größen, kein Truncate.
+              Header darf wrappen wenn Titel zu lang ist. */}
+          <div className="flex items-stretch gap-3 flex-shrink-0">
             <div
-              className="rounded-xl px-3 py-1 flex items-center justify-center backdrop-blur-md flex-shrink-0"
+              className="rounded-xl px-4 py-2 flex items-center justify-center backdrop-blur-md flex-shrink-0"
               style={{
                 background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
               }}
             >
               <span
-                className="font-bold tabular-nums leading-none whitespace-nowrap text-2xl"
+                className="font-bold tabular-nums leading-none whitespace-nowrap text-3xl"
                 style={{
                   color: sauna.accent_color,
                   textShadow: `0 0 10px ${sauna.accent_color}55`,
@@ -108,13 +108,13 @@ export function InfusionCard({
               </span>
             </div>
             <div
-              className="relative flex-1 rounded-xl px-4 py-1 flex items-center backdrop-blur-md min-w-0 overflow-hidden"
+              className="relative flex-1 rounded-xl px-4 py-2 flex items-center backdrop-blur-md min-w-0"
               style={{
                 background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
-              <h3 className="font-bold text-slate-50 leading-tight truncate w-full text-xl">
+              <h3 className="font-bold text-slate-50 leading-tight w-full text-2xl break-words">
                 {infusion.title}
                 {infusion.team_infusion && <span className="ml-2 text-amber-300">👥</span>}
               </h3>
@@ -122,10 +122,10 @@ export function InfusionCard({
           </div>
 
           {/* Body: Attribute (Pills) + Öle (Pills) + Meister */}
-          <div className="flex-1 min-h-0 flex flex-col gap-2">
-            {/* Attribute als Pills mit Hintergrund — JETZT klar sichtbar */}
+          <div className="flex-1 min-h-0 flex flex-col gap-2.5">
+            {/* Attribute als Pills mit Hintergrund — wrappen auf mehrere Zeilen wenn nötig */}
             {infusion.attributes.length > 0 && (
-              <div className="flex flex-wrap items-start gap-1.5">
+              <div className="flex flex-wrap items-start gap-2">
                 {infusion.attributes.map((a) => {
                   const meta = ATTR_BY_ID[a];
                   if (!meta) return null;
@@ -133,13 +133,13 @@ export function InfusionCard({
                     <span
                       key={a}
                       title={meta.label}
-                      className="inline-flex items-center gap-1 rounded-full backdrop-blur px-2.5 py-1 text-sm font-medium text-forest-100/95"
+                      className="inline-flex items-center gap-1.5 rounded-full backdrop-blur px-3 py-1.5 text-lg font-medium text-forest-100"
                       style={{
-                        background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
-                        boxShadow: `inset 0 0 0 1px ${sauna.accent_color}40`,
+                        background: `linear-gradient(135deg, ${sauna.accent_color}33, rgba(8,18,12,0.6))`,
+                        boxShadow: `inset 0 0 0 1px ${sauna.accent_color}50`,
                       }}
                     >
-                      <span aria-hidden>{meta.emoji}</span>
+                      <span aria-hidden className="text-xl leading-none">{meta.emoji}</span>
                       <span>{meta.label}</span>
                     </span>
                   );
@@ -149,7 +149,7 @@ export function InfusionCard({
 
             {/* Öle als Pills mit Hintergrund */}
             {oils.length > 0 && (
-              <div className="flex flex-wrap items-start gap-1.5">
+              <div className="flex flex-wrap items-start gap-2">
                 {oils.map((oilId, i) => {
                   const o = OIL_BY_ID[oilId];
                   if (!o) return null;
@@ -157,13 +157,13 @@ export function InfusionCard({
                     <span
                       key={`${i}-${oilId}`}
                       title={o.name}
-                      className="inline-flex items-center gap-1 rounded-full backdrop-blur px-2.5 py-1 text-sm font-semibold text-amber-100/95"
+                      className="inline-flex items-center gap-1.5 rounded-full backdrop-blur px-3 py-1.5 text-lg font-semibold text-amber-100"
                       style={{
-                        background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(120,75,20,0.45))',
-                        boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.45)',
+                        background: 'linear-gradient(135deg, rgba(245,158,11,0.28), rgba(120,75,20,0.5))',
+                        boxShadow: 'inset 0 0 0 1px rgba(251,191,36,0.55)',
                       }}
                     >
-                      <span aria-hidden>{o.emoji}</span>
+                      <span aria-hidden className="text-xl leading-none">{o.emoji}</span>
                       <span>{o.name}</span>
                     </span>
                   );
@@ -171,8 +171,8 @@ export function InfusionCard({
               </div>
             )}
 
-            {/* Footer: Meister, fest unten */}
-            <div className="mt-auto pt-1 text-base text-forest-300/85 truncate flex-shrink-0">
+            {/* Footer: Meister, fest unten, wrappt bei langen Namen */}
+            <div className="mt-auto pt-2 text-xl font-medium text-forest-200/90 flex-shrink-0 break-words">
               {meisterName ?? '—'}
               {meisterMeta?.isGuest && (
                 <span className="text-emerald-300/90"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
