@@ -259,3 +259,25 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   100% { transform: rotate(360deg); }
 }
 .feed-react-spin { animation: feed-react-spin 3s infinite linear; display: inline-block; }
+
+/* ─── Rainbow-Blink für TV-Tafel Uhrzeit + Countdown ─────────────────────
+   Pure-CSS, GPU-friendly (nur color + opacity animiert). Wird in
+   InfusionCard.tsx compact-Mode auf <time> + Countdown angewendet. */
+@keyframes tafel-rainbow-cycle {
+  0%   { color: #ef4444; }  /* red */
+  16%  { color: #f97316; }  /* orange */
+  33%  { color: #eab308; }  /* yellow */
+  50%  { color: #22c55e; }  /* green */
+  66%  { color: #3b82f6; }  /* blue */
+  83%  { color: #a855f7; }  /* purple */
+  100% { color: #ef4444; }
+}
+@keyframes tafel-rainbow-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.tafel-rainbow-blink {
+  animation: tafel-rainbow-cycle 4s linear infinite,
+             tafel-rainbow-blink 1.2s ease-in-out infinite;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}

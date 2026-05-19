@@ -246,19 +246,27 @@ export function InfusionCard({
               )}
             </span>
             <div className="flex flex-col items-end leading-none whitespace-nowrap flex-shrink-0">
+              {/* Uhrzeit: 20% größer + Rainbow-Blink (Pure-CSS, siehe index.css) */}
               <span
-                className="tabular-nums font-bold text-slate-900"
-                style={{ fontSize: 'clamp(13px, 3.6cqh, 22px)' }}
+                className="tabular-nums font-bold tafel-rainbow-blink"
+                style={{ fontSize: 'clamp(16px, 4.3cqh, 26px)' }}
               >
                 {fmtClock(now)}
               </span>
+              {/* Countdown: 20% größer + Rainbow-Blink. ●-Indikator behält
+                  state-spezifische Farbe für visuellen Kontrast. */}
               <span
-                className={`tabular-nums font-medium mt-0.5 ${
-                  running ? 'text-emerald-700' : past ? 'text-slate-500' : 'text-amber-700'
-                }`}
-                style={{ fontSize: 'clamp(10px, 2.6cqh, 16px)' }}
+                className="tabular-nums font-medium mt-0.5 tafel-rainbow-blink"
+                style={{ fontSize: 'clamp(12px, 3.1cqh, 19px)' }}
               >
-                {running && <span className="mr-1">●</span>}
+                {running && (
+                  <span
+                    className={`mr-1 ${running ? 'text-emerald-700' : past ? 'text-slate-500' : 'text-amber-700'}`}
+                    style={{ animation: 'none' }}
+                  >
+                    ●
+                  </span>
+                )}
                 {countdownText()}
               </span>
             </div>
