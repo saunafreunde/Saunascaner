@@ -47,6 +47,7 @@ import {
   useAbsences, useAddAbsence, useDeleteAbsence,
   useTakeoverPersonalFallback, type Template,
   useScheduleSettings,
+  useSuggestInfusionTitle,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
@@ -156,6 +157,7 @@ export default function Planner() {
   const delTpl = useDeleteTemplate();
   const trigEvac = useTriggerEvacuation();
   const endEvac = useEndEvacuation();
+  const suggestTitle = useSuggestInfusionTitle();
 
   // Stamm-Slot + Urlaub (Migrationen 0027/0028)
   const myRecurringQ = useMyRecurringSlots(member.data?.id ?? null);
@@ -1064,16 +1066,27 @@ export default function Planner() {
                     <label className="text-xs text-forest-300">Titel</label>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const validOils = oils.filter((o): o is string => !!o);
-                        const suggestion = generateInfusionTitle(attrs, validOils);
-                        setTitle(suggestion);
+                        // Erst AI (Claude Haiku) versuchen, bei Fehler Fallback
+                        // auf regelbasiert. So funktioniert das Feature auch
+                        // bei API-Outage / fehlendem ANTHROPIC_API_KEY.
+                        try {
+                          const aiTitle = await suggestTitle.mutateAsync({
+                            attributes: attrs,
+                            oils: validOils,
+                          });
+                          if (aiTitle) setTitle(aiTitle);
+                          else setTitle(generateInfusionTitle(attrs, validOils));
+                        } catch {
+                          setTitle(generateInfusionTitle(attrs, validOils));
+                        }
                       }}
-                      disabled={attrs.length === 0 && oils.every((o) => !o)}
-                      title="Erstellt einen Titel-Vorschlag basierend auf den ausgewählten Eigenschaften und Ölen. Mehrfach klicken = anderer Vorschlag."
+                      disabled={suggestTitle.isPending || (attrs.length === 0 && oils.every((o) => !o))}
+                      title="KI-Vorschlag (Claude Haiku) basierend auf Eigenschaften + Ölen. Bei Netzwerkfehler Fallback auf regelbasiert. Mehrfach klicken = neue Variation."
                       className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
                     >
-                      ✨ Vorschlagen
+                      {suggestTitle.isPending ? '✨ …' : '✨ Vorschlagen'}
                     </button>
                   </div>
                   <input value={title} onChange={(e) => setTitle(e.target.value)}

@@ -310,6 +310,58 @@ export function useSetOilColor() {
   });
 }
 
+// ─── Öl-Deaktivierung (Admin) ───────────────────────────────────────────
+// system_config('disabled_oils') als jsonb { "zitrone": true, ... }.
+// Migration 0093 — wird im OilPicker gefiltert; alte Aufgüsse zeigen
+// das Öl weiter (Historie bleibt sichtbar).
+
+export function useDisabledOils() {
+  return useQuery<Record<string, boolean>>({
+    queryKey: ['disabled-oils'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_disabled_oils');
+      if (error) throw error;
+      return (data ?? {}) as Record<string, boolean>;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useSetOilDisabled() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { oil: string; disabled: boolean }) => {
+      const { error } = await need().rpc('set_oil_disabled', {
+        p_oil: input.oil,
+        p_disabled: input.disabled,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['disabled-oils'] }),
+  });
+}
+
+// ─── AI-Titel-Vorschlag (Claude Haiku) ──────────────────────────────────
+// Ruft den Anthropic-Endpoint /api/ai?action=suggest-title auf. Bei Fehler
+// (Netzwerk, fehlender API-Key, Rate-Limit) wirft der Hook — der Caller
+// kann dann auf den regelbasierten generateInfusionTitle() zurückfallen.
+
+export function useSuggestInfusionTitle() {
+  return useMutation({
+    mutationFn: async (input: { attributes: string[]; oils: string[] }) => {
+      const r = await fetch('/api/ai?action=suggest-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!r.ok) throw new Error(`AI-Fehler ${r.status}`);
+      const json = await r.json() as { title?: string; error?: string };
+      if (json.error) throw new Error(json.error);
+      return (json.title ?? '').trim();
+    },
+  });
+}
+
 // ─── Kiosk-Varianten (Öl-Raum-Tablet, ohne Auth) ──────────────────────────
 // Identifiziert den Aufgießer per p_saunameister_id (vom Frontend übergeben)
 // statt per auth.uid(). Backend prüft is_present + is_aufgieser. (Migration 0070)

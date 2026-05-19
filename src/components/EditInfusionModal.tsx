@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ATTRIBUTES, type InfusionAttribute } from '@/lib/attributes';
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { generateInfusionTitle } from '@/lib/titleGenerator';
-import { useUpdateInfusion } from '@/lib/api';
+import { useUpdateInfusion, useSuggestInfusionTitle } from '@/lib/api';
 import OilPicker from '@/components/OilPicker';
 import type { Infusion } from '@/types/database';
 
@@ -30,6 +30,7 @@ export function EditInfusionModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const update = useUpdateInfusion();
+  const suggestTitle = useSuggestInfusionTitle();
 
   // Esc schließt
   useEffect(() => {
@@ -84,15 +85,24 @@ export function EditInfusionModal({
               <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Titel</label>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const validOils = oils.filter((o): o is string => !!o);
-                  setTitle(generateInfusionTitle(attrs, validOils));
+                  try {
+                    const aiTitle = await suggestTitle.mutateAsync({
+                      attributes: attrs,
+                      oils: validOils,
+                    });
+                    if (aiTitle) setTitle(aiTitle);
+                    else setTitle(generateInfusionTitle(attrs, validOils));
+                  } catch {
+                    setTitle(generateInfusionTitle(attrs, validOils));
+                  }
                 }}
-                disabled={attrs.length === 0 && oils.every((o) => !o)}
-                title="Erstellt einen Titel-Vorschlag aus Eigenschaften + Ölen. Mehrfach klicken = andere Variante."
+                disabled={suggestTitle.isPending || (attrs.length === 0 && oils.every((o) => !o))}
+                title="KI-Vorschlag (Claude Haiku) aus Eigenschaften + Ölen. Bei Netzwerkfehler Fallback auf regelbasiert."
                 className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
               >
-                ✨ Vorschlagen
+                {suggestTitle.isPending ? '✨ …' : '✨ Vorschlagen'}
               </button>
             </div>
             <input

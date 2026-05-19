@@ -4,6 +4,7 @@ import {
   CATEGORY_LABELS, CATEGORY_ORDER, normalizeOilSlots,
   MAX_OIL_SLOTS,
 } from '@/lib/oils';
+import { useDisabledOils } from '@/lib/api';
 
 type Props = {
   selected: (string | null)[];                  // [Runde 1 … Runde MAX_OIL_SLOTS]
@@ -20,6 +21,9 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
   const [numInput, setNumInput] = useState('');
   const [shake, setShake] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Admin-konfigurierbare Öl-Deaktivierung (Migration 0093). Hier wird gefiltert,
+  // damit Aufgießer nur Öle wählen die physisch im Regal stehen.
+  const disabledOils = useDisabledOils();
 
   function setSlot(round: number, oilId: string | null) {
     const next = [...slots];
@@ -142,7 +146,9 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
               {CATEGORY_LABELS[cat]}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-              {OILS_BY_CATEGORY[cat].map((o) => {
+              {OILS_BY_CATEGORY[cat]
+                .filter((o) => !disabledOils.data?.[o.id])
+                .map((o) => {
                 const inOtherSlot = slots.some((s, i) => s === o.id && i !== activeRound);
                 const isCurrent = slots[activeRound] === o.id;
                 return (
