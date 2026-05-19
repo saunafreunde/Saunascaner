@@ -9,7 +9,7 @@ import type { BadgeDefinition } from '@/lib/badges';
 import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
-import { OIL_BY_ID, normalizeOilSlots } from '@/lib/oils';
+import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
@@ -336,7 +336,7 @@ export default function Planner() {
   const [slot, setSlot] = useState<string>('15:00');
   const [title, setTitle] = useState('');
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
-  const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: 6 }, () => null) as (string | null)[]);
+  const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [teamInfusion, setTeamInfusion] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -494,7 +494,7 @@ export default function Planner() {
     setTitle('');
     setAttrs([]);
     setCustomAttrIds([]);
-    setOils(Array.from({ length: 6 }, () => null) as (string | null)[]);
+    setOils(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
     setTeamInfusion(false);
   }
 
