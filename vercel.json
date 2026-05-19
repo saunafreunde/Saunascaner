@@ -1,8 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["fra1"],
   "crons": [
-    { "path": "/api/cron?action=birthday", "schedule": "0 7 * * *" }
+    { "path": "/api/birthday-cron", "schedule": "0 7 * * *" }
   ],
+  "functions": {
+    "api/ai.ts":           { "maxDuration": 30 },
+    "api/email.ts":        { "maxDuration": 60 },
+    "api/postfach.ts":     { "maxDuration": 60 },
+    "api/birthday-cron.ts":{ "maxDuration": 60 },
+    "api/push-reminder-cron.ts": { "maxDuration": 60 },
+    "api/push-send.ts":    { "maxDuration": 30 },
+    "api/send-evacuation.ts":  { "maxDuration": 30 },
+    "api/send-notification.ts":{ "maxDuration": 30 },
+    "api/send-poll-results.ts":{ "maxDuration": 30 },
+    "api/telegram-webhook.ts": { "maxDuration": 30 }
+  },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
