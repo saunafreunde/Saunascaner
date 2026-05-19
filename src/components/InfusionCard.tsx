@@ -6,9 +6,8 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { useAttributeColors, useOilColors } from '@/lib/api';
-// BadgeChip-Import bewusst entfernt — Auszeichnungen werden nicht mehr
-// auf Aufguss-Karten gerendert. BadgeDefinition bleibt für die Prop-Typsignatur.
-import type { BadgeDefinition } from '@/lib/badges';
+// BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
+// nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
 // Helper: hex-Farbe + alpha-Suffix → rgba-Hintergrund.
 // Z.B. tintBg('#f59e0b', 0.33) → "linear-gradient(135deg, #f59e0b55, rgba(8,18,12,0.55))"
@@ -25,7 +24,6 @@ export function InfusionCard({
   infusion,
   sauna,
   meisterName,
-  meisterBadges,
   meisterMeta,
   coNames,
   now,
@@ -36,7 +34,6 @@ export function InfusionCard({
   infusion: Infusion;
   sauna: Sauna;
   meisterName?: string;
-  meisterBadges?: BadgeDefinition[];
   meisterMeta?: { isGuest: boolean; homeGroup: string | null };
   coNames?: string[];
   now: Date;
@@ -268,9 +265,7 @@ export function InfusionCard({
           </div>
 
           {/* Auszeichnungen (BadgeChips) bewusst entfernt — User-Wunsch:
-              Aufguss-Karten sollen nur Titel + Aufgießer-Name zeigen, keine
-              zusätzlichen Auszeichnungen. meisterBadges-Prop bleibt für
-              Backward-Compat in der Signatur, wird aber nicht mehr gerendert. */}
+              Aufguss-Karten zeigen nur Titel + Aufgießer-Name + Pills. */}
         </div>
       ) : (
         <>

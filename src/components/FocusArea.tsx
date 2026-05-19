@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { addMinutes, isBefore } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
 import { InfusionCard } from '@/components/InfusionCard';
-import type { BadgeDefinition } from '@/lib/badges';
 
 const HIDE_AFTER_END_MIN = 5;
 
@@ -11,7 +10,6 @@ interface FocusAreaProps {
   infusions: Infusion[];
   saunas: Sauna[];
   meisterName: (id: string | null) => string;
-  meisterBadges: (id: string | null) => BadgeDefinition[];
   coNames: (infusionId: string) => string[];
   now: Date;
 }
@@ -32,7 +30,7 @@ function FeierabendScreen() {
   );
 }
 
-export function FocusArea({ infusions, saunas, meisterName, meisterBadges, coNames, now }: FocusAreaProps) {
+export function FocusArea({ infusions, saunas, meisterName, coNames, now }: FocusAreaProps) {
   const getSauna = (sauna_id: string) => saunas.find((s) => s.id === sauna_id);
 
   const focusInfusions = useMemo(() => {
@@ -118,7 +116,6 @@ export function FocusArea({ infusions, saunas, meisterName, meisterBadges, coNam
                   infusion={inf}
                   sauna={sauna}
                   meisterName={meisterName(inf.saunameister_id)}
-                  meisterBadges={meisterBadges(inf.saunameister_id)}
                   coNames={coNames(inf.id)}
                   now={now}
                 />

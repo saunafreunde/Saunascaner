@@ -13,12 +13,11 @@ import {
   useActiveEvacuation,
   useBrandSettings,
   useCoAufgieser,
-  useAllMembersBadges,
   useScheduleSettings,
 } from '@/lib/api';
-import { ALL_BADGES } from '@/lib/badges';
+// ALL_BADGES / BadgeDefinition entfernt — Tafel rendert keine
+// Saunameister-Auszeichnungen mehr (User-Wunsch).
 import { lookupMemberName } from '@/lib/memberDisplay';
-import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
 // Browser blockiert Audio bis zum ersten Klick — wir versuchen es deshalb
 // stillschweigend bei jeder Interaktion zu entsperren, ohne sichtbaren Button.
@@ -37,7 +36,6 @@ export default function Dashboard() {
   const members = useMeisterDirectory();
   const evac = useActiveEvacuation();
   const brand = useBrandSettings();
-  const allBadgesQ = useAllMembersBadges();
   const scheduleQ = useScheduleSettings();
   const tilesPerColumn = scheduleQ.data?.tiles_per_column ?? 3;
   const mondayOpen = !!scheduleQ.data?.monday_open;
@@ -67,19 +65,6 @@ export default function Dashboard() {
     const m = id ? members.data?.find((x) => x.id === id) : undefined;
     if (!m) return undefined;
     return { isGuest: m.role === 'guest_aufgieser', homeGroup: m.home_group };
-  };
-
-  const tierOrder: Record<string, number> = { platinum: 4, gold: 3, silver: 2, bronze: 1, special: 0 };
-
-  const meisterBadges = (id: string | null): BadgeDefinition[] => {
-    if (!id || !allBadgesQ.data) return [];
-    const earned = new Set(
-      allBadgesQ.data.filter((a) => a.member_id === id).map((a) => a.badge_id)
-    );
-    return ALL_BADGES
-      .filter((b) => earned.has(b.id))
-      .sort((a, b) => (tierOrder[b.tier] ?? 0) - (tierOrder[a.tier] ?? 0))
-      .slice(0, 3);
   };
 
   // Audio still beim ersten User-Klick irgendwo im Dokument entsperren —
@@ -151,7 +136,6 @@ export default function Dashboard() {
           sauna={activeSaunas[idx]}
           infusions={allInfusions}
           meisterName={meisterName}
-          meisterBadges={meisterBadges}
           meisterMeta={meisterMeta}
           coNames={coNamesForInfusion}
           now={now}
