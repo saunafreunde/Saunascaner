@@ -10,6 +10,7 @@ import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
+import { generateInfusionTitle } from '@/lib/titleGenerator';
 import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
@@ -1046,7 +1047,22 @@ export default function Planner() {
                 )}
 
                 <div>
-                  <label className="text-xs text-forest-300">Titel</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-forest-300">Titel</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const validOils = oils.filter((o): o is string => !!o);
+                        const suggestion = generateInfusionTitle(attrs, validOils);
+                        setTitle(suggestion);
+                      }}
+                      disabled={attrs.length === 0 && oils.every((o) => !o)}
+                      title="Erstellt einen Titel-Vorschlag basierend auf den ausgewählten Eigenschaften und Ölen. Mehrfach klicken = anderer Vorschlag."
+                      className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      ✨ Vorschlagen
+                    </button>
+                  </div>
                   <input value={title} onChange={(e) => setTitle(e.target.value)}
                     placeholder="z.B. Eukalyptus klassisch"
                     className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
