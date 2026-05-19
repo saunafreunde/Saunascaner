@@ -11,11 +11,12 @@ import { useAttributeColors, useOilColors } from '@/lib/api';
 
 // Helper: hex-Farbe + alpha-Suffix → rgba-Hintergrund.
 // Z.B. tintBg('#f59e0b', 0.33) → "linear-gradient(135deg, #f59e0b55, rgba(8,18,12,0.55))"
+// HELL-THEME: Pills auf cremig-hellem Untergrund statt forest-Dunkel.
 function tintBg(hex: string): string {
-  return `linear-gradient(135deg, ${hex}33, rgba(8,18,12,0.6))`;
+  return `linear-gradient(135deg, ${hex}33, rgba(255,255,255,0.7))`;
 }
 function tintRing(hex: string): string {
-  return `inset 0 0 0 1px ${hex}55`;
+  return `inset 0 0 0 1px ${hex}66`;
 }
 
 const IMMINENT_MIN = 10;
@@ -97,12 +98,12 @@ export function InfusionCard({
         opacity: { duration: 0.35 },
         boxShadow: imminent ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 },
       }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.10] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/[0.04]'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/85'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
         running
-          ? 'ring-emerald-400/50'
+          ? 'ring-emerald-500/60'
           : imminent
             ? 'ring-transparent'
-            : 'ring-white/10'
+            : 'ring-slate-300/60'
       } ${className}`}
       style={{
         transformOrigin: '50% 100%',
@@ -142,7 +143,6 @@ export function InfusionCard({
                 className="font-bold tabular-nums leading-none whitespace-nowrap"
                 style={{
                   color: sauna.accent_color,
-                  textShadow: `0 0 10px ${sauna.accent_color}55`,
                   fontSize: 'clamp(16px, 5cqh, 30px)',
                 }}
               >
@@ -158,11 +158,11 @@ export function InfusionCard({
               }}
             >
               <h3
-                className="font-bold text-slate-50 leading-tight w-full"
+                className="font-bold text-slate-900 leading-tight w-full"
                 style={{ fontSize: 'clamp(14px, 4cqh, 24px)' }}
               >
                 {infusion.title}
-                {infusion.team_infusion && <span className="ml-2 text-amber-300">👥</span>}
+                {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
               </h3>
             </div>
           </div>
@@ -170,7 +170,7 @@ export function InfusionCard({
           {/* Description (kursiv, max 1 Zeile) — nur wenn vorhanden */}
           {infusion.description && (
             <p
-              className="text-slate-300/80 italic line-clamp-1 flex-shrink-0"
+              className="text-slate-600 italic line-clamp-1 flex-shrink-0"
               style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
             >
               {infusion.description}
@@ -191,7 +191,7 @@ export function InfusionCard({
                   <span
                     key={`a-${a}`}
                     title={meta.label}
-                    className="inline-flex items-center rounded-full backdrop-blur font-medium text-forest-100/95 whitespace-nowrap"
+                    className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
                     style={{
                       fontSize: 'clamp(10px, 2.8cqh, 16px)',
                       padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)',
@@ -213,7 +213,7 @@ export function InfusionCard({
                   <span
                     key={`o-${i}-${oilId}`}
                     title={o.name}
-                    className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-100 whitespace-nowrap"
+                    className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
                     style={{
                       fontSize: 'clamp(10px, 2.8cqh, 16px)',
                       padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)',
@@ -233,28 +233,28 @@ export function InfusionCard({
           {/* Footer: Meister + Co-Aufgießer (links) · Aktuelle Uhrzeit + Countdown (rechts).
               Anstelle der statischen "X Min Dauer" jetzt: was ist gerade los? */}
           <div
-            className="mt-auto pt-1 flex items-end justify-between gap-3 text-forest-200/90 flex-shrink-0"
+            className="mt-auto pt-1 flex items-end justify-between gap-3 text-slate-700 flex-shrink-0"
             style={{ fontSize: 'clamp(11px, 3cqh, 18px)' }}
           >
             <span className="min-w-0 leading-tight">
               {meisterName ?? '—'}
               {meisterMeta?.isGuest && (
-                <span className="text-emerald-300/90"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+                <span className="text-emerald-700"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
               )}
               {coNames && coNames.length > 0 && (
-                <span className="text-amber-300/80"> + {coNames.join(' + ')}</span>
+                <span className="text-amber-700"> + {coNames.join(' + ')}</span>
               )}
             </span>
             <div className="flex flex-col items-end leading-none whitespace-nowrap flex-shrink-0">
               <span
-                className="tabular-nums font-bold text-slate-50"
+                className="tabular-nums font-bold text-slate-900"
                 style={{ fontSize: 'clamp(13px, 3.6cqh, 22px)' }}
               >
                 {fmtClock(now)}
               </span>
               <span
                 className={`tabular-nums font-medium mt-0.5 ${
-                  running ? 'text-emerald-300' : past ? 'text-forest-400' : 'text-amber-300'
+                  running ? 'text-emerald-700' : past ? 'text-slate-500' : 'text-amber-700'
                 }`}
                 style={{ fontSize: 'clamp(10px, 2.6cqh, 16px)' }}
               >

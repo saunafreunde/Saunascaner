@@ -22,15 +22,15 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
       animate={{ opacity: 1, y: 0, scale: 1, rotateX: 1.5 }}
       exit={{ opacity: 0, y: -20, scale: 0.96 }}
       transition={{ layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.35 } }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl backdrop-blur-xl ring-1 ring-amber-500/25 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.10] before:to-transparent before:pointer-events-none before:content-[''] p-3 ${className}`}
+      className={`relative flex flex-col overflow-hidden rounded-2xl backdrop-blur-xl ring-1 ring-amber-400/50 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/40 before:to-transparent before:pointer-events-none before:content-[''] p-3 ${className}`}
       style={{
         transformOrigin: '50% 100%',
         background: backgroundImage
-          ? `linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(2,6,12,0.78) 60%), url(${backgroundImage})`
-          : 'linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(8,18,12,0.55) 50%, rgba(8,18,12,0.55) 100%)',
+          ? `linear-gradient(135deg, rgba(254,243,199,0.85) 0%, rgba(255,255,255,0.78) 60%), url(${backgroundImage})`
+          : 'linear-gradient(135deg, rgba(254,243,199,0.92) 0%, rgba(255,255,255,0.85) 50%, rgba(254,243,199,0.85) 100%)',
         backgroundSize: backgroundImage ? 'cover' : undefined,
         backgroundPosition: backgroundImage ? 'center' : undefined,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.32), 0 16px 40px rgba(0,0,0,0.4), 0 0 32px rgba(245,158,11,0.22)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 4px 10px rgba(0,0,0,0.08), 0 16px 40px rgba(0,0,0,0.12), 0 0 32px rgba(245,158,11,0.22)',
       }}
     >
       {/* Sauna-Akzent-Streifen links */}
@@ -56,24 +56,24 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
           <div
             className="rounded-xl px-3 flex items-center justify-center backdrop-blur-md flex-shrink-0"
             style={{
-              background: `linear-gradient(135deg, ${sauna.accent_color}1f, rgba(8,18,12,0.55))`,
-              boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33`,
+              background: `linear-gradient(135deg, ${sauna.accent_color}1f, rgba(255,255,255,0.5))`,
+              boxShadow: `inset 0 0 0 1px ${sauna.accent_color}55`,
             }}
           >
             <span
               className="font-bold tabular-nums leading-none whitespace-nowrap"
-              style={{ color: `${sauna.accent_color}e0`, fontSize: '1.8vw' }}
+              style={{ color: sauna.accent_color, fontSize: '1.8vw' }}
             >
               {fmtClock(infusion.start_time)}
             </span>
           </div>
           <div
-            className="flex-1 flex items-center justify-center rounded-xl px-3 ring-1 ring-amber-500/25"
+            className="flex-1 flex items-center justify-center rounded-xl px-3 ring-1 ring-amber-500/40"
             style={{
-              background: 'linear-gradient(135deg, rgba(245,158,11,0.14), rgba(245,158,11,0.04))',
+              background: 'linear-gradient(135deg, rgba(254,243,199,0.6), rgba(254,243,199,0.3))',
             }}
           >
-            <span className="text-[11px] uppercase tracking-[0.2em] font-bold text-amber-100">
+            <span className="text-[11px] uppercase tracking-[0.2em] font-bold text-amber-800">
               ✨ Personal-Aufguss
             </span>
           </div>
@@ -82,10 +82,10 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
         {/* Body */}
         <div className="flex-1 flex items-center justify-center text-center px-2">
           <div>
-            <p className="text-base font-semibold text-amber-50 leading-tight">
+            <p className="text-base font-semibold text-amber-900 leading-tight">
               Klassischer Aufguss
             </p>
-            <p className="text-xs text-amber-200/75 mt-1 tracking-wide">
+            <p className="text-xs text-amber-700 mt-1 tracking-wide">
               Naturreine Aromen
             </p>
           </div>
@@ -93,10 +93,10 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
 
         {/* Footer — wertschätzend statt „kein Aufgießer" */}
         <div className="mt-auto flex items-baseline justify-between gap-2 text-[11px]">
-          <span className="truncate text-amber-200/80 font-medium">
+          <span className="truncate text-amber-800 font-medium">
             ✨ Vom Personal serviert
           </span>
-          <span className="tabular-nums whitespace-nowrap text-amber-100/90 font-semibold">
+          <span className="tabular-nums whitespace-nowrap text-amber-900 font-semibold">
             {infusion.duration_minutes} Min
           </span>
         </div>

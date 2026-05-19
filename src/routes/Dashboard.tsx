@@ -3,7 +3,8 @@ import { AnimatePresence } from 'framer-motion';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
-import { PageBackground } from '@/components/PageBackground';
+// PageBackground bewusst nicht mehr genutzt — Tafel hat eigenes Hell-Theme
+// statt der dunklen forest-Hintergründe.
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
@@ -23,7 +24,7 @@ import { unlockAudio } from '@/lib/evacuation';
 // stillschweigend bei jeder Interaktion zu entsperren, ohne sichtbaren Button.
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
-import { Stage } from '@/components/stage/Stage';
+// Stage (dunkle atmosphärische Szenen) bewusst nicht im Hell-Theme.
 
 // AdSidebar (Werbe-Spalten) entfernt — Sauna-Tiles bekommen jetzt die
 // volle Breite, damit Attribute-Badges + Aufgieser-Info sichtbar sind.
@@ -122,7 +123,7 @@ export default function Dashboard() {
   const renderMain = () => {
     if (activeSaunas.length === 0) {
       return (
-        <div className="flex flex-1 items-center justify-center text-3xl text-forest-300/70">
+        <div className="flex flex-1 items-center justify-center text-3xl text-slate-500">
           Heute keine Saunen aktiv.
         </div>
       );
@@ -152,7 +153,16 @@ export default function Dashboard() {
   };
 
   return (
-    <PageBackground page="dashboard" variant="strong" noImage className="h-screen overflow-hidden flex flex-col cursor-none select-none">
+    // HELL-THEME für Tafel: cremig-warmer Hintergrund statt dunkler Wald.
+    // PageBackground + Stage (dunkle atmosphärische Layer) bewusst entfernt,
+    // die wirken auf hellem Untergrund störend. ParticleCanvas + Connection-
+    // Indicator + Evak-Overlay bleiben, sind in beiden Themes stimmig.
+    <div
+      className="h-screen overflow-hidden flex flex-col cursor-none select-none"
+      style={{
+        background: 'linear-gradient(135deg, #fef9e7 0%, #fdf4d3 40%, #f9ecb5 100%)',
+      }}
+    >
       <ParticleCanvas activeSaunaCount={activeSaunas.length} />
       <AnimatePresence>
         {evac.data && (
@@ -163,35 +173,25 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Header (Datum/Logo/Wetter) und BirthdayBanner entfernt — Tafel zeigt
-          NUR noch die Aufguss-Tiles, mit voller Höhe + Breite für jede Karte. */}
-
       <main className="flex-1 min-h-0 w-full px-4 py-4 flex gap-4">
         {renderMain()}
       </main>
-
-      {/* Bühne: Basis (Backdrop, Sauna, Gliders) + saisonale Layer + One-Shot-Effekte.
-          Steuerung im Admin-Tab „🎭 Bühne". (Migration 0071) */}
-      <Stage />
 
       {/* Connection-Indicator als Floating-Pixel rechts unten */}
       <div className="fixed bottom-2 right-3 z-40 pointer-events-none">
         <ConnectionIndicator online={isSupabaseConfigured && !saunas.isError && !infusions.isError} />
       </div>
 
-      {/* TV-Vollbild-Trigger: klickbarer Button unten rechts.
-          Verschwindet wenn Browser-Fullscreen aktiv ODER User manuell weggeklickt
-          (Klick versucht Fullscreen, blendet aber trotzdem aus — auch wenn die
-          TV-Browser-App die Fullscreen-API ignoriert). Persistiert via localStorage. */}
+      {/* TV-Vollbild-Trigger: klickbarer Button unten rechts. */}
       {!isFullscreen && !hintDismissed && (
         <button
           type="button"
           onClick={dismissHintAndTryFullscreen}
-          className="fixed bottom-4 right-4 z-50 rounded-2xl bg-amber-500 px-6 py-4 text-base font-bold text-amber-950 ring-2 ring-amber-300 shadow-2xl shadow-black/60 animate-pulse cursor-pointer active:scale-95 transition"
+          className="fixed bottom-4 right-4 z-50 rounded-2xl bg-amber-500 px-6 py-4 text-base font-bold text-amber-950 ring-2 ring-amber-300 shadow-2xl shadow-black/30 animate-pulse cursor-pointer active:scale-95 transition"
         >
           🔳 Tippen für Vollbild · ✕ Ausblenden
         </button>
       )}
-    </PageBackground>
+    </div>
   );
 }

@@ -25,18 +25,25 @@ interface SaunaTileColumnProps {
 /**
  * Liefert die nächsten N Slot-Start-Zeitpunkte ab `from`.
  *
- * Wichtig: ALLE Saunen müssen die gleichen Stunden-Slots zeigen, sonst
- * driften die Spalten visuell auseinander (80°C zeigt 15:00 während 100°C
- * schon 16:00 zeigt). Daher: einheitliche Cutoff-Regel — Slot bleibt
- * sichtbar bis `slot + 60 Min`. Die Card selbst zeigt via Countdown an,
- * ob der Aufguss läuft, beendet ist oder noch bevorsteht.
+ * Cutoff-Regel pro Slot:
+ *   - Wenn IRGENDEINE Sauna für diesen Slot einen Aufguss hat → cutoff =
+ *     MAX(slot + 15 min, MAX(end_time aller Aufgüsse) + 1 min)
+ *   - Ohne Aufguss → cutoff = slot + 15 min (Standard-Aufguss-Dauer)
  *
- * Folge: ein 60+-Min-Aufguss „verschwindet" nach der Slot-Stunde von der
- * Tafel, obwohl er noch läuft. Das ist selten (Standard-Dauer 15 Min) und
- * der Aufguss bleibt in der DB; im nächsten Stunden-Slot wäre ohnehin
- * kein Platz mehr.
+ * Wichtig: die globale Slot→End-Time-Map wird über ALLE Saunen gebildet,
+ * nicht pro Sauna. Dadurch zeigen 80°C und 100°C immer die gleichen
+ * Stunden-Slots an (Symmetrie). Wenn 80°C einen laufenden Aufguss bis
+ * 16:30 hat, bleibt der 16:00-Slot in BEIDEN Spalten bis 16:31 sichtbar.
+ *
+ * Damit ist der Slot 15 Min nach Aufguss-Ende weg — kein „Hänger" mehr
+ * bis zur vollen Stunde (alte Logik) und keine Asymmetrie (Sauna-spezifisch).
  */
-function nextSlotStarts(n: number, from: Date, mondayOpen: boolean): Date[] {
+function nextSlotStarts(
+  n: number,
+  from: Date,
+  mondayOpen: boolean,
+  globalSlotEnds: Map<number, number>,
+): Date[] {
   const result: Date[] = [];
   let dayOffset = 0;
   const startHour = from.getHours();
@@ -48,8 +55,14 @@ function nextSlotStarts(n: number, from: Date, mondayOpen: boolean): Date[] {
       const slot = new Date(from);
       slot.setDate(slot.getDate() + dayOffset);
       slot.setHours(h, 0, 0, 0);
-      // Stunden-Granularität: Slot bleibt sichtbar bis exakt zur nächsten Stunde.
-      if (slot.getTime() + 60 * 60_000 <= from.getTime()) continue;
+      const slotTs = slot.getTime();
+      const defaultCutoff = slotTs + 15 * 60_000;            // 15 min Standard-Aufguss-Dauer
+      const maxEnd = globalSlotEnds.get(slotTs);
+      // Wenn ein Aufguss länger läuft → cutoff verlängern, sonst Default.
+      const cutoff = maxEnd && maxEnd + 60_000 > defaultCutoff
+        ? maxEnd + 60_000
+        : defaultCutoff;
+      if (cutoff <= from.getTime()) continue;
       result.push(slot);
       if (result.length >= n) break;
     }
@@ -69,11 +82,22 @@ export function SaunaTileColumn({
   tilesPerColumn = TILES_PER_COLUMN_DEFAULT,
   mondayOpen = false,
 }: SaunaTileColumnProps) {
-  // Slot-Liste ist global (gleiche Stunden über alle Saunen) — daher
-  // KEIN sauna-spezifisches Filterargument hier.
+  // Globale Map<slotTs, maxEndTs> über ALLE Saunen — sorgt für synchrone
+  // Spalten (siehe Doku in nextSlotStarts).
+  const globalSlotEnds = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const i of infusions) {
+      const startTs = new Date(i.start_time).getTime();
+      const endTs = new Date(i.end_time).getTime();
+      const existing = m.get(startTs) ?? 0;
+      if (endTs > existing) m.set(startTs, endTs);
+    }
+    return m;
+  }, [infusions]);
+
   const slots = useMemo(
-    () => nextSlotStarts(tilesPerColumn, now, mondayOpen),
-    [now, tilesPerColumn, mondayOpen],
+    () => nextSlotStarts(tilesPerColumn, now, mondayOpen, globalSlotEnds),
+    [now, tilesPerColumn, mondayOpen, globalSlotEnds],
   );
 
   const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date })[]>(() => {
@@ -86,24 +110,25 @@ export function SaunaTileColumn({
   }, [slots, infusions, sauna.id]);
 
   return (
+    // HELL-THEME: weißlicher Glaspanel statt forest-Dunkel.
     <div
       className="flex flex-1 min-w-0 min-h-0 flex-col rounded-2xl overflow-hidden"
       style={{
-        background: 'rgba(8,18,12,0.65)',
+        background: 'rgba(255,255,255,0.85)',
         borderTop: `4px solid ${sauna.accent_color}`,
-        boxShadow: `0 0 36px ${sauna.accent_color}1a, inset 0 1px 0 ${sauna.accent_color}22`,
+        boxShadow: `0 0 36px ${sauna.accent_color}1a, inset 0 1px 0 rgba(255,255,255,0.6)`,
       }}
     >
       {/* Sauna header */}
       <div
         className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}
       >
         <span
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{ background: sauna.accent_color, boxShadow: `0 0 10px ${sauna.accent_color}` }}
         />
-        <span className="text-base font-bold text-white/90 tracking-wide truncate">
+        <span className="text-base font-bold text-slate-800 tracking-wide truncate">
           {sauna.name}
         </span>
         <span
