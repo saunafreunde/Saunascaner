@@ -7,6 +7,7 @@ import {
 import { isAufgieser } from '@/lib/roles';
 import { RatingForm } from '@/components/RatingForm';
 import { fmtClock } from '@/lib/time';
+import { lookupMemberName } from '@/lib/memberDisplay';
 
 // Mobile-Bottom-Nav-Ziel: alle besuchten Aufgüsse, die noch bewertet werden können.
 // Bedient sich derselben useRatableInfusions/get_ratable_infusions-RPC wie der
@@ -22,7 +23,7 @@ export default function Bewerten() {
   const [active, setActive] = useState<RatableInfusion | null>(null);
 
   const meisterName = (id: string | null) =>
-    (id && meisterDir.data?.find((m) => m.id === id)?.name) || 'Aufgießer:in';
+    lookupMemberName(meisterDir.data, id, 'Aufgießer:in');
   const saunaById = (id: string) => saunas.data?.find((s) => s.id === id);
 
   const pending = (list.data ?? []).filter((i) => !i.already_rated);

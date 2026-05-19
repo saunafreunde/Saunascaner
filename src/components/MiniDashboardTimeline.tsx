@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNow } from '@/hooks/useNow';
 import { useSaunas, useInfusions, useMeisterDirectory } from '@/lib/api';
+import { lookupMemberName } from '@/lib/memberDisplay';
 
 // Mobile-friendly Mini-Tafel als horizontale Timeline.
 // Zeigt für den heutigen Tag pro aktive Sauna alle Stunden-Slots:
@@ -35,7 +36,7 @@ export function MiniDashboardTimeline() {
   );
 
   const meisterName = (id: string | null): string =>
-    (id && members.data?.find((m) => m.id === id)?.name) || '—';
+    lookupMemberName(members.data, id, '—');
 
   const slotsToday = useMemo(() => {
     const list = infusions.data ?? [];

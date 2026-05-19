@@ -17,6 +17,7 @@ import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { PendingRatingsBlock } from '@/components/PendingRatingsBlock';
 import { FanUpgradeCTA } from '@/components/gast/FanUpgradeCTA';
 import { isAdmin, isGast } from '@/lib/roles';
+import { lookupMemberName } from '@/lib/memberDisplay';
 import { fmtClock } from '@/lib/time';
 
 // /gast — interner Bereich für Sauna-Besucher (Rolle 'gast').
@@ -77,10 +78,8 @@ export default function Gast() {
     return m;
   }, [saunas.data]);
 
-  const meisterName = (id: string | null) => {
-    const s = id ? (stars.data ?? []).find((x) => x.id === id) : null;
-    return s?.name ?? 'Aufgießer:in';
-  };
+  const meisterName = (id: string | null) =>
+    lookupMemberName(stars.data, id, 'Aufgießer:in');
 
   return (
     <PageBackground page="guest" variant="soft" className="min-h-screen">

@@ -6,6 +6,7 @@ import {
 } from '@/lib/api';
 import { RatingForm } from '@/components/RatingForm';
 import { fmtClock } from '@/lib/time';
+import { lookupMemberName } from '@/lib/memberDisplay';
 
 // Block für /gast: zeigt Aufgüsse die noch bewertbar sind
 // (vom heutigen Anwesenheits-Tag bis morgen 12:00).
@@ -17,7 +18,7 @@ export function PendingRatingsBlock() {
   const [active, setActive] = useState<RatableInfusion | null>(null);
 
   const meisterName = (id: string | null) =>
-    (id && meisterDir.data?.find((m) => m.id === id)?.name) || 'Aufgießer:in';
+    lookupMemberName(meisterDir.data, id, 'Aufgießer:in');
   const saunaById = (id: string) => saunas.data?.find((s) => s.id === id);
 
   const pending = (list.data ?? []).filter((i) => !i.already_rated);

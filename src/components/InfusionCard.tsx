@@ -6,7 +6,8 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { useAttributeColors, useOilColors } from '@/lib/api';
-import BadgeChip from '@/components/BadgeChip';
+// BadgeChip-Import bewusst entfernt — Auszeichnungen werden nicht mehr
+// auf Aufguss-Karten gerendert. BadgeDefinition bleibt für die Prop-Typsignatur.
 import type { BadgeDefinition } from '@/lib/badges';
 
 // Helper: hex-Farbe + alpha-Suffix → rgba-Hintergrund.
@@ -266,17 +267,10 @@ export function InfusionCard({
             </div>
           </div>
 
-          {/* Badges (max 3) — wenn vorhanden */}
-          {meisterBadges && meisterBadges.length > 0 && (
-            <div
-              className="flex flex-wrap flex-shrink-0"
-              style={{ gap: 'clamp(2px, 0.6cqh, 6px)' }}
-            >
-              {meisterBadges.slice(0, 3).map((b) => (
-                <BadgeChip key={b.id} badge={b} size="sm" />
-              ))}
-            </div>
-          )}
+          {/* Auszeichnungen (BadgeChips) bewusst entfernt — User-Wunsch:
+              Aufguss-Karten sollen nur Titel + Aufgießer-Name zeigen, keine
+              zusätzlichen Auszeichnungen. meisterBadges-Prop bleibt für
+              Backward-Compat in der Signatur, wird aber nicht mehr gerendert. */}
         </div>
       ) : (
         <>
@@ -382,13 +376,7 @@ export function InfusionCard({
             <span className="tabular-nums whitespace-nowrap text-forest-200/85 font-medium">{infusion.duration_minutes} Min</span>
           </div>
 
-          {meisterBadges && meisterBadges.length > 0 && (
-            <div className="relative mt-1 flex flex-wrap gap-1 pl-2">
-              {meisterBadges.slice(0, 3).map((b) => (
-                <BadgeChip key={b.id} badge={b} size="sm" />
-              ))}
-            </div>
-          )}
+          {/* Auszeichnungen bewusst entfernt (s.o. im compact-Pfad). */}
         </>
       )}
     </motion.div>

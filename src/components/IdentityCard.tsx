@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { differenceInDays } from 'date-fns';
 import { motion } from 'framer-motion';
 import type { Member, MemberCustomAttr } from '@/lib/api';
 import { useSetSaunaName, useSetBirthday } from '@/lib/api';
@@ -33,11 +32,6 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
     }
   }
 
-  const canChange = !member.sauna_name_changed_at || differenceInDays(new Date(), new Date(member.sauna_name_changed_at)) >= 30;
-  const daysLeft = !canChange && member.sauna_name_changed_at
-    ? Math.max(0, 30 - differenceInDays(new Date(), new Date(member.sauna_name_changed_at)))
-    : 0;
-
   async function saveName() {
     setNameError(null);
     const trimmed = nameInput.trim();
@@ -51,8 +45,7 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
       setNameSaved(true);
       setTimeout(() => setNameSaved(false), 3000);
     } catch (e) {
-      const msg = (e as Error).message;
-      setNameError(msg.includes('cooldown') ? `Noch ${daysLeft} Tage` : msg);
+      setNameError((e as Error).message);
     }
   }
 
@@ -73,14 +66,10 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
               <span className="text-base font-semibold text-forest-100">
                 {member.sauna_name || <span className="text-forest-300/50 font-normal text-sm italic">— nicht gesetzt —</span>}
               </span>
-              {!canChange && (
-                <p className="text-[11px] text-forest-400/60 mt-0.5">Noch {daysLeft} Tage änderbar</p>
-              )}
             </div>
             <button
               onClick={() => { setEditingName(true); setNameInput(member.sauna_name ?? ''); setNameError(null); }}
-              disabled={!canChange}
-              className="rounded-lg bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 ring-1 ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="rounded-lg bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 ring-1 ring-violet-500/30 hover:bg-violet-500/25"
             >
               ✏️ Ändern
             </button>

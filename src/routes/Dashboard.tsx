@@ -17,6 +17,7 @@ import {
   useScheduleSettings,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
+import { lookupMemberName } from '@/lib/memberDisplay';
 import type { BadgeDefinition } from '@/lib/badges';
 import { unlockAudio } from '@/lib/evacuation';
 // Browser blockiert Audio bis zum ersten Klick — wir versuchen es deshalb
@@ -60,7 +61,7 @@ export default function Dashboard() {
   );
 
   const meisterName = (id: string | null) =>
-    (id && members.data?.find((m) => m.id === id)?.name) || 'Saunameister:in';
+    lookupMemberName(members.data, id, 'Saunameister:in');
 
   const meisterMeta = (id: string | null) => {
     const m = id ? members.data?.find((x) => x.id === id) : undefined;

@@ -19,6 +19,7 @@ import { MyShiftsList } from '@/components/staff/MyShiftsList';
 import { OpenCancellationsList } from '@/components/staff/OpenCancellationsList';
 import { SwapRequestsList } from '@/components/staff/SwapRequestsList';
 import { fmtClock } from '@/lib/time';
+import { lookupMemberName } from '@/lib/memberDisplay';
 
 // /mitarbeiter — Bereich für role='staff' Personal.
 // Layout-Reihenfolge (Phase-2-Refactor):
@@ -54,7 +55,7 @@ export default function Mitarbeiter() {
   }, [infusions.data]);
 
   const meisterName = (id: string | null) =>
-    (id && meisterDir.data?.find((mm) => mm.id === id)?.name) || 'unbesetzt';
+    lookupMemberName(meisterDir.data, id, 'unbesetzt');
   const saunaById = (id: string) => saunas.data?.find((s) => s.id === id);
 
   return (

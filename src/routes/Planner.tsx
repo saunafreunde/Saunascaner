@@ -11,6 +11,7 @@ import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { generateInfusionTitle } from '@/lib/titleGenerator';
+import { lookupMemberName } from '@/lib/memberDisplay';
 import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
@@ -646,7 +647,7 @@ export default function Planner() {
     [infusions, m?.id, coAufgieserQ.data],
   );
 
-  const meisterName = (id: string | null) => (id && meisterDir.data?.find((x) => x.id === id)?.name) || '—';
+  const meisterName = (id: string | null) => lookupMemberName(meisterDir.data, id, '—');
   const evacuation = evacQ.data;
   const openPolls = (pollsQ.data ?? []).filter((p) => !p.my_answer);
 
