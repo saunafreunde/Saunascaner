@@ -116,9 +116,10 @@ export const OILS_BY_CATEGORY: Record<OilCategory, Oil[]> = CATEGORY_ORDER.reduc
   {} as Record<OilCategory, Oil[]>,
 );
 
-/** Maximal mögliche Öl-Slots pro Aufguss. Erhöht von 3 auf 6 — Aufgießer
- *  können jetzt komplexere Mischungen eintragen. */
-export const MAX_OIL_SLOTS = 6;
+/** Maximal mögliche Öl-Slots pro Aufguss. Zurück auf 3 gesetzt, weil 6 Slots
+ *  Datenbank-Probleme verursacht haben (bestehende RPCs/Validierungen sind auf
+ *  3-Tupel ausgelegt). */
+export const MAX_OIL_SLOTS = 3;
 
 /** Erzeugt aus einem (string | null)[] mit beliebiger Länge ein MAX_OIL_SLOTS-Tupel. */
 export function normalizeOilSlots(input: readonly (string | null | undefined)[] | null | undefined): (string | null)[] {

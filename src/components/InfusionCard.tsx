@@ -4,7 +4,7 @@ import { differenceInMinutes } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID } from '@/lib/attributes';
-import { OIL_BY_ID } from '@/lib/oils';
+import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { useAttributeColors, useOilColors } from '@/lib/api';
 import BadgeChip from '@/components/BadgeChip';
 import type { BadgeDefinition } from '@/lib/badges';
@@ -60,7 +60,10 @@ export function InfusionCard({
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
 
-  const oils = (infusion.oils ?? []).filter(Boolean) as string[];
+  // Defensiv auf MAX_OIL_SLOTS kappen — alte DB-Datensätze können mehr Öle
+  // enthalten (Limit wurde von 6 zurück auf 3 gestellt). UI darf nie mehr
+  // anzeigen als aktuell erlaubt, sonst sieht's chaotisch aus.
+  const oils = ((infusion.oils ?? []).filter(Boolean) as string[]).slice(0, MAX_OIL_SLOTS);
 
   // Countdown-Text bis Start (oder Status falls läuft/vorbei).
   // Wird sekündlich/minütlich aktualisiert via Parent-`now`-Prop (alle 5s im Dashboard).
