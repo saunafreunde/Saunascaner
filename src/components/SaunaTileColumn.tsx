@@ -25,22 +25,18 @@ interface SaunaTileColumnProps {
 /**
  * Liefert die nächsten N Slot-Start-Zeitpunkte ab `from`.
  *
- * "Erledigt"-Check pro Slot:
- *   - Mit zugeordnetem Aufguss in DIESER Sauna → bis `infusion.end_time + 1 Min Grace`
- *   - Ohne Aufguss → bis Slot-Stunde + 60 Min (volle Stunde, dann rückt der nächste nach)
+ * Wichtig: ALLE Saunen müssen die gleichen Stunden-Slots zeigen, sonst
+ * driften die Spalten visuell auseinander (80°C zeigt 15:00 während 100°C
+ * schon 16:00 zeigt). Daher: einheitliche Cutoff-Regel — Slot bleibt
+ * sichtbar bis `slot + 60 Min`. Die Card selbst zeigt via Countdown an,
+ * ob der Aufguss läuft, beendet ist oder noch bevorsteht.
  *
- * Frühere Variante nutzte einen fixen 15-Min-Buffer ab Slot-Start. Bei
- * längeren Aufgüssen (30/45/60 Min) verschwand die Card während der
- * Aufguss noch lief, danach blieb der vergangene Slot bis zur 15-Min-Marke
- * sichtbar → Tafel-Hänger. Mit der `end_time`-Logik schaltet die Tafel
- * sofort nach Aufguss-Ende weiter.
+ * Folge: ein 60+-Min-Aufguss „verschwindet" nach der Slot-Stunde von der
+ * Tafel, obwohl er noch läuft. Das ist selten (Standard-Dauer 15 Min) und
+ * der Aufguss bleibt in der DB; im nächsten Stunden-Slot wäre ohnehin
+ * kein Platz mehr.
  */
-function nextSlotStarts(
-  n: number,
-  from: Date,
-  mondayOpen: boolean,
-  saunaInfusionTimes: Map<number, number>,
-): Date[] {
+function nextSlotStarts(n: number, from: Date, mondayOpen: boolean): Date[] {
   const result: Date[] = [];
   let dayOffset = 0;
   const startHour = from.getHours();
@@ -52,13 +48,8 @@ function nextSlotStarts(
       const slot = new Date(from);
       slot.setDate(slot.getDate() + dayOffset);
       slot.setHours(h, 0, 0, 0);
-      const slotTs = slot.getTime();
-      const infusionEndTs = saunaInfusionTimes.get(slotTs);
-      // Cutoff: solange ist der Slot "aktiv" und wird angezeigt.
-      const cutoff = infusionEndTs
-        ? infusionEndTs + 60_000           // Aufguss-Ende + 1 Min Grace
-        : slotTs + 60 * 60_000;            // leerer Slot → volle Stunde
-      if (cutoff <= from.getTime()) continue;
+      // Stunden-Granularität: Slot bleibt sichtbar bis exakt zur nächsten Stunde.
+      if (slot.getTime() + 60 * 60_000 <= from.getTime()) continue;
       result.push(slot);
       if (result.length >= n) break;
     }
@@ -78,21 +69,11 @@ export function SaunaTileColumn({
   tilesPerColumn = TILES_PER_COLUMN_DEFAULT,
   mondayOpen = false,
 }: SaunaTileColumnProps) {
-  // Map<slotStartTs, infusionEndTs> für DIESE Sauna — wird von nextSlotStarts
-  // genutzt um zu entscheiden ob ein Slot noch sichtbar bleibt (so lange der
-  // Aufguss tatsächlich läuft).
-  const saunaInfusionTimes = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const i of infusions) {
-      if (i.sauna_id !== sauna.id) continue;
-      m.set(new Date(i.start_time).getTime(), new Date(i.end_time).getTime());
-    }
-    return m;
-  }, [infusions, sauna.id]);
-
+  // Slot-Liste ist global (gleiche Stunden über alle Saunen) — daher
+  // KEIN sauna-spezifisches Filterargument hier.
   const slots = useMemo(
-    () => nextSlotStarts(tilesPerColumn, now, mondayOpen, saunaInfusionTimes),
-    [now, tilesPerColumn, mondayOpen, saunaInfusionTimes],
+    () => nextSlotStarts(tilesPerColumn, now, mondayOpen),
+    [now, tilesPerColumn, mondayOpen],
   );
 
   const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date })[]>(() => {

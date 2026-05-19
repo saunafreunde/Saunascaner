@@ -464,7 +464,14 @@ export default function Planner() {
   }, [selectedDate, slot, saunaId, saunas, mondayOpen]);
 
   const garantieSlotsOpenToday = selectedDayCtx.garantieSlotsOpen;
-  const secondarySaunaBlocked = !isGarantieSauna && garantieSlotsOpenToday.length > 0;
+  // Per-Stunde-Sperre (Migration 0092): Zweit-Sauna ist nur für die konkrete
+  // Stunde gesperrt wenn der Garantie-Slot DIESER Stunde noch nicht durch einen
+  // echten Aufgießer belegt ist. Andere Stunden des Tages sind unabhängig.
+  const selectedSlotHour = Number(slot.split(':')[0]);
+  const secondarySaunaBlocked =
+    !isGarantieSauna &&
+    Number.isFinite(selectedSlotHour) &&
+    garantieSlotsOpenToday.some((g) => g.hour === selectedSlotHour);
 
   function toggleAttr(a: InfusionAttribute) {
     setAttrs((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
@@ -518,8 +525,10 @@ export default function Planner() {
     // Sperrregel gilt NICHT, wenn der gewählte Slot ein Personal-Fallback ist
     // (übernehmen bringt die Garantie-Sauna ja erst zum vollständigen Besetzt-Status)
     if (!selectedFallbackId && secondarySaunaBlocked) {
-      const list = garantieSlotsOpenToday.map((g) => `${String(g.hour).padStart(2,'0')}:00 ${g.saunaName}`).join(', ');
-      return setFormError(`⛔ Zuerst Garantie-Slots durch Aufgießer belegen. Offen: ${list}`);
+      const dranGarantie = garantieSlotsOpenToday.find((g) => g.hour === selectedSlotHour);
+      return setFormError(
+        `⛔ Für ${String(selectedSlotHour).padStart(2,'0')}:00 ist erst der Personal-Slot in der ${dranGarantie?.saunaName ?? 'dran'}-Sauna zu übernehmen.`,
+      );
     }
 
     try {
@@ -970,7 +979,10 @@ export default function Planner() {
                 const isSelected = isSameYMD(d, selectedDate);
                 const isToday = isSameYMD(d, todayDate);
                 const weekdayLabel = WEEKDAY_LABEL_DE[d.getDay()] ?? '';
-                const secondaryBlockedForDay = ctx.garantieSlotsOpen.length > 0; // wird pro-Slot weiter verfeinert
+                // Marker, ob der Tag überhaupt Garantie-Sperren hat — die
+                // konkrete Sperre pro Slot wird in SaunaSlotRow per-Stunde
+                // entschieden (siehe blockedBySecondary unten).
+                const secondaryBlockedForDay = ctx.garantieSlotsOpen.length > 0;
                 return (
                   <div
                     key={d.toISOString()}
@@ -1040,9 +1052,9 @@ export default function Planner() {
 
                 {!selectedFallbackId && secondarySaunaBlocked && (
                   <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
-                    <p className="font-semibold">⛔ Zweit-Sauna-Planung gesperrt.</p>
+                    <p className="font-semibold">⛔ Diese Stunde ist gesperrt.</p>
                     <p className="mt-0.5 text-amber-200/80">
-                      Solange in der „dran"-Sauna noch Personal-Aufgüsse stehen, kann in der anderen Sauna nicht zusätzlich geplant werden. Erst die gelben Slots oben übernehmen.
+                      Für {String(selectedSlotHour).padStart(2,'0')}:00 ist die Garantie-Sauna ({garantieSlotsOpenToday.find((g) => g.hour === selectedSlotHour)?.saunaName ?? '—'}) noch nicht durch einen Aufgießer belegt. Erst diesen gelben Slot oben übernehmen — andere Stunden des Tages sind frei.
                     </p>
                   </div>
                 )}
@@ -1455,8 +1467,12 @@ function SaunaSlotRow({
           const isSelected = selectedSaunaId === sauna.id && selectedSlot === hhmm;
           // Ist diese Sauna die Garantie-Sauna für diesen Slot?
           const isGarantieSauna = garantieSlotsOpenToday.some((g) => g.hour === hour && g.saunaName === sauna.name);
-          // Ist Klick in der Zweit-Sauna blockiert? Nur wenn nicht Garantie-Sauna und nicht Fallback (Fallback ist übernehmbar)
-          const blockedBySecondary = secondarySaunaBlocked && !isGarantieSauna && status.kind === 'free';
+          // Per-Stunde-Sperre (Migration 0092): blockiert nur wenn die GLEICHE
+          // Stunde noch einen offenen Garantie-Slot in einer anderen Sauna hat.
+          // Andere Stunden sind unabhängig — niemand wird mehr global gesperrt.
+          const hourHasOpenGarantie = garantieSlotsOpenToday.some((g) => g.hour === hour);
+          const blockedBySecondary =
+            secondarySaunaBlocked && !isGarantieSauna && status.kind === 'free' && hourHasOpenGarantie;
 
           let bg = 'bg-forest-950/40';
           let text = 'text-forest-200';
