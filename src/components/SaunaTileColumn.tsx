@@ -29,20 +29,22 @@ function mockInfusion(sauna: Sauna, slotTime: Date, idx: number): Infusion {
   return {
     id: `mock-${sauna.id}-${slotTime.getTime()}-${idx}`,
     sauna_id: sauna.id,
+    template_id: null,
     saunameister_id: null,
     title: m.title,
     description: null,
-    attributes: m.attributes,
+    attributes: m.attributes as Infusion['attributes'],
     oils: m.oils,
+    image_path: null,
+    start_time: slotTime.toISOString(),
+    duration_minutes: 15,
+    end_time: new Date(slotTime.getTime() + 15 * 60_000).toISOString(),
     team_infusion: false,
     is_personal_fallback: false,
-    duration_minutes: 15,
-    start_time: slotTime.toISOString(),
-    end_time: new Date(slotTime.getTime() + 15 * 60_000).toISOString(),
+    recurring_slot_id: null,
     temperature_c: null,
-    template_id: null,
     created_at: new Date().toISOString(),
-  } as Infusion;
+  };
 }
 
 const TILES_PER_COLUMN_DEFAULT = 3;
