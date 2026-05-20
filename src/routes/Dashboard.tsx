@@ -25,6 +25,7 @@ import { unlockAudio } from '@/lib/evacuation';
 // stillschweigend bei jeder Interaktion zu entsperren, ohne sichtbaren Button.
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
+import { EndOfDayScreen } from '@/components/EndOfDayScreen';
 // Stage (dunkle atmosphärische Szenen) bewusst nicht im Hell-Theme.
 
 // AdSidebar (Werbe-Spalten) entfernt — Sauna-Tiles bekommen jetzt die
@@ -120,6 +121,23 @@ export default function Dashboard() {
 
   const allInfusions = infusions.data ?? [];
 
+  // ── End-of-Day-Check ────────────────────────────────────────────────
+  // Wenn heute schon Aufgüsse waren UND alle vorbei sind UND es ist noch
+  // vor 21:00 (Wechsel auf nächsten Tag), zeigt die Tafel statt leerer
+  // Slots einen schönen Tagesabschluss-Screen mit Stats + Verabschiedung.
+  const showEndOfDay = useMemo(() => {
+    const today = new Date(now); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today.getTime() + 86_400_000);
+    const todayInfs = allInfusions.filter((i) => {
+      if (i.is_personal_fallback) return false;
+      const s = new Date(i.start_time);
+      return s >= today && s < tomorrow;
+    });
+    if (todayInfs.length === 0) return false;
+    const hasUpcoming = todayInfs.some((i) => new Date(i.end_time) > now);
+    return !hasUpcoming && now.getHours() < 21;
+  }, [allInfusions, now]);
+
   // ── Layout je nach Sauna-Anzahl ──────────────────────────────────────
   const renderMain = () => {
     if (activeSaunas.length === 0) {
@@ -127,6 +145,16 @@ export default function Dashboard() {
         <div className="flex flex-1 items-center justify-center text-3xl text-slate-500">
           Heute keine Saunen aktiv.
         </div>
+      );
+    }
+
+    // Tagesabschluss-Screen statt Sauna-Spalten wenn alle Aufgüsse durch sind
+    if (showEndOfDay) {
+      return (
+        <EndOfDayScreen
+          infusions={allInfusions}
+          meisterDir={members.data ?? []}
+        />
       );
     }
 

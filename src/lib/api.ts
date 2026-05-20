@@ -1145,7 +1145,7 @@ export function useMembersDirectory() {
 }
 
 // Public directory of staff names for the TV/guest UI (callable as anon).
-export type MeisterDirectoryEntry = { id: string; name: string; role: MemberRole; home_group: string | null };
+export type MeisterDirectoryEntry = { id: string; name: string; role: MemberRole; home_group: string | null; avatar_path: string | null; sauna_name: string | null };
 export function useMeisterDirectory() {
   return useQuery({
     queryKey: ['meister-directory'],
