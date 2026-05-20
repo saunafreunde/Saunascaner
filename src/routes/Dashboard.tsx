@@ -13,6 +13,7 @@ import {
   useMeisterDirectory,
   useActiveEvacuation,
   useBrandSettings,
+  publicAssetUrl,
   useCoAufgieser,
   useScheduleSettings,
 } from '@/lib/api';
@@ -152,15 +153,26 @@ export default function Dashboard() {
     return <>{activeSaunas.map((_, i) => column(i))}</>;
   };
 
+  // Branding-Hintergrundbild für /dashboard (admin-konfigurierbar im
+  // BrandingTab). Wird zwischen den Sauna-Spalten + an den Rändern sichtbar.
+  // Heller Overlay (25% weiß) damit die Glaspanels darüber lesbar bleiben.
+  const dashboardBgUrl = publicAssetUrl(brand.data?.backgrounds?.dashboard ?? null);
+  const tafelBg = dashboardBgUrl
+    ? `linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.25)), url(${JSON.stringify(dashboardBgUrl)})`
+    : 'linear-gradient(135deg, #fef9e7 0%, #fdf4d3 40%, #f9ecb5 100%)';
+
   return (
-    // HELL-THEME für Tafel: cremig-warmer Hintergrund statt dunkler Wald.
-    // PageBackground + Stage (dunkle atmosphärische Layer) bewusst entfernt,
-    // die wirken auf hellem Untergrund störend. ParticleCanvas + Connection-
-    // Indicator + Evak-Overlay bleiben, sind in beiden Themes stimmig.
+    // HELL-THEME für Tafel mit optionalem Branding-Bild als Hintergrund.
+    // Stage (dunkle atmosphärische Layer) bleibt entfernt — wirkt auf hellem
+    // Untergrund störend. ParticleCanvas + Connection-Indicator + Evak-Overlay
+    // bleiben drin, sind in beiden Themes stimmig.
     <div
       className="h-screen overflow-hidden flex flex-col cursor-none select-none"
       style={{
-        background: 'linear-gradient(135deg, #fef9e7 0%, #fdf4d3 40%, #f9ecb5 100%)',
+        background: tafelBg,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
       }}
     >
       <ParticleCanvas activeSaunaCount={activeSaunas.length} />
