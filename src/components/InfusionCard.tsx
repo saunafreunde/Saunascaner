@@ -152,14 +152,16 @@ export function InfusionCard({
             <div
               className="relative flex-1 rounded-xl flex items-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
-                padding: 'clamp(4px, 1.2cqh, 10px) clamp(8px, 2cqh, 16px)',
+                /* Titel-Box: +70% padding gegenüber Start-Uhrzeit-Box. */
+                padding: 'clamp(7px, 2cqh, 17px) clamp(14px, 3.4cqh, 27px)',
                 background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
               <h3
                 className="font-bold text-slate-900 leading-tight w-full"
-                style={{ fontSize: 'clamp(14px, 4cqh, 24px)' }}
+                /* Titel-Schrift: +70% gegenüber Start-Uhrzeit. */
+                style={{ fontSize: 'clamp(24px, 6.8cqh, 41px)' }}
               >
                 {infusion.title}
                 {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
@@ -246,27 +248,20 @@ export function InfusionCard({
               )}
             </span>
             <div className="flex flex-col items-end leading-none whitespace-nowrap flex-shrink-0">
-              {/* Uhrzeit: 20% größer + Rainbow-Blink (Pure-CSS, siehe index.css) */}
+              {/* Aktuelle Uhrzeit: schwarz, kein Blink. */}
               <span
-                className="tabular-nums font-bold tafel-rainbow-blink"
+                className="tabular-nums font-bold text-black"
                 style={{ fontSize: 'clamp(16px, 4.3cqh, 26px)' }}
               >
                 {fmtClock(now)}
               </span>
-              {/* Countdown: 20% größer + Rainbow-Blink. ●-Indikator behält
-                  state-spezifische Farbe für visuellen Kontrast. */}
+              {/* Countdown/Timer: rot. Blinkt NUR wenn ≤10 Min bis Start
+                  (imminent). Beim laufenden / vergangenen Aufguss kein Blink. */}
               <span
-                className="tabular-nums font-medium mt-0.5 tafel-rainbow-blink"
+                className={`tabular-nums font-bold mt-0.5 text-red-600 ${imminent ? 'tafel-blink' : ''}`}
                 style={{ fontSize: 'clamp(12px, 3.1cqh, 19px)' }}
               >
-                {running && (
-                  <span
-                    className={`mr-1 ${running ? 'text-emerald-700' : past ? 'text-slate-500' : 'text-amber-700'}`}
-                    style={{ animation: 'none' }}
-                  >
-                    ●
-                  </span>
-                )}
+                {running && <span className="mr-1">●</span>}
                 {countdownText()}
               </span>
             </div>
