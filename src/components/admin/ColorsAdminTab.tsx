@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ATTRIBUTES } from '@/lib/attributes';
 import { OILS_BY_CATEGORY, CATEGORY_LABELS, CATEGORY_ORDER } from '@/lib/oils';
 import {
@@ -36,6 +36,56 @@ export function ColorsAdminTab() {
   const setOil = useSetOilColor();
   const [tab, setTab] = useState<'attributes' | 'oils'>('attributes');
 
+  // Pro-Row Feedback: welcher Eintrag wurde zuletzt gespeichert? Zeigt 1s grünes ✓
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Pro-Row Loading-State: nur die geklickte Row ist disabled, nicht alle
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  function flashSaved(id: string) {
+    setSavedId(id);
+    setTimeout(() => setSavedId((cur) => (cur === id ? null : cur)), 1000);
+  }
+
+  async function saveAttr(attrId: string, color: string | null) {
+    setErrorMsg(null);
+    setPendingId(attrId);
+    try {
+      await setAttr.mutateAsync({ attr: attrId, color });
+      flashSaved(attrId);
+    } catch (e) {
+      const msg = (e as Error).message ?? String(e);
+      setErrorMsg(`${attrId}: ${msg}`);
+      // eslint-disable-next-line no-console
+      console.error('[set_attribute_color] error', attrId, color, e);
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function saveOil(oilId: string, color: string | null) {
+    setErrorMsg(null);
+    setPendingId(oilId);
+    try {
+      await setOil.mutateAsync({ oil: oilId, color });
+      flashSaved(oilId);
+    } catch (e) {
+      const msg = (e as Error).message ?? String(e);
+      setErrorMsg(`${oilId}: ${msg}`);
+      // eslint-disable-next-line no-console
+      console.error('[set_oil_color] error', oilId, color, e);
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  // Errors automatisch nach 5s wegblenden
+  useEffect(() => {
+    if (!errorMsg) return;
+    const t = setTimeout(() => setErrorMsg(null), 5000);
+    return () => clearTimeout(t);
+  }, [errorMsg]);
+
   return (
     <div className="space-y-4">
       <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
@@ -69,6 +119,12 @@ export function ColorsAdminTab() {
         </div>
       </section>
 
+      {errorMsg && (
+        <div className="rounded-lg bg-rose-950/60 ring-1 ring-rose-800/40 px-3 py-2 text-sm text-rose-300">
+          ⚠️ {errorMsg}
+        </div>
+      )}
+
       {tab === 'attributes' && (
         <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50">
           <ul className="space-y-2">
@@ -80,9 +136,10 @@ export function ColorsAdminTab() {
                   emoji={a.emoji}
                   label={a.label}
                   color={cur}
-                  busy={setAttr.isPending}
-                  onChange={(c) => setAttr.mutate({ attr: a.id, color: c })}
-                  onReset={() => setAttr.mutate({ attr: a.id, color: null })}
+                  busy={pendingId === a.id}
+                  saved={savedId === a.id}
+                  onChange={(c) => saveAttr(a.id, c)}
+                  onReset={() => saveAttr(a.id, null)}
                 />
               );
             })}
@@ -109,9 +166,10 @@ export function ColorsAdminTab() {
                         emoji={o.emoji}
                         label={`${o.number}. ${o.name}`}
                         color={cur}
-                        busy={setOil.isPending}
-                        onChange={(c) => setOil.mutate({ oil: o.id, color: c })}
-                        onReset={() => setOil.mutate({ oil: o.id, color: null })}
+                        busy={pendingId === o.id}
+                        saved={savedId === o.id}
+                        onChange={(c) => saveOil(o.id, c)}
+                        onReset={() => saveOil(o.id, null)}
                       />
                     );
                   })}
@@ -130,6 +188,7 @@ function ColorRow({
   label,
   color,
   busy,
+  saved,
   onChange,
   onReset,
 }: {
@@ -137,16 +196,23 @@ function ColorRow({
   label: string;
   color: string;
   busy: boolean;
+  saved: boolean;
   onChange: (color: string) => void;
   onReset: () => void;
 }) {
   return (
     <li
-      className="flex items-center gap-3 rounded-lg bg-forest-900/40 px-3 py-2 ring-1 ring-forest-800/30"
+      className={`flex items-center gap-3 rounded-lg px-3 py-2 ring-1 transition ${
+        saved ? 'bg-emerald-900/40 ring-emerald-500/50' : 'bg-forest-900/40 ring-forest-800/30'
+      }`}
       style={{ borderLeft: color ? `4px solid ${color}` : '4px solid transparent' }}
     >
       <span className="text-xl flex-shrink-0">{emoji}</span>
-      <span className="flex-1 min-w-0 text-sm font-medium text-forest-100 truncate">{label}</span>
+      <span className="flex-1 min-w-0 text-sm font-medium text-forest-100 truncate">
+        {label}
+        {saved && <span className="ml-2 text-emerald-300 text-xs">✅ gespeichert</span>}
+        {busy && <span className="ml-2 text-amber-300 text-xs animate-pulse">…speichert</span>}
+      </span>
       <div className="flex items-center gap-1 flex-shrink-0">
         {/* Preset-Buttons */}
         {PRESETS.map((p) => (
