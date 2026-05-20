@@ -21,6 +21,11 @@ function tintRing(hex: string): string {
 
 const IMMINENT_MIN = 10;
 
+/** Pills-Layout-Variante für den Eigenschaften+Öle-Bereich.
+ *  Wird im Vergleichs-Modus (?vergleich=1) zum Probieren genutzt.
+ *  Default 'A' = klassisches Layout (eine flex-wrap Reihe). */
+export type PillsVariant = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+
 export function InfusionCard({
   infusion,
   sauna,
@@ -31,6 +36,8 @@ export function InfusionCard({
   compact = false,
   className = '',
   backgroundImage = null,
+  pillsVariant = 'A',
+  comparisonMode = false,
 }: {
   infusion: Infusion;
   sauna: Sauna;
@@ -41,6 +48,8 @@ export function InfusionCard({
   compact?: boolean;
   className?: string;
   backgroundImage?: string | null;
+  pillsVariant?: PillsVariant;
+  comparisonMode?: boolean;
 }) {
   // Color-Overrides (Admin-konfigurierbar via Migration 0088).
   // Fallback wenn nicht gesetzt: sauna.accent_color (Attribute) bzw.
@@ -126,6 +135,16 @@ export function InfusionCard({
         style={{ backgroundColor: sauna.accent_color }}
       />
 
+      {/* Vergleichs-Modus: Variant-Badge oben links */}
+      {comparisonMode && (
+        <span
+          className="absolute top-2 left-3 z-10 rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-bold text-white ring-1 ring-white/40 shadow-lg"
+          style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
+        >
+          {pillsVariant}
+        </span>
+      )}
+
       {compact ? (
         <div className="flex flex-col flex-1 min-h-0 pl-3" style={{ gap: 'clamp(4px, 1.5cqh, 12px)' }}>
           {/* Header: Uhrzeit + Titel. Beide Schriftgrößen skalieren via cqh
@@ -159,12 +178,27 @@ export function InfusionCard({
               }}
             >
               <h3
-                className="font-bold text-slate-900 leading-tight w-full"
+                className="font-bold text-slate-900 leading-tight w-full flex items-center gap-2"
                 /* Titel-Schrift: war clamp(19, 5.4cqh, 33), jetzt +10%. */
                 style={{ fontSize: 'clamp(21px, 5.9cqh, 36px)' }}
               >
-                {infusion.title}
-                {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
+                <span className="truncate">
+                  {infusion.title}
+                  {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
+                </span>
+                {/* Variante B: Eigenschaften als Emoji-Reihe direkt im Titel-Header */}
+                {pillsVariant === 'B' && infusion.attributes.length > 0 && (
+                  <span
+                    className="ml-auto flex items-center gap-1 flex-shrink-0 opacity-80"
+                    style={{ fontSize: 'clamp(14px, 3.5cqh, 22px)' }}
+                  >
+                    {infusion.attributes.map((a) => {
+                      const meta = ATTR_BY_ID[a];
+                      if (!meta) return null;
+                      return <span key={`bh-${a}`} title={meta.label}>{meta.emoji}</span>;
+                    })}
+                  </span>
+                )}
               </h3>
             </div>
           </div>
@@ -179,58 +213,14 @@ export function InfusionCard({
             </p>
           )}
 
-          {/* Pills-Block: Attribute + Öle gemeinsam (eine flex-wrap Reihe) */}
-          {(infusion.attributes.length > 0 || oils.length > 0) && (
-            <div
-              className="flex flex-wrap items-start flex-shrink-0"
-              style={{ gap: 'clamp(3px, 0.8cqh, 8px)' }}
-            >
-              {infusion.attributes.map((a) => {
-                const meta = ATTR_BY_ID[a];
-                if (!meta) return null;
-                const c = colorForAttr(a);
-                return (
-                  <span
-                    key={`a-${a}`}
-                    title={meta.label}
-                    className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
-                    style={{
-                      fontSize: 'clamp(10px, 2.8cqh, 16px)',
-                      padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)',
-                      gap: 'clamp(2px, 0.5cqh, 5px)',
-                      background: tintBg(c),
-                      boxShadow: tintRing(c),
-                    }}
-                  >
-                    <span aria-hidden>{meta.emoji}</span>
-                    <span>{meta.label}</span>
-                  </span>
-                );
-              })}
-              {oils.map((oilId, i) => {
-                const o = OIL_BY_ID[oilId];
-                if (!o) return null;
-                const c = colorForOil(oilId);
-                return (
-                  <span
-                    key={`o-${i}-${oilId}`}
-                    title={o.name}
-                    className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
-                    style={{
-                      fontSize: 'clamp(10px, 2.8cqh, 16px)',
-                      padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)',
-                      gap: 'clamp(2px, 0.5cqh, 5px)',
-                      background: tintBg(c),
-                      boxShadow: tintRing(c),
-                    }}
-                  >
-                    <span aria-hidden>{o.emoji}</span>
-                    <span>{o.name}</span>
-                  </span>
-                );
-              })}
-            </div>
-          )}
+          {/* Pills-Block: 8 verschiedene Anordnungs-Varianten zur Auswahl */}
+          <PillsBlock
+            variant={pillsVariant}
+            attributes={infusion.attributes}
+            oils={oils}
+            colorForAttr={colorForAttr}
+            colorForOil={colorForOil}
+          />
 
           {/* Footer: Meister + Co-Aufgießer (links) · Aktuelle Uhrzeit + Countdown (rechts).
               Anstelle der statischen "X Min Dauer" jetzt: was ist gerade los? */}
@@ -379,4 +369,207 @@ export function InfusionCard({
       )}
     </motion.div>
   );
+}
+
+// ─── PillsBlock: 8 Anordnungs-Varianten ──────────────────────────────────
+// Wird im compact-Mode-InfusionCard verwendet. Variante A ist der Default
+// (klassische einreihige flex-wrap). Variante B blendet die Eigenschaften
+// stattdessen im Titel-Header ein (siehe Code oben) — hier rendern wir bei B
+// dann nur noch die Öle. Variante F hat zusätzlich einen Footer-Strip mit
+// Eigenschaften-Emojis ganz unten — der wird ebenfalls hier gehandelt.
+
+type PillsBlockProps = {
+  variant: PillsVariant;
+  attributes: string[];
+  oils: string[];
+  colorForAttr: (id: string) => string;
+  colorForOil: (id: string) => string;
+};
+
+function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: PillsBlockProps) {
+  if (attributes.length === 0 && oils.length === 0) return null;
+
+  // Helper: Attribut-Pill rendern (Größe konfigurierbar)
+  const attrPill = (a: string, size: 'sm' | 'md' | 'lg' | 'xs' = 'md', outlined = false) => {
+    const meta = ATTR_BY_ID[a];
+    if (!meta) return null;
+    const c = colorForAttr(a);
+    const sizeStyles = {
+      xs: { fontSize: 'clamp(9px, 2.2cqh, 13px)', padding: 'clamp(1px, 0.4cqh, 3px) clamp(4px, 0.9cqh, 7px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
+      sm: { fontSize: 'clamp(10px, 2.5cqh, 14px)', padding: 'clamp(2px, 0.5cqh, 4px) clamp(5px, 1.1cqh, 9px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
+      md: { fontSize: 'clamp(10px, 2.8cqh, 16px)', padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)', gap: 'clamp(2px, 0.5cqh, 5px)' },
+      lg: { fontSize: 'clamp(12px, 3.2cqh, 19px)', padding: 'clamp(3px, 0.8cqh, 6px) clamp(7px, 1.5cqh, 12px)', gap: 'clamp(2px, 0.5cqh, 5px)' },
+    };
+    const s = sizeStyles[size];
+    return (
+      <span
+        key={`a-${a}`}
+        title={meta.label}
+        className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
+        style={{
+          fontSize: s.fontSize,
+          padding: s.padding,
+          gap: s.gap,
+          background: outlined ? 'transparent' : tintBg(c),
+          boxShadow: outlined ? `inset 0 0 0 1.5px ${c}` : tintRing(c),
+        }}
+      >
+        <span aria-hidden>{meta.emoji}</span>
+        <span>{meta.label}</span>
+      </span>
+    );
+  };
+
+  // Helper: Öl-Pill rendern
+  const oilPill = (oilId: string, idx: number, size: 'sm' | 'md' | 'lg' | 'xs' = 'md', outlined = false) => {
+    const o = OIL_BY_ID[oilId];
+    if (!o) return null;
+    const c = colorForOil(oilId);
+    const sizeStyles = {
+      xs: { fontSize: 'clamp(9px, 2.2cqh, 13px)', padding: 'clamp(1px, 0.4cqh, 3px) clamp(4px, 0.9cqh, 7px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
+      sm: { fontSize: 'clamp(10px, 2.5cqh, 14px)', padding: 'clamp(2px, 0.5cqh, 4px) clamp(5px, 1.1cqh, 9px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
+      md: { fontSize: 'clamp(10px, 2.8cqh, 16px)', padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)', gap: 'clamp(2px, 0.5cqh, 5px)' },
+      lg: { fontSize: 'clamp(12px, 3.4cqh, 20px)', padding: 'clamp(3px, 0.9cqh, 7px) clamp(8px, 1.7cqh, 14px)', gap: 'clamp(2px, 0.6cqh, 6px)' },
+    };
+    const s = sizeStyles[size];
+    return (
+      <span
+        key={`o-${idx}-${oilId}`}
+        title={o.name}
+        className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
+        style={{
+          fontSize: s.fontSize,
+          padding: s.padding,
+          gap: s.gap,
+          background: outlined ? 'transparent' : tintBg(c),
+          boxShadow: outlined ? `inset 0 0 0 1.5px ${c}` : tintRing(c),
+        }}
+      >
+        <span aria-hidden>{o.emoji}</span>
+        <span>{o.name}</span>
+      </span>
+    );
+  };
+
+  const gap = 'clamp(3px, 0.8cqh, 8px)';
+  const subHeaderStyle: CSSProperties = {
+    fontSize: 'clamp(8px, 2cqh, 11px)',
+    letterSpacing: '0.12em',
+  };
+
+  switch (variant) {
+    // A — Klassisch: alle Pills eine flex-wrap Reihe (= aktueller Default)
+    case 'A':
+      return (
+        <div className="flex flex-wrap items-start flex-shrink-0" style={{ gap }}>
+          {attributes.map((a) => attrPill(a, 'md'))}
+          {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
+        </div>
+      );
+
+    // B — Eigenschaften in Titel-Header (oben gehandhabt). Hier nur Öle.
+    case 'B':
+      return oils.length === 0 ? null : (
+        <div className="flex flex-wrap items-start flex-shrink-0" style={{ gap }}>
+          {oils.map((oilId, i) => oilPill(oilId, i, 'lg'))}
+        </div>
+      );
+
+    // C — Sub-Header mit Mini-Labels
+    case 'C':
+      return (
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
+          {attributes.length > 0 && (
+            <div>
+              <p className="text-slate-500 font-bold uppercase mb-0.5" style={subHeaderStyle}>⚡ Stimmung</p>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {attributes.map((a) => attrPill(a, 'sm'))}
+              </div>
+            </div>
+          )}
+          {oils.length > 0 && (
+            <div>
+              <p className="text-amber-700 font-bold uppercase mb-0.5" style={subHeaderStyle}>🌿 Öle</p>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+    // D — Eine Reihe mit dezentem · Trenner
+    case 'D':
+      return (
+        <div className="flex flex-wrap items-center flex-shrink-0" style={{ gap }}>
+          {attributes.map((a) => attrPill(a, 'sm'))}
+          {attributes.length > 0 && oils.length > 0 && (
+            <span className="text-slate-400 font-bold mx-1" style={{ fontSize: 'clamp(12px, 3cqh, 18px)' }}>·</span>
+          )}
+          {oils.map((oilId, i) => oilPill(oilId, i, 'lg'))}
+        </div>
+      );
+
+    // E — Side-by-Side zwei Spalten
+    case 'E':
+      return (
+        <div className="flex flex-shrink-0" style={{ gap: 'clamp(6px, 1.5cqh, 12px)' }}>
+          {attributes.length > 0 && (
+            <div className="flex flex-col flex-1 min-w-0" style={{ gap }}>
+              {attributes.map((a) => attrPill(a, 'sm'))}
+            </div>
+          )}
+          {oils.length > 0 && (
+            <div className="flex flex-col flex-1 min-w-0" style={{ gap }}>
+              {oils.map((oilId, i) => oilPill(oilId, i, 'sm'))}
+            </div>
+          )}
+        </div>
+      );
+
+    // F — Bottom-Strip: Öle prominent, Eigenschaften winzig unten
+    case 'F':
+      return (
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(3px, 0.7cqh, 6px)' }}>
+          {oils.length > 0 && (
+            <div className="flex flex-wrap items-start" style={{ gap }}>
+              {oils.map((oilId, i) => oilPill(oilId, i, 'lg'))}
+            </div>
+          )}
+          {attributes.length > 0 && (
+            <div
+              className="flex items-center opacity-70"
+              style={{ gap: 'clamp(4px, 1cqh, 8px)', fontSize: 'clamp(11px, 2.8cqh, 17px)' }}
+            >
+              {attributes.map((a) => {
+                const meta = ATTR_BY_ID[a];
+                if (!meta) return null;
+                return <span key={`f-${a}`} title={meta.label}>{meta.emoji}</span>;
+              })}
+            </div>
+          )}
+        </div>
+      );
+
+    // G — Tag-Cloud mit Größenvariation
+    case 'G':
+      return (
+        <div className="flex flex-wrap items-center flex-shrink-0" style={{ gap }}>
+          {attributes.map((a) => attrPill(a, 'xs'))}
+          {oils.map((oilId, i) => oilPill(oilId, i, 'lg'))}
+        </div>
+      );
+
+    // H — Outlined Badges (GitHub-Style, clean)
+    case 'H':
+      return (
+        <div className="flex flex-wrap items-start flex-shrink-0" style={{ gap }}>
+          {attributes.map((a) => attrPill(a, 'md', true))}
+          {oils.map((oilId, i) => oilPill(oilId, i, 'md', true))}
+        </div>
+      );
+
+    default:
+      return null;
+  }
 }
