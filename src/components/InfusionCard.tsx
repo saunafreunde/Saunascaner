@@ -152,16 +152,16 @@ export function InfusionCard({
             <div
               className="relative flex-1 rounded-xl flex items-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
-                /* Titel-Box: +70% padding gegenüber Start-Uhrzeit-Box. */
-                padding: 'clamp(7px, 2cqh, 17px) clamp(14px, 3.4cqh, 27px)',
+                /* Titel-Box: war +70%, jetzt davon -20% (= +36% gegenüber Start-Uhrzeit-Box). */
+                padding: 'clamp(6px, 1.6cqh, 14px) clamp(11px, 2.7cqh, 22px)',
                 background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
               <h3
                 className="font-bold text-slate-900 leading-tight w-full"
-                /* Titel-Schrift: +70% gegenüber Start-Uhrzeit. */
-                style={{ fontSize: 'clamp(24px, 6.8cqh, 41px)' }}
+                /* Titel-Schrift: war +70%, jetzt davon -20% (= +36% gegenüber Start-Uhrzeit). */
+                style={{ fontSize: 'clamp(19px, 5.4cqh, 33px)' }}
               >
                 {infusion.title}
                 {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
