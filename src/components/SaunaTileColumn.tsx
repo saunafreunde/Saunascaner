@@ -151,8 +151,18 @@ export function SaunaTileColumn({
         </span>
       </div>
 
-      {/* 5 fixed tile slots — perspective hier gesetzt, damit Karten-rotateX (3D-Tilt) wirkt */}
-      <div className="flex-1 min-h-0 p-2 flex flex-col gap-2" style={{ perspective: '1400px', perspectiveOrigin: '50% 40%' }}>
+      {/* Fixes Grid: tilesPerColumn Reihen mit 1/N Höhe — auch wenn weniger
+          Tiles gerendert werden bleiben die übrigen in ihrer ursprünglichen
+          Größe. Nicht-gefüllte Reihen bleiben leer, das Branding-Hintergrund-
+          bild scheint dort durch (Tafel „läuft leer"). */}
+      <div
+        className="flex-1 min-h-0 p-2 grid gap-2"
+        style={{
+          perspective: '1400px',
+          perspectiveOrigin: '50% 40%',
+          gridTemplateRows: `repeat(${tilesPerColumn}, minmax(0, 1fr))`,
+        }}
+      >
         <AnimatePresence initial={false} mode="popLayout">
           {tiles.map(({ infusion: inf, slotTime }, slotIndex) =>
             inf ? (
@@ -161,7 +171,7 @@ export function SaunaTileColumn({
                   key={inf.id}
                   infusion={inf}
                   sauna={sauna}
-                  className="flex-1 min-h-0 overflow-hidden"
+                  className="min-h-0 h-full overflow-hidden"
                   backgroundImage={tileBgs[slotIndex] ?? null}
                 />
               ) : (
@@ -174,7 +184,7 @@ export function SaunaTileColumn({
                   coNames={coNames(inf.id)}
                   now={now}
                   compact
-                  className="flex-1 min-h-0 overflow-hidden"
+                  className="min-h-0 h-full overflow-hidden"
                   backgroundImage={tileBgs[slotIndex] ?? null}
                 />
               )
@@ -183,7 +193,7 @@ export function SaunaTileColumn({
                 key={`empty-${slotTime.toISOString()}`}
                 sauna={sauna}
                 slotTime={slotTime}
-                className="flex-1 min-h-0 overflow-hidden"
+                className="min-h-0 h-full overflow-hidden"
                 backgroundImage={tileBgs[slotIndex] ?? null}
               />
             ),
