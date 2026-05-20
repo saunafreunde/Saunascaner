@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -42,12 +41,6 @@ export default function Dashboard() {
   const scheduleQ = useScheduleSettings();
   const tilesPerColumn = scheduleQ.data?.tiles_per_column ?? 3;
   const mondayOpen = !!scheduleQ.data?.monday_open;
-
-  // Vergleichs-Modus via ?vergleich=1 — rendert pro Tile eine andere
-  // Pills-Variante (A-H) zum Vergleich. Stört den Live-Betrieb nicht,
-  // da nur bei explizitem URL-Param aktiv.
-  const [searchParams] = useSearchParams();
-  const comparisonMode = searchParams.get('vergleich') === '1';
 
   const [audioReady, setAudioReady] = useState(false);
 
@@ -151,8 +144,6 @@ export default function Dashboard() {
           tileBgs={brand.data?.tile_bgs?.[saunaId] ?? []}
           tilesPerColumn={tilesPerColumn}
           mondayOpen={mondayOpen}
-          comparisonMode={comparisonMode}
-          columnIndex={idx}
         />
       );
     };

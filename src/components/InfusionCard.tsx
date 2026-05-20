@@ -21,11 +21,6 @@ function tintRing(hex: string): string {
 
 const IMMINENT_MIN = 10;
 
-/** Pills-Layout-Variante für den Eigenschaften+Öle-Bereich.
- *  Wird im Vergleichs-Modus (?vergleich=1) zum Probieren genutzt.
- *  Default 'A' = klassisches Layout (eine flex-wrap Reihe). */
-export type PillsVariant = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
-
 export function InfusionCard({
   infusion,
   sauna,
@@ -36,8 +31,6 @@ export function InfusionCard({
   compact = false,
   className = '',
   backgroundImage = null,
-  pillsVariant = 'A',
-  comparisonMode = false,
 }: {
   infusion: Infusion;
   sauna: Sauna;
@@ -48,8 +41,6 @@ export function InfusionCard({
   compact?: boolean;
   className?: string;
   backgroundImage?: string | null;
-  pillsVariant?: PillsVariant;
-  comparisonMode?: boolean;
 }) {
   // Color-Overrides (Admin-konfigurierbar via Migration 0088).
   // Fallback wenn nicht gesetzt: sauna.accent_color (Attribute) bzw.
@@ -135,16 +126,6 @@ export function InfusionCard({
         style={{ backgroundColor: sauna.accent_color }}
       />
 
-      {/* Vergleichs-Modus: Variant-Badge oben links */}
-      {comparisonMode && (
-        <span
-          className="absolute top-2 left-3 z-10 rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-bold text-white ring-1 ring-white/40 shadow-lg"
-          style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
-        >
-          {pillsVariant}
-        </span>
-      )}
-
       {compact ? (
         <div className="flex flex-col flex-1 min-h-0 pl-3" style={{ gap: 'clamp(4px, 1.5cqh, 12px)' }}>
           {/* Header: Uhrzeit + Titel. Beide Schriftgrößen skalieren via cqh
@@ -198,9 +179,8 @@ export function InfusionCard({
             </p>
           )}
 
-          {/* Pills-Block: 8 verschiedene Anordnungs-Varianten zur Auswahl */}
+          {/* Pills-Block: Besonderheiten + Öle als Card-Style mit Header-Bar */}
           <PillsBlock
-            variant={pillsVariant}
             attributes={infusion.attributes}
             oils={oils}
             colorForAttr={colorForAttr}
@@ -356,309 +336,102 @@ export function InfusionCard({
   );
 }
 
-// ─── PillsBlock: 8 Anordnungs-Varianten ──────────────────────────────────
-// Wird im compact-Mode-InfusionCard verwendet. Variante A ist der Default
-// (klassische einreihige flex-wrap). Variante B blendet die Eigenschaften
-// stattdessen im Titel-Header ein (siehe Code oben) — hier rendern wir bei B
-// dann nur noch die Öle. Variante F hat zusätzlich einen Footer-Strip mit
-// Eigenschaften-Emojis ganz unten — der wird ebenfalls hier gehandelt.
+// ─── PillsBlock: Card-Style mit Header-Bar ──────────────────────────────
+// Zwei rounded Container, jeweils mit farbigem Header-Streifen oben +
+// Pills-Bereich darunter. Header für Eigenschaften: „⚡ Besonderheiten" auf
+// slate-Ton; Header für Öle: „🌿 Öle" auf amber-Ton.
 
 type PillsBlockProps = {
-  variant: PillsVariant;
   attributes: string[];
   oils: string[];
   colorForAttr: (id: string) => string;
   colorForOil: (id: string) => string;
 };
 
-function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: PillsBlockProps) {
+function PillsBlock({ attributes, oils, colorForAttr, colorForOil }: PillsBlockProps) {
   if (attributes.length === 0 && oils.length === 0) return null;
-
-  // Helper: Attribut-Pill rendern (Größe konfigurierbar)
-  const attrPill = (a: string, size: 'sm' | 'md' | 'lg' | 'xs' = 'md', outlined = false) => {
-    const meta = ATTR_BY_ID[a as InfusionAttribute];
-    if (!meta) return null;
-    const c = colorForAttr(a);
-    const sizeStyles = {
-      xs: { fontSize: 'clamp(9px, 2.2cqh, 13px)', padding: 'clamp(1px, 0.4cqh, 3px) clamp(4px, 0.9cqh, 7px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
-      sm: { fontSize: 'clamp(10px, 2.5cqh, 14px)', padding: 'clamp(2px, 0.5cqh, 4px) clamp(5px, 1.1cqh, 9px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
-      md: { fontSize: 'clamp(10px, 2.8cqh, 16px)', padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)', gap: 'clamp(2px, 0.5cqh, 5px)' },
-      lg: { fontSize: 'clamp(12px, 3.2cqh, 19px)', padding: 'clamp(3px, 0.8cqh, 6px) clamp(7px, 1.5cqh, 12px)', gap: 'clamp(2px, 0.5cqh, 5px)' },
-    };
-    const s = sizeStyles[size];
-    return (
-      <span
-        key={`a-${a}`}
-        title={meta.label}
-        className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
-        style={{
-          fontSize: s.fontSize,
-          padding: s.padding,
-          gap: s.gap,
-          background: outlined ? 'transparent' : tintBg(c),
-          boxShadow: outlined ? `inset 0 0 0 1.5px ${c}` : tintRing(c),
-        }}
-      >
-        <span aria-hidden>{meta.emoji}</span>
-        <span>{meta.label}</span>
-      </span>
-    );
-  };
-
-  // Helper: Öl-Pill rendern
-  const oilPill = (oilId: string, idx: number, size: 'sm' | 'md' | 'lg' | 'xs' = 'md', outlined = false) => {
-    const o = OIL_BY_ID[oilId];
-    if (!o) return null;
-    const c = colorForOil(oilId);
-    const sizeStyles = {
-      xs: { fontSize: 'clamp(9px, 2.2cqh, 13px)', padding: 'clamp(1px, 0.4cqh, 3px) clamp(4px, 0.9cqh, 7px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
-      sm: { fontSize: 'clamp(10px, 2.5cqh, 14px)', padding: 'clamp(2px, 0.5cqh, 4px) clamp(5px, 1.1cqh, 9px)', gap: 'clamp(2px, 0.4cqh, 4px)' },
-      md: { fontSize: 'clamp(10px, 2.8cqh, 16px)', padding: 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)', gap: 'clamp(2px, 0.5cqh, 5px)' },
-      lg: { fontSize: 'clamp(12px, 3.4cqh, 20px)', padding: 'clamp(3px, 0.9cqh, 7px) clamp(8px, 1.7cqh, 14px)', gap: 'clamp(2px, 0.6cqh, 6px)' },
-    };
-    const s = sizeStyles[size];
-    return (
-      <span
-        key={`o-${idx}-${oilId}`}
-        title={o.name}
-        className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
-        style={{
-          fontSize: s.fontSize,
-          padding: s.padding,
-          gap: s.gap,
-          background: outlined ? 'transparent' : tintBg(c),
-          boxShadow: outlined ? `inset 0 0 0 1.5px ${c}` : tintRing(c),
-        }}
-      >
-        <span aria-hidden>{o.emoji}</span>
-        <span>{o.name}</span>
-      </span>
-    );
-  };
 
   const gap = 'clamp(3px, 0.8cqh, 8px)';
   const subHeaderStyle: CSSProperties = {
     fontSize: 'clamp(8px, 2cqh, 11px)',
     letterSpacing: '0.12em',
   };
-  const padBox = 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)';
+  const headerPadding = 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)';
+  const pillsPadding = 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)';
+  const pillFontSize = 'clamp(10px, 2.8cqh, 16px)';
+  const pillPadding = 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)';
+  const pillGap = 'clamp(2px, 0.5cqh, 5px)';
 
-  switch (variant) {
-    // ═════════════════════════════════════════════════════════════════════
-    // D-Familie (Boxed/Container-Stile)
-    // ═════════════════════════════════════════════════════════════════════
-
-    // A — D-Klassisch: Ring + leichte bg, Label eingebettet oben links
-    case 'A':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
-          {attributes.length > 0 && (
-            <div className="relative rounded-lg ring-1 ring-slate-400/20 bg-slate-100/40" style={{ padding: padBox }}>
-              <span className="absolute -top-1.5 left-2 bg-white/95 px-1.5 rounded text-slate-500 font-bold uppercase" style={subHeaderStyle}>
-                ⚡ Stimmung
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="relative rounded-lg ring-1 ring-amber-500/30 bg-amber-50/50" style={{ padding: padBox }}>
-              <span className="absolute -top-1.5 left-2 bg-white/95 px-1.5 rounded text-amber-700 font-bold uppercase" style={subHeaderStyle}>
-                🌿 Öle
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
+  return (
+    <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
+      {attributes.length > 0 && (
+        <div className="rounded-lg ring-1 ring-slate-400/25 overflow-hidden">
+          <div
+            className="bg-slate-500/15 text-slate-700 font-bold uppercase"
+            style={{ ...subHeaderStyle, padding: headerPadding }}
+          >
+            ⚡ Besonderheiten
+          </div>
+          <div className="flex flex-wrap items-start bg-slate-100/40" style={{ gap, padding: pillsPadding }}>
+            {attributes.map((a) => {
+              const meta = ATTR_BY_ID[a as InfusionAttribute];
+              if (!meta) return null;
+              const c = colorForAttr(a);
+              return (
+                <span
+                  key={`a-${a}`}
+                  title={meta.label}
+                  className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
+                  style={{
+                    fontSize: pillFontSize,
+                    padding: pillPadding,
+                    gap: pillGap,
+                    background: tintBg(c),
+                    boxShadow: tintRing(c),
+                  }}
+                >
+                  <span aria-hidden>{meta.emoji}</span>
+                  <span>{meta.label}</span>
+                </span>
+              );
+            })}
+          </div>
         </div>
-      );
-
-    // B — D-Label oben rechts: gleicher Stil aber Label in der rechten oberen Ecke
-    case 'B':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
-          {attributes.length > 0 && (
-            <div className="relative rounded-lg ring-1 ring-slate-400/20 bg-slate-100/40" style={{ padding: padBox }}>
-              <span className="absolute -top-1.5 right-2 bg-white/95 px-1.5 rounded text-slate-500 font-bold uppercase" style={subHeaderStyle}>
-                ⚡ Stimmung
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="relative rounded-lg ring-1 ring-amber-500/30 bg-amber-50/50" style={{ padding: padBox }}>
-              <span className="absolute -top-1.5 right-2 bg-white/95 px-1.5 rounded text-amber-700 font-bold uppercase" style={subHeaderStyle}>
-                🌿 Öle
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
+      )}
+      {oils.length > 0 && (
+        <div className="rounded-lg ring-1 ring-amber-500/30 overflow-hidden">
+          <div
+            className="bg-amber-500/20 text-amber-800 font-bold uppercase"
+            style={{ ...subHeaderStyle, padding: headerPadding }}
+          >
+            🌿 Öle
+          </div>
+          <div className="flex flex-wrap items-start bg-amber-50/40" style={{ gap, padding: pillsPadding }}>
+            {oils.map((oilId, i) => {
+              const o = OIL_BY_ID[oilId];
+              if (!o) return null;
+              const c = colorForOil(oilId);
+              return (
+                <span
+                  key={`o-${i}-${oilId}`}
+                  title={o.name}
+                  className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
+                  style={{
+                    fontSize: pillFontSize,
+                    padding: pillPadding,
+                    gap: pillGap,
+                    background: tintBg(c),
+                    boxShadow: tintRing(c),
+                  }}
+                >
+                  <span aria-hidden>{o.emoji}</span>
+                  <span>{o.name}</span>
+                </span>
+              );
+            })}
+          </div>
         </div>
-      );
-
-    // C — D-Header-Bar: Box mit eigenem farbigem Header-Streifen oben (Card-Style)
-    case 'C':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
-          {attributes.length > 0 && (
-            <div className="rounded-lg ring-1 ring-slate-400/25 overflow-hidden">
-              <div className="bg-slate-500/15 text-slate-700 font-bold uppercase" style={{ ...subHeaderStyle, padding: 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)' }}>
-                ⚡ Stimmung
-              </div>
-              <div className="flex flex-wrap items-start bg-slate-100/40" style={{ gap, padding: padBox }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="rounded-lg ring-1 ring-amber-500/30 overflow-hidden">
-              <div className="bg-amber-500/20 text-amber-800 font-bold uppercase" style={{ ...subHeaderStyle, padding: 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)' }}>
-                🌿 Öle
-              </div>
-              <div className="flex flex-wrap items-start bg-amber-50/40" style={{ gap, padding: padBox }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-
-    // D — D-Floating-Pill-Label: Label als runde Pill links überlappend außerhalb
-    case 'D':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(6px, 1.2cqh, 12px)' }}>
-          {attributes.length > 0 && (
-            <div className="relative rounded-lg bg-slate-100/50 ring-1 ring-slate-400/20" style={{ padding: padBox, marginLeft: 'clamp(20px, 4cqh, 36px)' }}>
-              <span className="absolute -left-3 top-1/2 -translate-y-1/2 rounded-full bg-slate-700 text-white font-bold px-2 py-0.5 shadow-md" style={{ fontSize: 'clamp(9px, 2.2cqh, 12px)' }}>
-                ⚡
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="relative rounded-lg bg-amber-50/50 ring-1 ring-amber-500/30" style={{ padding: padBox, marginLeft: 'clamp(20px, 4cqh, 36px)' }}>
-              <span className="absolute -left-3 top-1/2 -translate-y-1/2 rounded-full bg-amber-700 text-white font-bold px-2 py-0.5 shadow-md" style={{ fontSize: 'clamp(9px, 2.2cqh, 12px)' }}>
-                🌿
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-
-    // E — D-Border-Top-Akzent: nur farbiger Top-Border + Label, kein umlaufender Ring
-    case 'E':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
-          {attributes.length > 0 && (
-            <div className="bg-slate-100/30" style={{ padding: padBox, borderTop: '3px solid rgba(100,116,139,0.5)', borderRadius: '4px' }}>
-              <p className="text-slate-500 font-bold uppercase mb-1" style={subHeaderStyle}>⚡ Stimmung</p>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="bg-amber-50/40" style={{ padding: padBox, borderTop: '3px solid rgba(217,119,6,0.6)', borderRadius: '4px' }}>
-              <p className="text-amber-700 font-bold uppercase mb-1" style={subHeaderStyle}>🌿 Öle</p>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-
-    // F — D-Solid-Pastell: weicher pastellfarbener Block, kein Border, Label oben
-    case 'F':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
-          {attributes.length > 0 && (
-            <div className="rounded-xl bg-slate-200/55" style={{ padding: padBox }}>
-              <p className="text-slate-600 font-bold uppercase mb-1" style={subHeaderStyle}>⚡ Stimmung</p>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="rounded-xl bg-amber-100/70" style={{ padding: padBox }}>
-              <p className="text-amber-800 font-bold uppercase mb-1" style={subHeaderStyle}>🌿 Öle</p>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-
-    // G — D-Shadow-Floating: Card mit Drop-Shadow + Label eingehängt oben als Pill
-    case 'G':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(8px, 1.5cqh, 14px)' }}>
-          {attributes.length > 0 && (
-            <div className="relative rounded-xl bg-white shadow-md" style={{ padding: 'clamp(8px, 1.6cqh, 14px) clamp(8px, 1.8cqh, 14px) clamp(5px, 1.1cqh, 9px)' }}>
-              <span
-                className="absolute -top-2 left-3 rounded-full bg-slate-600 text-white font-bold uppercase shadow-sm"
-                style={{ ...subHeaderStyle, padding: 'clamp(1px, 0.4cqh, 3px) clamp(6px, 1.4cqh, 11px)' }}
-              >
-                ⚡ Stimmung
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="relative rounded-xl bg-white shadow-md" style={{ padding: 'clamp(8px, 1.6cqh, 14px) clamp(8px, 1.8cqh, 14px) clamp(5px, 1.1cqh, 9px)' }}>
-              <span
-                className="absolute -top-2 left-3 rounded-full bg-amber-700 text-white font-bold uppercase shadow-sm"
-                style={{ ...subHeaderStyle, padding: 'clamp(1px, 0.4cqh, 3px) clamp(6px, 1.4cqh, 11px)' }}
-              >
-                🌿 Öle
-              </span>
-              <div className="flex flex-wrap items-start" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-
-    // H — D-Icon-only-Header: nur das große Emoji als visueller Marker, kein Text
-    case 'H':
-      return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
-          {attributes.length > 0 && (
-            <div className="rounded-lg ring-1 ring-slate-400/20 bg-slate-100/40 flex items-start" style={{ padding: padBox, gap: 'clamp(6px, 1.4cqh, 12px)' }}>
-              <span className="leading-none flex-shrink-0" style={{ fontSize: 'clamp(18px, 4.5cqh, 28px)' }}>⚡</span>
-              <div className="flex flex-wrap items-start flex-1 min-w-0" style={{ gap }}>
-                {attributes.map((a) => attrPill(a, 'sm'))}
-              </div>
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="rounded-lg ring-1 ring-amber-500/30 bg-amber-50/50 flex items-start" style={{ padding: padBox, gap: 'clamp(6px, 1.4cqh, 12px)' }}>
-              <span className="leading-none flex-shrink-0" style={{ fontSize: 'clamp(18px, 4.5cqh, 28px)' }}>🌿</span>
-              <div className="flex flex-wrap items-start flex-1 min-w-0" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-
-    default:
-      return null;
-  }
+      )}
+    </div>
+  );
 }
