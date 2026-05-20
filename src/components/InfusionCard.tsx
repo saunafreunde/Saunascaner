@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { differenceInMinutes } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
-import { ATTR_BY_ID } from '@/lib/attributes';
+import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { useAttributeColors, useOilColors } from '@/lib/api';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
@@ -391,7 +391,7 @@ function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: Pi
 
   // Helper: Attribut-Pill rendern (Größe konfigurierbar)
   const attrPill = (a: string, size: 'sm' | 'md' | 'lg' | 'xs' = 'md', outlined = false) => {
-    const meta = ATTR_BY_ID[a];
+    const meta = ATTR_BY_ID[a as InfusionAttribute];
     if (!meta) return null;
     const c = colorForAttr(a);
     const sizeStyles = {
@@ -542,7 +542,7 @@ function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: Pi
               style={{ gap: 'clamp(4px, 1cqh, 8px)', fontSize: 'clamp(11px, 2.8cqh, 17px)' }}
             >
               {attributes.map((a) => {
-                const meta = ATTR_BY_ID[a];
+                const meta = ATTR_BY_ID[a as InfusionAttribute];
                 if (!meta) return null;
                 return <span key={`f-${a}`} title={meta.label}>{meta.emoji}</span>;
               })}
