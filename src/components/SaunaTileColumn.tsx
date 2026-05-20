@@ -22,8 +22,19 @@ interface SaunaTileColumnProps {
   mondayOpen?: boolean;
 }
 
+/** Stunde ab der die Tafel auf den nächsten Sauna-Tag wechselt.
+ *  Vorher: heutiger Tag bleibt sichtbar (Liste „läuft leer" wenn alle
+ *  Slots vorbei sind — bleibt dann leer bis NEXT_DAY_SWITCH_HOUR). */
+const NEXT_DAY_SWITCH_HOUR = 21;
+
 /**
  * Liefert die nächsten N Slot-Start-Zeitpunkte ab `from`.
+ *
+ * Tagesgrenze: solange `from.getHours() < NEXT_DAY_SWITCH_HOUR` werden
+ * NUR Slots des aktuellen Tages zurückgegeben. Wenn keine mehr da sind →
+ * leere Liste → Tafel zeigt Feierabend (keine Tiles). Ab 21:00 schaltet
+ * die Tafel auf den nächsten Sauna-Tag (Mo wird ggf. übersprungen wenn
+ * mondayOpen=false).
  *
  * Cutoff-Regel pro Slot:
  *   - Wenn IRGENDEINE Sauna für diesen Slot einen Aufguss hat → cutoff =
@@ -34,9 +45,6 @@ interface SaunaTileColumnProps {
  * nicht pro Sauna. Dadurch zeigen 80°C und 100°C immer die gleichen
  * Stunden-Slots an (Symmetrie). Wenn 80°C einen laufenden Aufguss bis
  * 16:30 hat, bleibt der 16:00-Slot in BEIDEN Spalten bis 16:31 sichtbar.
- *
- * Damit ist der Slot 15 Min nach Aufguss-Ende weg — kein „Hänger" mehr
- * bis zur vollen Stunde (alte Logik) und keine Asymmetrie (Sauna-spezifisch).
  */
 function nextSlotStarts(
   n: number,
@@ -45,9 +53,13 @@ function nextSlotStarts(
   globalSlotEnds: Map<number, number>,
 ): Date[] {
   const result: Date[] = [];
-  let dayOffset = 0;
   const startHour = from.getHours();
-  while (result.length < n && dayOffset < 8) {
+  // Ab 21:00 zeigt die Tafel den nächsten Sauna-Tag.
+  // Vorher: ausschließlich heute (auch wenn die Liste leer ausläuft).
+  const startDayOffset = startHour >= NEXT_DAY_SWITCH_HOUR ? 1 : 0;
+  const maxDayOffset = startHour >= NEXT_DAY_SWITCH_HOUR ? 8 : 1;
+  let dayOffset = startDayOffset;
+  while (result.length < n && dayOffset < maxDayOffset) {
     const weekday = (from.getDay() + dayOffset) % 7;
     const hours = slotHoursForWeekday(weekday, { mondayOpen });
     for (const h of hours) {
