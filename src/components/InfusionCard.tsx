@@ -441,31 +441,32 @@ function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: Pi
     fontSize: 'clamp(8px, 2cqh, 11px)',
     letterSpacing: '0.12em',
   };
-  const colSubHeader: CSSProperties = {
-    fontSize: 'clamp(9px, 2.1cqh, 12px)',
-    letterSpacing: '0.1em',
-  };
+  const padBox = 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)';
 
   switch (variant) {
     // ═════════════════════════════════════════════════════════════════════
-    // C-Familie (Sub-Header über/neben den Gruppen)
+    // D-Familie (Boxed/Container-Stile)
     // ═════════════════════════════════════════════════════════════════════
 
-    // A — C-Klassisch: ⚡ STIMMUNG oben + Pills, 🌿 ÖLE oben + Pills
+    // A — D-Klassisch: Ring + leichte bg, Label eingebettet oben links
     case 'A':
       return (
         <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
           {attributes.length > 0 && (
-            <div>
-              <p className="text-slate-500 font-bold uppercase mb-0.5" style={subHeaderStyle}>⚡ Stimmung</p>
+            <div className="relative rounded-lg ring-1 ring-slate-400/20 bg-slate-100/40" style={{ padding: padBox }}>
+              <span className="absolute -top-1.5 left-2 bg-white/95 px-1.5 rounded text-slate-500 font-bold uppercase" style={subHeaderStyle}>
+                ⚡ Stimmung
+              </span>
               <div className="flex flex-wrap items-start" style={{ gap }}>
                 {attributes.map((a) => attrPill(a, 'sm'))}
               </div>
             </div>
           )}
           {oils.length > 0 && (
-            <div>
-              <p className="text-amber-700 font-bold uppercase mb-0.5" style={subHeaderStyle}>🌿 Öle</p>
+            <div className="relative rounded-lg ring-1 ring-amber-500/30 bg-amber-50/50" style={{ padding: padBox }}>
+              <span className="absolute -top-1.5 left-2 bg-white/95 px-1.5 rounded text-amber-700 font-bold uppercase" style={subHeaderStyle}>
+                🌿 Öle
+              </span>
               <div className="flex flex-wrap items-start" style={{ gap }}>
                 {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
               </div>
@@ -474,66 +475,142 @@ function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: Pi
         </div>
       );
 
-    // B — C-Inline: Label links neben den Pills in derselben Zeile (kompakt)
+    // B — D-Label oben rechts: gleicher Stil aber Label in der rechten oberen Ecke
     case 'B':
       return (
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(3px, 0.8cqh, 8px)' }}>
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
           {attributes.length > 0 && (
-            <div className="flex items-center flex-wrap" style={{ gap }}>
-              <span className="text-slate-500 font-bold uppercase flex-shrink-0" style={subHeaderStyle}>⚡</span>
-              {attributes.map((a) => attrPill(a, 'sm'))}
+            <div className="relative rounded-lg ring-1 ring-slate-400/20 bg-slate-100/40" style={{ padding: padBox }}>
+              <span className="absolute -top-1.5 right-2 bg-white/95 px-1.5 rounded text-slate-500 font-bold uppercase" style={subHeaderStyle}>
+                ⚡ Stimmung
+              </span>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {attributes.map((a) => attrPill(a, 'sm'))}
+              </div>
             </div>
           )}
           {oils.length > 0 && (
-            <div className="flex items-center flex-wrap" style={{ gap }}>
-              <span className="text-amber-700 font-bold uppercase flex-shrink-0" style={subHeaderStyle}>🌿</span>
-              {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
+            <div className="relative rounded-lg ring-1 ring-amber-500/30 bg-amber-50/50" style={{ padding: padBox }}>
+              <span className="absolute -top-1.5 right-2 bg-white/95 px-1.5 rounded text-amber-700 font-bold uppercase" style={subHeaderStyle}>
+                🌿 Öle
+              </span>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
+              </div>
             </div>
           )}
         </div>
       );
 
-    // C — C-Akzent-Stab: vertikaler Sauna-Akzent-Balken links neben jeder Gruppe + Label
+    // C — D-Header-Bar: Box mit eigenem farbigem Header-Streifen oben (Card-Style)
     case 'C':
       return (
         <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
           {attributes.length > 0 && (
-            <div className="flex items-stretch" style={{ gap: 'clamp(5px, 1.2cqh, 10px)' }}>
-              <span className="w-0.5 flex-shrink-0 rounded-full bg-slate-400/60" />
-              <div className="flex-1 min-w-0">
-                <p className="text-slate-500 font-bold uppercase" style={subHeaderStyle}>Stimmung</p>
-                <div className="flex flex-wrap items-start mt-0.5" style={{ gap }}>
-                  {attributes.map((a) => attrPill(a, 'sm'))}
-                </div>
+            <div className="rounded-lg ring-1 ring-slate-400/25 overflow-hidden">
+              <div className="bg-slate-500/15 text-slate-700 font-bold uppercase" style={{ ...subHeaderStyle, padding: 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)' }}>
+                ⚡ Stimmung
+              </div>
+              <div className="flex flex-wrap items-start bg-slate-100/40" style={{ gap, padding: padBox }}>
+                {attributes.map((a) => attrPill(a, 'sm'))}
               </div>
             </div>
           )}
           {oils.length > 0 && (
-            <div className="flex items-stretch" style={{ gap: 'clamp(5px, 1.2cqh, 10px)' }}>
-              <span className="w-0.5 flex-shrink-0 rounded-full bg-amber-600/70" />
-              <div className="flex-1 min-w-0">
-                <p className="text-amber-700 font-bold uppercase" style={subHeaderStyle}>Öle</p>
-                <div className="flex flex-wrap items-start mt-0.5" style={{ gap }}>
-                  {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-                </div>
+            <div className="rounded-lg ring-1 ring-amber-500/30 overflow-hidden">
+              <div className="bg-amber-500/20 text-amber-800 font-bold uppercase" style={{ ...subHeaderStyle, padding: 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)' }}>
+                🌿 Öle
+              </div>
+              <div className="flex flex-wrap items-start bg-amber-50/40" style={{ gap, padding: padBox }}>
+                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
               </div>
             </div>
           )}
         </div>
       );
 
-    // D — C-Boxed: Pills in dezenter Box mit Mini-Label oben in der Box-Ecke
+    // D — D-Floating-Pill-Label: Label als runde Pill links überlappend außerhalb
     case 'D':
+      return (
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(6px, 1.2cqh, 12px)' }}>
+          {attributes.length > 0 && (
+            <div className="relative rounded-lg bg-slate-100/50 ring-1 ring-slate-400/20" style={{ padding: padBox, marginLeft: 'clamp(20px, 4cqh, 36px)' }}>
+              <span className="absolute -left-3 top-1/2 -translate-y-1/2 rounded-full bg-slate-700 text-white font-bold px-2 py-0.5 shadow-md" style={{ fontSize: 'clamp(9px, 2.2cqh, 12px)' }}>
+                ⚡
+              </span>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {attributes.map((a) => attrPill(a, 'sm'))}
+              </div>
+            </div>
+          )}
+          {oils.length > 0 && (
+            <div className="relative rounded-lg bg-amber-50/50 ring-1 ring-amber-500/30" style={{ padding: padBox, marginLeft: 'clamp(20px, 4cqh, 36px)' }}>
+              <span className="absolute -left-3 top-1/2 -translate-y-1/2 rounded-full bg-amber-700 text-white font-bold px-2 py-0.5 shadow-md" style={{ fontSize: 'clamp(9px, 2.2cqh, 12px)' }}>
+                🌿
+              </span>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+    // E — D-Border-Top-Akzent: nur farbiger Top-Border + Label, kein umlaufender Ring
+    case 'E':
       return (
         <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
           {attributes.length > 0 && (
-            <div
-              className="relative rounded-lg ring-1 ring-slate-400/20 bg-slate-100/40"
-              style={{ padding: 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px) clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)' }}
-            >
+            <div className="bg-slate-100/30" style={{ padding: padBox, borderTop: '3px solid rgba(100,116,139,0.5)', borderRadius: '4px' }}>
+              <p className="text-slate-500 font-bold uppercase mb-1" style={subHeaderStyle}>⚡ Stimmung</p>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {attributes.map((a) => attrPill(a, 'sm'))}
+              </div>
+            </div>
+          )}
+          {oils.length > 0 && (
+            <div className="bg-amber-50/40" style={{ padding: padBox, borderTop: '3px solid rgba(217,119,6,0.6)', borderRadius: '4px' }}>
+              <p className="text-amber-700 font-bold uppercase mb-1" style={subHeaderStyle}>🌿 Öle</p>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+    // F — D-Solid-Pastell: weicher pastellfarbener Block, kein Border, Label oben
+    case 'F':
+      return (
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
+          {attributes.length > 0 && (
+            <div className="rounded-xl bg-slate-200/55" style={{ padding: padBox }}>
+              <p className="text-slate-600 font-bold uppercase mb-1" style={subHeaderStyle}>⚡ Stimmung</p>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {attributes.map((a) => attrPill(a, 'sm'))}
+              </div>
+            </div>
+          )}
+          {oils.length > 0 && (
+            <div className="rounded-xl bg-amber-100/70" style={{ padding: padBox }}>
+              <p className="text-amber-800 font-bold uppercase mb-1" style={subHeaderStyle}>🌿 Öle</p>
+              <div className="flex flex-wrap items-start" style={{ gap }}>
+                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+    // G — D-Shadow-Floating: Card mit Drop-Shadow + Label eingehängt oben als Pill
+    case 'G':
+      return (
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(8px, 1.5cqh, 14px)' }}>
+          {attributes.length > 0 && (
+            <div className="relative rounded-xl bg-white shadow-md" style={{ padding: 'clamp(8px, 1.6cqh, 14px) clamp(8px, 1.8cqh, 14px) clamp(5px, 1.1cqh, 9px)' }}>
               <span
-                className="absolute -top-1.5 left-2 bg-white/95 px-1.5 rounded text-slate-500 font-bold uppercase"
-                style={subHeaderStyle}
+                className="absolute -top-2 left-3 rounded-full bg-slate-600 text-white font-bold uppercase shadow-sm"
+                style={{ ...subHeaderStyle, padding: 'clamp(1px, 0.4cqh, 3px) clamp(6px, 1.4cqh, 11px)' }}
               >
                 ⚡ Stimmung
               </span>
@@ -543,13 +620,10 @@ function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: Pi
             </div>
           )}
           {oils.length > 0 && (
-            <div
-              className="relative rounded-lg ring-1 ring-amber-500/30 bg-amber-50/50"
-              style={{ padding: 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px) clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)' }}
-            >
+            <div className="relative rounded-xl bg-white shadow-md" style={{ padding: 'clamp(8px, 1.6cqh, 14px) clamp(8px, 1.8cqh, 14px) clamp(5px, 1.1cqh, 9px)' }}>
               <span
-                className="absolute -top-1.5 left-2 bg-white/95 px-1.5 rounded text-amber-700 font-bold uppercase"
-                style={subHeaderStyle}
+                className="absolute -top-2 left-3 rounded-full bg-amber-700 text-white font-bold uppercase shadow-sm"
+                style={{ ...subHeaderStyle, padding: 'clamp(1px, 0.4cqh, 3px) clamp(6px, 1.4cqh, 11px)' }}
               >
                 🌿 Öle
               </span>
@@ -561,94 +635,26 @@ function PillsBlock({ variant, attributes, oils, colorForAttr, colorForOil }: Pi
         </div>
       );
 
-    // ═════════════════════════════════════════════════════════════════════
-    // E-Familie (Side-by-Side zwei Spalten)
-    // ═════════════════════════════════════════════════════════════════════
-
-    // E — E-Klassisch: 50/50 zwei Spalten, Pills gestapelt vertikal
-    case 'E':
+    // H — D-Icon-only-Header: nur das große Emoji als visueller Marker, kein Text
+    case 'H':
       return (
-        <div className="flex flex-shrink-0" style={{ gap: 'clamp(6px, 1.5cqh, 12px)' }}>
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
           {attributes.length > 0 && (
-            <div className="flex flex-col flex-1 min-w-0" style={{ gap }}>
-              {attributes.map((a) => attrPill(a, 'sm'))}
-            </div>
-          )}
-          {oils.length > 0 && (
-            <div className="flex flex-col flex-1 min-w-0" style={{ gap }}>
-              {oils.map((oilId, i) => oilPill(oilId, i, 'sm'))}
-            </div>
-          )}
-        </div>
-      );
-
-    // F — E-mit-Trenner: 50/50 mit vertikaler Linie dazwischen
-    case 'F':
-      return (
-        <div className="flex flex-shrink-0 items-stretch" style={{ gap: 'clamp(6px, 1.5cqh, 12px)' }}>
-          {attributes.length > 0 && (
-            <div className="flex flex-col flex-1 min-w-0" style={{ gap }}>
-              {attributes.map((a) => attrPill(a, 'sm'))}
-            </div>
-          )}
-          {attributes.length > 0 && oils.length > 0 && (
-            <span className="w-px self-stretch bg-slate-300/60 flex-shrink-0" />
-          )}
-          {oils.length > 0 && (
-            <div className="flex flex-col flex-1 min-w-0" style={{ gap }}>
-              {oils.map((oilId, i) => oilPill(oilId, i, 'sm'))}
-            </div>
-          )}
-        </div>
-      );
-
-    // G — E-mit-Headern: 50/50 plus Sub-Header oben über jeder Spalte
-    case 'G':
-      return (
-        <div className="flex flex-shrink-0" style={{ gap: 'clamp(6px, 1.5cqh, 12px)' }}>
-          {attributes.length > 0 && (
-            <div className="flex-1 min-w-0">
-              <p className="text-slate-500 font-bold uppercase mb-1" style={colSubHeader}>⚡ Stimmung</p>
-              <div className="flex flex-col" style={{ gap }}>
+            <div className="rounded-lg ring-1 ring-slate-400/20 bg-slate-100/40 flex items-start" style={{ padding: padBox, gap: 'clamp(6px, 1.4cqh, 12px)' }}>
+              <span className="leading-none flex-shrink-0" style={{ fontSize: 'clamp(18px, 4.5cqh, 28px)' }}>⚡</span>
+              <div className="flex flex-wrap items-start flex-1 min-w-0" style={{ gap }}>
                 {attributes.map((a) => attrPill(a, 'sm'))}
               </div>
             </div>
           )}
           {oils.length > 0 && (
-            <div className="flex-1 min-w-0">
-              <p className="text-amber-700 font-bold uppercase mb-1" style={colSubHeader}>🌿 Öle</p>
-              <div className="flex flex-col" style={{ gap }}>
-                {oils.map((oilId, i) => oilPill(oilId, i, 'sm'))}
+            <div className="rounded-lg ring-1 ring-amber-500/30 bg-amber-50/50 flex items-start" style={{ padding: padBox, gap: 'clamp(6px, 1.4cqh, 12px)' }}>
+              <span className="leading-none flex-shrink-0" style={{ fontSize: 'clamp(18px, 4.5cqh, 28px)' }}>🌿</span>
+              <div className="flex flex-wrap items-start flex-1 min-w-0" style={{ gap }}>
+                {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
               </div>
             </div>
           )}
-        </div>
-      );
-
-    // H — E-asymmetrisch: Eigenschaften schmale Spalte (1fr), Öle prominent (2fr)
-    case 'H':
-      return (
-        <div className="grid flex-shrink-0" style={{ gap: 'clamp(6px, 1.5cqh, 12px)', gridTemplateColumns: '1fr 2fr' }}>
-          <div className="min-w-0">
-            {attributes.length > 0 && (
-              <>
-                <p className="text-slate-500 font-bold uppercase mb-1" style={colSubHeader}>⚡</p>
-                <div className="flex flex-col" style={{ gap: 'clamp(2px, 0.5cqh, 5px)' }}>
-                  {attributes.map((a) => attrPill(a, 'xs'))}
-                </div>
-              </>
-            )}
-          </div>
-          <div className="min-w-0">
-            {oils.length > 0 && (
-              <>
-                <p className="text-amber-700 font-bold uppercase mb-1" style={colSubHeader}>🌿 Öle</p>
-                <div className="flex flex-col" style={{ gap }}>
-                  {oils.map((oilId, i) => oilPill(oilId, i, 'md'))}
-                </div>
-              </>
-            )}
-          </div>
         </div>
       );
 
