@@ -160,8 +160,8 @@ export function InfusionCard({
             >
               <h3
                 className="font-bold text-slate-900 leading-tight w-full"
-                /* Titel-Schrift: war +70%, jetzt davon -20% (= +36% gegenüber Start-Uhrzeit). */
-                style={{ fontSize: 'clamp(19px, 5.4cqh, 33px)' }}
+                /* Titel-Schrift: war clamp(19, 5.4cqh, 33), jetzt +10%. */
+                style={{ fontSize: 'clamp(21px, 5.9cqh, 36px)' }}
               >
                 {infusion.title}
                 {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
