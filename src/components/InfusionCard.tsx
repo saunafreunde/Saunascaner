@@ -98,7 +98,7 @@ export function InfusionCard({
         opacity: { duration: 0.35 },
         boxShadow: imminent ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 },
       }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/85'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/80'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
         running
           ? 'ring-emerald-500/60'
           : imminent
