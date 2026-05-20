@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ATTRIBUTES, type InfusionAttribute } from '@/lib/attributes';
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { generateInfusionTitle } from '@/lib/titleGenerator';
-import { useUpdateInfusion, useSuggestInfusionTitle } from '@/lib/api';
+import {
+  useUpdateInfusion, useSuggestInfusionTitle,
+  useCurrentMember, useMeisterDirectory, useCoAufgieser, useAdminSetCoAufgieser,
+} from '@/lib/api';
+import { isAdmin as isAdminHelper } from '@/lib/roles';
 import OilPicker from '@/components/OilPicker';
 import type { Infusion } from '@/types/database';
 
 // Bearbeiten eines bestehenden Aufgusses. Änderbar:
 //   - Titel, Beschreibung, Attribute, Öle, Team-Flag, Duration
-// NICHT änderbar (würde Slot-Logik brechen): start_time, sauna_id, saunameister_id.
+//   - Admin: zusätzlich Saunameister + (bei team_infusion) Co-Aufgießer
+// NICHT änderbar (würde Slot-Logik brechen): start_time, sauna_id.
 // Server-Side: 60-Min-Lock für Aufgießer (Admin jederzeit).
 
 export function EditInfusionModal({
@@ -30,8 +35,28 @@ export function EditInfusionModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
+  const me = useCurrentMember();
+  const isAdmin = isAdminHelper(me.data);
+  const meisterDir = useMeisterDirectory();
+
+  // Saunameister-Auswahl (nur Admin sieht das Dropdown im UI)
+  const [saunameisterId, setSaunameisterId] = useState<string>(infusion.saunameister_id ?? '');
+
+  // Co-Aufgießer-Auswahl bei Team-Aufgüssen (Admin-only)
+  const coAufQ = useCoAufgieser(teamInfusion ? [infusion.id] : []);
+  const existingCoIds = useMemo(
+    () => (coAufQ.data ?? []).filter((c) => c.infusion_id === infusion.id).map((c) => c.member_id),
+    [coAufQ.data, infusion.id],
+  );
+  const [coAufgieserIds, setCoAufgieserIds] = useState<string[]>([]);
+  // Wenn Liste async nachgeladen wird, einmal in den State spiegeln
+  useEffect(() => {
+    setCoAufgieserIds(existingCoIds);
+  }, [existingCoIds]);
+
   const update = useUpdateInfusion();
   const suggestTitle = useSuggestInfusionTitle();
+  const setCoAuf = useAdminSetCoAufgieser();
 
   // Esc schließt
   useEffect(() => {
@@ -47,6 +72,8 @@ export function EditInfusionModal({
   async function save() {
     setErrorMsg(null);
     try {
+      // Update Basis-Felder + (Admin) Saunameister-Wechsel
+      const meisterChanged = isAdmin && saunameisterId && saunameisterId !== infusion.saunameister_id;
       await update.mutateAsync({
         id: infusion.id,
         title: title.trim() || undefined,
@@ -55,10 +82,17 @@ export function EditInfusionModal({
         oils,
         team_infusion: teamInfusion,
         duration_minutes: duration,
+        saunameister_id: meisterChanged ? saunameisterId : null,
       });
-      // Save erfolgreich — UI bestätigt VISUELL bevor Modal schließt,
-      // damit der User sieht: ja, gespeichert. 700ms reichen für die
-      // Wahrnehmung, ohne zu nerven.
+      // Admin + Team: Co-Aufgießer atomar überschreiben
+      if (isAdmin && teamInfusion) {
+        const cur = [...existingCoIds].sort().join(',');
+        const next = [...coAufgieserIds].sort().join(',');
+        if (cur !== next) {
+          await setCoAuf.mutateAsync({ infusion_id: infusion.id, member_ids: coAufgieserIds });
+        }
+      }
+      // Save erfolgreich — UI bestätigt VISUELL bevor Modal schließt.
       setSavedFlash(true);
       setTimeout(() => {
         onSaved?.();
@@ -71,6 +105,15 @@ export function EditInfusionModal({
       // eslint-disable-next-line no-console
       console.error('[EditInfusionModal] save error', err);
     }
+  }
+
+  function toggleCoAufgieser(memberId: string) {
+    setCoAufgieserIds((prev) => {
+      if (prev.includes(memberId)) return prev.filter((x) => x !== memberId);
+      // Max 2 — wenn schon 2 drin, neuesten verdrängen
+      if (prev.length >= 2) return [prev[1], memberId];
+      return [...prev, memberId];
+    });
   }
 
   const oilCount = oils.filter(Boolean).length;
@@ -203,6 +246,60 @@ export function EditInfusionModal({
             </label>
           </div>
 
+          {/* Admin-only: Saunameister wechseln */}
+          {isAdmin && (
+            <div>
+              <label className="text-xs font-semibold text-violet-300 uppercase tracking-wider">
+                ⚙️ Saunameister <span className="text-forest-400/60 normal-case">(Admin)</span>
+              </label>
+              <select
+                value={saunameisterId}
+                onChange={(e) => setSaunameisterId(e.target.value)}
+                className="mt-1 w-full rounded-lg bg-forest-900/60 ring-1 ring-violet-700/40 px-3 py-2 text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-violet-400"
+              >
+                <option value="">— niemand zugewiesen —</option>
+                {(meisterDir.data ?? []).map((x) => (
+                  <option key={x.id} value={x.id}>{x.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Admin-only: Co-Aufgießer bei Team-Aufgüssen zuweisen (max 2) */}
+          {isAdmin && teamInfusion && (
+            <div>
+              <label className="text-xs font-semibold text-violet-300 uppercase tracking-wider">
+                ⚙️ Co-Aufgießer zuweisen <span className="text-forest-400/60 normal-case">(max 2)</span>
+              </label>
+              <p className="text-[11px] text-forest-400/80 mt-1 mb-2">
+                {coAufgieserIds.length === 0
+                  ? 'Niemand zugewiesen — Aufgießer können selbst joinen.'
+                  : `${coAufgieserIds.length}/2 gewählt`}
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto rounded-lg ring-1 ring-violet-700/30 bg-forest-900/50 p-2">
+                {(meisterDir.data ?? [])
+                  .filter((x) => x.id !== saunameisterId)
+                  .map((x) => {
+                    const active = coAufgieserIds.includes(x.id);
+                    return (
+                      <button
+                        key={x.id}
+                        type="button"
+                        onClick={() => toggleCoAufgieser(x.id)}
+                        className={`rounded-full px-2.5 py-1 text-xs ring-1 transition ${
+                          active
+                            ? 'bg-violet-500 text-violet-950 ring-violet-300'
+                            : 'bg-forest-900/60 text-forest-300 ring-forest-700/50 hover:bg-forest-800'
+                        }`}
+                      >
+                        {active ? '✓ ' : ''}{x.name}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {errorMsg && (
             <div className="rounded-lg bg-rose-950/60 ring-1 ring-rose-800/40 px-3 py-2 text-sm text-rose-300">
               ⚠️ {errorMsg}
@@ -224,10 +321,10 @@ export function EditInfusionModal({
           </button>
           <button
             onClick={save}
-            disabled={update.isPending || !title.trim()}
+            disabled={update.isPending || setCoAuf.isPending || !title.trim()}
             className="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-amber-950 hover:bg-amber-400 active:scale-95 transition disabled:opacity-50"
           >
-            {update.isPending ? 'Speichern…' : '💾 Speichern'}
+            {update.isPending || setCoAuf.isPending ? 'Speichern…' : '💾 Speichern'}
           </button>
         </footer>
 

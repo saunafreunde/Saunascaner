@@ -196,6 +196,8 @@ export type UpdateInfusionInput = {
   oils?: (string | null)[];
   team_infusion?: boolean;
   duration_minutes?: number;
+  /** Admin-only: Saunameister wechseln. Wenn null/undef bleibt der bestehende. */
+  saunameister_id?: string | null;
 };
 
 const UPDATE_INFUSION_ERROR_LABELS: Record<string, string> = {
@@ -203,6 +205,8 @@ const UPDATE_INFUSION_ERROR_LABELS: Record<string, string> = {
   infusion_not_found: 'Aufguss nicht gefunden.',
   not_owner: 'Du bist nicht der Aufgießer.',
   lock_window_active: 'Bearbeiten gesperrt — weniger als 60 Min bis Start (Admin kontaktieren).',
+  not_admin_for_meister_change: 'Nur Admins dürfen den Saunameister wechseln.',
+  target_not_aufgieser: 'Der gewählte User ist kein Aufgießer.',
 };
 
 export function useUpdateInfusion() {
@@ -217,6 +221,7 @@ export function useUpdateInfusion() {
         p_oils: input.oils ?? null,
         p_team_infusion: input.team_infusion ?? null,
         p_duration_minutes: input.duration_minutes ?? null,
+        p_saunameister_id: input.saunameister_id ?? null,
       };
       // Console-Log für Debug (DevTools sichtbar)
       // eslint-disable-next-line no-console
@@ -236,6 +241,33 @@ export function useUpdateInfusion() {
       await qc.invalidateQueries({ queryKey: ['infusions'] });
       await qc.refetchQueries({ queryKey: ['infusions'] });
     },
+  });
+}
+
+// ─── admin_set_co_aufgieser (Migration 0096) ─────────────────────────────
+// Admin überschreibt komplett die Co-Aufgießer-Liste (max 2).
+const ADMIN_SET_CO_ERROR_LABELS: Record<string, string> = {
+  forbidden: 'Nur Admins dürfen Co-Aufgießer zuweisen.',
+  infusion_not_found: 'Aufguss nicht gefunden.',
+  too_many_co_aufgieser: 'Maximal 2 Co-Aufgießer pro Team-Aufguss.',
+  target_not_aufgieser: 'Mindestens ein gewählter User ist kein Aufgießer.',
+};
+
+export function useAdminSetCoAufgieser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { infusion_id: string; member_ids: string[] }) => {
+      const { data, error } = await need().rpc('admin_set_co_aufgieser', {
+        p_infusion_id: input.infusion_id,
+        p_member_ids: input.member_ids,
+      });
+      if (error) throw error;
+      const result = data as string;
+      if (result !== 'ok') {
+        throw new Error(ADMIN_SET_CO_ERROR_LABELS[result] ?? result);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['co-aufgieser'] }),
   });
 }
 

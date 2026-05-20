@@ -343,6 +343,9 @@ export default function Planner() {
   const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [teamInfusion, setTeamInfusion] = useState(false);
+  // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
+  // Bei nicht-Admins wird m.id verwendet (Backend lehnt fremde IDs eh ab).
+  const [adminSaunameisterId, setAdminSaunameisterId] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
   const [evacToast, setEvacToast] = useState<string | null>(null);
 
@@ -507,6 +510,7 @@ export default function Planner() {
     setCustomAttrIds([]);
     setOils(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
     setTeamInfusion(false);
+    setAdminSaunameisterId('');
   }
 
   async function submit(e: React.FormEvent) {
@@ -547,7 +551,8 @@ export default function Planner() {
         await addInf.mutateAsync({
         sauna_id: saunaId,
         template_id: null,
-        saunameister_id: m.id,
+        // Admin kann anderen Saunameister wählen — sonst self.
+        saunameister_id: (isAdmin && adminSaunameisterId) ? adminSaunameisterId : m.id,
         title: title.trim(),
         description: null,
         attributes: attrs,
@@ -1172,6 +1177,25 @@ export default function Planner() {
                     Team-Aufguss <span className="text-forest-300/60">— andere Aufgieser können mitmachen</span>
                   </span>
                 </div>
+
+                {/* Admin-only: Saunameister-Auswahl (default: self) */}
+                {isAdmin && (
+                  <div>
+                    <label className="text-xs text-violet-300">⚙️ Saunameister zuweisen <span className="text-forest-400/60">(Admin)</span></label>
+                    <select
+                      value={adminSaunameisterId || m?.id || ''}
+                      onChange={(e) => setAdminSaunameisterId(e.target.value)}
+                      className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-violet-700/40 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    >
+                      {m && <option value={m.id}>{m.sauna_name || m.name} (du)</option>}
+                      {(meisterDir.data ?? [])
+                        .filter((x) => x.id !== m?.id)
+                        .map((x) => (
+                          <option key={x.id} value={x.id}>{x.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                )}
 
                 {formError && (
                   <div className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{formError}</div>
