@@ -28,6 +28,7 @@ export function EditInfusionModal({
   const [duration, setDuration] = useState<number>(infusion.duration_minutes);
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const update = useUpdateInfusion();
   const suggestTitle = useSuggestInfusionTitle();
@@ -55,10 +56,20 @@ export function EditInfusionModal({
         team_infusion: teamInfusion,
         duration_minutes: duration,
       });
-      onSaved?.();
-      onClose();
+      // Save erfolgreich — UI bestätigt VISUELL bevor Modal schließt,
+      // damit der User sieht: ja, gespeichert. 700ms reichen für die
+      // Wahrnehmung, ohne zu nerven.
+      setSavedFlash(true);
+      setTimeout(() => {
+        onSaved?.();
+        onClose();
+      }, 700);
     } catch (e) {
-      setErrorMsg((e as Error).message);
+      const err = e as { message?: string; details?: string; code?: string };
+      const msg = err.message ?? err.details ?? err.code ?? String(e);
+      setErrorMsg(msg);
+      // eslint-disable-next-line no-console
+      console.error('[EditInfusionModal] save error', err);
     }
   }
 
@@ -194,7 +205,12 @@ export function EditInfusionModal({
 
           {errorMsg && (
             <div className="rounded-lg bg-rose-950/60 ring-1 ring-rose-800/40 px-3 py-2 text-sm text-rose-300">
-              {errorMsg}
+              ⚠️ {errorMsg}
+            </div>
+          )}
+          {savedFlash && (
+            <div className="rounded-lg bg-emerald-900/40 ring-1 ring-emerald-500/50 px-3 py-2 text-sm font-semibold text-emerald-200">
+              ✅ Änderungen gespeichert.
             </div>
           )}
         </div>

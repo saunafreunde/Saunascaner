@@ -209,7 +209,7 @@ export function useUpdateInfusion() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: UpdateInfusionInput) => {
-      const { data, error } = await need().rpc('update_infusion', {
+      const payload = {
         p_id: input.id,
         p_title: input.title ?? null,
         p_description: input.description ?? null,
@@ -217,14 +217,25 @@ export function useUpdateInfusion() {
         p_oils: input.oils ?? null,
         p_team_infusion: input.team_infusion ?? null,
         p_duration_minutes: input.duration_minutes ?? null,
-      });
+      };
+      // Console-Log für Debug (DevTools sichtbar)
+      // eslint-disable-next-line no-console
+      console.log('[update_infusion] payload', payload);
+      const { data, error } = await need().rpc('update_infusion', payload);
+      // eslint-disable-next-line no-console
+      console.log('[update_infusion] response', { data, error });
       if (error) throw error;
       const result = data as string;
       if (result !== 'ok') {
         throw new Error(UPDATE_INFUSION_ERROR_LABELS[result] ?? result);
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+    // Force refetch statt nur invalidate — damit die UI garantiert die
+    // neuen Daten zeigt, bevor das Modal sich schließt.
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['infusions'] });
+      await qc.refetchQueries({ queryKey: ['infusions'] });
+    },
   });
 }
 
