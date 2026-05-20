@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import type { Infusion } from '@/types/database';
@@ -7,24 +8,33 @@ import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
 
 /**
- * Tagesabschluss-Screen für die TV-Tafel — wird angezeigt wenn alle
- * Aufgüsse des Tages vorbei sind und es noch vor dem 21-Uhr-Wechsel
- * auf den nächsten Tag ist. Statt einer leeren Tafel sieht man:
- *   - Verabschiedung + gute Heimfahrt
- *   - Heutige Aufgießer mit Avatar + Aufguss-Anzahl
- *   - Top-Öle des Tages
- *   - Top-Besonderheiten des Tages
- *   - Daten + Fakten
+ * Tagesabschluss-Screen für die TV-Tafel.
+ *
+ * Layout-Strategie: füllt die volle Tafel-Höhe (kein Scroll) und nutzt
+ * Container-Queries (cqh) damit alle Schriftgrößen proportional zur
+ * Tafel-Höhe skalieren. Funktioniert auf 1080p und 4K gleich gut.
+ *
+ * Aufbau (von oben nach unten):
+ *   1. Header (15% Höhe): Verabschiedung + Datum
+ *   2. Stats-Block (35%): Hauptzahl + Aufgießer-Galerie (Side-by-Side)
+ *   3. Detail-Block (50%): Öle + Besonderheiten (zwei Spalten)
+ *   4. Footer: kurzer Abschlusssatz
+ *
+ * Items werden auf Top-N limitiert damit garantiert nichts überläuft.
  */
+
+const MAX_MEISTER_AVATARS = 10;   // Reicht für die typischen 1-6 Aufgießer/Tag
+const MAX_OILS = 8;               // Top-8 Öle
+const MAX_ATTRS = 8;              // Top-8 Besonderheiten
+
 export function EndOfDayScreen({
   infusions,
   meisterDir,
 }: {
-  /** Alle Aufgüsse (gleicher Stand wie die Tafel — wird intern auf "heute" gefiltert). */
   infusions: Infusion[];
   meisterDir: MeisterDirectoryEntry[];
 }) {
-  // Heutige nicht-personal-fallback Aufgüsse (also wirklich abgehaltene Aufgüsse)
+  // Heutige nicht-personal-fallback Aufgüsse
   const todayInfs = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 86_400_000);
@@ -35,7 +45,6 @@ export function EndOfDayScreen({
     });
   }, [infusions]);
 
-  // Pro Aufgießer: Anzahl + Meta
   const meisterStats = useMemo(() => {
     const map = new Map<string, { count: number; entry: MeisterDirectoryEntry }>();
     for (const i of todayInfs) {
@@ -46,10 +55,9 @@ export function EndOfDayScreen({
       cur.count += 1;
       map.set(entry.id, cur);
     }
-    return [...map.values()].sort((a, b) => b.count - a.count);
+    return [...map.values()].sort((a, b) => b.count - a.count).slice(0, MAX_MEISTER_AVATARS);
   }, [todayInfs, meisterDir]);
 
-  // Top-Öle des Tages
   const topOils = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of todayInfs) {
@@ -61,10 +69,10 @@ export function EndOfDayScreen({
     return [...m.entries()]
       .map(([id, count]) => ({ id, count, meta: OIL_BY_ID[id] }))
       .filter((x) => !!x.meta)
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .slice(0, MAX_OILS);
   }, [todayInfs]);
 
-  // Top-Besonderheiten des Tages
   const topAttrs = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of todayInfs) {
@@ -75,7 +83,8 @@ export function EndOfDayScreen({
     return [...m.entries()]
       .map(([id, count]) => ({ id, count, meta: ATTR_BY_ID[id as InfusionAttribute] }))
       .filter((x) => !!x.meta)
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .slice(0, MAX_ATTRS);
   }, [todayInfs]);
 
   const totalAufguesse = todayInfs.length;
@@ -85,132 +94,245 @@ export function EndOfDayScreen({
     weekday: 'long', day: 'numeric', month: 'long',
   });
 
+  // Avatar-Größe responsive: bei wenigen großen, bei vielen kleiner
+  const avatarSize: 'md' | 'lg' = meisterStats.length > 5 ? 'md' : 'lg';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: [0.25, 1, 0.5, 1] }}
-      className="flex flex-1 min-w-0 min-h-0 flex-col items-center justify-start overflow-y-auto py-8 px-12 text-slate-800"
+      className="flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden"
+      style={{
+        // Container-Query: Schriften skalieren proportional zur Höhe
+        containerType: 'size',
+        padding: 'clamp(12px, 2cqh, 32px) clamp(16px, 2.5cqh, 48px)',
+        color: '#0f172a', // slate-900 für maximalen Kontrast auf hellem Tafel-bg
+      } as CSSProperties}
     >
-      {/* Header: Verabschiedung */}
-      <div className="text-center mb-8">
-        <div className="text-7xl mb-3">🌙</div>
-        <h1 className="text-5xl font-black text-slate-900 leading-tight">
+      {/* ─── HEADER: Verabschiedung + Datum (~15% Höhe) ─────────────── */}
+      <header className="flex-shrink-0 text-center mb-2">
+        <div
+          className="leading-none"
+          style={{ fontSize: 'clamp(36px, 8cqh, 96px)' }}
+        >
+          🌙
+        </div>
+        <h1
+          className="font-black text-slate-900 leading-tight"
+          style={{ fontSize: 'clamp(28px, 6cqh, 64px)' }}
+        >
           Feierabend!
         </h1>
-        <p className="mt-2 text-xl text-slate-700">
+        <p
+          className="font-semibold text-slate-800"
+          style={{ fontSize: 'clamp(14px, 2.5cqh, 26px)' }}
+        >
           Gute Heimfahrt 🚗 — bis bald in der Sauna!
         </p>
-        <p className="mt-1 text-sm text-slate-500 uppercase tracking-widest">{todayLabel}</p>
-      </div>
+        <p
+          className="font-bold text-slate-600 uppercase mt-0.5"
+          style={{ fontSize: 'clamp(10px, 1.5cqh, 16px)', letterSpacing: '0.18em' }}
+        >
+          {todayLabel}
+        </p>
+      </header>
 
-      {/* Daten + Fakten Hauptzahl */}
-      {totalAufguesse > 0 ? (
-        <div className="text-center mb-8 rounded-3xl bg-white/85 backdrop-blur-md ring-1 ring-amber-500/30 px-8 py-5 shadow-lg">
-          <div className="text-5xl font-black text-amber-700 tabular-nums">
-            {totalAufguesse}
-          </div>
-          <div className="text-base font-medium text-slate-700 mt-1">
-            {totalAufguesse === 1 ? 'Aufguss heute' : 'Aufgüsse heute'}
-            {meisterStats.length > 0 && (
-              <> · {meisterStats.length} {meisterStats.length === 1 ? 'Aufgießer' : 'Aufgießer'}</>
-            )}
-            {teamCount > 0 && <> · {teamCount} 👥 Team</>}
-          </div>
+      {/* ─── STATS-BLOCK: Hauptzahl + Aufgießer-Galerie (~35% Höhe) ── */}
+      <section
+        className="flex-shrink-0 grid grid-cols-12 gap-3 mb-3"
+        style={{ minHeight: '30%' }}
+      >
+        {/* Linke Karte: Hauptzahl */}
+        <div className="col-span-4 rounded-2xl bg-white/90 backdrop-blur-md ring-2 ring-amber-500/40 shadow-xl flex flex-col items-center justify-center p-4">
+          {totalAufguesse > 0 ? (
+            <>
+              <div
+                className="font-black text-amber-700 tabular-nums leading-none"
+                style={{ fontSize: 'clamp(48px, 12cqh, 140px)' }}
+              >
+                {totalAufguesse}
+              </div>
+              <div
+                className="font-bold text-slate-900 mt-2 text-center"
+                style={{ fontSize: 'clamp(14px, 2.6cqh, 26px)' }}
+              >
+                {totalAufguesse === 1 ? 'Aufguss heute' : 'Aufgüsse heute'}
+              </div>
+              <div
+                className="font-semibold text-slate-700 mt-1 text-center"
+                style={{ fontSize: 'clamp(11px, 2cqh, 18px)' }}
+              >
+                {meisterStats.length} {meisterStats.length === 1 ? 'Aufgießer' : 'Aufgießer'}
+                {teamCount > 0 && <> · {teamCount} 👥 Team</>}
+              </div>
+            </>
+          ) : (
+            <div
+              className="text-slate-600 italic text-center"
+              style={{ fontSize: 'clamp(14px, 2.5cqh, 22px)' }}
+            >
+              Heute kein Aufguss-Tag
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="text-center mb-8 text-slate-600 italic">
-          Heute kein Aufguss-Tag — bis zum nächsten Mal!
-        </div>
-      )}
 
-      {/* Aufgießer-Galerie */}
-      {meisterStats.length > 0 && (
-        <section className="w-full max-w-5xl mb-8">
-          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-[0.15em] mb-3 text-center">
+        {/* Rechte Karte: Aufgießer-Galerie */}
+        <div className="col-span-8 rounded-2xl bg-white/85 backdrop-blur-md ring-2 ring-slate-400/30 shadow-xl flex flex-col p-3 min-h-0 overflow-hidden">
+          <h2
+            className="text-slate-700 font-bold uppercase text-center flex-shrink-0"
+            style={{ fontSize: 'clamp(10px, 1.5cqh, 16px)', letterSpacing: '0.15em' }}
+          >
             🧖 Heute am Aufguss-Eimer
           </h2>
-          <div className="flex flex-wrap justify-center gap-4">
-            {meisterStats.map(({ entry, count }) => (
-              <motion.div
-                key={entry.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4 }}
-                className="flex flex-col items-center"
+          <div className="flex-1 min-h-0 flex flex-wrap items-center justify-center gap-3 mt-2">
+            {meisterStats.length === 0 ? (
+              <p
+                className="text-slate-500 italic"
+                style={{ fontSize: 'clamp(12px, 2cqh, 18px)' }}
               >
-                <Avatar
-                  name={entry.sauna_name || entry.name}
-                  avatarPath={entry.avatar_path}
-                  size="lg"
-                  isAufgieser
-                  isGuest={entry.role === 'guest_aufgieser'}
-                />
-                <div className="mt-2 text-center max-w-[140px]">
-                  <p className="text-sm font-semibold text-slate-800 truncate">
-                    {entry.sauna_name || entry.name}
-                  </p>
-                  <p className="text-xs text-amber-700 font-bold tabular-nums">
-                    {count}× heute
-                  </p>
+                Keine Aufgießer heute
+              </p>
+            ) : (
+              meisterStats.map(({ entry, count }) => (
+                <div key={entry.id} className="flex flex-col items-center flex-shrink-0">
+                  <Avatar
+                    name={entry.sauna_name || entry.name}
+                    avatarPath={entry.avatar_path}
+                    size={avatarSize}
+                    isAufgieser
+                    isGuest={entry.role === 'guest_aufgieser'}
+                  />
+                  <div className="mt-1 text-center" style={{ maxWidth: 'clamp(80px, 14cqh, 160px)' }}>
+                    <p
+                      className="font-bold text-slate-900 truncate"
+                      style={{ fontSize: 'clamp(11px, 1.8cqh, 18px)' }}
+                    >
+                      {entry.sauna_name || entry.name}
+                    </p>
+                    <p
+                      className="font-bold text-amber-700 tabular-nums"
+                      style={{ fontSize: 'clamp(10px, 1.7cqh, 16px)' }}
+                    >
+                      {count}× heute
+                    </p>
+                  </div>
                 </div>
-              </motion.div>
-            ))}
+              ))
+            )}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* Zwei-Spalten: Öle + Besonderheiten */}
-      {(topOils.length > 0 || topAttrs.length > 0) && (
-        <section className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {/* Öle */}
-          {topOils.length > 0 && (
-            <div className="rounded-2xl bg-white/80 backdrop-blur-md ring-1 ring-amber-500/30 overflow-hidden shadow-md">
-              <div className="bg-amber-500/20 text-amber-800 font-bold uppercase tracking-widest text-xs px-4 py-2">
-                🌿 Heute verwendete Öle
-              </div>
-              <ul className="p-4 space-y-1.5">
-                {topOils.map(({ id, count, meta }) => (
-                  <li key={id} className="flex items-center gap-3 text-sm">
-                    <span className="text-base flex-shrink-0">{meta.emoji}</span>
-                    <span className="flex-1 truncate text-slate-700">
-                      <span className="text-amber-800/60 tabular-nums">#{meta.number}</span> {meta.name}
-                    </span>
-                    <span className="text-amber-800 font-bold tabular-nums text-xs">
-                      {count}×
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {/* ─── DETAIL-BLOCK: Öle + Besonderheiten (~45% Höhe) ────────── */}
+      <section className="flex-1 min-h-0 grid grid-cols-2 gap-3">
+        {/* Öle-Spalte */}
+        <div className="rounded-2xl bg-white/85 backdrop-blur-md ring-2 ring-amber-500/40 shadow-xl flex flex-col overflow-hidden min-h-0">
+          <div
+            className="bg-amber-500/25 text-amber-900 font-black uppercase flex-shrink-0"
+            style={{
+              fontSize: 'clamp(11px, 1.8cqh, 18px)',
+              letterSpacing: '0.12em',
+              padding: 'clamp(4px, 1cqh, 10px) clamp(8px, 1.8cqh, 16px)',
+            }}
+          >
+            🌿 Heute verwendete Öle
+          </div>
+          <ul className="flex-1 min-h-0 overflow-hidden" style={{ padding: 'clamp(4px, 1cqh, 10px) clamp(8px, 1.8cqh, 16px)' }}>
+            {topOils.length === 0 ? (
+              <li className="text-slate-500 italic" style={{ fontSize: 'clamp(12px, 2cqh, 18px)' }}>
+                Heute keine Öle gewählt
+              </li>
+            ) : (
+              topOils.map(({ id, count, meta }) => (
+                <li
+                  key={id}
+                  className="flex items-center gap-2 border-b border-amber-500/15 last:border-0"
+                  style={{ padding: 'clamp(2px, 0.6cqh, 6px) 0', gap: 'clamp(4px, 1cqh, 10px)' }}
+                >
+                  <span
+                    className="flex-shrink-0 leading-none"
+                    style={{ fontSize: 'clamp(16px, 3cqh, 28px)' }}
+                  >
+                    {meta.emoji}
+                  </span>
+                  <span
+                    className="flex-1 min-w-0 truncate text-slate-900 font-semibold"
+                    style={{ fontSize: 'clamp(12px, 2.2cqh, 22px)' }}
+                  >
+                    <span className="text-amber-700/70 tabular-nums" style={{ fontSize: '0.85em' }}>
+                      #{meta.number}
+                    </span>{' '}
+                    {meta.name}
+                  </span>
+                  <span
+                    className="text-amber-900 font-black tabular-nums flex-shrink-0"
+                    style={{ fontSize: 'clamp(13px, 2.4cqh, 24px)' }}
+                  >
+                    {count}×
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
 
-          {/* Besonderheiten */}
-          {topAttrs.length > 0 && (
-            <div className="rounded-2xl bg-white/80 backdrop-blur-md ring-1 ring-slate-400/30 overflow-hidden shadow-md">
-              <div className="bg-slate-500/15 text-slate-700 font-bold uppercase tracking-widest text-xs px-4 py-2">
-                ⚡ Heute gewählte Besonderheiten
-              </div>
-              <ul className="p-4 space-y-1.5">
-                {topAttrs.map(({ id, count, meta }) => (
-                  <li key={id} className="flex items-center gap-3 text-sm">
-                    <span className="text-base flex-shrink-0">{meta.emoji}</span>
-                    <span className="flex-1 truncate text-slate-700">{meta.label}</span>
-                    <span className="text-slate-800 font-bold tabular-nums text-xs">
-                      {count}×
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
-      )}
+        {/* Besonderheiten-Spalte */}
+        <div className="rounded-2xl bg-white/85 backdrop-blur-md ring-2 ring-slate-400/30 shadow-xl flex flex-col overflow-hidden min-h-0">
+          <div
+            className="bg-slate-500/20 text-slate-800 font-black uppercase flex-shrink-0"
+            style={{
+              fontSize: 'clamp(11px, 1.8cqh, 18px)',
+              letterSpacing: '0.12em',
+              padding: 'clamp(4px, 1cqh, 10px) clamp(8px, 1.8cqh, 16px)',
+            }}
+          >
+            ⚡ Heute gewählte Besonderheiten
+          </div>
+          <ul className="flex-1 min-h-0 overflow-hidden" style={{ padding: 'clamp(4px, 1cqh, 10px) clamp(8px, 1.8cqh, 16px)' }}>
+            {topAttrs.length === 0 ? (
+              <li className="text-slate-500 italic" style={{ fontSize: 'clamp(12px, 2cqh, 18px)' }}>
+                Heute keine Besonderheiten
+              </li>
+            ) : (
+              topAttrs.map(({ id, count, meta }) => (
+                <li
+                  key={id}
+                  className="flex items-center gap-2 border-b border-slate-400/15 last:border-0"
+                  style={{ padding: 'clamp(2px, 0.6cqh, 6px) 0', gap: 'clamp(4px, 1cqh, 10px)' }}
+                >
+                  <span
+                    className="flex-shrink-0 leading-none"
+                    style={{ fontSize: 'clamp(16px, 3cqh, 28px)' }}
+                  >
+                    {meta.emoji}
+                  </span>
+                  <span
+                    className="flex-1 min-w-0 truncate text-slate-900 font-semibold"
+                    style={{ fontSize: 'clamp(12px, 2.2cqh, 22px)' }}
+                  >
+                    {meta.label}
+                  </span>
+                  <span
+                    className="text-slate-900 font-black tabular-nums flex-shrink-0"
+                    style={{ fontSize: 'clamp(13px, 2.4cqh, 24px)' }}
+                  >
+                    {count}×
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </section>
 
-      {/* Verabschiedung Footer */}
-      <div className="text-center mt-auto pt-6 text-sm text-slate-500 italic">
+      {/* ─── FOOTER ─────────────────────────────────────────────────── */}
+      <p
+        className="flex-shrink-0 text-center mt-2 font-bold text-slate-700 italic"
+        style={{ fontSize: 'clamp(10px, 1.6cqh, 16px)' }}
+      >
         Saunafreunde Schwarzwald e.V. · Genießt den Abend 🥂
-      </div>
+      </p>
     </motion.div>
   );
 }
