@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   useBrandSettings, useUpdateBrandSettings,
   useSaunas, uploadAsset, deleteAsset, publicAssetUrl,
+  useTriggerAppReload,
 } from '@/lib/api';
 import { defaultBrandSettings, type BrandSettings } from '@/types/branding';
 import type { Sauna } from '@/types/database';
@@ -85,6 +86,9 @@ export function BrandingTab() {
           </button>
         </div>
       </header>
+
+      {/* ⚠️ Cache-Clear Notfall-Button — markant oben */}
+      <CacheClearCard />
 
       <OrgSection org={brand.org} onChange={(org) => patch('org', org)} />
 
@@ -484,5 +488,78 @@ function AssetSlot({
         <p className="text-[10px] text-rose-300 leading-tight">{err}</p>
       )}
     </div>
+  );
+}
+
+/** Notfall-Cache-Clear: schreibt einen Reload-Timestamp in system_config.
+ *  Alle Clients pollen das Signal (AppReloadWatcher) und führen automatisch
+ *  Hard-Reload + Service-Worker-Cache-Clear durch — innerhalb max. 30s. */
+function CacheClearCard() {
+  const trigger = useTriggerAppReload();
+  const [confirm, setConfirm] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function doReload() {
+    setError(null);
+    try {
+      await trigger.mutateAsync();
+      setDone(true);
+      setConfirm(false);
+      setTimeout(() => setDone(false), 10_000);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl bg-rose-950/40 ring-2 ring-rose-700/60 p-4 shadow-lg">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl flex-shrink-0">🔄</span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-bold text-rose-100">Alle App-Caches löschen</h2>
+          <p className="mt-1 text-xs text-rose-200/80 leading-relaxed">
+            Erzwingt bei <strong>allen Mitgliedern</strong> einen Hard-Reload mit Cache-Clear
+            (Service-Worker + Browser-Cache). Wirkt innerhalb von max. 30 Sek. — User sehen sofort
+            die neueste Version. <br />
+            Nutzbar nach Updates wenn iPhone-/PWA-User die alte Version sehen.
+          </p>
+
+          {done ? (
+            <div className="mt-3 rounded-lg bg-emerald-950/50 ring-1 ring-emerald-500/50 px-3 py-2 text-sm text-emerald-200">
+              ✅ Reload-Signal gesendet — alle aktiven Clients laden binnen 30 Sek. die neue Version.
+            </div>
+          ) : !confirm ? (
+            <button
+              onClick={() => setConfirm(true)}
+              className="mt-3 rounded-lg bg-rose-700 hover:bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow"
+            >
+              🔄 Cache-Clear für alle auslösen
+            </button>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-sm text-rose-100 font-semibold w-full">
+                Wirklich? Alle aktiven Clients werden in den nächsten 30 Sekunden neu geladen.
+              </span>
+              <button
+                onClick={doReload}
+                disabled={trigger.isPending}
+                className="rounded-lg bg-rose-700 hover:bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow disabled:opacity-50"
+              >
+                {trigger.isPending ? '…' : '✓ Ja, jetzt auslösen'}
+              </button>
+              <button
+                onClick={() => setConfirm(false)}
+                className="rounded-lg bg-forest-900/70 px-4 py-2 text-sm text-forest-200 ring-1 ring-forest-700/50"
+              >
+                Abbrechen
+              </button>
+            </div>
+          )}
+
+          {error && <p className="mt-2 text-xs text-rose-300">⚠️ {error}</p>}
+        </div>
+      </div>
+    </section>
   );
 }

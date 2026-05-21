@@ -9,12 +9,37 @@ body { font-family: 'Inter', system-ui, sans-serif; }
 /* Padding-Tokens via Tailwind sind verfügbar (pt-safe-top etc.). Diese
    Klassen sind für max(...) Kombinationen die in Tailwind hässlich wären. */
 .pt-safe-top    { padding-top:    env(safe-area-inset-top); }
+.pt-safe-or-3   { padding-top:    max(0.75rem, env(safe-area-inset-top)); }
 .pb-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 .pb-safe-or-4   { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 .pb-safe-or-5   { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
 .h-screen-dvh   { height: 100vh; height: 100dvh; }
 .min-h-screen-dvh { min-height: 100vh; min-height: 100dvh; }
 .max-h-screen-dvh { max-height: 100vh; max-height: 100dvh; }
+
+/* ─── iOS-PWA Safe-Area Fix für ALLE sticky-Header ─────────────────────
+   Auf iPhones mit Notch/Dynamic-Island ist `position: sticky; top: 0;`
+   IM Notch-Bereich gerendert → Logout/Back-Buttons sind nicht klickbar.
+   Diese Regel addiert automatisch env(safe-area-inset-top) als minimum
+   padding-top auf JEDES sticky-Header-Element (header tag mit sticky-Klasse).
+   Greift nur wenn safe-area-inset > 0 (iOS PWA / Notch-Geräte). */
+@supports (padding-top: env(safe-area-inset-top)) {
+  header.sticky,
+  header[class*="sticky"] {
+    padding-top: max(0.625rem, env(safe-area-inset-top));
+  }
+}
+
+/* ─── iOS-PWA Safe-Area Fix für ALLE sticky-Footer (Modal-Footer etc.) ─
+   `position: sticky; bottom: 0;` Footer rutschen auf iPhones in den
+   Home-Indicator-Bereich. Speicher-/Abbrechen-Buttons sind dann nicht
+   klickbar. Auto-Padding analog zum Header oben. */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  footer.sticky,
+  footer[class*="sticky"] {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
 /* Scroll-Snap-Container für horizontale Tab-Bars */
 .snap-x-tabs   { scroll-snap-type: x mandatory; scroll-padding-inline: 1rem; }
 .snap-x-tabs > * { scroll-snap-align: start; }

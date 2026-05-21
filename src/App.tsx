@@ -8,6 +8,7 @@ import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { AreaHubGate } from '@/components/AreaHubGate';
+import { AppReloadWatcher } from '@/components/AppReloadWatcher';
 
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows + Welcome-Tour
 const NO_BOTTOM_NAV_PATHS = [
@@ -75,6 +76,7 @@ export default function App() {
   return (
     <Suspense fallback={<Splash />}>
       <GlobalEvacuationOverlay />
+      <AppReloadWatcher />
       <div className="pb-[calc(env(safe-area-inset-bottom)+72px)] lg:pb-0 min-h-full">
         <Routes>
           <Route path="/" element={<RootEntry />} />

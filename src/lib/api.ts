@@ -313,6 +313,34 @@ export function useAttributeColors() {
   });
 }
 
+// ─── App-Force-Reload-Signal (Migration 0099) ────────────────────────────
+// Admin kann via trigger_app_reload-RPC einen Timestamp in system_config
+// schreiben. Alle Clients pollen alle 30s + reagieren auf Änderung mit
+// Hard-Reload + Cache-Clear (siehe AppReloadWatcher in App.tsx).
+export function useAppReloadSignal() {
+  return useQuery<number>({
+    queryKey: ['app-reload-signal'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_app_reload_signal');
+      if (error) throw error;
+      return Number(data) || 0;
+    },
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+    staleTime: 15_000,
+  });
+}
+
+export function useTriggerAppReload() {
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('trigger_app_reload');
+      if (error) throw error;
+      return Number(data) || 0;
+    },
+  });
+}
+
 export function useOilColors() {
   return useQuery<Record<string, string>>({
     queryKey: ['oil-colors'],
