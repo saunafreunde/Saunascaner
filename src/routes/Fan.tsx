@@ -8,6 +8,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
+import { LogoutButton } from '@/components/LogoutButton';
 import { PageBackground } from '@/components/PageBackground';
 import { MemberStatsCard } from '@/components/MemberStatsCard';
 import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
@@ -89,6 +90,7 @@ export default function Fan() {
           </p>
         </div>
         <MemberQuickNav myMemberId={me.data?.id ?? null} />
+        <LogoutButton />
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">

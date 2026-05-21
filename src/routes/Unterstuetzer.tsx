@@ -4,6 +4,7 @@ import {
   useCurrentMember, useOpenSupportTasks, useMySupportTasks, useBrandSettings, brandAssetUrl,
 } from '@/lib/api';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
+import { LogoutButton } from '@/components/LogoutButton';
 import { PageBackground } from '@/components/PageBackground';
 import { SupportTaskCard } from '@/components/SupportTaskCard';
 import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
@@ -47,6 +48,7 @@ export default function Unterstuetzer() {
           <p className="text-[11px] text-forest-400 truncate">Hier kannst du dem Verein helfen.</p>
         </div>
         <MemberQuickNav myMemberId={me.data?.id ?? null} />
+        <LogoutButton />
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">

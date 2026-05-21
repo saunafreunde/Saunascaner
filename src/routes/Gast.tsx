@@ -7,6 +7,7 @@ import {
 } from '@/lib/api';
 import { StarTradingCard } from '@/components/StarTradingCard';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
+import { LogoutButton } from '@/components/LogoutButton';
 import { PageBackground } from '@/components/PageBackground';
 import { MemberStatsCard } from '@/components/MemberStatsCard';
 import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
@@ -100,6 +101,7 @@ export default function Gast() {
           </div>
         </div>
         <MemberQuickNav myMemberId={me.data?.id ?? null} />
+        <LogoutButton />
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-8">

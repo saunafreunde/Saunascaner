@@ -6,6 +6,7 @@ import {
   useBrandSettings, brandAssetUrl,
 } from '@/lib/api';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
+import { LogoutButton } from '@/components/LogoutButton';
 import { PageBackground } from '@/components/PageBackground';
 import { MyPresenceToggle } from '@/components/MyPresenceToggle';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
@@ -70,6 +71,7 @@ export default function Mitarbeiter() {
           <p className="text-[11px] text-forest-400 truncate">Personal-Bereich</p>
         </div>
         <MemberQuickNav myMemberId={me.data?.id ?? null} />
+        <LogoutButton />
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">
