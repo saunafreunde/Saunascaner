@@ -4,7 +4,10 @@ import {
   CATEGORY_LABELS, CATEGORY_ORDER, normalizeOilSlots,
   MAX_OIL_SLOTS,
 } from '@/lib/oils';
-import { useDisabledOils } from '@/lib/api';
+import {
+  useDisabledOils, useCurrentMember,
+  useMyCustomOils, customOilId, parseCustomOilId,
+} from '@/lib/api';
 
 type Props = {
   selected: (string | null)[];                  // [Runde 1 … Runde MAX_OIL_SLOTS]
@@ -24,6 +27,10 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
   // Admin-konfigurierbare Öl-Deaktivierung (Migration 0093). Hier wird gefiltert,
   // damit Aufgießer nur Öle wählen die physisch im Regal stehen.
   const disabledOils = useDisabledOils();
+  // Eigene Custom-Öle des Aufgießers (Migration 0098) — werden als
+  // zusätzliche Sektion oben angezeigt, nur für den jeweiligen User sichtbar.
+  const me = useCurrentMember();
+  const myCustomOils = useMyCustomOils(me.data?.id);
 
   function setSlot(round: number, oilId: string | null) {
     const next = [...slots];
@@ -72,11 +79,13 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
           <button onClick={onClose} className="text-forest-400 hover:text-forest-200 text-lg leading-none" aria-label="Schließen">✕</button>
         </div>
 
-        {/* Runden-Tabs */}
+        {/* Runden-Tabs — zeigt sowohl Standard- als auch Custom-Öle */}
         <div className="grid grid-cols-3 gap-2 mb-2">
           {[0, 1, 2].map((i) => {
             const id = slots[i];
-            const oil = id ? OIL_BY_ID[id] : null;
+            const customUuid = id ? parseCustomOilId(id) : null;
+            const customOil = customUuid ? (myCustomOils.data ?? []).find((o) => o.id === customUuid) : null;
+            const stdOil = id && !customUuid ? OIL_BY_ID[id] : null;
             const active = activeRound === i;
             return (
               <button
@@ -91,7 +100,9 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
               >
                 <div className="text-[10px] uppercase tracking-wider opacity-70">Runde {i + 1}</div>
                 <div className="text-sm font-medium truncate">
-                  {oil ? <>#{oil.number} {oil.emoji} {oil.name}</> : <span className="text-forest-300/60">— wählen —</span>}
+                  {stdOil && <>#{stdOil.number} {stdOil.emoji} {stdOil.name}</>}
+                  {customOil && <>🌿 {customOil.emoji} {customOil.name} <span className="text-[9px] opacity-70">(meins)</span></>}
+                  {!stdOil && !customOil && <span className="text-forest-300/60">— wählen —</span>}
                 </div>
               </button>
             );
@@ -138,6 +149,44 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
             Alle zurücksetzen
           </button>
         </div>
+
+        {/* ─── Meine eigenen Öle (privat) ─────────────────────────────── */}
+        {(myCustomOils.data?.length ?? 0) > 0 && (
+          <div className="mb-3">
+            <p className="text-[10px] uppercase tracking-wider text-violet-400/80 mb-1.5">
+              🌿 Meine Öle <span className="text-violet-400/50 normal-case">(privat — nur du siehst sie zur Auswahl)</span>
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {(myCustomOils.data ?? []).map((co) => {
+                const slotId = customOilId(co.id);
+                const inOtherSlot = slots.some((s, i) => s === slotId && i !== activeRound);
+                const isCurrent = slots[activeRound] === slotId;
+                return (
+                  <button
+                    key={co.id}
+                    type="button"
+                    onClick={() => setSlot(activeRound, slotId)}
+                    title={co.name}
+                    className={`relative flex items-center gap-2 rounded-lg px-2 py-2 text-left ring-1 transition ${
+                      isCurrent
+                        ? 'bg-violet-500/25 ring-violet-300 text-violet-50'
+                        : 'bg-violet-900/30 ring-violet-700/40 text-violet-100 hover:bg-violet-900/50'
+                    }`}
+                  >
+                    <span aria-hidden className="text-base shrink-0">{co.emoji}</span>
+                    <span className="text-xs leading-tight truncate flex-1">{co.name}</span>
+                    {inOtherSlot && (
+                      <span className="absolute top-1 right-1 text-[9px] text-violet-300/80" title="Bereits in anderer Runde">✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[9px] text-violet-400/60 mt-1">
+              Verwalten in deinem Profil (➕ Neues Öl)
+            </p>
+          </div>
+        )}
 
         {/* Kategorien-Grid */}
         {CATEGORY_ORDER.map((cat) => (

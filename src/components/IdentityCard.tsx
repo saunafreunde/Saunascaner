@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Member, MemberCustomAttr } from '@/lib/api';
-import { useSetSaunaName, useSetBirthday } from '@/lib/api';
+import {
+  useSetSaunaName, useSetBirthday,
+  useMyCustomOils, useAddCustomOil, useDeleteCustomOil,
+} from '@/lib/api';
 import { sendNotification } from '@/lib/telegram';
 
 interface IdentityCardProps {
@@ -13,6 +16,30 @@ interface IdentityCardProps {
 export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: IdentityCardProps) {
   const setSaunaName = useSetSaunaName();
   const setBirthday = useSetBirthday();
+
+  // Eigene Öle (Migration 0098) — Verwaltung
+  const myOils = useMyCustomOils(member.id);
+  const addOil = useAddCustomOil();
+  const delOil = useDeleteCustomOil();
+  const [newOilName, setNewOilName] = useState('');
+  const [newOilEmoji, setNewOilEmoji] = useState('🌿');
+  const [oilError, setOilError] = useState<string | null>(null);
+
+  async function handleAddOil() {
+    setOilError(null);
+    if (!newOilName.trim()) return setOilError('Name darf nicht leer sein.');
+    try {
+      await addOil.mutateAsync({ member_id: member.id, name: newOilName.trim(), emoji: newOilEmoji || '🌿' });
+      setNewOilName(''); setNewOilEmoji('🌿');
+    } catch (e) {
+      setOilError((e as Error).message);
+    }
+  }
+  async function handleDeleteOil(id: string) {
+    setOilError(null);
+    try { await delOil.mutateAsync({ id, member_id: member.id }); }
+    catch (e) { setOilError((e as Error).message); }
+  }
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -180,6 +207,81 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
                 </motion.div>
               ))}
             </div>
+          )}
+        </section>
+      )}
+
+      {/* Meine eigenen Öle (Migration 0098) — nur für Aufgießer */}
+      {(member.is_aufgieser || member.role === 'admin' || member.role === 'guest_aufgieser') && (
+        <section className="pt-3 border-t border-forest-800/30">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs">🌿</span>
+              <h3 className="text-[11px] font-bold text-violet-300/80 uppercase tracking-[0.12em]">
+                Meine eigenen Öle <span className="text-forest-500 normal-case tracking-normal">({(myOils.data ?? []).length}/15)</span>
+              </h3>
+            </div>
+          </div>
+          <p className="text-[10px] text-forest-400/70 mb-2">
+            Nur du siehst sie in der Auswahl. Sobald in einem Aufguss verwendet, sehen sie alle auf der Tafel.
+          </p>
+
+          {/* Add-Form */}
+          {(myOils.data?.length ?? 0) < 15 && (
+            <div className="flex gap-1.5 mb-2">
+              <input
+                type="text"
+                value={newOilEmoji}
+                onChange={(e) => setNewOilEmoji(e.target.value.slice(0, 4))}
+                placeholder="🌿"
+                className="w-12 rounded-lg bg-forest-900/80 px-2 py-1.5 text-center text-base ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                maxLength={4}
+              />
+              <input
+                type="text"
+                value={newOilName}
+                onChange={(e) => setNewOilName(e.target.value.slice(0, 40))}
+                placeholder="z.B. Räuchersalbei, Mein Spezial-Mix"
+                className="flex-1 min-w-0 rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-sm ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                maxLength={40}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddOil(); } }}
+              />
+              <button
+                onClick={handleAddOil}
+                disabled={addOil.isPending || !newOilName.trim()}
+                className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-50"
+              >
+                {addOil.isPending ? '…' : '+ Hinzufügen'}
+              </button>
+            </div>
+          )}
+
+          {oilError && (
+            <p className="text-xs text-rose-300 mb-2">⚠️ {oilError}</p>
+          )}
+
+          {(myOils.data?.length ?? 0) === 0 ? (
+            <p className="text-xs text-forest-400 italic">Noch keine eigenen Öle.</p>
+          ) : (
+            <ul className="space-y-1">
+              {(myOils.data ?? []).map((o) => (
+                <li
+                  key={o.id}
+                  className="flex items-center gap-2 rounded-lg bg-violet-900/30 ring-1 ring-violet-700/30 px-2.5 py-1.5"
+                >
+                  <span className="text-base flex-shrink-0">{o.emoji}</span>
+                  <span className="flex-1 min-w-0 text-sm text-forest-100 truncate">{o.name}</span>
+                  <button
+                    onClick={() => handleDeleteOil(o.id)}
+                    disabled={delOil.isPending}
+                    title="Löschen"
+                    className="rounded-md bg-rose-900/40 ring-1 ring-rose-700/40 px-2 py-0.5 text-[10px] text-rose-200 hover:bg-rose-900/60 disabled:opacity-40"
+                  >
+                    🗑
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       )}

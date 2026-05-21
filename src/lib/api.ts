@@ -2680,6 +2680,100 @@ export function useToggleCustomAttrsEnabled() {
   });
 }
 
+// ─── Custom Öle (Migration 0098) ────────────────────────────────────────
+// Aufgießer kann eigene Öle/Räucherwerk anlegen — nur in der eigenen
+// Auswahl sichtbar, aber sobald in einem Aufguss verwendet auf der
+// Tafel für alle sichtbar.
+//
+// ID-Schema in infusions.oils: 'custom:<uuid>' damit Frontend leicht
+// zwischen Standard- und Custom-Ölen unterscheiden kann.
+
+export type CustomOil = {
+  id: string;
+  member_id: string;
+  name: string;
+  emoji: string;
+  created_at: string;
+};
+
+/** ID-Format für Custom-Öle in infusions.oils. */
+export const CUSTOM_OIL_PREFIX = 'custom:';
+export const customOilId = (uuid: string) => `${CUSTOM_OIL_PREFIX}${uuid}`;
+export const parseCustomOilId = (id: string): string | null =>
+  id.startsWith(CUSTOM_OIL_PREFIX) ? id.slice(CUSTOM_OIL_PREFIX.length) : null;
+
+/** Eigene Öle des aktuellen/angegebenen Aufgießers (für Picker + Verwaltung). */
+export function useMyCustomOils(memberId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['my-custom-oils', memberId ?? 'none'],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('member_custom_oils')
+        .select('*')
+        .eq('member_id', memberId!)
+        .order('name');
+      if (error) throw error;
+      return data as CustomOil[];
+    },
+  });
+}
+
+/** ALLE Custom-Öle aller Aufgießer — für Tafel-Lookup (wenn in Aufguss verwendet). */
+export function useAllCustomOils() {
+  return useQuery({
+    queryKey: ['all-custom-oils'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('member_custom_oils')
+        .select('*');
+      if (error) throw error;
+      return data as CustomOil[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useAddCustomOil() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { member_id: string; name: string; emoji: string }) => {
+      const { error } = await need().from('member_custom_oils').insert({
+        member_id: input.member_id,
+        name: input.name.trim(),
+        emoji: input.emoji || '🌿',
+      });
+      if (error) {
+        if (error.message?.includes('max_custom_oils')) {
+          throw new Error('Maximal 15 eigene Öle pro Aufgießer.');
+        }
+        if (error.code === '23505') {
+          throw new Error('Du hast bereits ein Öl mit diesem Namen.');
+        }
+        throw error;
+      }
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['my-custom-oils', vars.member_id] });
+      qc.invalidateQueries({ queryKey: ['all-custom-oils'] });
+    },
+  });
+}
+
+export function useDeleteCustomOil() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; member_id: string }) => {
+      const { error } = await need().from('member_custom_oils').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['my-custom-oils', vars.member_id] });
+      qc.invalidateQueries({ queryKey: ['all-custom-oils'] });
+    },
+  });
+}
+
 // ─── Achievements & Stats ────────────────────────────────────────────────────
 
 export type MemberStats = {

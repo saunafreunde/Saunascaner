@@ -5,7 +5,7 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
-import { useAttributeColors, useOilColors } from '@/lib/api';
+import { useAttributeColors, useOilColors, useAllCustomOils, parseCustomOilId, type CustomOil } from '@/lib/api';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
@@ -47,6 +47,8 @@ export function InfusionCard({
   // amber-Default (Öle) — wie vorher.
   const attrColors = useAttributeColors();
   const oilColors = useOilColors();
+  // Custom-Öle aller Aufgießer für Lookup bei 'custom:<uuid>' IDs
+  const customOilsAll = useAllCustomOils();
   const colorForAttr = (id: string): string => attrColors.data?.[id] ?? sauna.accent_color;
   const colorForOil = (id: string): string => oilColors.data?.[id] ?? '#f59e0b';
   const start = new Date(infusion.start_time);
@@ -185,6 +187,7 @@ export function InfusionCard({
             oils={oils}
             colorForAttr={colorForAttr}
             colorForOil={colorForOil}
+            customOils={customOilsAll.data ?? []}
           />
 
           {/* Footer: Meister + Co-Aufgießer (links) · Aktuelle Uhrzeit + Countdown (rechts).
@@ -346,9 +349,10 @@ type PillsBlockProps = {
   oils: string[];
   colorForAttr: (id: string) => string;
   colorForOil: (id: string) => string;
+  customOils: CustomOil[];
 };
 
-function PillsBlock({ attributes, oils, colorForAttr, colorForOil }: PillsBlockProps) {
+function PillsBlock({ attributes, oils, colorForAttr, colorForOil, customOils }: PillsBlockProps) {
   if (attributes.length === 0 && oils.length === 0) return null;
 
   const gap = 'clamp(3px, 0.8cqh, 8px)';
@@ -408,13 +412,19 @@ function PillsBlock({ attributes, oils, colorForAttr, colorForOil }: PillsBlockP
           </div>
           <div className="flex flex-wrap items-start bg-amber-50/40" style={{ gap, padding: pillsPadding }}>
             {oils.map((oilId, i) => {
-              const o = OIL_BY_ID[oilId];
-              if (!o) return null;
+              // Custom-Öl (Format: 'custom:<uuid>') → Lookup im All-Custom-Oils
+              const customUuid = parseCustomOilId(oilId);
+              const customOil = customUuid ? customOils.find((co) => co.id === customUuid) : null;
+              const stdOil = !customUuid ? OIL_BY_ID[oilId] : null;
+              if (!customOil && !stdOil) return null;
+              const display = stdOil
+                ? { emoji: stdOil.emoji, name: stdOil.name }
+                : { emoji: customOil!.emoji, name: customOil!.name };
               const c = colorForOil(oilId);
               return (
                 <span
                   key={`o-${i}-${oilId}`}
-                  title={o.name}
+                  title={display.name}
                   className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
                   style={{
                     fontSize: pillFontSize,
@@ -424,8 +434,8 @@ function PillsBlock({ attributes, oils, colorForAttr, colorForOil }: PillsBlockP
                     boxShadow: tintRing(c),
                   }}
                 >
-                  <span aria-hidden>{o.emoji}</span>
-                  <span>{o.name}</span>
+                  <span aria-hidden>{display.emoji}</span>
+                  <span>{display.name}</span>
                 </span>
               );
             })}
