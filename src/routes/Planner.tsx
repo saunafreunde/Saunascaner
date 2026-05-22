@@ -498,8 +498,11 @@ export default function Planner() {
         title: title.trim(),
         description: null,
         duration_minutes: FIXED_DURATION_MIN,
-        // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen
-        attributes: [...attrs, ...customAttrIds],
+        // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen.
+        // Cast nötig weil customAttrIds string[] (UUIDs) sind, die
+        // Mutation aber InfusionAttribute[] erwartet. DB-Spalte ist
+        // text[] und nimmt beide Formen an.
+        attributes: [...attrs, ...customAttrIds] as InfusionAttribute[],
         oils: oils.some(Boolean) ? oils : null,
       });
     } catch (e) { setFormError((e as Error).message); }
@@ -544,8 +547,8 @@ export default function Planner() {
           infusion_id: selectedFallbackId,
           title: title.trim(),
           description: null,
-          // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen
-          attributes: [...attrs, ...customAttrIds],
+          // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen (Cast: s.o.)
+          attributes: [...attrs, ...customAttrIds] as InfusionAttribute[],
           oils: oils.some(Boolean) ? oils : null,
           team_infusion: teamInfusion,
         });
@@ -557,8 +560,8 @@ export default function Planner() {
         saunameister_id: (isAdmin && adminSaunameisterId) ? adminSaunameisterId : m.id,
         title: title.trim(),
         description: null,
-        // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen
-        attributes: [...attrs, ...customAttrIds],
+        // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen (Cast: s.o.)
+        attributes: [...attrs, ...customAttrIds] as InfusionAttribute[],
         oils: oils.some(Boolean) ? oils : null,
         start_time: start.toISOString(),
         duration_minutes: FIXED_DURATION_MIN,
