@@ -318,10 +318,17 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   position: relative;
   isolation: isolate;
 }
-.imminent-runner::before {
+/* ::after statt ::before weil die InfusionCard-Root bereits Tailwind
+   before:absolute before:inset-0 für einen weißen Inner-Gradient nutzt —
+   ein ::before-Override hier würde diesen wegnehmen / kollidieren.
+   inset:0 statt -3px weil die Card overflow-hidden hat (clippen würde
+   einen außerhalb liegenden Strahl weg). Mit der mask-Trick zeichnen
+   wir den Strahl SAUBER nur im Border-Bereich (3px Streifen vom Rand
+   nach innen), bleibt also innerhalb der Card sichtbar. */
+.imminent-runner::after {
   content: '';
   position: absolute;
-  inset: -3px;
+  inset: 0;
   border-radius: inherit;
   padding: 3px;
   background: conic-gradient(
@@ -341,7 +348,11 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
           mask-composite: exclude;
   animation: imminent-rotate var(--imminent-speed, 4s) linear infinite;
   pointer-events: none;
-  z-index: 1;
+  /* Über dem Tailwind ::before (Inner-Gradient) aber unter Card-Content
+     (Pills, Text). Card-Content hat keinen z-index, liegt also bei auto;
+     mit z-index: 2 hier ist das ::after garantiert über dem ::before
+     (z-index 1) und unter normalem Flow-Content. */
+  z-index: 2;
 }
 
 @keyframes imminent-rotate {
