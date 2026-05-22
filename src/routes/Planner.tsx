@@ -101,7 +101,12 @@ function isSameYMD(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-const FIXED_DURATION_MIN = 15;
+// Aufguss-Dauer: User-Wunsch — Default 20 Min, Auswahl 20/30/45.
+// Wenn ein bestehender Aufguss eine andere Dauer hat (z.B. Alt-Daten mit
+// 15 Min), wird die im Select dynamisch ergänzt damit der Wert weiter
+// gespeichert wird ohne Verlust.
+const DEFAULT_DURATION_MIN = 20;
+const DURATION_OPTIONS = [20, 30, 45] as const;
 
 // Slot-Status pro (sauna, hhmm) für SlotMatrix
 type SlotStatus =
@@ -343,6 +348,8 @@ export default function Planner() {
   const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [teamInfusion, setTeamInfusion] = useState(false);
+  // Aufguss-Dauer (User-Wunsch: 20/30/45 wählbar, Default 20)
+  const [duration, setDuration] = useState<number>(DEFAULT_DURATION_MIN);
   // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
   // Bei nicht-Admins wird m.id verwendet (Backend lehnt fremde IDs eh ab).
   const [adminSaunameisterId, setAdminSaunameisterId] = useState<string>('');
@@ -486,6 +493,9 @@ export default function Planner() {
     setTitle(t.title);
     setAttrs(t.attributes as InfusionAttribute[]);
     setOils(normalizeOilSlots(t.oils));
+    // Template-Dauer übernehmen (falls 15 oder andere Alt-Daten → wird im
+    // UI als Ad-hoc-Button gezeigt, siehe DURATION_OPTIONS-Block).
+    setDuration(t.duration_minutes || DEFAULT_DURATION_MIN);
   }
 
   async function saveAsTemplate() {
@@ -497,7 +507,7 @@ export default function Planner() {
         member_id: m.id,
         title: title.trim(),
         description: null,
-        duration_minutes: FIXED_DURATION_MIN,
+        duration_minutes: duration,
         // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen.
         // Cast nötig weil customAttrIds string[] (UUIDs) sind, die
         // Mutation aber InfusionAttribute[] erwartet. DB-Spalte ist
@@ -515,6 +525,7 @@ export default function Planner() {
     setOils(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
     setTeamInfusion(false);
     setAdminSaunameisterId('');
+    setDuration(DEFAULT_DURATION_MIN);
   }
 
   async function submit(e: React.FormEvent) {
@@ -564,7 +575,7 @@ export default function Planner() {
         attributes: [...attrs, ...customAttrIds] as InfusionAttribute[],
         oils: oils.some(Boolean) ? oils : null,
         start_time: start.toISOString(),
-        duration_minutes: FIXED_DURATION_MIN,
+        duration_minutes: duration,
         team_infusion: teamInfusion,
       });
       }
@@ -1182,6 +1193,41 @@ export default function Planner() {
                   <span className="text-xs text-forest-200">
                     Team-Aufguss <span className="text-forest-300/60">— andere Aufgieser können mitmachen</span>
                   </span>
+                </div>
+
+                {/* Dauer-Picker — User-Wunsch: Default 20, Auswahl 20/30/45.
+                    Wenn ein vorheriger Wert ungewöhnlich war (z.B. 15), wird
+                    er dynamisch ergänzt damit man ihn nicht versehentlich
+                    überschreibt. */}
+                <div>
+                  <label className="text-xs text-forest-300">Dauer</label>
+                  <div className="mt-1.5 flex gap-1.5">
+                    {DURATION_OPTIONS.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDuration(d)}
+                        className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ring-1 transition ${
+                          duration === d
+                            ? 'bg-amber-500 text-amber-950 ring-amber-300'
+                            : 'bg-forest-900/60 text-forest-300 ring-forest-700/50 hover:bg-forest-900'
+                        }`}
+                      >
+                        {d} Min
+                      </button>
+                    ))}
+                    {/* Falls Dauer aus Alt-Daten (15/25/60 etc.) gewählt war,
+                        bleibt sie als zusätzlicher Button sichtbar, damit
+                        sie nicht versehentlich überschrieben wird. */}
+                    {!(DURATION_OPTIONS as readonly number[]).includes(duration) && (
+                      <button
+                        type="button"
+                        className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold bg-amber-500 text-amber-950 ring-1 ring-amber-300"
+                      >
+                        {duration} Min
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Admin-only: Saunameister-Auswahl (default: self) */}

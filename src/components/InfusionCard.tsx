@@ -497,7 +497,10 @@ function PillsBlock({
               const display = stdOil
                 ? { emoji: stdOil.emoji, name: stdOil.name }
                 : { emoji: customOil!.emoji, name: customOil!.name };
-              const c = colorForOil(oilId);
+              // Custom-Öle haben ihre eigene Farbe (Migration 0101) —
+              // damit der Aufgießer auf der Tafel sieht welches Öl es
+              // ist. Standard-Öle nutzen weiter colorForOil (Admin-Override).
+              const c = customOil?.color ?? colorForOil(oilId);
               return (
                 <span
                   key={`o-${i}-${oilId}`}

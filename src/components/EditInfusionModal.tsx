@@ -204,17 +204,35 @@ export function EditInfusionModal({
             <div className="text-right text-[10px] text-forest-500 mt-1">{description.length}/200</div>
           </div>
 
-          {/* Dauer */}
+          {/* Dauer — User-Wunsch (Mai 2026): 20/30/45 wählbar, Default 20.
+              Bei Alt-Daten (15/25/60 etc.) wird die aktuelle Dauer als
+              zusätzlicher Button gezeigt damit sie nicht überschrieben wird. */}
           <div>
             <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Dauer in Minuten</label>
-            <input
-              type="number"
-              min={5}
-              max={60}
-              value={duration}
-              onChange={(e) => setDuration(Math.max(5, Math.min(60, parseInt(e.target.value, 10) || 15)))}
-              className="mt-1 w-24 rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-2 text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-amber-400 tabular-nums"
-            />
+            <div className="mt-1.5 flex gap-1.5">
+              {[20, 30, 45].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDuration(d)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ring-1 transition ${
+                    duration === d
+                      ? 'bg-amber-500 text-amber-950 ring-amber-300'
+                      : 'bg-forest-900/60 text-forest-300 ring-forest-700/50 hover:bg-forest-900'
+                  }`}
+                >
+                  {d} Min
+                </button>
+              ))}
+              {![20, 30, 45].includes(duration) && (
+                <button
+                  type="button"
+                  className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold bg-amber-500 text-amber-950 ring-1 ring-amber-300"
+                >
+                  {duration} Min
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Attribute */}

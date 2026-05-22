@@ -2767,6 +2767,8 @@ export type CustomOil = {
   member_id: string;
   name: string;
   emoji: string;
+  /** Hex-Farbcode (Migration 0101) — Default '#22c55e' für Alt-Daten. */
+  color: string;
   created_at: string;
 };
 
@@ -2811,11 +2813,12 @@ export function useAllCustomOils() {
 export function useAddCustomOil() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { member_id: string; name: string; emoji: string }) => {
+    mutationFn: async (input: { member_id: string; name: string; emoji: string; color?: string }) => {
       const { error } = await need().from('member_custom_oils').insert({
         member_id: input.member_id,
         name: input.name.trim(),
         emoji: input.emoji || '🌿',
+        color: input.color || '#22c55e',
       });
       if (error) {
         if (error.message?.includes('max_custom_oils')) {

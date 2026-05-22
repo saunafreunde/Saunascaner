@@ -9,9 +9,19 @@ import {
 import { ATTRIBUTES } from '@/lib/attributes';
 import { OILS } from '@/lib/oils';
 import { sendNotification } from '@/lib/telegram';
+import EmojiPicker from '@/components/EmojiPicker';
 
 const MAX_DEFAULT_ATTRS = 5;
 const MAX_DEFAULT_OILS = 3;
+
+// Identisches Farb-Preset wie in CustomAttrCreator — damit eigene Öle
+// und eigene Buttons den gleichen Farb-Pool teilen und der User
+// konsistent erkennt was zu was gehört.
+const OIL_PRESET_COLORS = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#f43f5e', '#84cc16', '#06b6d4', '#a855f7',
+];
 
 interface IdentityCardProps {
   member: Member;
@@ -23,20 +33,29 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
   const setSaunaName = useSetSaunaName();
   const setBirthday = useSetBirthday();
 
-  // Eigene Öle (Migration 0098) — Verwaltung
+  // Eigene Öle (Migration 0098 + 0101 für color) — Verwaltung
   const myOils = useMyCustomOils(member.id);
   const addOil = useAddCustomOil();
   const delOil = useDeleteCustomOil();
   const [newOilName, setNewOilName] = useState('');
   const [newOilEmoji, setNewOilEmoji] = useState('🌿');
+  const [newOilColor, setNewOilColor] = useState(OIL_PRESET_COLORS[3]); // grün als Default
+  const [showOilEmojiPicker, setShowOilEmojiPicker] = useState(false);
   const [oilError, setOilError] = useState<string | null>(null);
 
   async function handleAddOil() {
     setOilError(null);
     if (!newOilName.trim()) return setOilError('Name darf nicht leer sein.');
     try {
-      await addOil.mutateAsync({ member_id: member.id, name: newOilName.trim(), emoji: newOilEmoji || '🌿' });
-      setNewOilName(''); setNewOilEmoji('🌿');
+      await addOil.mutateAsync({
+        member_id: member.id,
+        name: newOilName.trim(),
+        emoji: newOilEmoji || '🌿',
+        color: newOilColor,
+      });
+      setNewOilName('');
+      setNewOilEmoji('🌿');
+      setNewOilColor(OIL_PRESET_COLORS[3]); // zurück zu grün für nächstes Öl
     } catch (e) {
       setOilError((e as Error).message);
     }
@@ -295,32 +314,60 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
             Nur du siehst sie in der Auswahl. Sobald in einem Aufguss verwendet, sehen sie alle auf der Tafel.
           </p>
 
-          {/* Add-Form */}
+          {/* Add-Form mit EmojiPicker (Modal) + ColorPicker-Preset.
+              Identische UX wie CustomAttrCreator damit "Buttons" und "Öle"
+              konsistent angelegt werden. */}
           {(myOils.data?.length ?? 0) < 15 && (
-            <div className="flex gap-1.5 mb-2">
-              <input
-                type="text"
-                value={newOilEmoji}
-                onChange={(e) => setNewOilEmoji(e.target.value.slice(0, 4))}
-                placeholder="🌿"
-                className="w-12 rounded-lg bg-forest-900/80 px-2 py-1.5 text-center text-base ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                maxLength={4}
-              />
-              <input
-                type="text"
-                value={newOilName}
-                onChange={(e) => setNewOilName(e.target.value.slice(0, 40))}
-                placeholder="z.B. Räuchersalbei, Mein Spezial-Mix"
-                className="flex-1 min-w-0 rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-sm ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                maxLength={40}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddOil(); } }}
-              />
+            <div className="space-y-2 mb-3 rounded-xl bg-violet-950/30 ring-1 ring-violet-700/30 p-2.5">
+              {/* Live-Preview */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOilEmojiPicker(true)}
+                  className="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-2xl ring-2 ring-white/20 hover:ring-white/40 transition"
+                  style={{ background: newOilColor }}
+                  title="Emoji wählen"
+                  aria-label="Emoji wählen"
+                >
+                  {newOilEmoji}
+                </button>
+                <input
+                  type="text"
+                  value={newOilName}
+                  onChange={(e) => setNewOilName(e.target.value.slice(0, 40))}
+                  placeholder="z.B. Räuchersalbei, Mein Spezial-Mix"
+                  className="flex-1 min-w-0 rounded-lg bg-forest-900/80 px-2.5 py-2 text-sm ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  maxLength={40}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddOil(); } }}
+                />
+              </div>
+
+              {/* ColorPicker — Preset-Reihe analog CustomAttrCreator */}
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-forest-400/70 mb-1">Hintergrund-Farbe</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {OIL_PRESET_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewOilColor(c)}
+                      title={c}
+                      aria-label={`Farbe ${c}`}
+                      className={`w-7 h-7 rounded-full ring-2 transition ${
+                        newOilColor === c ? 'ring-white scale-110' : 'ring-white/20 hover:ring-white/50'
+                      }`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+
               <button
                 onClick={handleAddOil}
                 disabled={addOil.isPending || !newOilName.trim()}
-                className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-50"
+                className="w-full rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-50 transition"
               >
-                {addOil.isPending ? '…' : '+ Hinzufügen'}
+                {addOil.isPending ? '…' : '+ Öl hinzufügen'}
               </button>
             </div>
           )}
@@ -336,9 +383,17 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
               {(myOils.data ?? []).map((o) => (
                 <li
                   key={o.id}
-                  className="flex items-center gap-2 rounded-lg bg-violet-900/30 ring-1 ring-violet-700/30 px-2.5 py-1.5"
+                  className="flex items-center gap-2 rounded-lg ring-1 ring-white/10 px-2.5 py-1.5"
+                  style={{
+                    background: `linear-gradient(135deg, ${o.color ?? '#22c55e'}55, rgba(2,6,12,0.55))`,
+                  }}
                 >
-                  <span className="text-base flex-shrink-0">{o.emoji}</span>
+                  <span
+                    className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-base ring-1 ring-white/20"
+                    style={{ background: o.color ?? '#22c55e' }}
+                  >
+                    {o.emoji}
+                  </span>
                   <span className="flex-1 min-w-0 text-sm text-forest-100 truncate">{o.name}</span>
                   <button
                     onClick={() => handleDeleteOil(o.id)}
@@ -351,6 +406,15 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* EmojiPicker als Modal — rendert sich via Portal auf body, also
+              kein Stacking-Konflikt mit dem umliegenden IdentityCard. */}
+          {showOilEmojiPicker && (
+            <EmojiPicker
+              onSelect={(e) => setNewOilEmoji(e)}
+              onClose={() => setShowOilEmojiPicker(false)}
+            />
           )}
         </section>
       )}

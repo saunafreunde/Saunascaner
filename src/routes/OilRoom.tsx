@@ -128,7 +128,9 @@ async function capturePhoto(): Promise<Blob | null> {
   }
 }
 
-const DURATIONS = [10, 15, 20, 25, 30] as const;
+// User-Wunsch (Mai 2026): Default 20, Auswahl 20/30/45 Min.
+const DURATIONS = [20, 30, 45] as const;
+const DEFAULT_DURATION_MIN = 20;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -234,7 +236,7 @@ function OilRoomContent() {
   const [saunaId, setSaunaId] = useState<string>('');
   const [slot, setSlot] = useState<string>('15:00');
   const [title, setTitle] = useState('');
-  const [duration, setDuration] = useState<number>(15);
+  const [duration, setDuration] = useState<number>(DEFAULT_DURATION_MIN);
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
   const [customAttrIds, setCustomAttrIds] = useState<string[]>([]);
   const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: 6 }, () => null) as (string | null)[]);
@@ -290,7 +292,7 @@ function OilRoomContent() {
     setAttrs([]);
     setCustomAttrIds([]);
     setOils(Array.from({ length: 6 }, () => null) as (string | null)[]);
-    setDuration(15);
+    setDuration(DEFAULT_DURATION_MIN);
   }
 
   async function submit(e: React.FormEvent) {

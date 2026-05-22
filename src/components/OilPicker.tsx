@@ -163,22 +163,34 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
                 const slotId = customOilId(co.id);
                 const inOtherSlot = slots.some((s, i) => s === slotId && i !== activeRound);
                 const isCurrent = slots[activeRound] === slotId;
+                // Eigene Farbe pro Custom-Oil (Migration 0101) — Default
+                // forest-grün falls Alt-Daten ohne Farb-Wahl.
+                const colorHex = co.color ?? '#22c55e';
                 return (
                   <button
                     key={co.id}
                     type="button"
                     onClick={() => setSlot(activeRound, slotId)}
                     title={co.name}
-                    className={`relative flex items-center gap-2 rounded-lg px-2 py-2 text-left ring-1 transition ${
-                      isCurrent
-                        ? 'bg-violet-500/25 ring-violet-300 text-violet-50'
-                        : 'bg-violet-900/30 ring-violet-700/40 text-violet-100 hover:bg-violet-900/50'
-                    }`}
+                    className="relative flex items-center gap-2 rounded-lg px-2 py-2 text-left ring-1 transition hover:brightness-110"
+                    style={{
+                      background: isCurrent
+                        ? `linear-gradient(135deg, ${colorHex}77, ${colorHex}33)`
+                        : `linear-gradient(135deg, ${colorHex}33, rgba(2,6,12,0.55))`,
+                      boxShadow: `inset 0 0 0 1px ${colorHex}${isCurrent ? 'cc' : '55'}`,
+                      color: '#f3f4f6',
+                    }}
                   >
-                    <span aria-hidden className="text-base shrink-0">{co.emoji}</span>
+                    <span
+                      aria-hidden
+                      className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-base ring-1 ring-white/20"
+                      style={{ background: colorHex }}
+                    >
+                      {co.emoji}
+                    </span>
                     <span className="text-xs leading-tight truncate flex-1">{co.name}</span>
                     {inOtherSlot && (
-                      <span className="absolute top-1 right-1 text-[9px] text-violet-300/80" title="Bereits in anderer Runde">✓</span>
+                      <span className="absolute top-1 right-1 text-[9px] text-white/80" title="Bereits in anderer Runde">✓</span>
                     )}
                   </button>
                 );
