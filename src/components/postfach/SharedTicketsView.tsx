@@ -409,7 +409,7 @@ function SharedComposeModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-3 grid place-items-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-2xl rounded-2xl bg-forest-950 ring-1 ring-amber-700/40 p-5 shadow-2xl space-y-3 max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-2xl rounded-2xl bg-forest-950 ring-1 ring-amber-700/40 p-5 shadow-2xl space-y-3 max-h-[90dvh] flex flex-col">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-amber-100">✉️ Antwort vom Vereins-Postfach</h2>
           <button onClick={onClose} className="text-forest-400 hover:text-forest-200 text-xl">✕</button>

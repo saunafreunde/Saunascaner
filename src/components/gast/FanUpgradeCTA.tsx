@@ -199,7 +199,7 @@ function FanUpgradeModal({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-3xl bg-forest-950 ring-1 ring-pink-500/30 p-5 space-y-4 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-md rounded-3xl bg-forest-950 ring-1 ring-pink-500/30 p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
       >
         <div>
           <h3 className="text-base font-semibold text-pink-100">🤝 Fan-Antrag</h3>

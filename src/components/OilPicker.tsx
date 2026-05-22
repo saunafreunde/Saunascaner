@@ -70,7 +70,7 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl bg-slate-900 ring-1 ring-forest-700/50 p-4 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-2xl rounded-2xl bg-slate-900 ring-1 ring-forest-700/50 p-4 max-h-[85dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -228,7 +228,7 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
         ))}
 
         {/* Footer */}
-        <div className="sticky bottom-0 -mx-4 -mb-4 mt-3 px-4 py-3 bg-slate-900/95 ring-t border-t border-forest-800/50 flex justify-end">
+        <div className="sticky bottom-0 -mx-4 -mb-4 mt-3 px-4 pt-3 pb-safe-or-4 bg-slate-900/95 ring-t border-t border-forest-800/50 flex justify-end">
           <button
             type="button"
             onClick={onClose}

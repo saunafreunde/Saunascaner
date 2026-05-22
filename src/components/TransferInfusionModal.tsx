@@ -57,7 +57,7 @@ export function TransferInfusionModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-forest-950 ring-1 ring-forest-700/60 shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-md rounded-2xl bg-forest-950 ring-1 ring-forest-700/60 shadow-2xl max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="sticky top-0 bg-forest-950/95 backdrop-blur z-10 px-5 py-4 border-b border-forest-800/40 flex items-center justify-between">

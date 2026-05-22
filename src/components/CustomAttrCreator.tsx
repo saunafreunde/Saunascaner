@@ -39,9 +39,9 @@ export default function CustomAttrCreator({ memberId, onClose }: Props) {
   return (
     <>
       {showPicker && <EmojiPicker onSelect={setEmoji} onClose={() => setShowPicker(false)} />}
-      <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60" onClick={onClose}>
         <div
-          className="w-full max-w-sm rounded-2xl bg-slate-900 ring-1 ring-forest-700/50 p-5 space-y-4"
+          className="w-full max-w-sm rounded-2xl bg-slate-900 ring-1 ring-forest-700/50 p-5 space-y-4 max-h-[90dvh] overflow-y-auto pb-safe-or-4"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between">

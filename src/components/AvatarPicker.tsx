@@ -146,7 +146,7 @@ export default function AvatarPicker({ member, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl bg-slate-900 ring-1 ring-forest-700/50 p-4 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-2xl rounded-2xl bg-slate-900 ring-1 ring-forest-700/50 p-4 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

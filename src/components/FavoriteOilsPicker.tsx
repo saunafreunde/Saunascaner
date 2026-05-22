@@ -91,7 +91,7 @@ export function FavoriteOilsPicker({ current, onClose }: PickerProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="max-w-2xl w-full max-h-[85vh] flex flex-col rounded-3xl bg-forest-950 ring-1 ring-forest-700/60 shadow-2xl"
+        className="max-w-2xl w-full max-h-[85dvh] flex flex-col rounded-3xl bg-forest-950 ring-1 ring-forest-700/60 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between p-5 border-b border-forest-800/40">
