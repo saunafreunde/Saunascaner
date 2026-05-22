@@ -585,6 +585,10 @@ export type Member = {
     city?: string;
     country?: string;
   } | null;
+  // Default-Mood / Standard-Stil (Migration 0100) — Fallback-Pills auf
+  // der Tafel wenn ein Aufguss keine eigenen attrs/oils hat.
+  default_mood_attributes: string[];
+  default_mood_oils: string[];
   created_at: string;
 };
 
@@ -1173,7 +1177,19 @@ export function useMembersDirectory() {
 }
 
 // Public directory of staff names for the TV/guest UI (callable as anon).
-export type MeisterDirectoryEntry = { id: string; name: string; role: MemberRole; home_group: string | null; avatar_path: string | null; sauna_name: string | null };
+// default_mood_attributes/oils ergänzt durch Migration 0100 — werden auf
+// der Tafel als Fallback-Pills gezeigt, wenn ein Aufguss leere attrs/oils
+// hat (siehe InfusionCard PillsBlock).
+export type MeisterDirectoryEntry = {
+  id: string;
+  name: string;
+  role: MemberRole;
+  home_group: string | null;
+  avatar_path: string | null;
+  sauna_name: string | null;
+  default_mood_attributes: string[];
+  default_mood_oils: string[];
+};
 export function useMeisterDirectory() {
   return useQuery({
     queryKey: ['meister-directory'],
@@ -1181,6 +1197,36 @@ export function useMeisterDirectory() {
       const { data, error } = await need().rpc('list_meister_names');
       if (error) throw error;
       return (data ?? []) as MeisterDirectoryEntry[];
+    },
+  });
+}
+
+// ─── set_my_default_mood (Migration 0100) ────────────────────────────────
+// Aufgießer hinterlegt seinen "Standard-Stil" (max 5 Attrs + 3 Öle).
+// Frontend nutzt das in InfusionCard als Fallback wenn ein Aufguss
+// keine eigenen attrs/oils hat — "🪶 Sein Stil"-Pills.
+const SET_DEFAULT_MOOD_ERROR_LABELS: Record<string, string> = {
+  not_authenticated: 'Nicht eingeloggt.',
+  too_many_attributes: 'Maximal 5 Standard-Eigenschaften.',
+  too_many_oils: 'Maximal 3 Standard-Öle.',
+};
+export function useSetMyDefaultMood() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { attributes: string[]; oils: string[] }) => {
+      const { error } = await need().rpc('set_my_default_mood', {
+        p_attributes: input.attributes,
+        p_oils: input.oils,
+      });
+      if (error) {
+        const code = (error.message ?? '').toLowerCase();
+        const matched = Object.keys(SET_DEFAULT_MOOD_ERROR_LABELS).find((k) => code.includes(k));
+        throw new Error(matched ? SET_DEFAULT_MOOD_ERROR_LABELS[matched] : error.message);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['meister-directory'] });
     },
   });
 }

@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Member, MemberCustomAttr } from '@/lib/api';
 import {
   useSetSaunaName, useSetBirthday,
   useMyCustomOils, useAddCustomOil, useDeleteCustomOil,
+  useSetMyDefaultMood, customOilId,
 } from '@/lib/api';
+import { ATTRIBUTES } from '@/lib/attributes';
+import { OILS } from '@/lib/oils';
 import { sendNotification } from '@/lib/telegram';
+
+const MAX_DEFAULT_ATTRS = 5;
+const MAX_DEFAULT_OILS = 3;
 
 interface IdentityCardProps {
   member: Member;
@@ -39,6 +45,69 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
     setOilError(null);
     try { await delOil.mutateAsync({ id, member_id: member.id }); }
     catch (e) { setOilError((e as Error).message); }
+  }
+
+  // ─── Standard-Stil / Default-Mood (Migration 0100) ─────────────────────
+  // Aufgießer hinterlegt bis zu 5 Standard-Eigenschaften + 3 Standard-Öle
+  // die auf der TV-Tafel angezeigt werden, falls ein Aufguss leere
+  // attrs/oils hat. Local-State wird beim ersten Render aus member-Daten
+  // initialisiert und nach Save in den Server gespiegelt.
+  const setMood = useSetMyDefaultMood();
+  const [moodAttrs, setMoodAttrs] = useState<string[]>(member.default_mood_attributes ?? []);
+  const [moodOils, setMoodOils] = useState<string[]>(member.default_mood_oils ?? []);
+  const [moodError, setMoodError] = useState<string | null>(null);
+  const [moodSaved, setMoodSaved] = useState(false);
+  // Re-sync wenn Server-Daten ankommen (z.B. nach Login-Refetch)
+  useEffect(() => {
+    setMoodAttrs(member.default_mood_attributes ?? []);
+    setMoodOils(member.default_mood_oils ?? []);
+  }, [member.default_mood_attributes, member.default_mood_oils]);
+
+  const moodAttrsDirty = useMemo(() => {
+    const a = [...(member.default_mood_attributes ?? [])].sort().join(',');
+    const b = [...moodAttrs].sort().join(',');
+    return a !== b;
+  }, [member.default_mood_attributes, moodAttrs]);
+  const moodOilsDirty = useMemo(() => {
+    const a = [...(member.default_mood_oils ?? [])].sort().join(',');
+    const b = [...moodOils].sort().join(',');
+    return a !== b;
+  }, [member.default_mood_oils, moodOils]);
+  const moodDirty = moodAttrsDirty || moodOilsDirty;
+
+  function toggleMoodAttr(id: string) {
+    setMoodError(null);
+    setMoodSaved(false);
+    setMoodAttrs((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_DEFAULT_ATTRS) {
+        setMoodError(`Maximal ${MAX_DEFAULT_ATTRS} Standard-Eigenschaften.`);
+        return prev;
+      }
+      return [...prev, id];
+    });
+  }
+  function toggleMoodOil(id: string) {
+    setMoodError(null);
+    setMoodSaved(false);
+    setMoodOils((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_DEFAULT_OILS) {
+        setMoodError(`Maximal ${MAX_DEFAULT_OILS} Standard-Öle.`);
+        return prev;
+      }
+      return [...prev, id];
+    });
+  }
+  async function saveMood() {
+    setMoodError(null);
+    try {
+      await setMood.mutateAsync({ attributes: moodAttrs, oils: moodOils });
+      setMoodSaved(true);
+      setTimeout(() => setMoodSaved(false), 2000);
+    } catch (e) {
+      setMoodError((e as Error).message);
+    }
   }
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -283,6 +352,138 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
               ))}
             </ul>
           )}
+        </section>
+      )}
+
+      {/* Standard-Stil / Default-Mood (Migration 0100) — nur für Aufgießer.
+          Wird auf der TV-Tafel als "🪶 Sein Stil"-Pills gezeigt, wenn
+          ein Aufguss leere Eigenschaften / Öle hat. Verhindert sterile
+          halbleere Karten ohne dass der Aufgießer bei jedem Slot alles
+          neu wählen muss. */}
+      {(member.is_aufgieser || member.role === 'admin' || member.role === 'guest_aufgieser') && (
+        <section className="pt-3 border-t border-forest-800/30">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs">🪶</span>
+            <h3 className="text-[11px] font-bold text-violet-300/80 uppercase tracking-[0.12em]">
+              Mein Standard-Stil
+            </h3>
+          </div>
+          <p className="text-[10px] text-forest-400/70 mb-3">
+            Wird auf der Tafel als „Sein Stil" gezeigt, wenn du für einen Aufguss spontan keine Eigenschaften/Öle wählst.
+            Max {MAX_DEFAULT_ATTRS} Eigenschaften + {MAX_DEFAULT_OILS} Öle.
+          </p>
+
+          {/* Standard-Eigenschaften */}
+          <div className="mb-3">
+            <p className="text-[10px] uppercase tracking-wider text-forest-400/80 mb-1.5">
+              Eigenschaften ({moodAttrs.length}/{MAX_DEFAULT_ATTRS})
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {ATTRIBUTES.map((a) => {
+                const active = moodAttrs.includes(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => toggleMoodAttr(a.id)}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ring-1 transition ${
+                      active
+                        ? 'bg-violet-500 text-violet-950 ring-violet-300'
+                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/50 hover:bg-forest-900'
+                    }`}
+                  >
+                    <span aria-hidden>{a.emoji}</span>
+                    <span>{a.label}</span>
+                  </button>
+                );
+              })}
+              {/* Custom-Attrs des Users (Vereins-eigene) */}
+              {customAttrs.map((a) => {
+                const active = moodAttrs.includes(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => toggleMoodAttr(a.id)}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ring-1 transition"
+                    style={
+                      active
+                        ? { background: a.color, color: '#0b1f10', boxShadow: `0 0 0 2px ${a.color}66` }
+                        : { background: 'rgba(20, 83, 45, 0.55)', color: '#d1fae5' }
+                    }
+                  >
+                    <span aria-hidden>{a.emoji}</span>
+                    <span>{a.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Standard-Öle */}
+          <div className="mb-3">
+            <p className="text-[10px] uppercase tracking-wider text-forest-400/80 mb-1.5">
+              Öle ({moodOils.length}/{MAX_DEFAULT_OILS})
+            </p>
+            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto rounded-lg ring-1 ring-forest-800/40 bg-forest-950/40 p-1.5">
+              {OILS.map((o) => {
+                const active = moodOils.includes(o.id);
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggleMoodOil(o.id)}
+                    title={o.note ? `${o.name} (${o.note})` : o.name}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 transition ${
+                      active
+                        ? 'bg-amber-500 text-amber-950 ring-amber-300'
+                        : 'bg-forest-900/60 text-forest-300 ring-forest-700/40 hover:bg-forest-900'
+                    }`}
+                  >
+                    <span aria-hidden>{o.emoji}</span>
+                    <span>{o.name}</span>
+                  </button>
+                );
+              })}
+              {/* Eigene Öle (Custom-Oils) — werden als custom:<uuid>-ID gespeichert */}
+              {(myOils.data ?? []).map((co) => {
+                const id = customOilId(co.id);
+                const active = moodOils.includes(id);
+                return (
+                  <button
+                    key={co.id}
+                    type="button"
+                    onClick={() => toggleMoodOil(id)}
+                    title={`${co.name} (eigenes Öl)`}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 transition ${
+                      active
+                        ? 'bg-violet-500 text-violet-950 ring-violet-300'
+                        : 'bg-violet-900/30 text-violet-100 ring-violet-700/40 hover:bg-violet-900/50'
+                    }`}
+                  >
+                    <span aria-hidden>{co.emoji}</span>
+                    <span>{co.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {moodError && (
+            <p className="text-xs text-rose-300 mb-2">⚠️ {moodError}</p>
+          )}
+          {moodSaved && (
+            <p className="text-xs text-emerald-300 mb-2">✅ Standard-Stil gespeichert.</p>
+          )}
+          <div className="flex justify-end">
+            <button
+              onClick={saveMood}
+              disabled={setMood.isPending || !moodDirty}
+              className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-semibold text-violet-950 hover:bg-violet-400 disabled:opacity-40 transition"
+            >
+              {setMood.isPending ? '…' : moodDirty ? '💾 Speichern' : '✓ Gespeichert'}
+            </button>
+          </div>
         </section>
       )}
     </div>

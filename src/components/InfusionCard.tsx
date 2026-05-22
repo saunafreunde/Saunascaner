@@ -5,7 +5,7 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
-import { useAttributeColors, useOilColors, useAllCustomOils, parseCustomOilId, type CustomOil } from '@/lib/api';
+import { useAttributeColors, useOilColors, useAllCustomOils, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
@@ -20,6 +20,27 @@ function tintRing(hex: string): string {
 }
 
 const IMMINENT_MIN = 10;
+
+/** Vier Dringlichkeits-Stufen für Lauflicht + Progress-Ring (Migration 0100-Plan).
+ *  null = mehr als 10 Min Vorlauf, keine Animation
+ *  10   = 6–10 Min  → grün, ruhig
+ *  5    = 3–5 Min   → gelb
+ *  2    = 1–2 Min   → orange
+ *  0    = ≤0 Min    → rot + Glow-Pulse ("startet jetzt") */
+function imminentStage(minsToStart: number): 0 | 2 | 5 | 10 | null {
+  if (minsToStart > IMMINENT_MIN) return null;
+  if (minsToStart > 5) return 10;
+  if (minsToStart > 2) return 5;
+  if (minsToStart > 0) return 2;
+  return 0;
+}
+
+const STAGE_COLOR: Record<0 | 2 | 5 | 10, string> = {
+  10: '#22c55e', // grün
+  5:  '#eab308', // gelb
+  2:  '#f97316', // orange
+  0:  '#ef4444', // rot
+};
 
 export function InfusionCard({
   infusion,
@@ -54,9 +75,18 @@ export function InfusionCard({
   const start = new Date(infusion.start_time);
   const end = new Date(infusion.end_time);
   const minsToStart = differenceInMinutes(start, now);
-  const imminent = minsToStart >= 0 && minsToStart <= IMMINENT_MIN;
   const running = now >= start && now < end;
   const past = now >= end;
+  // Lauflicht-Stufe — null wenn mehr als 10 Min Vorlauf oder Aufguss
+  // läuft/ist vorbei. Sonst grün → gelb → orange → rot. Wird unten in
+  // der className gerendert (.imminent-runner + .imminent-{stage}).
+  const stage = !running && !past ? imminentStage(minsToStart) : null;
+  const imminent = stage !== null; // beibehalten für tafel-blink
+
+  // Default-Mood: wenn Aufguss leere attrs/oils hat, fallback auf den
+  // im Profil hinterlegten "Standard-Stil" des Aufgießers (Migration 0100).
+  const meisterDir = useMeisterDirectory();
+  const meisterDefaults = (meisterDir.data ?? []).find((x) => x.id === infusion.saunameister_id);
 
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
@@ -90,15 +120,15 @@ export function InfusionCard({
       initial={{ opacity: 0, y: 30, scale: 0.98, rotateX: 1.5 }}
       animate={{
         opacity: 1, y: 0, scale: 1, rotateX: 1.5,
-        boxShadow: imminent
-          ? [`0 0 0 0 ${sauna.accent_color}55`, `0 0 0 14px ${sauna.accent_color}00`, `0 0 0 0 ${sauna.accent_color}55`]
-          : `inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.32), 0 16px 40px rgba(0,0,0,0.4), 0 0 28px ${sauna.accent_color}22`,
+        // boxShadow ist jetzt statisch (kein imminent-Pulse mehr — das macht
+        // ab sofort das CSS-Lauflicht .imminent-runner via Pure-CSS, das
+        // ist GPU-freundlicher und reicht visuell vollkommen).
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.32), 0 16px 40px rgba(0,0,0,0.4), 0 0 28px ${sauna.accent_color}22`,
       }}
       exit={{ opacity: 0, y: -30, scale: 0.96 }}
       transition={{
         layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] },
         opacity: { duration: 0.35 },
-        boxShadow: imminent ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 },
       }}
       className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/80'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
         running
@@ -106,7 +136,7 @@ export function InfusionCard({
           : imminent
             ? 'ring-transparent'
             : 'ring-slate-300/60'
-      } ${className}`}
+      }${stage !== null ? ` imminent-runner imminent-${stage}` : ''} ${className}`}
       style={{
         transformOrigin: '50% 100%',
         // Container-Query auf jede Tile: alle Schriftgrößen darunter skalieren
@@ -134,15 +164,46 @@ export function InfusionCard({
               proportional zur Tile-Höhe — auf kleinen Tiles automatisch kleiner. */}
           <div className="flex items-stretch flex-shrink-0" style={{ gap: 'clamp(6px, 1.5cqh, 12px)' }}>
             <div
-              className="rounded-xl flex items-center justify-center backdrop-blur-md flex-shrink-0"
+              className="relative rounded-xl flex items-center justify-center backdrop-blur-md flex-shrink-0"
               style={{
                 padding: 'clamp(4px, 1.2cqh, 10px) clamp(8px, 2cqh, 16px)',
                 background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
               }}
             >
+              {/* Progress-Ring um die Uhrzeit-Box — füllt sich von 10 Min runter.
+                  Stufen-Farbe synchron zum Lauflicht (grün → gelb → orange → rot).
+                  Nur sichtbar wenn imminent (≤10 Min Vorlauf). */}
+              {stage !== null && (
+                <svg
+                  className="absolute inset-0 pointer-events-none"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-hidden
+                >
+                  <circle
+                    cx="50" cy="50" r="46"
+                    fill="none"
+                    stroke="rgba(255,255,255,0.18)"
+                    strokeWidth="3"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <circle
+                    cx="50" cy="50" r="46"
+                    fill="none"
+                    stroke={STAGE_COLOR[stage]}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    strokeDasharray={2 * Math.PI * 46}
+                    strokeDashoffset={2 * Math.PI * 46 * (1 - Math.max(0, minsToStart) / IMMINENT_MIN)}
+                    transform="rotate(-90 50 50)"
+                    style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.4s ease-out' }}
+                  />
+                </svg>
+              )}
               <span
-                className="font-bold tabular-nums leading-none whitespace-nowrap"
+                className="relative font-bold tabular-nums leading-none whitespace-nowrap"
                 style={{
                   color: sauna.accent_color,
                   fontSize: 'clamp(16px, 5cqh, 30px)',
@@ -181,10 +242,16 @@ export function InfusionCard({
             </p>
           )}
 
-          {/* Pills-Block: Besonderheiten + Öle als Card-Style mit Header-Bar */}
+          {/* Pills-Block: Besonderheiten + Öle als Card-Style mit Header-Bar.
+              Default-Mood-Fallback (Migration 0100): wenn der Aufguss leere
+              attrs oder oils hat und der Aufgießer einen "Standard-Stil"
+              im Profil hinterlegt hat, zeigen wir die Default-Pills mit
+              dezentem "🪶 Sein Stil"-Header an Stelle der leeren Sektion. */}
           <PillsBlock
-            attributes={infusion.attributes}
-            oils={oils}
+            attributes={infusion.attributes?.length ? infusion.attributes : (meisterDefaults?.default_mood_attributes ?? [])}
+            oils={oils.length ? oils : (meisterDefaults?.default_mood_oils ?? []).slice(0, MAX_OIL_SLOTS)}
+            attributesAreDefault={!infusion.attributes?.length && (meisterDefaults?.default_mood_attributes?.length ?? 0) > 0}
+            oilsAreDefault={!oils.length && (meisterDefaults?.default_mood_oils?.length ?? 0) > 0}
             colorForAttr={colorForAttr}
             colorForOil={colorForOil}
             customOils={customOilsAll.data ?? []}
@@ -347,12 +414,22 @@ export function InfusionCard({
 type PillsBlockProps = {
   attributes: string[];
   oils: string[];
+  /** true = attrs sind aus dem Default-Mood des Aufgießers (kein
+   *  aufgussspezifischer Pick) — wird mit "🪶 Sein Stil" gelabelt. */
+  attributesAreDefault?: boolean;
+  /** true = oils sind aus dem Default-Mood des Aufgießers. */
+  oilsAreDefault?: boolean;
   colorForAttr: (id: string) => string;
   colorForOil: (id: string) => string;
   customOils: CustomOil[];
 };
 
-function PillsBlock({ attributes, oils, colorForAttr, colorForOil, customOils }: PillsBlockProps) {
+function PillsBlock({
+  attributes, oils,
+  attributesAreDefault = false,
+  oilsAreDefault = false,
+  colorForAttr, colorForOil, customOils,
+}: PillsBlockProps) {
   if (attributes.length === 0 && oils.length === 0) return null;
 
   const gap = 'clamp(3px, 0.8cqh, 8px)';
@@ -369,12 +446,12 @@ function PillsBlock({ attributes, oils, colorForAttr, colorForOil, customOils }:
   return (
     <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
       {attributes.length > 0 && (
-        <div className="rounded-lg ring-1 ring-slate-400/25 overflow-hidden">
+        <div className={`rounded-lg ring-1 overflow-hidden ${attributesAreDefault ? 'ring-violet-400/25 opacity-90' : 'ring-slate-400/25'}`}>
           <div
-            className="bg-slate-500/15 text-slate-700 font-bold uppercase"
+            className={`font-bold uppercase ${attributesAreDefault ? 'bg-violet-500/10 text-violet-700' : 'bg-slate-500/15 text-slate-700'}`}
             style={{ ...subHeaderStyle, padding: headerPadding }}
           >
-            ⚡ Besonderheiten
+            {attributesAreDefault ? '🪶 Sein Stil' : '⚡ Besonderheiten'}
           </div>
           <div className="flex flex-wrap items-start bg-slate-100/40" style={{ gap, padding: pillsPadding }}>
             {attributes.map((a) => {
@@ -403,12 +480,12 @@ function PillsBlock({ attributes, oils, colorForAttr, colorForOil, customOils }:
         </div>
       )}
       {oils.length > 0 && (
-        <div className="rounded-lg ring-1 ring-amber-500/30 overflow-hidden">
+        <div className={`rounded-lg ring-1 overflow-hidden ${oilsAreDefault ? 'ring-violet-400/25 opacity-90' : 'ring-amber-500/30'}`}>
           <div
-            className="bg-amber-500/20 text-amber-800 font-bold uppercase"
+            className={`font-bold uppercase ${oilsAreDefault ? 'bg-violet-500/10 text-violet-700' : 'bg-amber-500/20 text-amber-800'}`}
             style={{ ...subHeaderStyle, padding: headerPadding }}
           >
-            🌿 Öle
+            {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : '🌿 Öle'}
           </div>
           <div className="flex flex-wrap items-start bg-amber-50/40" style={{ gap, padding: pillsPadding }}>
             {oils.map((oilId, i) => {

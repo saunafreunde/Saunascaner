@@ -295,3 +295,71 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
 .tafel-blink {
   animation: tafel-blink 0.8s ease-in-out infinite;
 }
+
+/* ─── TV-Tafel: Lauflicht-Border (Countdown 10 Min vor Aufguss) ───────────
+   Pure-CSS, GPU-only. Ein farbiger Strahl rotiert via conic-gradient um
+   die Tile. Farbe + Geschwindigkeit über CSS-Custom-Properties — gesetzt
+   durch Modifier-Klassen .imminent-{10,5,2,0} in InfusionCard.tsx.
+
+   @property erlaubt CSS-Variable als animierbaren Winkel — Chrome ≥ 85
+   und Safari ≥ 16.4, auf TV (Chromium-basiert) garantiert OK. Falls
+   nicht supported: Strahl bleibt statisch (kein Crash).
+
+   Implementierung-Hinweis: `mask-composite: exclude` zeichnet den
+   Strahl NUR im Border-Bereich (Padding zwischen Inner/Outer-Mask),
+   nicht über den Card-Inhalt. */
+@property --imminent-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.imminent-runner {
+  position: relative;
+  isolation: isolate;
+}
+.imminent-runner::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--imminent-angle, 0deg),
+    transparent 0deg,
+    var(--imminent-color, #22c55e) 60deg,
+    transparent 140deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  animation: imminent-rotate var(--imminent-speed, 4s) linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes imminent-rotate {
+  to { --imminent-angle: 360deg; }
+}
+
+/* Stufen — gleiche Klasse setzt nur Farbe + Speed via CSS-Variable */
+.imminent-10 { --imminent-color: #22c55e; --imminent-speed: 4s;   } /* grün, ruhig */
+.imminent-5  { --imminent-color: #eab308; --imminent-speed: 2.5s; } /* gelb */
+.imminent-2  { --imminent-color: #f97316; --imminent-speed: 1.5s; } /* orange */
+.imminent-0  { --imminent-color: #ef4444; --imminent-speed: 0.8s; } /* rot, schnell */
+
+/* Rote Stufe bekommt zusätzlich einen pulsierenden Innen-Glow,
+   damit "startet jetzt" maximale Aufmerksamkeit zieht. */
+.imminent-0 {
+  animation: imminent-glow-pulse 1.2s ease-in-out infinite;
+}
+@keyframes imminent-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50%      { box-shadow: 0 0 32px 6px rgba(239, 68, 68, 0.55); }
+}
