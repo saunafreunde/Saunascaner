@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import EmojiPicker from './EmojiPicker';
+import { Portal } from './Portal';
 import { useCreateCustomAttr } from '@/lib/api';
 
 const PRESET_COLORS = [
@@ -37,7 +38,7 @@ export default function CustomAttrCreator({ memberId, onClose }: Props) {
   }
 
   return (
-    <>
+    <Portal>
       {showPicker && <EmojiPicker onSelect={setEmoji} onClose={() => setShowPicker(false)} />}
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60" onClick={onClose}>
         <div
@@ -126,6 +127,6 @@ export default function CustomAttrCreator({ memberId, onClose }: Props) {
           </div>
         </div>
       </div>
-    </>
+    </Portal>
   );
 }

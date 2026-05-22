@@ -8,6 +8,7 @@ import {
   useDisabledOils, useCurrentMember,
   useMyCustomOils, customOilId, parseCustomOilId,
 } from '@/lib/api';
+import { Portal } from '@/components/Portal';
 
 type Props = {
   selected: (string | null)[];                  // [Runde 1 … Runde MAX_OIL_SLOTS]
@@ -65,8 +66,9 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
   }
 
   return (
+    <Portal>
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/70"
+      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 bg-black/70"
       onClick={onClose}
     >
       <div
@@ -239,5 +241,6 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

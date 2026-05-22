@@ -4,6 +4,7 @@ import {
   useInfusions, useCreateFeedPost, uploadAsset,
 } from '@/lib/api';
 import { OIL_BY_ID, OIL_BY_NUMBER, OILS_BY_CATEGORY, CATEGORY_LABELS, CATEGORY_ORDER } from '@/lib/oils';
+import { Portal } from '@/components/Portal';
 
 type Props = {
   defaultInfusionId?: string | null;
@@ -89,6 +90,7 @@ export function FeedComposeModal({ defaultInfusionId = null, onClose, onPosted }
   }
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 sm:p-3" onClick={onClose}>
       <div
         className="w-full max-w-lg bg-forest-950 ring-1 ring-forest-700/50 max-h-screen-dvh sm:max-h-[92vh] sm:rounded-2xl rounded-t-2xl overflow-y-auto pb-safe-bottom"
@@ -225,6 +227,7 @@ export function FeedComposeModal({ defaultInfusionId = null, onClose, onPosted }
         )}
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -242,7 +245,8 @@ function FeedOilPicker({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 sm:p-3" onClick={onClose}>
+    <Portal>
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/80 sm:p-3" onClick={onClose}>
       <div className="w-full max-w-2xl bg-forest-950 ring-1 ring-emerald-700/40 p-4 max-h-screen-dvh sm:max-h-[85vh] sm:rounded-2xl rounded-t-2xl overflow-y-auto pb-safe-bottom" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base font-semibold text-emerald-100">🌿 Aromen wählen ({selected.length}/{maxOils})</h3>
@@ -297,5 +301,6 @@ function FeedOilPicker({
         })}
       </div>
     </div>
+    </Portal>
   );
 }

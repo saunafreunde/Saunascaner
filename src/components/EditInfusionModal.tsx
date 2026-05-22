@@ -9,6 +9,7 @@ import {
 } from '@/lib/api';
 import { isAdmin as isAdminHelper } from '@/lib/roles';
 import OilPicker from '@/components/OilPicker';
+import { Portal } from '@/components/Portal';
 import type { Infusion } from '@/types/database';
 
 // Bearbeiten eines bestehenden Aufgusses. Änderbar:
@@ -140,7 +141,7 @@ export function EditInfusionModal({
   const oilCount = oils.filter(Boolean).length;
 
   return (
-    <>
+    <Portal>
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/70 backdrop-blur-sm"
       onClick={onClose}
@@ -382,11 +383,11 @@ export function EditInfusionModal({
 
       </div>
     </div>
-    {/* OilPicker AUSSERHALB des Modal-Wrappers — Modal hat backdrop-blur-sm,
-        was einen neuen Stacking-Context erzeugt. Nested `position: fixed`
-        wäre relativ zum Modal positioniert statt zum Viewport → Picker
-        wäre innerhalb des Modal-Containers eingesperrt und Öle nicht
-        klickbar. Via Fragment auf Top-Level lösen. */}
+    {/* OilPicker rendert sich SELBST via React Portal direkt in document.body
+        (siehe Portal.tsx). Damit ist garantiert dass kein Vorfahre-Stacking-
+        Context (backdrop-blur-sm hier, transform/filter überall) den Picker
+        einsperrt oder Klicks verschluckt. Aufruf hier ist deshalb normaler
+        Conditional-Render, kein Workaround mehr nötig. */}
     {showOilPicker && (
       <OilPicker
         selected={oils}
@@ -394,6 +395,6 @@ export function EditInfusionModal({
         onClose={() => setShowOilPicker(false)}
       />
     )}
-    </>
+    </Portal>
   );
 }
