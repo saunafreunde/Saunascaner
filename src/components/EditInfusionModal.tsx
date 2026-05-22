@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ATTRIBUTES, type InfusionAttribute } from '@/lib/attributes';
+import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { generateInfusionTitle } from '@/lib/titleGenerator';
 import {
   useUpdateInfusion, useSuggestInfusionTitle,
   useCurrentMember, useMeisterDirectory, useCoAufgieser, useAdminSetCoAufgieser,
+  useMyCustomAttrs,
 } from '@/lib/api';
 import { isAdmin as isAdminHelper } from '@/lib/roles';
 import OilPicker from '@/components/OilPicker';
@@ -25,9 +26,22 @@ export function EditInfusionModal({
   onClose: () => void;
   onSaved?: () => void;
 }) {
+  // Bestehende attributes aufteilen in Standard (slug, in ATTR_BY_ID) und
+  // Custom (UUID — eigene Buttons des Aufgießers).
+  const initialAttrs = useMemo(() => {
+    const std: InfusionAttribute[] = [];
+    const custom: string[] = [];
+    for (const a of (infusion.attributes ?? [])) {
+      if ((ATTR_BY_ID as Record<string, unknown>)[a]) std.push(a as InfusionAttribute);
+      else custom.push(a); // alles andere (UUIDs) als Custom behandeln
+    }
+    return { std, custom };
+  }, [infusion.attributes]);
+
   const [title, setTitle] = useState(infusion.title ?? '');
   const [description, setDescription] = useState(infusion.description ?? '');
-  const [attrs, setAttrs] = useState<InfusionAttribute[]>(infusion.attributes as InfusionAttribute[]);
+  const [attrs, setAttrs] = useState<InfusionAttribute[]>(initialAttrs.std);
+  const [customAttrIds, setCustomAttrIds] = useState<string[]>(initialAttrs.custom);
   const [oils, setOils] = useState<(string | null)[]>(normalizeOilSlots(infusion.oils));
   const [teamInfusion, setTeamInfusion] = useState(infusion.team_infusion);
   const [duration, setDuration] = useState<number>(infusion.duration_minutes);
@@ -38,6 +52,9 @@ export function EditInfusionModal({
   const me = useCurrentMember();
   const isAdmin = isAdminHelper(me.data);
   const meisterDir = useMeisterDirectory();
+  // Custom-Buttons des aktuellen Users — werden im UI als zusätzliche
+  // Toggle-Buttons angezeigt und beim Save mit den Standard-attrs gemerged.
+  const myCustomAttrs = useMyCustomAttrs(me.data?.id);
 
   // Saunameister-Auswahl (nur Admin sieht das Dropdown im UI)
   const [saunameisterId, setSaunameisterId] = useState<string>(infusion.saunameister_id ?? '');
@@ -68,6 +85,9 @@ export function EditInfusionModal({
   function toggleAttr(a: InfusionAttribute) {
     setAttrs((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]);
   }
+  function toggleCustomAttr(id: string) {
+    setCustomAttrIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  }
 
   async function save() {
     setErrorMsg(null);
@@ -78,7 +98,8 @@ export function EditInfusionModal({
         id: infusion.id,
         title: title.trim() || undefined,
         description: description.trim() || null,
-        attributes: attrs,
+        // Standard-attrs + Custom-Attr-UUIDs zusammen in ein Array
+        attributes: [...attrs, ...customAttrIds],
         oils,
         team_infusion: teamInfusion,
         duration_minutes: duration,
@@ -119,6 +140,7 @@ export function EditInfusionModal({
   const oilCount = oils.filter(Boolean).length;
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/70 backdrop-blur-sm"
       onClick={onClose}
@@ -218,6 +240,36 @@ export function EditInfusionModal({
               })}
             </div>
           </div>
+
+          {/* Meine Buttons (Custom-Attrs) — analog Planner */}
+          {(myCustomAttrs.data?.length ?? 0) > 0 && (
+            <div>
+              <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">
+                Meine Buttons
+              </label>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {(myCustomAttrs.data ?? []).map((a) => {
+                  const active = customAttrIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => toggleCustomAttr(a.id)}
+                      className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition"
+                      style={
+                        active
+                          ? { background: a.color, color: '#0b1f10', boxShadow: `0 0 0 2px ${a.color}66` }
+                          : { background: 'rgba(20, 83, 45, 0.55)', color: '#d1fae5' }
+                      }
+                    >
+                      <span aria-hidden>{a.emoji}</span>
+                      <span>{a.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Öle */}
           <div>
@@ -328,14 +380,20 @@ export function EditInfusionModal({
           </button>
         </footer>
 
-        {showOilPicker && (
-          <OilPicker
-            selected={oils}
-            onChange={setOils}
-            onClose={() => setShowOilPicker(false)}
-          />
-        )}
       </div>
     </div>
+    {/* OilPicker AUSSERHALB des Modal-Wrappers — Modal hat backdrop-blur-sm,
+        was einen neuen Stacking-Context erzeugt. Nested `position: fixed`
+        wäre relativ zum Modal positioniert statt zum Viewport → Picker
+        wäre innerhalb des Modal-Containers eingesperrt und Öle nicht
+        klickbar. Via Fragment auf Top-Level lösen. */}
+    {showOilPicker && (
+      <OilPicker
+        selected={oils}
+        onChange={setOils}
+        onClose={() => setShowOilPicker(false)}
+      />
+    )}
+    </>
   );
 }
