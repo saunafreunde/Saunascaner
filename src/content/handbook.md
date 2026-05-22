@@ -3,7 +3,7 @@
 > Die App der **Saunafreunde Schwarzwald e.V.** für Aufguss-Planung, Mitglieder-Verwaltung, WM-Tipspiel, Mini-Feed und vieles mehr.
 >
 > **Live unter:** [saunascaner.vercel.app](https://saunascaner.vercel.app)
-> **Stand:** 19.05.2026
+> **Stand:** 22.05.2026
 
 ---
 
@@ -15,11 +15,12 @@ Klicke auf einen Direkt-Link, um direkt zur Funktion in der App zu springen.
 
 | Funktion | Was du dort kannst | Direkt-Sprung |
 |---|---|---|
-| 📺 **TV-Tafel** | Live-Aufguss-Plan für TV/Tablet | [/dashboard](/dashboard) |
+| 📺 **TV-Tafel** | Live-Aufguss-Plan für TV/Tablet (Glassmorphism + Bühne) | [/dashboard](/dashboard) |
 | 🌟 **Aufgießer-Übersicht** | Star-Karten aller Aufgießer + Favoriten setzen | [/aufgieser](/aufgieser) |
+| ⭐ **Bewerten** | Offene Aufguss-Bewertungen (Aufgießer 3h, andere bis 12:00 Folgetag) | [/bewerten](/bewerten) ⭐ neu |
 | 📸 **Mini-Feed** | 1-Bild-Posts + Reactions + Kommentare + Personen-Tab | [/feed](/feed) |
-| ✉️ **Direkt-Nachrichten** | 1:1-Chat mit anderen Mitgliedern | [/dm](/dm) ⭐ neu |
-| 🎮 **Spiele-Hub** | Tetris-Highscore, Vier Gewinnt live, Schach async | [/spiele](/spiele) ⭐ neu |
+| ✉️ **Direkt-Nachrichten** | 1:1-Chat mit anderen Mitgliedern | [/dm](/dm) |
+| 🎮 **Spiele-Hub** | 14 Spiele — Solo (Tetris, 2048, Memory…), Live PvP (4G, Pong…), Async (Schach, Reversi…) | [/spiele](/spiele) |
 | 🏆 **WM-Tipspiel** | 104 Spiele tippen, Joker, Final-Tipp | [/wm](/wm) |
 | 📅 **Kalender-Abo** | iCal-Feed deiner Aufgüsse | [/profile/me](/profile/me) |
 | 📖 **Handbuch** | Diese Seite | [/hilfe](/hilfe) |
@@ -66,17 +67,22 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 17 Tabs. Du springst direkt rei
 
 **🎨 Setup**
 - [🎨 Branding (Logo, Farben, org_name)](/admin#branding)
+- [🎨 Farben (Eigenschaften + Öle anpassen)](/admin#colors)
+- [🚫 Öle deaktivieren](/admin#oils)
 - [📖 Handbuch-Editor](/admin#handbook)
+- [🧹 **Cache-Reload** — App-Update an alle Geräte pushen](/admin#system) ⭐ neu
 
 ### Tablet- & TV-Modi
 
 | Gerät | Was es ist | Direkt-Sprung |
 |---|---|---|
-| 📺 TV in der Sauna | Aufguss-Tafel-Vollbild mit Bühne (Themes + Effekte) | [/dashboard](/dashboard) |
+| 📺 TV in der Sauna | Aufguss-Tafel-Vollbild mit Glassmorphism, Branding-Background + Bühne | [/dashboard](/dashboard) |
 | 📱 Eingangs-Scanner | QR-Code-Check-in | [/scanner](/scanner) |
 | 📱 Sauna-Tablet | PIN-Login + Aufguss anlegen + Notfall-Alarm | [/checkin](/checkin) |
+| 📱 Tablet „Eingecheckt" | Bestätigung nach Check-in (15s Auto-Logout), Hinweis aufs Bewerten in der App | [/checkin/rate](/checkin/rate) ⭐ angepasst |
+| 📱 **Willkommens-Tablet** | 3. Tablet im Gäste-Bereich: Neu-hier? / Schon-registriert? | [/willkommen](/willkommen) ⭐ neu |
 | 📱 Öl-Raum-Tablet | Aufgießer-Tools — läuft anonym, Long-Press zum Entsperren | [/oil-room](/oil-room) |
-| 🎉 Welcome-Tour | Für Mitglieder-Präsentationen (8 Scroll-Sektionen, mit QR-Code-Overlay auf der Tafel) | [/tour](/tour) ⭐ neu |
+| 🎉 Welcome-Tour | Für Mitglieder-Präsentationen (8 Scroll-Sektionen, mit QR-Code-Overlay auf der Tafel) | [/tour](/tour) |
 
 ---
 
@@ -105,10 +111,12 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 17 Tabs. Du springst direkt rei
 14. [WM-Tipspiel 2026](#14-wm-tipspiel-2026)
 15. [Mein Profil & Erfolge](#15-mein-profil--erfolge)
 16. [Einlass-Code & PIN-Pool](#16-einlass-code--pin-pool)
-26. [🎮 Spiele-Hub](#26--spiele-hub) ⭐ neu
-27. [✉️ Direkt-Nachrichten](#27-%EF%B8%8F-direkt-nachrichten) ⭐ neu
-28. [🔔 Benachrichtigungs-Inbox](#28--benachrichtigungs-inbox) ⭐ neu
-29. [👨‍👩‍👧 Familien-Mitgliedschaft](#29--familien-mitgliedschaft) ⭐ neu
+26. [🎮 Spiele-Hub (14 Spiele)](#26--spiele-hub-14-spiele) ⭐ erweitert
+27. [✉️ Direkt-Nachrichten](#27-%EF%B8%8F-direkt-nachrichten)
+28. [🔔 Benachrichtigungs-Inbox](#28--benachrichtigungs-inbox)
+29. [👨‍👩‍👧 Familien-Mitgliedschaft](#29--familien-mitgliedschaft)
+31. [⭐ Aufgüsse bewerten (App-only)](#31--aufgsse-bewerten-app-only) ⭐ neu
+32. [🧭 Bereichs-Footer (AreaHub)](#32--bereichs-footer-areahub) ⭐ neu
 
 **Teil D — Werkzeuge & Geräte**
 
@@ -144,15 +152,20 @@ Du kannst hier:
 - 🎉 als **Gast** den Verein kennenlernen
 - ⚙️ als **Admin** alles steuern
 
-> **Neu seit dem letzten Update:**
-> - 6. Rolle **🛠️ CP-Verantwortlicher** mit eigenem Bereich `/cp` — Personal-Schichtplan, Anwesenheits-Export, anonymisierte Bewertungs-Übersicht
-> - 5. Rolle **👋 Gast** mit eigenem Bereich `/gast` — eigenes Profil, Favoriten-System, Bewertungen, Badges. Sofort aktiv, **kein** Admin-Approval nötig.
-> - **Mini-Feed** `/feed` mit Aroma-Tags, Bühnen-Reactions und Echo-Modal
-> - **6-Tage-Wochenansicht** im Planner (statt nur Heute/Morgen)
-> - **Tablet-Check-In** mit PIN unter `/checkin`
-> - **Quick-Rating** im Telegram-Bot (15 Min nach jedem Aufguss)
-> - **Helfer-Aufgaben-System** mit Approval-Workflow (für 🤝 Helfer / Unterstützer)
-> - **Mitarbeiter-Bereich** mit Notfall-Button ganz oben + kompakter Mini-Tafel (Timeline) statt TV-Tafel-Link
+> **Neu seit dem letzten Update (Mai 2026):**
+> - **⭐ Bewerten ist jetzt App-only** — Tablet `/checkin/rate` bestätigt nur noch den Check-in, das Bewerten läuft komplett über die eigene App unter `/bewerten`. **Aufgießer haben 3h Zeit ab Aufguss-Ende**, alle anderen **bis 12:00 des Folgetags**. Push-Reminder über pg_cron.
+> - **🆕 3. Tablet `/willkommen`** im Gäste-Bereich — Landing mit „Neu hier?" / „Schon registriert?"
+> - **TV-Tafel komplett überarbeitet (17.05.)** — Glassmorphism, deutsches Lang-Datum, Wetter mit Trend, Branding-Background, Card-Style-Pills mit „Besonderheiten" & „Öle"
+> - **Tages-Abschluss-Screen** ab 21:00 — Verabschiedung mit Statistiken (Aufgüsse, Lieblings-Aufgießer, Top-Öle, häufigste Besonderheiten)
+> - **Aufgießer haben eigene Öle + eigene Buttons (Besonderheiten)** — privat im Profil verwaltet, öffentlich sichtbar sobald in einem Aufguss verwendet
+> - **13 neue Eigenschaften** für Aufgüsse: Räucheraufguss-Zutaten (Kräuter-Sud, Stein-Klee, Honig-Klee, Berg-Minze, Thymian, Salzpeeling) + Musik-Stile (Rock, Kontrovers, Party-/Malle-/Deutsch-Schlager, Böse-Onkels, Klassik)
+> - **AI-Titel-Generator** (Claude Haiku 4.5) — Knopf „✨ Vorschlagen" beim Aufguss-Anlegen erzeugt kreative Titel aus Eigenschaften + Ölen
+> - **Admin kann Aufgießer beim Erstellen/Bearbeiten zuweisen** + Co-Aufgießer für Team-Aufgüsse pflegen
+> - **🧭 AreaHubFooter** am Ende jeder Mitglieder-Seite — schneller Sprung zu allen für die Rolle berechtigten Bereichen
+> - **Mini-Game-Hub mit 14 Spielen** — Solo (6), Live PvP (5), Async PvP (3)
+> - **Vereins-Postfach (Ticket-System)** — info@sauna-fds.de als Helpdesk mit Lock & Status-Workflow
+> - **Direkt-Nachrichten** zwischen Mitgliedern + Notification-Inbox + Folgen-Button überall
+> - **iOS-Fixes**: Logout-Button in allen Mitglieder-Bereichen, Modal-Save-Buttons über Bottom-Nav, Custom-Buttons im Edit-Modal sichtbar, OilPicker klickbar im Atelier
 
 ---
 
@@ -231,7 +244,11 @@ Diese Seiten kann **jeder** ohne Anmeldung aufrufen — typisch für Tablets, TV
 | `/wm` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/postfach` | 🔁→/gast | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/hilfe` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `/admin` (13 Tabs) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `/admin` (17 Tabs) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `/bewerten` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `/dm` · `/dm/:id` | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/spiele` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `/willkommen` (Tablet) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `/dev` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 **Legende:** 🏠 Default nach Login · ✅ technisch erreichbar · 🔁 Weiterleitung in deinen Default-Bereich · ❌ blockiert (NoAccess-Seite)
@@ -244,14 +261,23 @@ Diese Seiten kann **jeder** ohne Anmeldung aufrufen — typisch für Tablets, TV
 
 ### Bottom-Nav pro Rolle (5 Tabs auf Mobile)
 
-| Rolle | Tab 1 | Tab 2 | Tab 3 | Tab 4 | Tab 5 |
+| Rolle | Tab 1 | Tab 2 | Tab 3 | Tab 4 | Tab 5 (Smart-Slot ⭐) |
 |---|---|---|---|---|---|
-| 👋 Gast | Bereich (/gast) | Tafel | Aufgießer | Feed | Profil |
-| 🤝 Helfer | Helfen (/unterstuetzer) | Tafel | Aufgießer | Feed | Profil |
-| 🧖 Aufg. / 🌍 G-Aufg. | Planner | Tafel | Aufgießer | Feed | Profil |
-| 👨‍🍳 Personal | Personal (/mitarbeiter) | Tafel | Aufgießer | Feed | Profil |
-| 🛠️ CP-V | CP (/cp) | Personal (/mitarbeiter) | Aufgießer | Feed | Profil |
-| ⚙️ Admin | Planner | Tafel | Feed | Admin | Profil |
+| 👋 Gast | Bereich (/gast) | Tafel | Aufgießer | Feed | Smart |
+| 🤝 Helfer | Helfen (/unterstuetzer) | Tafel | Aufgießer | Feed | Smart |
+| 🧖 Aufg. / 🌍 G-Aufg. | Planner | Tafel | Aufgießer | Feed | Smart |
+| 👨‍🍳 Personal | Personal (/mitarbeiter) | Tafel | Aufgießer | Feed | Smart |
+| 🛠️ CP-V | CP (/cp) | Personal (/mitarbeiter) | Aufgießer | Feed | Smart |
+| ⚙️ Admin | Planner | Tafel | Feed | Admin | Smart |
+
+> **Smart-Slot ⭐:** Tab 5 ist intelligent. Was er zeigt, hängt von deinen offenen Themen ab (höchste Priorität zuerst):
+> 1. **✉️ Nachrichten** mit Zähler — wenn ungelesene DMs offen sind
+> 2. **🎮 Du bist dran** — wenn ein async-Spiel auf dich wartet
+> 3. **📧 Mail** — wenn du ein Postfach hast und neue Mails da sind
+> 4. **⭐ Bewerten** — wenn dein Bewertungs-Fenster läuft
+> 5. **👥 Mitglieder** — als Default-Fallback
+>
+> So vergisst du keine wichtigen Themen, auch ohne Push-Notification.
 
 ### Deep-Links für Gäste
 
@@ -283,7 +309,7 @@ Als Admin kannst du jede Rollen-Seite mit `?preview=<rolle>` testen — z.B.:
 | 🌍 | **Gast-Aufgießer** | `/planner` | Wie Aufgießer — aber **4 Wochen voraus planbar** und sichtbar mit „🌍 Gast" + Landesgruppe |
 | 👨‍🍳 | **Personal** | `/mitarbeiter` | Personal-Aufgüsse **durchführen** wenn kein Aufgießer kommt (Pflicht-Fallback), Notfall-Alarm auslösen, WM-Tipspiel, Mitgliederliste sehen. **Bewertet keine Aufgüsse.** |
 | 🛠️ | **CP-Verantwortlicher** | `/cp` | Alles vom Personal + Schichtplanung, Anwesenheits-Export (CSV), anonyme Bewertungs-Übersicht (ohne Aufgießer-Namen) |
-| ⚙️ | **Admin** | `/planner` | Alles + 15 Verwaltungs-Tabs unter `/admin` (Saunas, Members, Invitations, Recurring, Presence, Stats, Auswertungen, Branding, Handbook, Polls, Tasks, Feed, WM, **News, Aroma**) |
+| ⚙️ | **Admin** | `/planner` | Alles + 17 Verwaltungs-Tabs unter `/admin` (Saunas, Presence, Recurring, Members, Invitations, Shared-Email, Stats, Auswertungen, Activity, News, Aroma, Feed, Polls, Tasks, WM, Stage, Branding, Colors, Oils, Handbook, System) |
 
 **Conversion-Pyramide:** 👋 Gast → 🤝 Fan (Self-Antrag) → ✅ Helfer (Bewerbung) → 🧖 Aufgießer (Schulung + Vereinsbeschluss). Der Aufgießer-Pfad ist bewusst hochschwellig — das schützt die Kunstform.
 
@@ -629,11 +655,16 @@ Pro Sauna eine Zeile, pro Stunde eine Zelle:
 
 1. **Tag wählen** in der Wochenansicht
 2. **Slot in der Matrix anklicken** (grüne Zellen)
-3. **Titel** eintragen (z.B. „Eukalyptus klassisch")
-4. **Eigenschaften** auswählen (🍃 Naturöl · 🎵 Musik · 🔥 Mit Feuer · 💧 Wasserdampf · 🔇 Stille · 🔊 Laut)
+3. **Titel** eintragen — oder Knopf **„✨ Vorschlagen"** klicken (AI-Titel-Generator mit Claude Haiku 4.5 erzeugt kreative Vorschläge aus Eigenschaften + Ölen; bei Netzwerkfehler fällt das System automatisch auf den regelbasierten Generator zurück)
+4. **Eigenschaften (Besonderheiten)** auswählen — über 25 Möglichkeiten in mehreren Gruppen:
+   - **Klassik:** 🍃 Naturöl · 🔥 Mit Feuer · 💧 Wasserdampf · 🌡️ Hitze · ❄️ Kühlung · 🪭 Wedeln
+   - **Räucheraufguss-Zutaten** (neu): 🌿 Kräuter-Sud · 🌾 Stein-Klee · 🍯 Honig-Klee · ⛰️ Berg-Minze · 🌿 Thymian · 🧂 Salzpeeling
+   - **Musik-Stile** (neu): 🎵 Musik · 🎸 Rock · 🎭 Kontrovers · 🎉 Party-Schlager · 🌴 Malle-Schlager · 🍻 Deutsch-Rock · 👿 Böse-Onkels · 🎻 Klassik-Musik
 5. **Ätherische Öle** (bis zu 3) für Runde 1/2/3 — wirkt sich auf Aroma-Tags im Feed aus
 6. **Team-Aufguss** an/aus — bis zu 2 Co-Aufgießer können beitreten
 7. **„Aufguss eintragen"**
+
+> **Pills-Layout auf der Tafel:** Eigenschaften und Öle erscheinen seit Mai 2026 im **Card-Style mit Header-Bar** — oben „⚡ Besonderheiten" (kleine Emoji-Chips), darunter „🌿 Öle" (große Pills mit vollem Namen). Klare Hierarchie, gut lesbar auf 85"-TV.
 
 ### Personal-Aufguss übernehmen
 
@@ -650,11 +681,14 @@ Wenn du einen gelben 🟡 Slot anklickst, wechselt der Button auf **„🔄 Pers
 
 ### Mein Atelier 🧖
 
-- **Meine geplanten Aufgüsse** — Karten-Ansicht
+- **Meine geplanten Aufgüsse** — Karten-Ansicht. Klick auf eine Karte → Edit-Modal. Du kannst Titel, Eigenschaften, Öle, Co-Aufgießer und Dauer ändern (bis 60 Min vor Start).
 - **Templates** — Aufguss-Vorlagen mit einem Klick wiederverwenden
-- **Custom-Buttons** — eigene Eigenschaften (Admin schaltet frei)
+- **Eigene Buttons (Custom-Attrs)** — du legst dir **eigene Besonderheiten** mit Emoji + Label + Farbe an (z.B. „🌶️ Scharf-Variante", „🎄 Weihnachtsmix"). Diese erscheinen beim Aufguss-Anlegen unter „Meine Buttons". Wenn du sie verwendest, sind sie öffentlich sichtbar (auf der Tafel, im Feed). Verwaltung: Profil → „Eigene Buttons".
+- **Eigene Öle (Custom-Oils)** ⭐ neu — analog zu den Buttons: bis zu **15 eigene Öl-Einträge** (Name + Emoji + Farbe) im Profil. **Privat in der Auswahl** (nur du siehst sie im Öl-Picker), aber **öffentlich sobald in einem Aufguss verwendet** (Tafel zeigt sie wie Standard-Öle). Verwaltung: Profil → „Meine eigenen Öle".
 
 **Vorlage speichern:** beim Anlegen → „Als Vorlage" → kann später mit einem Klick wieder eingetragen werden.
+
+> **Edit-Modal-Tipp (Mai 2026):** Beim Bearbeiten eigener Aufgüsse im Atelier siehst du nun korrekt deine **„Meine Buttons"** (Custom-Attrs werden aus den bestehenden Attributen extrahiert und sind anklickbar). Auch der Öl-Picker funktioniert beim Bearbeiten zuverlässig — du kannst Öle ändern, hinzufügen oder entfernen.
 
 ### Stamm-Slot beantragen
 
@@ -853,13 +887,13 @@ Du hast Vollzugriff auf alle Bereiche und kannst über [/admin](/admin) die App 
 └─────────────────── (Tab-Content unten) ─────────────────────────────┘
 ```
 
-15 Tabs in 5 Gruppen — Direkt-Sprung zu jedem Tab:
+17 Tabs in 5 Gruppen — Direkt-Sprung zu jedem Tab:
 
 **🔥 Operations** [Saunen](/admin#saunas) · [Anwesenheit](/admin#presence) · [Stamm-Slots](/admin#recurring)
-**👥 Mitglieder** [Mitgliederliste](/admin#members) · [Einladungen](/admin#invitations)
+**👥 Mitglieder** [Mitgliederliste](/admin#members) · [Einladungen](/admin#invitations) · [📧 Vereins-Postfach](/admin#shared_email)
 **📊 Auswertung** [Statistik](/admin#stats) · [Auswertungen](/admin#auswertungen) · [📋 Aktivitäts-Log](/admin#activity)
-**📣 Module** [📣 News](/admin#news) · [🌿 Aroma-Rezepte](/admin#aroma) · [📸 Feed](/admin#feed) · [📋 Abfragen](/admin#polls) · [🤝 Aufgaben](/admin#tasks) · [🏆 WM-Tipps](/admin#wm)
-**🎨 Setup** [Branding](/admin#branding) · [Handbuch](/admin#handbook)
+**📣 Module** [📣 News](/admin#news) · [🌿 Aroma-Rezepte](/admin#aroma) · [📸 Feed](/admin#feed) · [📋 Abfragen](/admin#polls) · [🤝 Aufgaben](/admin#tasks) · [🏆 WM-Tipps](/admin#wm) · [🎭 Bühne](/admin#stage)
+**🎨 Setup** [Branding](/admin#branding) · [🎨 Farben](/admin#colors) · [🚫 Öle deaktivieren](/admin#oils) · [Handbuch](/admin#handbook) · [🧹 Cache-Reload](/admin#system)
 
 ### Mitgliederverwaltung im Detail [→ direkt hin](/admin#members)
 
@@ -948,9 +982,35 @@ Push geht **automatisch** an alle berechtigten Member (DB-Trigger).
 | 📋 Abfragen | [/admin#polls](/admin#polls) | Umfragen erstellen + Ergebnisse |
 | 🤝 Aufgaben | [/admin#tasks](/admin#tasks) | Helfer-Aufgaben anlegen, Zusagen freigeben |
 | 🏆 WM-Tipps | [/admin#wm](/admin#wm) | WM-Tipspiel administrieren |
-| 🎭 **Bühne** ⭐ neu | [/admin#stage](/admin#stage) | TV-Tafel-Bühne steuern: Saisonale Layer, Themes, One-Shot-Effekte |
+| 🎭 **Bühne** | [/admin#stage](/admin#stage) | TV-Tafel-Bühne steuern: Saisonale Layer, Themes, One-Shot-Effekte |
+| 📧 **Vereins-Postfach** ⭐ neu | [/admin#shared_email](/admin#shared_email) | Geteilte Mail-Accounts anlegen + Bearbeiter verwalten (info@sauna-fds.de) |
 | 🎨 Branding | [/admin#branding](/admin#branding) | Logo, Farben, Vereinsname, Custom-Texte |
+| 🎨 **Farben** ⭐ neu | [/admin#colors](/admin#colors) | Farben für Eigenschaften + Öle anpassen (live auf Tafel sichtbar) |
+| 🚫 **Öle deaktivieren** ⭐ neu | [/admin#oils](/admin#oils) | Einzelne Öle für Aufgießer-Auswahl ausblenden (z.B. „Aus, weil nicht mehr auf Lager") |
 | 📖 Handbuch | [/admin#handbook](/admin#handbook) | Handbuch-Editor + Broadcast |
+| 🧹 **Cache-Reload** ⭐ neu | [/admin#system](/admin#system) | „App-Update jetzt ausrollen"-Button — alle Geräte holen sich neuen Code (siehe unten) |
+
+### Saunameister beim Aufguss zuweisen / wechseln ⭐ neu
+
+Als Admin hast du im Planner **zusätzlich zur normalen Aufguss-Maske ein Dropdown**, mit dem du den **Saunameister wählen** kannst (statt automatisch dich selbst einzutragen). So kannst du:
+
+- **Aufgüsse für Andere anlegen** — z.B. wenn Bernd dich per WhatsApp bittet, ihm einen Slot zu reservieren weil seine App grade nicht geht
+- **Saunameister wechseln im Edit-Modal** — bei bestehenden Aufgüssen kannst du als einziger Rolle den Aufgießer auswechseln (z.B. „Bernd fällt aus, Anna übernimmt")
+- **Co-Aufgießer für Team-Aufgüsse pflegen** — beim Edit-Modal eines Team-Aufgusses ein eigener „Co-Aufgießer (max 2)"-Block mit Multi-Select. RPC `admin_set_co_aufgieser` überschreibt komplett.
+
+Im Edit-Modal werden die Aufgießer mit Avatar + Sauna-Name angezeigt (über `useMeisterDirectory()`), damit du sie schnell findest.
+
+### Cache-Reload — App-Update an alle Geräte pushen ⭐ neu
+
+Wenn du einen kritischen Bugfix deployed hast und nicht warten willst, bis sich der Service-Worker bei jedem von alleine erneuert: Im Setup-Bereich gibt's den Button **„🧹 App-Update jetzt ausrollen"**. Was passiert:
+
+1. Du klickst → Bestätigung
+2. DB-Eintrag `app_reload_signal` wird gesetzt (Migration 0099)
+3. Auf jedem geöffneten Gerät pollt der `AppReloadWatcher` alle 30s diesen Signal-Stand
+4. Erkennt er Änderung → unregister Service-Worker, leert Caches, Hard-Reload mit Cache-Buster
+5. User sieht in ~30s den neuen Stand — ohne dass er was tun muss
+
+**Nutze sparsam** — der Reload unterbricht laufende Aktivitäten. Vor allem: nicht in Stoßzeiten kurz vor einem Aufguss.
 
 ### Admin-Preview-Mode 👁️
 
@@ -1165,22 +1225,29 @@ Saunascaner nutzt einen **einheitlichen 4-stelligen PIN-Pool** für alle Rollen.
 Saunascaner läuft auf mehreren Tablets im Vereinsraum — alle ohne Login, jeder Workflow für einen klar definierten Zweck.
 
 ### 📺 TV-Tafel — `/dashboard`
-Großer 85"-Fernseher im Vereinsraum. Zeigt aktuelle Aufgüsse, Schwarzwald-Bühne, Wetter. **Läuft 24/7.** Pure-CSS-Animation (kein JS-Timer) damit nichts heißläuft.
+Großer 85"-Fernseher im Vereinsraum. Zeigt aktuelle Aufgüsse im Glassmorphism-Look mit Branding-Background, Schwarzwald-Bühne und Wetter. **Läuft 24/7.** Pure-CSS-Animation (kein JS-Timer) damit nichts heißläuft. Ab 21:00 wechselt die Tafel automatisch in den **Tagesabschluss-Screen** mit Verabschiedung und Statistiken; die Liste der nächsten Tage erscheint ab 21:00.
 
 ### 📷 Scanner — `/scanner`
 QR-Code-Scanner am Eingang. Mitglied scannt seinen QR-Ausweis → automatisches Check-In/Check-Out.
 
 ### 🛢️ Öl-Raum — `/oil-room`
-Tablet im Öl-Raum. Zeigt den aktuellen + nächsten Aufguss inkl. der vom Aufgießer gewählten Öle — Personal sieht sofort welche Flaschen rauszustellen sind.
+Tablet im Öl-Raum. Läuft **anonym ohne Login** (Long-Press zum Entsperren statt PIN). Zeigt den aktuellen + nächsten Aufguss inkl. der vom Aufgießer gewählten Öle — Personal sieht sofort welche Flaschen rauszustellen sind. Aufguss anlegen/canceln direkt am Tablet via `create_infusion_kiosk` / `cancel_infusion_kiosk` RPCs.
 
 ### 🔢 PIN-Check-In — `/checkin`
-Tablet am Eingang (Alternative zum QR-Scanner). PIN tippen → eingecheckt. Funktioniert für alle Rollen.
+Tablet am Eingang (Alternative zum QR-Scanner). PIN tippen → eingecheckt. Funktioniert für alle Rollen. Bei **Familien-Mitgliedern** öffnet sich nach Check-in das **„Wer ist heute dabei?"-Modal** (Partner-Checkbox + Kinder-Stepper).
 
 ### 🆕 Gast-Self-Sign-Up — `/checkin/signup`
 Wenn ein neuer PIN-Versuch fehlschlägt: System bietet Self-Sign-Up. Name + E-Mail + PIN → Account angelegt mit Rolle `gast`.
 
-### ⭐ Aufguss-Bewertung — `/checkin/rate`
-Nach dem Auschecken zeigt das Tablet eine Quick-Rate-Maske: 1–5 ⭐ + optional Kategorien-Wertung. Geht direkt in den Aufguss-Datensatz und löst beim Aufgießer das Echo-Modal aus.
+### ✅ Tablet-Bestätigung nach Check-in — `/checkin/rate`
+**Wichtig geändert (Mai 2026):** Das Tablet bewertet **nicht mehr selbst**. Nach dem Auschecken zeigt die Seite nur noch eine grüne **„✅ Eingecheckt"**-Bestätigung mit dem Hinweis *„Bewerten in der eigenen App"*. Nach 15 Sekunden Auto-Logout. Das Familien-Modal bleibt — Bewerten läuft komplett über Kapitel 31.
+
+### 📱 Willkommens-Tablet im Gäste-Bereich — `/willkommen`
+**Neu:** Das **dritte Tablet** im Gäste-Bereich. Läuft anonym ohne Login. Zwei große Schwarzwald-Branding-Buttons:
+- **🆕 Neu hier?** → `/checkin/signup` (Gast-Self-Sign-Up)
+- **📝 Schon registriert?** → `/checkin` (PIN-Eingabe)
+
+So findet jeder neue Besucher sofort den richtigen Weg.
 
 ### 👋 Gast-Anmeldung via QR-Code — `/gast-signup`
 QR-Code im Raum zeigt direkt auf diese Seite. Schnellanmeldung für Gäste in <30 Sekunden.
@@ -1191,11 +1258,22 @@ QR-Code im Raum zeigt direkt auf diese Seite. Schnellanmeldung für Gäste in <3
 
 **Pfad:** `/dashboard` · 85"-Fernseher im Vereinsraum
 
+### Optisches Konzept (Stand Mai 2026)
+
+Die Tafel wurde im Mai 2026 komplett überarbeitet — Glassmorphism statt flachem Look:
+
+- **Branding-Hintergrundbild** aus `brand_settings.background_image_path` mit **25 %-Weiß-Overlay** für Lesbarkeit
+- **Deutsches Lang-Datum** oben links (z.B. „Donnerstag, 22. Mai 2026")
+- **Wetter rechts** mit Trend-Indikator (Open-Meteo, Freudenstadt + 3h + 6h)
+- **Sauna-Spalten mit dunklen Tönungen:** 100°C in **dunkelgrün**, 80°C in **dunkelbraun** — sofort unterscheidbar
+- **Aufguss-Karten:** halbtransparente weiße Boxen mit Backdrop-Blur, Titel **+10 %** größer
+- **Pills-Layout im Card-Style** mit Header-Bar „⚡ Besonderheiten" + „🌿 Öle" (Christophs gewählte Variante C)
+
 ### Was du dort siehst
 
-- **Aktuelle Uhrzeit** und **Wetter** im Header (Open-Meteo, Freudenstadt + 3h + 6h)
+- **Aktuelle Uhrzeit** und **Wetter** im Header
 - **Logo** des Vereins (aus `brand_settings`)
-- **Sauna-Spalten** — pro aktive Sauna eine Spalte mit den nächsten 3 Aufguss-Slots
+- **Sauna-Spalten** — pro aktive Sauna eine Spalte mit Grid-Layout (Tiles werden **nicht größer**, wenn welche rausrutschen)
 - **Garantie-Stunden** — pro Stunde ist genau **eine** Sauna „dran"
 
 ### 80°C / 100°C / 90°C — Rhythmus
@@ -1269,6 +1347,39 @@ Standard · Winter · Weihnachten · Silvester · Fasching · Ostern · Frühlin
 ### Personal-Fallback
 
 Wenn 15 Min vor einem Slot kein Aufgießer eingetragen ist, wird automatisch ein **Personal-Aufguss** angezeigt (Standardtitel/-Öl aus `brand_settings`). Auf der Tafel als wertschätzende Karte „✨ Vom Personal serviert · Naturreine Aromen".
+
+### Slot-Rotation während des Tages
+
+- **Cutoff pro Slot:** `max(slot_start + 15 min Default, max(end_time) + 1 min Grace)` — ein Aufguss verschwindet erst, wenn er nachweislich vorbei ist
+- **Globale Synchronisation:** Beide Sauna-Spalten zeigen denselben Stand (kein Asymmetrie-Bug — über `globalSlotEnds`-Map)
+- **Tiles werden NICHT größer**, wenn welche oben rausfallen — Grid-Layout mit festen Zeilen, die übrigen behalten ihre Größe
+
+### Tagesabschluss-Screen ab 21:00 ⭐ neu
+
+Ab **21:00 Uhr** zeigt die Tafel **nicht mehr** die aktuellen Aufgüsse, sondern wechselt in den **„Tagesabschluss"-Screen**:
+
+```
+┌─ 🌙 Schönen Feierabend! ─────────────────────────────┐
+│                                                       │
+│   Gute Heimfahrt — bis bald in der Sauna 🌲          │
+│                                                       │
+├──────────────────────────────────────────────────────┤
+│ 📊 Heute waren wir aktiv:                            │
+│  • 7 Aufgüsse · 23 Bewertungen · 18 Anwesende        │
+│  • Avg-Sterne ★ 4.6                                   │
+├──────────────────────────────────────────────────────┤
+│ 🧖 Eure Aufgießer heute:                             │
+│  [👨 Christoph] [👩 Steph] [👨 Bernd] [...]          │  ← bis 10 Avatare
+├──────────────────────────────────────────────────────┤
+│ 🌿 Top-Öle heute:                                    │
+│  [Eukalyptus 5×] [Birke 3×] [Latschen 3×] [...]      │  ← bis 8
+├──────────────────────────────────────────────────────┤
+│ ⚡ Häufigste Besonderheiten:                          │
+│  [🔥 6×] [💧 5×] [🎵 4×] [...]                       │  ← bis 8
+└──────────────────────────────────────────────────────┘
+```
+
+Container-Queries (`cqh`) sorgen dafür, dass alles auf einen Bildschirm passt — kein Scrollen auf dem TV. Ab Mitternacht startet die Tafel automatisch in den neuen Tag.
 
 ### Welcome-Tour für Mitglieder-Präsentation (`/tour`)
 
@@ -1481,6 +1592,12 @@ Nutz den **Login-Link** (E-Mail-Adresse → Klick im Postfach → drin). Keine P
 - Im richtigen Tag eingetragen?
 - Reload (Strg+R) — die Tafel aktualisiert sich alle 5 Sekunden, nach Reload sofort
 
+### Warum kann ich am Tablet nicht mehr bewerten?
+**Seit Mai 2026 läuft Bewerten nur noch in der App** (Kapitel 31). Das Tablet `/checkin/rate` bestätigt nur noch deinen Check-in. Bewerten geht unter [/bewerten](/bewerten) oder über das ⭐-Icon in der Bottom-Nav. **Aufgießer haben 3 h** ab Aufguss-Ende, alle anderen **bis zum Folgetag 12:00**.
+
+### Ich sehe meinen Aufguss nicht in „Noch zu bewerten" — warum?
+Du musst am Aufguss-Tag in der Sauna **eingecheckt gewesen sein** (Anti-Fake-Schutz). Wenn du vergessen hast einzuchecken, kann dir das Personal nachträglich helfen.
+
 ### Was ist ein „Stamm-Slot"?
 Eine **fest reservierte wöchentliche Aufguss-Zeit** für dich (z.B. „jeden Dienstag 18 Uhr in Kelo"). Wird einmal vom Admin freigegeben und dann automatisch 8 Wochen voraus eingetragen. Bei Urlaub einfach Abwesenheit eintragen — andere können diese Slots dann übernehmen.
 
@@ -1520,23 +1637,54 @@ Wenn du einen Feed-Post mit einem deiner letzten Aufgüsse verknüpfst, erschein
 5. **Push-Benachrichtigungen** aktivieren
 6. **Mitglieder-Galerie** durchblättern
 7. **Mini-Feed** anschauen, ein paar Reactions geben
-8. Wenn du Aufgießer werden willst: Admin sagen — er schaltet dich frei
+8. Am Seitenende den **🧭 Bereichs-Footer** anschauen — da siehst du alle Bereiche, die für dich offen sind
+9. Wenn du Aufgießer werden willst: Admin sagen — er schaltet dich frei
+
+### Auf meinem iPhone fehlt der Logout-Button — wo finde ich ihn?
+**Behoben (Mai 2026):** Logout-Button (⏻) ist jetzt **in jedem Mitglieder-Bereich** sichtbar — rechts oben im Header. Auf Mobile als kompaktes Pill, ab SM-Breite mit „Abmelden"-Label.
+
+### Beim Bearbeiten eines Aufgusses im Atelier sehe ich meine eigenen Buttons nicht oder kann keine Öle wählen
+**Behoben (Mai 2026):** Im Edit-Modal werden jetzt **eigene Buttons (Custom-Attrs) korrekt angezeigt** und **bestehende UUIDs als aktiv erkannt**. Auch der Öl-Picker funktioniert beim Bearbeiten zuverlässig — bei Änderungen wird sofort gespeichert. Falls du noch Probleme siehst: einmal die App neu laden (Pull-to-refresh) — der Admin kann auch die Cache-Reload-Funktion auslösen.
+
+### Neue Funktion da, aber meine App zeigt sie nicht — was tun?
+Frag den Admin nach dem **Cache-Reload-Button**. Er pusht das Update an alle Geräte — du siehst die neue Version binnen 30 Sekunden, ohne selbst etwas tun zu müssen.
 
 ---
 
-## 26. 🎮 Spiele-Hub
+## 26. 🎮 Spiele-Hub (14 Spiele)
 
-Unter [/spiele](/spiele) findest du den **Mini-Game-Hub** mit kleinen Spielen, die du allein oder gegen andere Vereinsmitglieder spielen kannst.
+Unter [/spiele](/spiele) findest du den **Mini-Game-Hub**. Aktuell sind **14 Spiele** in drei Modi verfügbar — Solo (gegen dich selbst / Highscore), Live PvP (Echtzeit gegen ein anderes Mitglied) und Async PvP (zeitversetzt, wie Schach per Brief).
 
-### Was es gibt
+### Die 14 Spiele
 
-Aktuell drei Spiele in drei verschiedenen Modi:
+**🧍 Solo (6 Spiele)** — Highscore wandert in die Bestenliste
 
-| Spiel | Modus | Wie es läuft |
-|---|---|---|
-| 🧱 **Tetris** | Solo / Highscore | Klassisches Tetris, Tastatur (←→↓↑/Leertaste) oder Touch-Buttons. Bei ≥100 Punkten kommt dein Score in die **Bestenliste** |
-| 🔴 **Vier Gewinnt** | Live PvP | Beide Spieler gleichzeitig online, **Echtzeit**-Züge. Lade Mitspieler ein oder warte offen |
-| ♟️ **Schach** | Async (zeitversetzt) | Zieh wann du willst — Gegner bekommt eine **Push-Notification**, kann später ziehen. Wie auf chess.com |
+| Spiel | Was es ist |
+|---|---|
+| 🧱 **Tetris** | Klassik mit Tastatur (←→↓↑/Leertaste) oder Touch-Buttons. Ab 100 Punkten kommt dein Score in die Bestenliste |
+| 🃏 **Memory** | 18 Paare auf 6×6-Grid — finde die meisten Paare in der wenigsten Zeit |
+| 🐍 **Snake** | Pure-CSS-Animation, 20×20-Spielfeld. Pfeiltasten oder Swipe |
+| 🎯 **2048** | Kacheln zusammenschieben — Swipe auf Mobile, Pfeiltasten am Desktop |
+| 🃏 **Solitaire** | Klassische Klondike-Variante |
+| 🔢 **Sudoku** | Random-Generator + Mistake-Tracker. Drei Schwierigkeitsstufen |
+
+**⚡ Live PvP (5 Spiele)** — beide Spieler gleichzeitig online, Realtime über Supabase
+
+| Spiel | Was es ist |
+|---|---|
+| 🔴 **Vier Gewinnt** | Klassisches Spiel auf 7×6-Brett |
+| 🤜 **Schere/Stein/Papier** | Best of 3 |
+| 🎲 **Würfel-Duell** | 5 Runden, höhere Augenzahl gewinnt |
+| ⚫ **Dame (live)** | Mit Schlagzwang, Multi-Capture und Damen-Verwandlung |
+| 🎮 **Pong** | Vereinfacht als Reflex-Duell Best of 5 (echtes Echtzeit-Pong wäre über DB-Polling zu lag-anfällig) |
+
+**📬 Async PvP (3 Spiele)** — du ziehst wann du willst, Gegner bekommt Push
+
+| Spiel | Was es ist |
+|---|---|
+| ♟️ **Schach** | Komplette Klassik. Wie auf chess.com — Mitspieler bekommt Push, kann später ziehen |
+| ⚫ **Dame (async)** | Gleiche Regeln wie live, aber zeitversetzt |
+| ⭕ **Reversi (Othello)** | Steine umdrehen in 8 Richtungen |
 
 ### Wie's funktioniert
 
@@ -1733,6 +1881,89 @@ Im Admin-Bereich **👥 Mitglieder → 📧 Vereins-Postfach**:
 - „Entziehen" pro Bearbeiter → entfernt Zugriff
 - „Entteilen" → Account wieder als persönlich markieren (alle Bearbeiter verlieren Zugriff)
 - Neue Admins werden automatisch zu allen geteilten Accounts hinzugefügt (Trigger 0081)
+
+---
+
+## 31. ⭐ Aufgüsse bewerten (App-only)
+
+**Pfad:** [/bewerten](/bewerten) · auch erreichbar über den Smart-Slot in der Bottom-Nav (Sterne-Icon)
+
+> **Wichtig geändert (Mai 2026):** Bewerten läuft jetzt **ausschließlich in der eigenen App**. Das Tablet `/checkin/rate` bestätigt nur noch den Check-in — es nimmt **keine** Bewertungen mehr an.
+
+### Wer darf wann bewerten — zwei Zeitfenster
+
+Damit echtes Echo möglich ist, aber niemand Wochen später noch nachträglich Sterne verteilt, gibt es zwei klare Fenster (in der DB als `is_aufgieser_for(uuid)`-SQL-Helper, gespiegelt von `submit_rating()` und `get_ratable_infusions()` — Frontend und Backend nutzen dieselbe Logik):
+
+| Wer | Zeitfenster |
+|---|---|
+| 🧖 **Aufgießer** (die selbst gegossen haben, z.B. bei Team-Aufgüssen) | **3 Stunden** nach Aufguss-Ende |
+| 🤝 Alle anderen (Gast/Fan/Helfer/Personal/CP/Admin) | bis **Folgetag 12:00 Berlin** |
+
+Nach Ablauf des Fensters verschwindet der Aufguss aus deiner „Noch zu bewerten"-Liste.
+
+### Anti-Fake: Anwesenheit ist Pflicht
+
+Du kannst **nur Aufgüsse bewerten, bei denen du tatsächlich da warst**. Das System prüft `attendance_events` am Aufguss-Tag — wer nicht eingecheckt war, sieht den Aufguss nicht in seiner Liste.
+
+### Push-Reminder
+
+Sobald dein Bewertungs-Fenster öffnet, schiebt ein **pg_cron** alle 5 Minuten (`notify_rating_window`) einen `rating_reminder` in deine `notification_queue`. Du bekommst:
+- 🔔 Notification-Inbox-Eintrag (mit ⭐ → Direktsprung zu `/bewerten`)
+- Push (wenn aktiviert)
+- Smart-Slot in der Bottom-Nav wechselt auf **„⭐ Bewerten (n)"** wenn keine wichtigeren Themen offen sind (DMs gehen vor)
+
+Dedup-Key `rating:<infusion>:<member>` verhindert Spam.
+
+### Bewertungs-Maske
+
+Auf `/bewerten` erscheint pro offenem Aufguss eine Karte mit:
+- Aufgießer-Name + Avatar
+- Sauna + Uhrzeit
+- **6 Kategorien** (1–5 ⭐): Stimmung · Luftbewegung · Wedeltechnik · Hitzeniveau · Musik · Duftentwicklung
+- Optionaler **Aroma-Tag** für Detail-Feedback (z.B. „Eukalyptus war stark")
+
+Nach dem Absenden:
+- Aufgießer bekommt sofort das **Echo-Modal** beim nächsten App-Aufruf
+- Deine Bewertung fließt in seinen 6-Kategorien-Radar ein (Kapitel 15)
+- Bei Anchor-Verknüpfung mit einem Feed-Post wird die Reaktion dort sichtbar
+
+### Was Personal **nicht** kann
+
+Mitarbeiter und CP-Verantwortliche bewerten **nicht** — sie sind dafür da, den Betrieb zu führen, nicht Aufgießer zu beurteilen. Sie haben deshalb keine PendingRatings-Liste in ihrem Bereich.
+
+---
+
+## 32. 🧭 Bereichs-Footer (AreaHub)
+
+Am unteren Rand **jeder eingeloggten Mitglieder-Seite** findest du den **AreaHubFooter** — einen Sitemap-artigen Kachel-Block, der dir alle für deine Rolle berechtigten Bereiche zeigt:
+
+```
+🧭 Wo möchtest du hin?
+
+┌───────────────────┬───────────────────┬───────────────────┐
+│ 🧖 Planner        │ 📺 TV-Tafel       │ 🌟 Aufgießer      │
+│ Aufgüsse planen   │ Live-Übersicht    │ Star-Profile      │
+│ 📍 Hier           │                   │                   │
+├───────────────────┼───────────────────┼───────────────────┤
+│ ⭐ Bewerten (2)   │ 📸 Feed           │ ✉️ Nachrichten    │
+│ Offene Sterne     │ Mini-Insta        │ DMs               │
+└───────────────────┴───────────────────┴───────────────────┘
+```
+
+### Warum es das gibt
+
+Manche Mitglieder sind nicht App-affin und finden über die Bottom-Nav nur ihren Standard-Bereich — der Footer macht alle anderen Bereiche **discoverable**. Du scrollst einfach ans Seitenende und siehst sofort, wo du noch hinkönntest.
+
+### Bedienung
+
+- **Glassmorphism-Karten** in 2 Spalten (Mobile), 3 (Tablet), 4 (Desktop)
+- **„📍 Hier"-Badge** auf der Karte deiner aktuellen Route
+- Klick auf eine Karte → direkter Sprung
+- Source-of-Truth: `src/lib/areaHub.ts` + Helper `areaHubItemsForRole(member, hasEmailAccount)`
+
+### Wo er NICHT auftaucht
+
+Auf Pages ohne Bottom-Nav (z.B. TV-Tafel `/dashboard`, Tablet-Routes `/checkin*`, `/oil-room`, Welcome-Tour `/tour`, Auth-Seiten) — gleiche Ausschluss-Liste wie `NO_BOTTOM_NAV_PATHS`.
 
 ---
 
