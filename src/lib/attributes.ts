@@ -17,6 +17,7 @@ export type InfusionAttribute =
   | 'honig_klee'      // Honig-Klee
   | 'berg_minze'      // Berg-Minze
   | 'thymian'         // Thymian
+  | 'salzpeeling'     // Salzpeeling-Aufguss
   // ─── Musik-Ambiente ────────────────────────────────────────────────────
   | 'music'           // Musik (allgemein)
   | 'loud_music'      // sehr laute Musik

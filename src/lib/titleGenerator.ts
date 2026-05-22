@@ -34,6 +34,7 @@ const ATTR_ADJECTIVE: Partial<Record<InfusionAttribute, string[]>> = {
   honig_klee:     ['Honiger', 'Süßer', 'Wiesen-'],
   berg_minze:     ['Alpiner', 'Bergiger', 'Frisch-Minziger'],
   thymian:        ['Würziger', 'Mediterraner', 'Sonniger'],
+  salzpeeling:    ['Salziger', 'Peelender', 'Reinigender'],
   // Musik-Ambiente
   rock:           ['Rockiger', 'Harter', 'Stadion-'],
   deutsch_rock:   ['Deutsch-Rockiger', 'Indie-', 'Heimat-'],
@@ -85,6 +86,7 @@ const ATTR_ONLY_TEMPLATE: Partial<Record<InfusionAttribute, string[]>> = {
   honig_klee:     ['🍯 Honig-Klee-Aufguss', '🍯 Goldener Wiesen-Aufguss'],
   berg_minze:     ['⛰️ Bergminz-Bad', '⛰️ Alpenfrische'],
   thymian:        ['🌱 Thymian-Aufguss', '🌱 Mediterraner Garten'],
+  salzpeeling:    ['🧂 Salz-Peeling', '🧂 Meeresfrische', '🧂 Haut-Streichler'],
   // Musik-Ambiente
   rock:           ['🎸 Rock-Session', '🎸 Rock-Aufguss'],
   deutsch_rock:   ['🤘 Deutsch-Rock-Aufguss', '🤘 Heimat-Rock'],
