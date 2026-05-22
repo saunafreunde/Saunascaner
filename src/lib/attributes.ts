@@ -49,6 +49,7 @@ export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string }
   { id: 'honig_klee',     emoji: '🍯', label: 'Honig-Klee' },
   { id: 'berg_minze',     emoji: '⛰️', label: 'Berg-Minze' },
   { id: 'thymian',        emoji: '🌱', label: 'Thymian' },
+  { id: 'salzpeeling',    emoji: '🧂', label: 'Salzpeeling' },
   // Musik-Ambiente
   { id: 'music',          emoji: '🎵', label: 'Musik' },
   { id: 'loud_music',     emoji: '🔊', label: 'Sehr laut' },
