@@ -40,7 +40,7 @@ const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
 
 export default function EmojiPicker({ onSelect, onClose }: Props) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
         className="w-full max-w-sm rounded-2xl bg-slate-900 ring-1 ring-forest-700/50 p-4 max-h-[70dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
