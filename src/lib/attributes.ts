@@ -28,7 +28,10 @@ export type InfusionAttribute =
   | 'party_schlager'  // Party-Schlager
   | 'malle_schlager'  // Malle-Schlager
   | 'klassik_musik'   // Klassik-Musik
-  | 'kontrovers';     // Kontrovers (Inhaltswarnung)
+  | 'kontrovers'      // Kontrovers (Inhaltswarnung)
+  // ─── Ritual & Format ──────────────────────────────────────────────────
+  | 'silent_strict'   // psssst → sonst raus (strenge Stille-Regel)
+  | 'three_x_three';  // 3×3 Runden (3 Runden à 3 Wedeleinheiten)
 
 export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string }[] = [
   // Aufguss-Stil
@@ -61,6 +64,9 @@ export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string }
   { id: 'malle_schlager', emoji: '🏖️', label: 'Malle-Schlager' },
   { id: 'klassik_musik',  emoji: '🎻', label: 'Klassik' },
   { id: 'kontrovers',     emoji: '⚠️', label: 'Kontrovers' },
+  // Ritual & Format
+  { id: 'silent_strict',  emoji: '🤫', label: 'Psssst → sonst raus' },
+  { id: 'three_x_three',  emoji: '3️⃣', label: '3×3 Runden' },
 ];
 
 export const ATTR_BY_ID: Record<InfusionAttribute, { emoji: string; label: string }> =
