@@ -1,4 +1,4 @@
-import { useId, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { differenceInMinutes } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
@@ -177,7 +177,10 @@ export function InfusionCard({
       {!imminent && !backgroundImage && <WoodGrainOverlay />}
 
       {compact ? (
-        <div className="flex flex-col flex-1 min-h-0 pl-3" style={{ gap: 'clamp(4px, 1.5cqh, 12px)' }}>
+        /* relative z-10 — damit der Card-Content GARANTIERT über der
+           Holz-Maserung (WoodGrainOverlay, z-index 1) liegt und nicht
+           davon überdeckt wird */
+        <div className="relative z-10 flex flex-col flex-1 min-h-0 pl-3" style={{ gap: 'clamp(4px, 1.5cqh, 12px)' }}>
           {/* Header: Uhrzeit + Titel. Beide Schriftgrößen skalieren via cqh
               proportional zur Tile-Höhe — auf kleinen Tiles automatisch kleiner. */}
           <div className="flex items-stretch flex-shrink-0" style={{ gap: 'clamp(6px, 1.5cqh, 12px)' }}>
@@ -673,54 +676,60 @@ function PillsBlock({
 }
 
 // ─── WoodGrainOverlay ─────────────────────────────────────────────────────
-// Schwarzwald-Holz-Maserung als echtes Inline-SVG-Pattern.
-// Analog zur Bühnen-Architektur (Inline JSX-SVG = Pattern A) — funktioniert
-// garantiert in jedem Browser ohne data-URL-Encoding-Risiko.
+// Schwarzwald-Holz-Maserung als direktes Inline-SVG (NICHT als <pattern>
+// + <use> — das hat in der ersten Iteration nicht gerendert, vermutlich
+// wegen viewBox/sizing-Issues mit width="100%"-SVGs ohne viewBox).
 //
-// Mehrere geschwungene Brown-Linien (Jahresring-Adern) wiederholen sich als
-// SVG-Pattern, das die gesamte Card-Fläche füllt. Stroke-Width und
-// Opacity bewusst kräftig (1.4px / 0.55) damit die Maserung auf dem
-// warmen Karten-Hintergrund mit 55% Sauna-Tint deutlich sichtbar ist.
+// Diesmal: explizites viewBox + preserveAspectRatio="none" + Pfade direkt
+// im viewBox-Koordinatensystem. SVG wird auf Card-Größe gestaucht.
+// vectorEffect="non-scaling-stroke" hält die Linienbreite konstant
+// unabhängig vom Skalierungsfaktor.
 //
-// useId() für die Pattern-ID — sonst kollidieren mehrere Cards mit
-// derselben pattern="url(#xxx)" Referenz im DOM.
+// z-index: 1 stellt sicher dass die Maserung ÜBER dem Tailwind ::before
+// (weißer Inner-Gradient, z-index auto) liegt. Der Card-Content (compact
+// div) bekommt z-index 10 damit er über der Maserung bleibt.
 function WoodGrainOverlay() {
-  const rawId = useId();
-  const patternId = `wood-grain-${rawId.replace(/:/g, '')}`;
   return (
     <svg
       aria-hidden
-      className="absolute inset-0 pointer-events-none"
-      width="100%"
-      height="100%"
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      viewBox="0 0 400 300"
       preserveAspectRatio="none"
-      style={{ zIndex: 0 }}
+      style={{ zIndex: 1 }}
     >
-      <defs>
-        <pattern
-          id={patternId}
-          patternUnits="userSpaceOnUse"
-          width="180"
-          height="180"
-        >
-          {/* Haupt-Adern (dunkles Brown, kräftig) */}
-          <g stroke="#5d3414" strokeWidth="1.4" fill="none" strokeLinecap="round">
-            <path d="M0,22 Q45,16 90,24 T180,18" opacity="0.55" />
-            <path d="M0,58 Q55,50 110,62 T180,54" opacity="0.55" />
-            <path d="M0,96 Q45,88 90,98 T180,92" opacity="0.5" />
-            <path d="M0,138 Q60,128 120,140 T180,132" opacity="0.55" />
-            <path d="M0,170 Q70,162 140,172 T180,168" opacity="0.45" />
-          </g>
-          {/* Zwischen-Adern (heller Brown, dünner) */}
-          <g stroke="#8b5a2b" strokeWidth="1.0" fill="none" strokeLinecap="round">
-            <path d="M0,40 Q50,36 100,42 T180,38" opacity="0.4" />
-            <path d="M0,78 Q40,72 80,80 T180,74" opacity="0.4" />
-            <path d="M0,118 Q60,110 120,120 T180,114" opacity="0.4" />
-            <path d="M0,156 Q50,150 100,158 T180,152" opacity="0.4" />
-          </g>
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill={`url(#${patternId})`} />
+      {/* Haupt-Adern — dunkles Brown, kräftig sichtbar */}
+      <g stroke="#5d3414" strokeWidth="1.6" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke">
+        <path d="M0,18 Q100,10 200,20 T400,14" opacity="0.55" />
+        <path d="M0,48 Q120,40 240,52 T400,44" opacity="0.55" />
+        <path d="M0,78 Q90,70 180,82 T400,76" opacity="0.50" />
+        <path d="M0,108 Q140,100 280,112 T400,104" opacity="0.55" />
+        <path d="M0,138 Q100,130 200,142 T400,134" opacity="0.50" />
+        <path d="M0,168 Q120,160 240,172 T400,164" opacity="0.55" />
+        <path d="M0,198 Q90,190 180,202 T400,194" opacity="0.45" />
+        <path d="M0,228 Q140,220 280,232 T400,224" opacity="0.55" />
+        <path d="M0,258 Q100,250 200,262 T400,254" opacity="0.50" />
+        <path d="M0,288 Q120,280 240,292 T400,284" opacity="0.55" />
+      </g>
+      {/* Zwischen-Adern — helleres Brown, etwas dünner */}
+      <g stroke="#8b5a2b" strokeWidth="1.1" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke">
+        <path d="M0,32 Q110,26 220,36 T400,30" opacity="0.45" />
+        <path d="M0,62 Q90,56 180,66 T400,60" opacity="0.40" />
+        <path d="M0,92 Q140,86 280,96 T400,90" opacity="0.45" />
+        <path d="M0,122 Q100,116 200,126 T400,120" opacity="0.40" />
+        <path d="M0,152 Q120,146 240,156 T400,150" opacity="0.45" />
+        <path d="M0,182 Q90,176 180,186 T400,180" opacity="0.40" />
+        <path d="M0,212 Q140,206 280,216 T400,210" opacity="0.45" />
+        <path d="M0,242 Q100,236 200,246 T400,240" opacity="0.40" />
+        <path d="M0,272 Q120,266 240,276 T400,270" opacity="0.45" />
+      </g>
+      {/* Astlöcher / Knoten — kleine dunkle Ellipsen für organischen Look */}
+      <g fill="#4a2a10" stroke="#3a1f08" strokeWidth="0.8" vectorEffect="non-scaling-stroke">
+        <ellipse cx="78"  cy="58"  rx="6" ry="4" opacity="0.35" />
+        <ellipse cx="252" cy="148" rx="8" ry="5" opacity="0.40" />
+        <ellipse cx="340" cy="76"  rx="5" ry="3" opacity="0.30" />
+        <ellipse cx="124" cy="226" rx="7" ry="4" opacity="0.38" />
+        <ellipse cx="296" cy="262" rx="5" ry="3" opacity="0.32" />
+      </g>
     </svg>
   );
 }
