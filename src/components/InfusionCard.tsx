@@ -163,6 +163,31 @@ export function InfusionCard({
         }),
       } as CSSProperties}
     >
+      {/* Sauna-Badge unten links — auf der ganzen Card positioniert, nicht
+          in der Titel-Box. +40% Größe gegenüber 1. Iteration. Z-index hoch
+          damit er über dem Akzent-Stripe (links) und dem Wood-Grain-Layer
+          liegt. Wirkt wie ein "Sauna-Stempel" auf einem Filmplakat. */}
+      <span
+        className="absolute z-10 inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white pointer-events-none"
+        style={{
+          left:   'clamp(6px, 1.5cqh, 12px)',
+          bottom: 'clamp(6px, 1.5cqh, 12px)',
+          /* +40% gegenüber clamp(8, 1.9cqh, 11) — jetzt clamp(11, 2.7cqh, 16) */
+          fontSize: 'clamp(11px, 2.7cqh, 16px)',
+          padding:  'clamp(3px, 0.8cqh, 6px) clamp(8px, 2.1cqh, 14px)',
+          background: sauna.accent_color,
+          boxShadow: `0 2px 8px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
+          textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+        }}
+      >
+        {sauna.name}
+        {(infusion.temperature_c ?? sauna.temperature_label) && (
+          <span className="opacity-90">
+            · {infusion.temperature_c ? `${infusion.temperature_c}°C` : sauna.temperature_label}
+          </span>
+        )}
+      </span>
+
       {/* Akzent-Stripe links */}
       <span
         aria-hidden
@@ -232,12 +257,14 @@ export function InfusionCard({
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
-              {/* Sauna-Badge + Live-Badge oben rechts in der Titel-Box */}
-              <div
-                className="absolute top-1 right-1 flex items-center gap-1 flex-shrink-0"
-                style={{ fontSize: 'clamp(8px, 1.9cqh, 11px)' }}
-              >
-                {running && (
+              {/* Live-Badge bleibt oben rechts in der Titel-Box. Sauna-Badge
+                  wandert nach unten links — siehe weiter unten unterhalb der
+                  motion.div-Schließung. */}
+              {running && (
+                <div
+                  className="absolute top-1 right-1 flex items-center flex-shrink-0"
+                  style={{ fontSize: 'clamp(8px, 1.9cqh, 11px)' }}
+                >
                   <span
                     className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 font-black tracking-wider text-white whitespace-nowrap"
                     style={{ boxShadow: '0 0 10px rgba(34,197,94,0.7)' }}
@@ -245,26 +272,8 @@ export function InfusionCard({
                     <span className="w-1.5 h-1.5 rounded-full bg-white tafel-blink" />
                     LIVE
                   </span>
-                )}
-                <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold whitespace-nowrap text-white"
-                  style={{
-                    /* Vollopaker accent-color als bg + weißer Text → garantiert
-                       lesbar egal welche Sauna-Farbe (Brown/Grün/Rot/Gold etc).
-                       1. Iteration war pastell-Text auf pastell-Bg → unleserlich. */
-                    background: sauna.accent_color,
-                    boxShadow: `0 1px 4px ${sauna.accent_color}80, inset 0 1px 0 rgba(255,255,255,0.3)`,
-                    textShadow: '0 1px 1px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  {sauna.name}
-                  {(infusion.temperature_c ?? sauna.temperature_label) && (
-                    <span className="opacity-90">
-                      · {infusion.temperature_c ? `${infusion.temperature_c}°C` : sauna.temperature_label}
-                    </span>
-                  )}
-                </span>
-              </div>
+                </div>
+              )}
 
               <h3
                 className="font-black text-slate-900 leading-tight w-full tracking-tight pr-1"
@@ -326,6 +335,9 @@ export function InfusionCard({
                   {meisterMeta?.isGuest && (
                     <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
                   )}
+                  {coNames && coNames.length > 0 && (
+                    <span className="ml-1 text-amber-700">+ {coNames.join(' + ')}</span>
+                  )}
                 </div>
                 {meisterDefaults.motto && (
                   <div
@@ -364,17 +376,14 @@ export function InfusionCard({
             customOils={customOilsAll.data ?? []}
           />
 
-          {/* Footer: Co-Aufgießer (links — nur falls Team) · Aktuelle Uhrzeit + Countdown (rechts).
-              Meister-Name steht jetzt oben im Aufgießer-Strip — keine Doppelung mehr. */}
+          {/* Footer: Aktuelle Uhrzeit + Countdown nur rechts.
+              Links unten sitzt der Sauna-Badge (absolut, siehe oben) —
+              wir lassen den Footer-Inhalt rechts-bündig damit nichts kollidiert.
+              Co-Aufgießer-Namen stehen jetzt im Aufgießer-Strip oben. */}
           <div
-            className="mt-auto pt-1 flex items-end justify-between gap-3 text-slate-700 flex-shrink-0"
+            className="mt-auto pt-1 flex items-end justify-end gap-3 text-slate-700 flex-shrink-0"
             style={{ fontSize: 'clamp(11px, 3cqh, 18px)' }}
           >
-            <span className="min-w-0 leading-tight text-amber-700">
-              {coNames && coNames.length > 0 && (
-                <>+ {coNames.join(' + ')}</>
-              )}
-            </span>
             <div className="flex flex-col items-end leading-none whitespace-nowrap flex-shrink-0">
               {/* Aktuelle Uhrzeit: schwarz, kein Blink. */}
               <span
