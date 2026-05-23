@@ -163,31 +163,9 @@ export function InfusionCard({
         }),
       } as CSSProperties}
     >
-      {/* Sauna-Badge unten links — auf der ganzen Card positioniert, nicht
-          in der Titel-Box. +40% Größe gegenüber 1. Iteration. Z-index hoch
-          damit er über dem Akzent-Stripe (links) und dem Wood-Grain-Layer
-          liegt. Wirkt wie ein "Sauna-Stempel" auf einem Filmplakat. */}
-      <span
-        className="absolute z-10 inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white pointer-events-none"
-        style={{
-          left:   'clamp(14px, 3.2cqh, 22px)',
-          bottom: 'clamp(14px, 3.2cqh, 22px)',
-          /* +15% gegenüber 1. Iteration — war clamp(11, 2.7cqh, 16)
-             → jetzt clamp(13, 3.1cqh, 18) */
-          fontSize: 'clamp(13px, 3.1cqh, 18px)',
-          padding:  'clamp(4px, 1cqh, 7px) clamp(9px, 2.4cqh, 16px)',
-          background: sauna.accent_color,
-          boxShadow: `0 2px 10px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
-          textShadow: '0 1px 2px rgba(0,0,0,0.45)',
-        }}
-      >
-        {sauna.name}
-        {(infusion.temperature_c ?? sauna.temperature_label) && (
-          <span className="opacity-90">
-            · {infusion.temperature_c ? `${infusion.temperature_c}°C` : sauna.temperature_label}
-          </span>
-        )}
-      </span>
+      {/* Sauna-Badge wurde aus der absoluten Position in den Footer-Bereich
+          unten verschoben — Teil der einheitlichen 3-Spalten-Footer-Zeile
+          (siehe ganz unten in der compact-Sektion: Sauna | Aufgießer | Uhrzeit). */}
 
       {/* Akzent-Stripe links */}
       <span
@@ -319,85 +297,105 @@ export function InfusionCard({
             customOils={customOilsAll.data ?? []}
           />
 
-          {/* Aufgießer-Block UNTEN MITTIG (User-Wunsch). Avatar links,
-              Name + Motto rechts, das Ganze zentriert. Personal-Aufgüsse
-              (kein saunameister_id) → Block verschwindet elegant. */}
-          {meisterDefaults && (meisterName || meisterDefaults.motto) && (
-            <div className="flex items-center justify-center gap-2 flex-shrink-0 mt-1">
-              {(() => {
-                const avatarUrl = resolveAvatarUrl(meisterDefaults.avatar_path, 128)
-                  ?? dicebearUrl('fun-emoji', meisterDefaults.id, 128);
-                const accent = meisterDefaults.star_accent_color;
-                return (
-                  <span
-                    aria-hidden
-                    className="flex-shrink-0 rounded-full overflow-hidden"
+          {/* Footer-Zeile: drei Spalten ALLE UNTEN AUSGERICHTET damit es
+              "gleichmäßig" aussieht (User-Wunsch).
+              Links: Sauna-Badge (war vorher absolute, jetzt im Flow)
+              Mitte: Aufgießer-Block (Avatar + Name + Motto)
+              Rechts: Aktuelle Uhrzeit + Countdown-Pille
+              mt-auto drückt die ganze Zeile nach unten, items-end macht
+              alle drei Elemente bündig auf gleicher unterer Kante.
+              flex-wrap fängt sehr enge Karten ab — bei zu wenig Platz
+              wickeln die Spalten ohne Crash. */}
+          <div className="mt-auto pt-2 flex items-end justify-between gap-2 flex-shrink-0 flex-wrap">
+            {/* SPALTE 1 — Sauna-Badge */}
+            <span
+              className="inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white flex-shrink-0"
+              style={{
+                fontSize: 'clamp(13px, 3.1cqh, 18px)',
+                padding:  'clamp(4px, 1cqh, 7px) clamp(9px, 2.4cqh, 16px)',
+                background: sauna.accent_color,
+                boxShadow: `0 2px 10px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
+                textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+              }}
+            >
+              {sauna.name}
+              {(infusion.temperature_c ?? sauna.temperature_label) && (
+                <span className="opacity-90">
+                  · {infusion.temperature_c ? `${infusion.temperature_c}°C` : sauna.temperature_label}
+                </span>
+              )}
+            </span>
+
+            {/* SPALTE 2 — Aufgießer-Block mittig */}
+            {meisterDefaults && (meisterName || meisterDefaults.motto) ? (
+              <div className="flex items-center gap-2 min-w-0 flex-shrink">
+                {(() => {
+                  const avatarUrl = resolveAvatarUrl(meisterDefaults.avatar_path, 128)
+                    ?? dicebearUrl('fun-emoji', meisterDefaults.id, 128);
+                  const accent = meisterDefaults.star_accent_color;
+                  return (
+                    <span
+                      aria-hidden
+                      className="flex-shrink-0 rounded-full overflow-hidden"
+                      style={{
+                        width:  'clamp(32px, 8cqh, 54px)',
+                        height: 'clamp(32px, 8cqh, 54px)',
+                        boxShadow: accent
+                          ? `0 0 0 2px ${accent}, 0 0 14px ${accent}66`
+                          : '0 0 0 2px rgba(148,163,184,0.4)',
+                        background: 'rgba(255,255,255,0.7)',
+                      }}
+                    >
+                      <img
+                        src={avatarUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
+                    </span>
+                  );
+                })()}
+                <div className="min-w-0 leading-tight">
+                  <div
+                    className="font-bold truncate"
                     style={{
-                      width:  'clamp(32px, 8cqh, 54px)',
-                      height: 'clamp(32px, 8cqh, 54px)',
-                      boxShadow: accent
-                        ? `0 0 0 2px ${accent}, 0 0 14px ${accent}66`
-                        : '0 0 0 2px rgba(148,163,184,0.4)',
-                      background: 'rgba(255,255,255,0.7)',
+                      fontSize: 'clamp(13px, 3.4cqh, 20px)',
+                      color: meisterDefaults.star_accent_color ?? '#1e293b',
                     }}
                   >
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover"
-                    />
-                  </span>
-                );
-              })()}
-              <div className="min-w-0 leading-tight text-center">
-                <div
-                  className="font-bold truncate"
-                  style={{
-                    fontSize: 'clamp(13px, 3.4cqh, 20px)',
-                    color: meisterDefaults.star_accent_color ?? '#1e293b',
-                  }}
-                >
-                  {meisterName ?? meisterDefaults.name}
-                  {meisterMeta?.isGuest && (
-                    <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
-                  )}
-                  {coNames && coNames.length > 0 && (
-                    <span className="ml-1 text-amber-700">+ {coNames.join(' + ')}</span>
+                    {meisterName ?? meisterDefaults.name}
+                    {meisterMeta?.isGuest && (
+                      <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+                    )}
+                    {coNames && coNames.length > 0 && (
+                      <span className="ml-1 text-amber-700">+ {coNames.join(' + ')}</span>
+                    )}
+                  </div>
+                  {meisterDefaults.motto && (
+                    <div
+                      className="italic text-slate-500 truncate"
+                      style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
+                    >
+                      „{meisterDefaults.motto}"
+                    </div>
                   )}
                 </div>
-                {meisterDefaults.motto && (
-                  <div
-                    className="italic text-slate-500 truncate"
-                    style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
-                  >
-                    „{meisterDefaults.motto}"
-                  </div>
-                )}
               </div>
-            </div>
-          )}
+            ) : (
+              /* Personal-Aufguss: Mittel-Spalte leer aber als Spacer, damit
+                 Sauna-Badge links und Uhrzeit rechts ausbalanciert bleiben */
+              <div className="flex-1" />
+            )}
 
-          {/* Footer: Aktuelle Uhrzeit + Countdown nur rechts.
-              Links unten sitzt der Sauna-Badge (absolut, siehe oben) —
-              wir lassen den Footer-Inhalt rechts-bündig damit nichts kollidiert.
-              Co-Aufgießer-Namen stehen jetzt im Aufgießer-Strip oben. */}
-          <div
-            className="mt-auto pt-1 flex items-end justify-end gap-3 text-slate-700 flex-shrink-0"
-            style={{ fontSize: 'clamp(11px, 3cqh, 18px)' }}
-          >
+            {/* SPALTE 3 — Aktuelle Uhrzeit + Countdown-Pille rechts */}
             <div className="flex flex-col items-end gap-1 leading-none whitespace-nowrap flex-shrink-0">
-              {/* Aktuelle Uhrzeit: schwarz, kein Blink. */}
               <span
                 className="tabular-nums font-bold text-black"
                 style={{ fontSize: 'clamp(16px, 4.3cqh, 26px)' }}
               >
                 {fmtClock(now)}
               </span>
-              {/* Countdown als prominente Pille mit rotem Background damit er
-                  garantiert sichtbar ist (User: "timer unter der uhrzeit
-                  ist gar nicht zu sehen"). Blinkt bei imminent. */}
               <span
                 className={`inline-flex items-center tabular-nums font-black text-white rounded-full ${imminent ? 'tafel-blink' : ''}`}
                 style={{
