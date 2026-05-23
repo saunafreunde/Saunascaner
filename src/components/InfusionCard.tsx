@@ -170,9 +170,11 @@ export function InfusionCard({
       <span
         className="absolute z-10 inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white pointer-events-none"
         style={{
-          left:   'clamp(6px, 1.5cqh, 12px)',
-          bottom: 'clamp(6px, 1.5cqh, 12px)',
-          /* +40% gegenüber clamp(8, 1.9cqh, 11) — jetzt clamp(11, 2.7cqh, 16) */
+          /* "aus der ecke raus" → größerer Abstand zum Rand:
+             war clamp(6, 1.5cqh, 12) → jetzt clamp(14, 3.2cqh, 22)
+             damit der Badge nicht mehr eingequetscht wirkt */
+          left:   'clamp(14px, 3.2cqh, 22px)',
+          bottom: 'clamp(14px, 3.2cqh, 22px)',
           fontSize: 'clamp(11px, 2.7cqh, 16px)',
           padding:  'clamp(3px, 0.8cqh, 6px) clamp(8px, 2.1cqh, 14px)',
           background: sauna.accent_color,
@@ -556,7 +558,10 @@ function PillsBlock({
   const pillGap = 'clamp(2px, 0.5cqh, 5px)';
 
   return (
-    <div className="flex flex-col flex-shrink-0" style={{ gap: 'clamp(4px, 1cqh, 10px)' }}>
+    /* "alles zu gepresst" → größerer Gap zwischen den beiden Cards
+       (Besonderheiten + Öle), damit sie klar als zwei getrennte Blöcke
+       übereinander wirken. War clamp(4, 1cqh, 10) → jetzt clamp(8, 2cqh, 18). */
+    <div className="flex flex-col flex-shrink-0 w-full" style={{ gap: 'clamp(8px, 2cqh, 18px)' }}>
       {attributes.length > 0 && (
         <div className={`rounded-lg ring-1 overflow-hidden ${attributesAreDefault ? 'ring-violet-400/25 opacity-90' : 'ring-slate-400/25'}`}>
           <div
