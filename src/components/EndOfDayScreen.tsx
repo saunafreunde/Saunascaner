@@ -1,11 +1,12 @@
 import type { CSSProperties } from 'react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Infusion } from '@/types/database';
 import type { MeisterDirectoryEntry } from '@/lib/api';
 import { Avatar } from '@/components/Avatar';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
+import { generateEndOfDayPdf, shareEndOfDayPdf, downloadBlob, type EndOfDayPdfData } from '@/lib/endOfDayPdf';
 
 /**
  * Tagesabschluss-Screen für die TV-Tafel.
@@ -96,6 +97,69 @@ export function EndOfDayScreen({
 
   // Avatar-Größe responsive: bei wenigen großen, bei vielen kleiner
   const avatarSize: 'md' | 'lg' = meisterStats.length > 5 ? 'md' : 'lg';
+
+  // ── PDF-Export / Share ──────────────────────────────────────────────
+  // Sammelt die Daten in einem gemeinsamen Format und gibt sie an die
+  // Helper-Funktionen aus endOfDayPdf.ts.
+  const [shareBusy, setShareBusy] = useState<'download' | 'share' | null>(null);
+
+  const pdfData = useMemo<EndOfDayPdfData>(() => ({
+    todayLabel,
+    totalAufguesse,
+    teamCount,
+    meisters: meisterStats.map(({ entry, count }) => ({
+      name: entry.name,
+      saunaName: entry.sauna_name,
+      count,
+    })),
+    topOils: topOils.map((o) => ({
+      name: o.meta.name,
+      emoji: o.meta.emoji,
+      number: o.meta.number,
+      count: o.count,
+    })),
+    topAttrs: topAttrs.map((a) => ({
+      label: a.meta.label,
+      emoji: a.meta.emoji,
+      count: a.count,
+    })),
+  }), [todayLabel, totalAufguesse, teamCount, meisterStats, topOils, topAttrs]);
+
+  async function handleDownload() {
+    setShareBusy('download');
+    try {
+      const blob = generateEndOfDayPdf(pdfData);
+      downloadBlob(blob, `Tagesabschluss-${todayLabel.replace(/[,\s]+/g, '-')}.pdf`);
+    } finally {
+      setShareBusy(null);
+    }
+  }
+
+  async function handleSystemShare() {
+    setShareBusy('share');
+    try {
+      const blob = generateEndOfDayPdf(pdfData);
+      await shareEndOfDayPdf(blob, todayLabel);
+    } finally {
+      setShareBusy(null);
+    }
+  }
+
+  // Tafel-URL für Text-Share (mailto/WhatsApp). PDF kann mailto/wa.me
+  // nicht direkt mitsenden — wir teilen Text + Link zur Live-Tafel.
+  const liveUrl = typeof window !== 'undefined' ? window.location.origin + '/dashboard' : '';
+  const shareText = `🌙 Tagesabschluss ${todayLabel} bei den Saunafreunden Schwarzwald!\n\n${totalAufguesse} Aufgüsse · ${meisterStats.length} Aufgießer${teamCount > 0 ? ` · ${teamCount} Team-Aufguss${teamCount === 1 ? '' : 'e'}` : ''}\n\nLive-Tafel: ${liveUrl}`;
+
+  function handleEmail() {
+    const subject = encodeURIComponent(`Tagesabschluss ${todayLabel}`);
+    const body = encodeURIComponent(shareText);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
+  function handleWhatsapp() {
+    const text = encodeURIComponent(shareText);
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
+  }
 
   return (
     <motion.div
@@ -326,13 +390,76 @@ export function EndOfDayScreen({
         </div>
       </section>
 
-      {/* ─── FOOTER ─────────────────────────────────────────────────── */}
-      <p
-        className="flex-shrink-0 text-center mt-2 font-bold text-slate-700 italic"
-        style={{ fontSize: 'clamp(10px, 1.6cqh, 16px)' }}
-      >
-        Saunafreunde Schwarzwald e.V. · Genießt den Abend 🥂
-      </p>
+      {/* ─── FOOTER + SHARE-TOOLBAR ─────────────────────────────────── */}
+      <footer className="flex-shrink-0 mt-2 flex flex-col items-center gap-2">
+        <p
+          className="text-center font-bold text-slate-700 italic"
+          style={{ fontSize: 'clamp(10px, 1.6cqh, 16px)' }}
+        >
+          Saunafreunde Schwarzwald e.V. · Genießt den Abend 🥂
+        </p>
+
+        {/* Share-Toolbar: PDF-Download · System-Teilen · E-Mail · WhatsApp.
+            "Teilen"-Button öffnet auf Mobile das System-Share-Sheet → von
+            dort kann der User direkt an Instagram / TikTok / Telegram /
+            jede installierte App weiterleiten (Web Share API mit File).
+            Buttons sind dezent klein damit das Hauptbild nicht abgelenkt
+            wird, aber kontrastreich genug zum Anklicken. */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <ShareButton
+            onClick={handleDownload}
+            disabled={shareBusy !== null}
+            label={shareBusy === 'download' ? 'Erstelle…' : 'Als PDF'}
+            emoji="📥"
+            primary
+          />
+          <ShareButton
+            onClick={handleSystemShare}
+            disabled={shareBusy !== null}
+            label={shareBusy === 'share' ? 'Teile…' : 'Teilen…'}
+            emoji="📤"
+            primary
+          />
+          <ShareButton onClick={handleWhatsapp} label="WhatsApp" emoji="💬" />
+          <ShareButton onClick={handleEmail} label="E-Mail" emoji="✉️" />
+        </div>
+      </footer>
     </motion.div>
+  );
+}
+
+// ─── Mini-Komponente für die Share-Buttons ──────────────────────────────
+function ShareButton({
+  onClick,
+  label,
+  emoji,
+  primary = false,
+  disabled = false,
+}: {
+  onClick: () => void;
+  label: string;
+  emoji: string;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center gap-1.5 rounded-full font-bold transition active:scale-95 disabled:opacity-50 disabled:cursor-wait ${
+        primary
+          ? 'bg-amber-600 text-white ring-2 ring-amber-400 hover:bg-amber-500'
+          : 'bg-white/80 text-slate-800 ring-1 ring-slate-300/60 hover:bg-white'
+      }`}
+      style={{
+        fontSize: 'clamp(10px, 1.6cqh, 14px)',
+        padding: 'clamp(4px, 0.9cqh, 8px) clamp(8px, 1.8cqh, 16px)',
+        boxShadow: primary ? '0 2px 8px rgba(217,119,6,0.4)' : '0 1px 4px rgba(0,0,0,0.1)',
+      }}
+    >
+      <span aria-hidden>{emoji}</span>
+      <span>{label}</span>
+    </button>
   );
 }
