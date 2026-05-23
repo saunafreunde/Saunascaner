@@ -122,10 +122,14 @@ export default function Dashboard() {
   const allInfusions = infusions.data ?? [];
 
   // ── End-of-Day-Check ────────────────────────────────────────────────
-  // Wenn heute schon Aufgüsse waren UND alle vorbei sind UND es ist noch
-  // vor 21:00 (Wechsel auf nächsten Tag), zeigt die Tafel statt leerer
-  // Slots einen schönen Tagesabschluss-Screen mit Stats + Verabschiedung.
+  // Tagesabschluss-Screen NUR ab 21:00 Uhr zeigen — und auch nur dann
+  // wenn heute überhaupt Aufgüsse waren UND alle durch sind.
+  // Vor 21:00 IMMER den normalen Plan zeigen (auch wenn aktuell leer),
+  // damit der TV nicht den ganzen Nachmittag schon „Feierabend" anzeigt
+  // nur weil ein früher Morgen-Aufguss vorbei ist.
+  // Vorher war die Bedingung versehentlich `< 21` (zu aggressiv).
   const showEndOfDay = useMemo(() => {
+    if (now.getHours() < 21) return false; // vor 21 Uhr nie EndOfDay
     const today = new Date(now); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 86_400_000);
     const todayInfs = allInfusions.filter((i) => {
@@ -135,7 +139,7 @@ export default function Dashboard() {
     });
     if (todayInfs.length === 0) return false;
     const hasUpcoming = todayInfs.some((i) => new Date(i.end_time) > now);
-    return !hasUpcoming && now.getHours() < 21;
+    return !hasUpcoming;
   }, [allInfusions, now]);
 
   // ── Layout je nach Sauna-Anzahl ──────────────────────────────────────
