@@ -535,14 +535,18 @@ export default function VfBVsBayernEffect() {
         ))}
       </div>
 
-      {/* Bengalos (zünden gestaffelt — Position relativ zur Tribüne) */}
+      {/* Bengalos (zünden gestaffelt — Position relativ zur Tribüne).
+          Kein conditional-spread im style-Objekt (das ergäbe einen
+          Union-Type den TS nicht direkt nach CSSProperties casten kann),
+          stattdessen explizite undefined-Werte. */}
       {FLARES.map((fl) => (
         <div
           key={`flare-${fl.id}`}
           className="fx-vfb-flare-mount"
           style={{
             left: `${fl.xPercent}%`,
-            ...(fl.top ? { top: '4vh' } : { bottom: '4vh' }),
+            top: fl.top ? '4vh' : undefined,
+            bottom: fl.top ? undefined : '4vh',
             transform: 'translateX(-50%)',
             zIndex: 4,
             '--d': `${fl.delay}s`,
