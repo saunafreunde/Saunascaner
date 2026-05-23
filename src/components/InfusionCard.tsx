@@ -386,7 +386,7 @@ export function InfusionCard({
             className="mt-auto pt-1 flex items-end justify-end gap-3 text-slate-700 flex-shrink-0"
             style={{ fontSize: 'clamp(11px, 3cqh, 18px)' }}
           >
-            <div className="flex flex-col items-end leading-none whitespace-nowrap flex-shrink-0">
+            <div className="flex flex-col items-end gap-1 leading-none whitespace-nowrap flex-shrink-0">
               {/* Aktuelle Uhrzeit: schwarz, kein Blink. */}
               <span
                 className="tabular-nums font-bold text-black"
@@ -394,11 +394,20 @@ export function InfusionCard({
               >
                 {fmtClock(now)}
               </span>
-              {/* Countdown/Timer: rot. Blinkt NUR wenn ≤10 Min bis Start
-                  (imminent). Beim laufenden / vergangenen Aufguss kein Blink. */}
+              {/* Countdown als prominente Pille mit rotem Background damit er
+                  garantiert sichtbar ist (User: "timer unter der uhrzeit
+                  ist gar nicht zu sehen"). Blinkt bei imminent. */}
               <span
-                className={`tabular-nums font-bold mt-0.5 text-red-600 ${imminent ? 'tafel-blink' : ''}`}
-                style={{ fontSize: 'clamp(12px, 3.1cqh, 19px)' }}
+                className={`inline-flex items-center tabular-nums font-black text-white rounded-full ${imminent ? 'tafel-blink' : ''}`}
+                style={{
+                  fontSize: 'clamp(11px, 2.8cqh, 17px)',
+                  padding: 'clamp(2px, 0.7cqh, 5px) clamp(7px, 1.8cqh, 12px)',
+                  background: running ? '#16a34a' : '#dc2626',
+                  boxShadow: running
+                    ? '0 1px 4px rgba(34,197,94,0.5), inset 0 1px 0 rgba(255,255,255,0.25)'
+                    : '0 1px 4px rgba(220,38,38,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
+                  textShadow: '0 1px 1px rgba(0,0,0,0.35)',
+                }}
               >
                 {running && <span className="mr-1">●</span>}
                 {countdownText()}
@@ -563,14 +572,22 @@ function PillsBlock({
        übereinander wirken. War clamp(4, 1cqh, 10) → jetzt clamp(8, 2cqh, 18). */
     <div className="flex flex-col flex-shrink-0 w-full" style={{ gap: 'clamp(8px, 2cqh, 18px)' }}>
       {attributes.length > 0 && (
-        <div className={`rounded-lg ring-1 overflow-hidden ${attributesAreDefault ? 'ring-violet-400/25 opacity-90' : 'ring-slate-400/25'}`}>
+        /* "übereinander" → Card mit eigenem Background + stärkerem Ring,
+           damit sie als ein klar abgegrenzter Block wirkt (nicht mehr
+           "verklebt" mit der Öle-Card darunter). bg-white/70 statt
+           zwei separater Inner-Backgrounds. */
+        <div
+          className={`rounded-xl ring-2 overflow-hidden bg-white/65 backdrop-blur-sm shadow-sm ${
+            attributesAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-slate-400/40'
+          }`}
+        >
           <div
-            className={`font-bold uppercase ${attributesAreDefault ? 'bg-violet-500/10 text-violet-700' : 'bg-slate-500/15 text-slate-700'}`}
+            className={`font-bold uppercase ${attributesAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-slate-500/25 text-slate-800'}`}
             style={{ ...subHeaderStyle, padding: headerPadding }}
           >
             {attributesAreDefault ? '🪶 Sein Stil' : '⚡ Besonderheiten'}
           </div>
-          <div className="flex flex-wrap items-start bg-slate-100/40" style={{ gap, padding: pillsPadding }}>
+          <div className="flex flex-wrap items-start" style={{ gap, padding: pillsPadding }}>
             {attributes.map((a) => {
               const meta = ATTR_BY_ID[a as InfusionAttribute];
               if (!meta) return null;
@@ -597,14 +614,21 @@ function PillsBlock({
         </div>
       )}
       {oils.length > 0 && (
-        <div className={`rounded-lg ring-1 overflow-hidden ${oilsAreDefault ? 'ring-violet-400/25 opacity-90' : 'ring-amber-500/30'}`}>
+        /* Öle-Card analog mit eigenem Background + amber-Tönung damit sie
+           visuell als zweiter klarer Block UNTER der Besonderheiten-Card
+           steht — nicht "irgendwie nebeneinander". */
+        <div
+          className={`rounded-xl ring-2 overflow-hidden bg-amber-50/70 backdrop-blur-sm shadow-sm ${
+            oilsAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-amber-500/45'
+          }`}
+        >
           <div
-            className={`font-bold uppercase ${oilsAreDefault ? 'bg-violet-500/10 text-violet-700' : 'bg-amber-500/20 text-amber-800'}`}
+            className={`font-bold uppercase ${oilsAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-amber-500/30 text-amber-900'}`}
             style={{ ...subHeaderStyle, padding: headerPadding }}
           >
             {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : '🌿 Öle'}
           </div>
-          <div className="flex flex-wrap items-start bg-amber-50/40" style={{ gap, padding: pillsPadding }}>
+          <div className="flex flex-wrap items-start" style={{ gap, padding: pillsPadding }}>
             {oils.map((oilId, i) => {
               // Custom-Öl (Format: 'custom:<uuid>') → Lookup im All-Custom-Oils
               const customUuid = parseCustomOilId(oilId);
