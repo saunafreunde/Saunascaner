@@ -56,7 +56,18 @@ export default function Dashboard() {
   const coNamesForInfusion = (infusionId: string): string[] =>
     (coAufgieserQ.data ?? [])
       .filter((c) => c.infusion_id === infusionId)
-      .map((c) => c.member_name ?? '?');
+      .map((c) => {
+        // c.member_name kommt aus dem PostgREST-Embedded-Join members(name).
+        // Auf der ANONYMEN Tafel scheitert der Join oft (RLS auf members) →
+        // member_name ist null/undefined. Fallback: über das Meister-Directory
+        // (useMeisterDirectory läuft über RPC list_meister_names und ist
+        // explizit anon-callable). Falls auch dort nicht gefunden (z.B. Co
+        // ist Helfer ohne is_aufgieser), neutraler Fallback "Mitstreiter"
+        // statt unschönem "?".
+        if (c.member_name) return c.member_name;
+        const fromDir = lookupMemberName(members.data, c.member_id, '');
+        return fromDir || 'Mitstreiter';
+      });
 
   const activeSaunas = useMemo(
     () => (saunas.data ?? []).filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
