@@ -319,9 +319,13 @@ export function InfusionCard({
               }}
             >
               {sauna.name}
-              {(infusion.temperature_c ?? sauna.temperature_label) && (
+              {/* Immer sauna.temperature_label nutzen — infusion.temperature_c
+                  ist in der DB teilweise inkonsistent (z.B. Blockhaus mit
+                  temperature_c=80 obwohl Blockhaus = 100°C). Die Sauna-
+                  Konfiguration ist die zuverlässige Quelle. */}
+              {sauna.temperature_label && (
                 <span className="opacity-90">
-                  · {infusion.temperature_c ? `${infusion.temperature_c}°C` : sauna.temperature_label}
+                  · {sauna.temperature_label}
                 </span>
               )}
             </span>
