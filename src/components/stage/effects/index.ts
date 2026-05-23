@@ -93,6 +93,77 @@ export const EFFECT_REGISTRY: Record<string, EffectMeta> = {
     durationMs: 9_000,
     component: lazy(() => import('./MusicNotesEffect')),
   },
+  // ── Mai 2026: 11 neue komplexe Effekte (User-Wunsch) ──
+  'vfb-vs-bayern': {
+    id: 'vfb-vs-bayern', label: 'VfB jagt FC Bayern', emoji: '🔱',
+    durationMs: 20_000,
+    component: lazy(() => import('./VfBVsBayernEffect')),
+  },
+  'dragon-fire': {
+    id: 'dragon-fire', label: 'Drachenfeuer', emoji: '🐉',
+    durationMs: 10_000,
+    component: lazy(() => import('./DragonFireEffect')),
+  },
+  'alien-invasion': {
+    id: 'alien-invasion', label: 'Alien-Invasion', emoji: '👽',
+    durationMs: 12_000,
+    component: lazy(() => import('./AlienInvasionEffect')),
+  },
+  'volcano-eruption': {
+    id: 'volcano-eruption', label: 'Vulkan-Ausbruch', emoji: '🌋',
+    durationMs: 8_000,
+    component: lazy(() => import('./VolcanoEruptionEffect')),
+  },
+  'casino-jackpot': {
+    id: 'casino-jackpot', label: 'Casino-Jackpot', emoji: '🎰',
+    durationMs: 10_000,
+    component: lazy(() => import('./CasinoJackpotEffect')),
+  },
+  'beer-festival': {
+    id: 'beer-festival', label: 'Oktoberfest', emoji: '🍺',
+    durationMs: 12_000,
+    component: lazy(() => import('./BeerFestivalEffect')),
+  },
+  'penguin-parade': {
+    id: 'penguin-parade', label: 'Pinguin-Parade', emoji: '🐧',
+    durationMs: 11_000,
+    component: lazy(() => import('./PenguinParadeEffect')),
+  },
+  'ninja-strike': {
+    id: 'ninja-strike', label: 'Ninja-Angriff', emoji: '🥷',
+    durationMs: 7_000,
+    component: lazy(() => import('./NinjaStrikeEffect')),
+  },
+  'disco-ball': {
+    id: 'disco-ball', label: 'Disco-Kugel', emoji: '🪩',
+    durationMs: 12_000,
+    component: lazy(() => import('./DiscoBallEffect')),
+  },
+  'meteor-shower': {
+    id: 'meteor-shower', label: 'Meteor-Schauer', emoji: '☄️',
+    durationMs: 9_000,
+    component: lazy(() => import('./MeteorShowerEffect')),
+  },
+  'pirate-ship': {
+    id: 'pirate-ship', label: 'Piratenschiff', emoji: '🏴‍☠️',
+    durationMs: 12_000,
+    component: lazy(() => import('./PirateShipEffect')),
+  },
+  'heart-swarm': {
+    id: 'heart-swarm', label: 'Herz-Schwarm', emoji: '💖',
+    durationMs: 8_000,
+    component: lazy(() => import('./HeartSwarmEffect')),
+  },
+  'bubble-trouble': {
+    id: 'bubble-trouble', label: 'Seifenblasen', emoji: '🫧',
+    durationMs: 10_000,
+    component: lazy(() => import('./BubbleTroubleEffect')),
+  },
+  'magic-spell': {
+    id: 'magic-spell', label: 'Magischer Zauber', emoji: '🧙',
+    durationMs: 10_000,
+    component: lazy(() => import('./MagicSpellEffect')),
+  },
 };
 
 export const EFFECT_IDS = Object.keys(EFFECT_REGISTRY);

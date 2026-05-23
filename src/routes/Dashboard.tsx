@@ -7,7 +7,6 @@ import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 // statt der dunklen forest-Hintergründe.
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { Suspense } from 'react';
 import {
   useSaunas,
   useInfusions,
@@ -17,9 +16,8 @@ import {
   publicAssetUrl,
   useCoAufgieser,
   useScheduleSettings,
-  useTvStageState,
 } from '@/lib/api';
-import { EffectPlayer } from '@/components/stage/effects/EffectPlayer';
+import { Stage } from '@/components/stage/Stage';
 // ALL_BADGES / BadgeDefinition entfernt — Tafel rendert keine
 // Saunameister-Auszeichnungen mehr (User-Wunsch).
 import { lookupMemberName } from '@/lib/memberDisplay';
@@ -29,10 +27,8 @@ import { unlockAudio } from '@/lib/evacuation';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { EndOfDayScreen } from '@/components/EndOfDayScreen';
-// Stage-Scenes (Holzfäller/Reh/Schnee etc.) bewusst nicht im Hell-Theme,
-// aber der EffectPlayer (Feuerwerk/Konfetti/Sternschnuppe etc.) wird
-// direkt eingebunden weiter unten — siehe lastEffect-Block am Ende
-// des Tafel-Roots.
+// Stage komplett eingebunden — User-Wunsch: Scenes/Themes UND Effekte
+// sollen auf der Tafel sichtbar sein.
 
 // AdSidebar (Werbe-Spalten) entfernt — Sauna-Tiles bekommen jetzt die
 // volle Breite, damit Attribute-Badges + Aufgieser-Info sichtbar sind.
@@ -44,12 +40,6 @@ export default function Dashboard() {
   const infusions = useInfusions();
   const members = useMeisterDirectory();
   const evac = useActiveEvacuation();
-  // Stage-State nur für last_effect — die saisonalen Scenes werden im
-  // Hell-Theme bewusst nicht gerendert (störend auf hellem Untergrund),
-  // aber die Admin-getriggerten One-Shot-Effekte (Feuerwerk, Konfetti,
-  // Sternschnuppe, UFO etc.) sollen kommen wenn ausgelöst.
-  const stageState = useTvStageState();
-  const lastEffect = stageState.data?.last_effect ?? null;
   const brand = useBrandSettings();
   const scheduleQ = useScheduleSettings();
   const tilesPerColumn = scheduleQ.data?.tiles_per_column ?? 3;
@@ -249,16 +239,12 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* One-Shot-Bühnen-Effekte (Feuerwerk, Konfetti, Sternschnuppe,
-          Geburtstag, UFO etc.) — werden vom Admin im Tab 🎭 Bühne
-          ausgelöst und einmalig abgespielt. Per nonce-key re-mounted
-          bei jedem RPC-Trigger. EffectPlayer self-contained (z-index 100,
-          fixed inset-0, pointer-events: none, eigener Stale-Filter). */}
-      {lastEffect && (
-        <Suspense fallback={null}>
-          <EffectPlayer key={lastEffect.nonce} effect={lastEffect} />
-        </Suspense>
-      )}
+      {/* Komplette Bühne: saisonale + manuell aktivierte Scenes
+          (Schnee/Holzfäller/Reh/Themes etc.) + One-Shot-Effekte
+          (Feuerwerk/Konfetti/Sternschnuppe etc.). Alle self-contained
+          mit fixed inset-0 und sinnvollen z-Indices.
+          Admin steuert per Tab 🎭 Bühne. */}
+      <Stage />
     </div>
   );
 }
