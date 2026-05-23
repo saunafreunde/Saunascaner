@@ -154,10 +154,12 @@ export function InfusionCard({
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         } : {
-          // Plakat-Hintergrund (statt klinischem bg-white/80): warm-crème mit
-          // sauna-getöntem Verlauf in den Ecken. Holz-Maserung kommt zusätzlich
-          // via .card-wood-grain ::after.
-          background: `linear-gradient(135deg, ${sauna.accent_color}14 0%, rgba(255,251,245,0.92) 45%, ${sauna.accent_color}0a 100%)`,
+          // Plakat-Hintergrund (statt klinischem bg-white/80): stark
+          // sauna-getönt in den Ecken (40% alpha), Mitte warm-crème statt
+          // fast-weiß damit der Farbeindruck nicht "blass" wird.
+          // 1. Iteration war zu dezent (14%/8%) → User: "noch immer weiß".
+          // Wood-Maserung kommt zusätzlich via .card-wood-grain ::after.
+          background: `linear-gradient(135deg, ${sauna.accent_color}55 0%, ${sauna.accent_color}1c 38%, rgba(254,247,237,0.88) 60%, ${sauna.accent_color}28 100%)`,
         }),
       } as CSSProperties}
     >
@@ -245,16 +247,19 @@ export function InfusionCard({
                   </span>
                 )}
                 <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold whitespace-nowrap"
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold whitespace-nowrap text-white"
                   style={{
-                    background: `${sauna.accent_color}33`,
-                    color: sauna.accent_color,
-                    boxShadow: `inset 0 0 0 1px ${sauna.accent_color}55`,
+                    /* Vollopaker accent-color als bg + weißer Text → garantiert
+                       lesbar egal welche Sauna-Farbe (Brown/Grün/Rot/Gold etc).
+                       1. Iteration war pastell-Text auf pastell-Bg → unleserlich. */
+                    background: sauna.accent_color,
+                    boxShadow: `0 1px 4px ${sauna.accent_color}80, inset 0 1px 0 rgba(255,255,255,0.3)`,
+                    textShadow: '0 1px 1px rgba(0,0,0,0.4)',
                   }}
                 >
                   {sauna.name}
                   {(infusion.temperature_c ?? sauna.temperature_label) && (
-                    <span className="opacity-80">
+                    <span className="opacity-90">
                       · {infusion.temperature_c ? `${infusion.temperature_c}°C` : sauna.temperature_label}
                     </span>
                   )}
