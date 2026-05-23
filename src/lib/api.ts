@@ -1180,6 +1180,9 @@ export function useMembersDirectory() {
 // default_mood_attributes/oils ergänzt durch Migration 0100 — werden auf
 // der Tafel als Fallback-Pills gezeigt, wenn ein Aufguss leere attrs/oils
 // hat (siehe InfusionCard PillsBlock).
+// motto + star_accent_color ergänzt durch Migration 0102 — Plakat-Header
+// auf der Tafel zeigt Motto als Sub-Header + Aufgießer-Brand-Farbe als
+// Glow-Ring um den Avatar.
 export type MeisterDirectoryEntry = {
   id: string;
   name: string;
@@ -1189,6 +1192,8 @@ export type MeisterDirectoryEntry = {
   sauna_name: string | null;
   default_mood_attributes: string[];
   default_mood_oils: string[];
+  motto: string;
+  star_accent_color: string | null;
 };
 export function useMeisterDirectory() {
   return useQuery({

@@ -6,6 +6,7 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { useAttributeColors, useOilColors, useAllCustomOils, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
+import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
@@ -130,13 +131,17 @@ export function InfusionCard({
         layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] },
         opacity: { duration: 0.35 },
       }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${backgroundImage ? '' : 'bg-white/80'} ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
         running
           ? 'ring-emerald-500/60'
           : imminent
             ? 'ring-transparent'
             : 'ring-slate-300/60'
-      }${stage !== null ? ` imminent-runner imminent-${stage}` : ''} ${className}`}
+      }${stage !== null ? ` imminent-runner imminent-${stage}` : ''}${running ? ' running-glow' : ''}${
+        /* Wood-Grain nur wenn nicht imminent (beide nutzen ::after) und kein
+           backgroundImage-Override aktiv. */
+        !imminent && !backgroundImage ? ' card-wood-grain' : ''
+      } ${className}`}
       style={{
         transformOrigin: '50% 100%',
         // Container-Query auf jede Tile: alle Schriftgrößen darunter skalieren
@@ -148,7 +153,12 @@ export function InfusionCard({
           backgroundImage: `linear-gradient(rgba(2,6,12,0.62), rgba(2,6,12,0.62)), url(${backgroundImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-        } : {}),
+        } : {
+          // Plakat-Hintergrund (statt klinischem bg-white/80): warm-crème mit
+          // sauna-getöntem Verlauf in den Ecken. Holz-Maserung kommt zusätzlich
+          // via .card-wood-grain ::after.
+          background: `linear-gradient(135deg, ${sauna.accent_color}14 0%, rgba(255,251,245,0.92) 45%, ${sauna.accent_color}0a 100%)`,
+        }),
       } as CSSProperties}
     >
       {/* Akzent-Stripe links */}
@@ -213,24 +223,116 @@ export function InfusionCard({
               </span>
             </div>
             <div
-              className="relative flex-1 rounded-xl flex items-center backdrop-blur-md min-w-0 overflow-hidden"
+              className="relative flex-1 rounded-xl flex flex-col justify-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
-                /* Titel-Box: war +70%, jetzt davon -20% (= +36% gegenüber Start-Uhrzeit-Box). */
                 padding: 'clamp(6px, 1.6cqh, 14px) clamp(11px, 2.7cqh, 22px)',
                 background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
+              {/* Sauna-Badge + Live-Badge oben rechts in der Titel-Box */}
+              <div
+                className="absolute top-1 right-1 flex items-center gap-1 flex-shrink-0"
+                style={{ fontSize: 'clamp(8px, 1.9cqh, 11px)' }}
+              >
+                {running && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 font-black tracking-wider text-white whitespace-nowrap"
+                    style={{ boxShadow: '0 0 10px rgba(34,197,94,0.7)' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-white tafel-blink" />
+                    LIVE
+                  </span>
+                )}
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold whitespace-nowrap"
+                  style={{
+                    background: `${sauna.accent_color}33`,
+                    color: sauna.accent_color,
+                    boxShadow: `inset 0 0 0 1px ${sauna.accent_color}55`,
+                  }}
+                >
+                  {sauna.name}
+                  {(infusion.temperature_c ?? sauna.temperature_label) && (
+                    <span className="opacity-80">
+                      · {infusion.temperature_c ? `${infusion.temperature_c}°C` : sauna.temperature_label}
+                    </span>
+                  )}
+                </span>
+              </div>
+
               <h3
-                className="font-bold text-slate-900 leading-tight w-full"
-                /* Titel-Schrift: war clamp(19, 5.4cqh, 33), jetzt +10%. */
-                style={{ fontSize: 'clamp(21px, 5.9cqh, 36px)' }}
+                className="font-black text-slate-900 leading-tight w-full tracking-tight pr-1"
+                style={{
+                  fontSize: 'clamp(21px, 5.9cqh, 36px)',
+                  textShadow: `0 1px 0 ${sauna.accent_color}25`,
+                }}
               >
                 {infusion.title}
                 {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
               </h3>
             </div>
           </div>
+
+          {/* Aufgießer-Strip: Avatar + Name + Motto. Nur wenn ein Saunameister
+              zugewiesen ist (Personal-Aufgüsse haben keinen → Block bleibt
+              elegant weg). Glow-Ring um Avatar in star_accent_color falls
+              Aufgießer eine eigene Brand-Farbe gesetzt hat. */}
+          {meisterDefaults && (meisterName || meisterDefaults.motto) && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {(() => {
+                // Avatar-URL aus avatar_path resolven, sonst dicebear-Fallback
+                // via member.id als Seed (stabil pro Aufgießer).
+                const avatarUrl = resolveAvatarUrl(meisterDefaults.avatar_path, 128)
+                  ?? dicebearUrl('fun-emoji', meisterDefaults.id, 128);
+                const accent = meisterDefaults.star_accent_color;
+                return (
+                  <span
+                    aria-hidden
+                    className="flex-shrink-0 rounded-full overflow-hidden"
+                    style={{
+                      width:  'clamp(28px, 7cqh, 48px)',
+                      height: 'clamp(28px, 7cqh, 48px)',
+                      boxShadow: accent
+                        ? `0 0 0 2px ${accent}, 0 0 12px ${accent}66`
+                        : '0 0 0 2px rgba(148,163,184,0.4)',
+                      background: 'rgba(255,255,255,0.6)',
+                    }}
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover"
+                    />
+                  </span>
+                );
+              })()}
+              <div className="flex-1 min-w-0 leading-tight">
+                <div
+                  className="font-semibold truncate"
+                  style={{
+                    fontSize: 'clamp(11px, 2.9cqh, 17px)',
+                    color: meisterDefaults.star_accent_color ?? '#334155',
+                  }}
+                >
+                  {meisterName ?? meisterDefaults.name}
+                  {meisterMeta?.isGuest && (
+                    <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+                  )}
+                </div>
+                {meisterDefaults.motto && (
+                  <div
+                    className="italic text-slate-500 truncate"
+                    style={{ fontSize: 'clamp(9px, 2.3cqh, 13px)' }}
+                  >
+                    „{meisterDefaults.motto}"
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Description (kursiv, max 1 Zeile) — nur wenn vorhanden */}
           {infusion.description && (
@@ -257,19 +359,15 @@ export function InfusionCard({
             customOils={customOilsAll.data ?? []}
           />
 
-          {/* Footer: Meister + Co-Aufgießer (links) · Aktuelle Uhrzeit + Countdown (rechts).
-              Anstelle der statischen "X Min Dauer" jetzt: was ist gerade los? */}
+          {/* Footer: Co-Aufgießer (links — nur falls Team) · Aktuelle Uhrzeit + Countdown (rechts).
+              Meister-Name steht jetzt oben im Aufgießer-Strip — keine Doppelung mehr. */}
           <div
             className="mt-auto pt-1 flex items-end justify-between gap-3 text-slate-700 flex-shrink-0"
             style={{ fontSize: 'clamp(11px, 3cqh, 18px)' }}
           >
-            <span className="min-w-0 leading-tight">
-              {meisterName ?? '—'}
-              {meisterMeta?.isGuest && (
-                <span className="text-emerald-700"> 🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
-              )}
+            <span className="min-w-0 leading-tight text-amber-700">
               {coNames && coNames.length > 0 && (
-                <span className="text-amber-700"> + {coNames.join(' + ')}</span>
+                <>+ {coNames.join(' + ')}</>
               )}
             </span>
             <div className="flex flex-col items-end leading-none whitespace-nowrap flex-shrink-0">
