@@ -381,30 +381,50 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
 /* ─── InfusionCard Plakat-Look: Holz-Maserung + Live-Glow ─────────────────
    Beide Pure-CSS, GPU-friendly, 24/7-tauglich für die TV-Tafel. */
 
-/* Schwarzwald-Holz-Maserung als subtile Karten-Textur.
-   Inline-SVG-data-URL, < 0.5 KB, kein zusätzliches Asset.
-   Opacity sehr niedrig (6%) — soll nur wärmen, nicht dominieren. */
+/* Schwarzwald-Holz-Maserung als Karten-Textur — Pure-CSS, kein SVG.
+   War vorher Inline-SVG-data-URL mit 0.6px-Strokes — User-Feedback:
+   "SVG-Struktur ist nicht zu sehen". Umstellung auf 3-Layer
+   repeating-linear-gradients in Holz-Farben.
+   Schmale Linien (Adern), mittlere Streifen (Jahresringe), dazu eine
+   sanft schräge Maserung. Alles GPU-friendly, garantiert in jedem
+   Browser sichtbar — kein SVG-Encoding-Risiko mehr. */
 .card-wood-grain::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><g stroke='%23a87850' stroke-width='0.6' fill='none' opacity='0.5'><path d='M0,20 Q40,15 80,22 T160,18'/><path d='M0,55 Q50,48 100,58 T160,52'/><path d='M0,90 Q40,82 80,92 T160,86'/><path d='M0,128 Q60,118 120,130 T160,122'/></g></svg>");
-  background-size: 160px 160px;
-  background-repeat: repeat;
-  /* opacity war 7% → user: "noch immer weiß", auf 14% hochgezogen damit
-     die Holz-Maserung deutlich spürbar wird */
-  opacity: 0.14;
+  background-image:
+    /* Fein-Linien (Jahresringe-Adern), schräg leicht abfallend */
+    repeating-linear-gradient(
+      88deg,
+      transparent 0,
+      transparent 12px,
+      rgba(120, 72, 36, 0.22) 12px,
+      rgba(120, 72, 36, 0.22) 13px,
+      transparent 13px,
+      transparent 27px,
+      rgba(140, 90, 50, 0.14) 27px,
+      rgba(140, 90, 50, 0.14) 28px
+    ),
+    /* Grob-Maserung — breite Holz-Streifen */
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 70px,
+      rgba(80, 45, 18, 0.10) 70px,
+      rgba(80, 45, 18, 0.10) 72px,
+      transparent 72px,
+      transparent 145px,
+      rgba(80, 45, 18, 0.08) 145px,
+      rgba(80, 45, 18, 0.08) 147px
+    );
   pointer-events: none;
-  /* Über dem Tailwind ::before (Inner-Gradient z-index 1) aber unter
-     dem Imminent-Lauflicht ::after von .imminent-runner (z-index 2).
-     ACHTUNG: Wenn imminent-runner UND card-wood-grain gleichzeitig
-     aktiv sind, kollidieren beide auf ::after — daher nutzt der
-     Wood-Grain den vorhandenen ::after-Slot NUR wenn imminent-runner
-     NICHT gleichzeitig aktiv ist. Lösung: ein separater Layer-Div
-     wäre sauberer; im InfusionCard schalten wir wood-grain einfach
-     bei imminent aus (siehe TSX). */
-  z-index: 0;
+  /* z-index 1 — über Tailwind ::before (z-index auto/0) damit die Maserung
+     den weißen Inner-Gradient sichtbar texturiert. Unter dem Imminent-
+     Lauflicht (.imminent-runner::after, z-index 2) bleibt sie. Bei
+     imminent wird wood-grain via TSX-Klassenkomposition deaktiviert
+     weil beide ::after teilen. */
+  z-index: 1;
 }
 
 /* Live-Glow für laufende Aufgüsse — grün pulsierend.
