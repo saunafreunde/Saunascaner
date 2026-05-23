@@ -135,14 +135,18 @@ export default function Dashboard() {
   const allInfusions = infusions.data ?? [];
 
   // ── End-of-Day-Check ────────────────────────────────────────────────
-  // Tagesabschluss-Screen NUR ab 21:00 Uhr zeigen — und auch nur dann
-  // wenn heute überhaupt Aufgüsse waren UND alle durch sind.
-  // Vor 21:00 IMMER den normalen Plan zeigen (auch wenn aktuell leer),
-  // damit der TV nicht den ganzen Nachmittag schon „Feierabend" anzeigt
-  // nur weil ein früher Morgen-Aufguss vorbei ist.
-  // Vorher war die Bedingung versehentlich `< 21` (zu aggressiv).
+  // Tagesabschluss-Screen läuft im festen Zeitfenster 20:15–21:15
+  // (User-Wunsch). Vorher wird der normale Plan gezeigt (auch wenn
+  // alle heutigen Aufgüsse schon durch sind), danach (ab 21:15)
+  // wechselt SaunaTileColumn auf den nächsten Tag (siehe
+  // NEXT_DAY_SWITCH_TOTAL_MINUTES dort).
   const showEndOfDay = useMemo(() => {
-    if (now.getHours() < 21) return false; // vor 21 Uhr nie EndOfDay
+    const totalMinutes = now.getHours() * 60 + now.getMinutes();
+    const START = 20 * 60 + 15; // 20:15
+    const END   = 21 * 60 + 15; // 21:15
+    if (totalMinutes < START || totalMinutes >= END) return false;
+    // Zusätzlich: nur zeigen wenn heute echte Aufgüsse waren — sonst
+    // wäre die Verabschiedung ohne Statistik-Inhalt sinnlos.
     const today = new Date(now); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 86_400_000);
     const todayInfs = allInfusions.filter((i) => {
@@ -150,9 +154,7 @@ export default function Dashboard() {
       const s = new Date(i.start_time);
       return s >= today && s < tomorrow;
     });
-    if (todayInfs.length === 0) return false;
-    const hasUpcoming = todayInfs.some((i) => new Date(i.end_time) > now);
-    return !hasUpcoming;
+    return todayInfs.length > 0;
   }, [allInfusions, now]);
 
   // ── Layout je nach Sauna-Anzahl ──────────────────────────────────────

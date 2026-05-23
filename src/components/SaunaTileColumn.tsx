@@ -22,19 +22,21 @@ interface SaunaTileColumnProps {
   mondayOpen?: boolean;
 }
 
-/** Stunde ab der die Tafel auf den nächsten Sauna-Tag wechselt.
+/** Zeitpunkt (in Minuten seit Mitternacht) ab dem die Tafel auf den
+ *  nächsten Sauna-Tag wechselt. User-Wunsch (Mai 2026): 21:15 — passt
+ *  zum Ende des EndOfDay-Fensters (siehe Dashboard.tsx).
  *  Vorher: heutiger Tag bleibt sichtbar (Liste „läuft leer" wenn alle
- *  Slots vorbei sind — bleibt dann leer bis NEXT_DAY_SWITCH_HOUR). */
-const NEXT_DAY_SWITCH_HOUR = 21;
+ *  Slots vorbei sind — bleibt dann leer bis zu diesem Zeitpunkt). */
+const NEXT_DAY_SWITCH_TOTAL_MINUTES = 21 * 60 + 15; // 21:15
 
 /**
  * Liefert die nächsten N Slot-Start-Zeitpunkte ab `from`.
  *
- * Tagesgrenze: solange `from.getHours() < NEXT_DAY_SWITCH_HOUR` werden
- * NUR Slots des aktuellen Tages zurückgegeben. Wenn keine mehr da sind →
- * leere Liste → Tafel zeigt Feierabend (keine Tiles). Ab 21:00 schaltet
- * die Tafel auf den nächsten Sauna-Tag (Mo wird ggf. übersprungen wenn
- * mondayOpen=false).
+ * Tagesgrenze: solange die aktuelle Uhrzeit (Minuten-genau) unter
+ * NEXT_DAY_SWITCH_TOTAL_MINUTES liegt, werden NUR Slots des aktuellen
+ * Tages zurückgegeben. Wenn keine mehr da sind → leere Liste → Tafel
+ * zeigt Feierabend (keine Tiles). Ab 21:15 schaltet die Tafel auf den
+ * nächsten Sauna-Tag (Mo wird ggf. übersprungen wenn mondayOpen=false).
  *
  * Cutoff-Regel pro Slot:
  *   - Wenn IRGENDEINE Sauna für diesen Slot einen Aufguss hat → cutoff =
@@ -54,10 +56,11 @@ function nextSlotStarts(
 ): Date[] {
   const result: Date[] = [];
   const startHour = from.getHours();
-  // Ab 21:00 zeigt die Tafel den nächsten Sauna-Tag.
+  // Ab 21:15 zeigt die Tafel den nächsten Sauna-Tag.
   // Vorher: ausschließlich heute (auch wenn die Liste leer ausläuft).
-  const startDayOffset = startHour >= NEXT_DAY_SWITCH_HOUR ? 1 : 0;
-  const maxDayOffset = startHour >= NEXT_DAY_SWITCH_HOUR ? 8 : 1;
+  const totalMinutesNow = from.getHours() * 60 + from.getMinutes();
+  const startDayOffset = totalMinutesNow >= NEXT_DAY_SWITCH_TOTAL_MINUTES ? 1 : 0;
+  const maxDayOffset   = totalMinutesNow >= NEXT_DAY_SWITCH_TOTAL_MINUTES ? 8 : 1;
   let dayOffset = startDayOffset;
   while (result.length < n && dayOffset < maxDayOffset) {
     const weekday = (from.getDay() + dayOffset) % 7;
