@@ -131,25 +131,9 @@ export function SaunaTileColumn({
         boxShadow: `0 0 36px ${sauna.accent_color}1a, inset 0 1px 0 rgba(255,255,255,0.6)`,
       }}
     >
-      {/* Sauna header */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
-        style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}
-      >
-        <span
-          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-          style={{ background: sauna.accent_color, boxShadow: `0 0 10px ${sauna.accent_color}` }}
-        />
-        <span className="text-base font-bold text-slate-800 tracking-wide truncate">
-          {sauna.name}
-        </span>
-        <span
-          className="ml-auto text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0"
-          style={{ background: `${sauna.accent_color}22`, color: sauna.accent_color }}
-        >
-          {sauna.temperature_label}
-        </span>
-      </div>
+      {/* Sauna-Header entfernt (User-Wunsch) — mehr Platz für die Karten.
+          Die Sauna-Identität steht jetzt direkt auf jeder Aufguss-Karte
+          als Sauna-Badge unten links (sauna.name + Temperatur). */}
 
       {/* Fixes Grid: tilesPerColumn Reihen mit 1/N Höhe — auch wenn weniger
           Tiles gerendert werden bleiben die übrigen in ihrer ursprünglichen

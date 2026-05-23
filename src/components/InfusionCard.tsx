@@ -170,15 +170,14 @@ export function InfusionCard({
       <span
         className="absolute z-10 inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white pointer-events-none"
         style={{
-          /* "aus der ecke raus" → größerer Abstand zum Rand:
-             war clamp(6, 1.5cqh, 12) → jetzt clamp(14, 3.2cqh, 22)
-             damit der Badge nicht mehr eingequetscht wirkt */
           left:   'clamp(14px, 3.2cqh, 22px)',
           bottom: 'clamp(14px, 3.2cqh, 22px)',
-          fontSize: 'clamp(11px, 2.7cqh, 16px)',
-          padding:  'clamp(3px, 0.8cqh, 6px) clamp(8px, 2.1cqh, 14px)',
+          /* +15% gegenüber 1. Iteration — war clamp(11, 2.7cqh, 16)
+             → jetzt clamp(13, 3.1cqh, 18) */
+          fontSize: 'clamp(13px, 3.1cqh, 18px)',
+          padding:  'clamp(4px, 1cqh, 7px) clamp(9px, 2.4cqh, 16px)',
           background: sauna.accent_color,
-          boxShadow: `0 2px 8px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
+          boxShadow: `0 2px 10px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
           textShadow: '0 1px 2px rgba(0,0,0,0.45)',
         }}
       >
@@ -290,68 +289,10 @@ export function InfusionCard({
             </div>
           </div>
 
-          {/* Aufgießer-Strip: Avatar + Name + Motto. Nur wenn ein Saunameister
-              zugewiesen ist (Personal-Aufgüsse haben keinen → Block bleibt
-              elegant weg). Glow-Ring um Avatar in star_accent_color falls
-              Aufgießer eine eigene Brand-Farbe gesetzt hat. */}
-          {meisterDefaults && (meisterName || meisterDefaults.motto) && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {(() => {
-                // Avatar-URL aus avatar_path resolven, sonst dicebear-Fallback
-                // via member.id als Seed (stabil pro Aufgießer).
-                const avatarUrl = resolveAvatarUrl(meisterDefaults.avatar_path, 128)
-                  ?? dicebearUrl('fun-emoji', meisterDefaults.id, 128);
-                const accent = meisterDefaults.star_accent_color;
-                return (
-                  <span
-                    aria-hidden
-                    className="flex-shrink-0 rounded-full overflow-hidden"
-                    style={{
-                      width:  'clamp(28px, 7cqh, 48px)',
-                      height: 'clamp(28px, 7cqh, 48px)',
-                      boxShadow: accent
-                        ? `0 0 0 2px ${accent}, 0 0 12px ${accent}66`
-                        : '0 0 0 2px rgba(148,163,184,0.4)',
-                      background: 'rgba(255,255,255,0.6)',
-                    }}
-                  >
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover"
-                    />
-                  </span>
-                );
-              })()}
-              <div className="flex-1 min-w-0 leading-tight">
-                <div
-                  className="font-semibold truncate"
-                  style={{
-                    fontSize: 'clamp(11px, 2.9cqh, 17px)',
-                    color: meisterDefaults.star_accent_color ?? '#334155',
-                  }}
-                >
-                  {meisterName ?? meisterDefaults.name}
-                  {meisterMeta?.isGuest && (
-                    <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
-                  )}
-                  {coNames && coNames.length > 0 && (
-                    <span className="ml-1 text-amber-700">+ {coNames.join(' + ')}</span>
-                  )}
-                </div>
-                {meisterDefaults.motto && (
-                  <div
-                    className="italic text-slate-500 truncate"
-                    style={{ fontSize: 'clamp(9px, 2.3cqh, 13px)' }}
-                  >
-                    „{meisterDefaults.motto}"
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Aufgießer-Strip wurde nach UNTEN MITTIG verschoben — siehe
+              direkt nach dem PillsBlock, eigene zentrierte Zeile vor dem
+              Footer. So bleibt oben mehr Platz für Titel + Pills, und der
+              Aufgießer wird als zentrales Plakat-Element prominent gezeigt. */}
 
           {/* Description (kursiv, max 1 Zeile) — nur wenn vorhanden */}
           {infusion.description && (
@@ -377,6 +318,66 @@ export function InfusionCard({
             colorForOil={colorForOil}
             customOils={customOilsAll.data ?? []}
           />
+
+          {/* Aufgießer-Block UNTEN MITTIG (User-Wunsch). Avatar links,
+              Name + Motto rechts, das Ganze zentriert. Personal-Aufgüsse
+              (kein saunameister_id) → Block verschwindet elegant. */}
+          {meisterDefaults && (meisterName || meisterDefaults.motto) && (
+            <div className="flex items-center justify-center gap-2 flex-shrink-0 mt-1">
+              {(() => {
+                const avatarUrl = resolveAvatarUrl(meisterDefaults.avatar_path, 128)
+                  ?? dicebearUrl('fun-emoji', meisterDefaults.id, 128);
+                const accent = meisterDefaults.star_accent_color;
+                return (
+                  <span
+                    aria-hidden
+                    className="flex-shrink-0 rounded-full overflow-hidden"
+                    style={{
+                      width:  'clamp(32px, 8cqh, 54px)',
+                      height: 'clamp(32px, 8cqh, 54px)',
+                      boxShadow: accent
+                        ? `0 0 0 2px ${accent}, 0 0 14px ${accent}66`
+                        : '0 0 0 2px rgba(148,163,184,0.4)',
+                      background: 'rgba(255,255,255,0.7)',
+                    }}
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover"
+                    />
+                  </span>
+                );
+              })()}
+              <div className="min-w-0 leading-tight text-center">
+                <div
+                  className="font-bold truncate"
+                  style={{
+                    fontSize: 'clamp(13px, 3.4cqh, 20px)',
+                    color: meisterDefaults.star_accent_color ?? '#1e293b',
+                  }}
+                >
+                  {meisterName ?? meisterDefaults.name}
+                  {meisterMeta?.isGuest && (
+                    <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+                  )}
+                  {coNames && coNames.length > 0 && (
+                    <span className="ml-1 text-amber-700">+ {coNames.join(' + ')}</span>
+                  )}
+                </div>
+                {meisterDefaults.motto && (
+                  <div
+                    className="italic text-slate-500 truncate"
+                    style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
+                  >
+                    „{meisterDefaults.motto}"
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Footer: Aktuelle Uhrzeit + Countdown nur rechts.
               Links unten sitzt der Sauna-Badge (absolut, siehe oben) —
