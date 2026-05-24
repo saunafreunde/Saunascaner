@@ -27,8 +27,11 @@ export function EmptyTile({
   // backgroundImage-Prop bleibt im Interface (BC für Callers in
   // SaunaTileColumn), wird im Empty-Tile aber bewusst NICHT genutzt —
   // das Riff IST der Hintergrund.
+  // Pfeil-Richtung im Hint-Text MUSS zur Schwimm-Richtung passen — sonst
+  // wirkt es konfus (User-Feedback: "geht in die falsche Richtung")
+  const arrowChar = otherSauna?.direction === 'left' ? '←' : '→';
   const hintText = otherSauna
-    ? `→ Jetzt bei ${otherSauna.saunaName} ${otherSauna.tempLabel}`
+    ? `${arrowChar} Jetzt bei ${otherSauna.saunaName} ${otherSauna.tempLabel}`
     : undefined;
 
   return (
@@ -38,7 +41,7 @@ export function EmptyTile({
       animate={{ opacity: 1, y: 0, scale: 1, rotateX: 1.5 }}
       exit={{ opacity: 0, y: -20, scale: 0.96 }}
       transition={{ layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.35 } }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 ring-cyan-700/40 ${className}`}
+      className={`relative flex flex-col rounded-2xl ring-1 ring-cyan-700/40 ${className.replace('overflow-hidden', '')}`}
       style={{
         transformOrigin: '50% 100%',
         containerType: 'size',
