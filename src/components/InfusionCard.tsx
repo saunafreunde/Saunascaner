@@ -5,7 +5,8 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
-import { useAttributeColors, useOilColors, useAllCustomOils, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
+import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
+import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
@@ -71,6 +72,10 @@ export function InfusionCard({
   const oilColors = useOilColors();
   // Custom-Öle aller Aufgießer für Lookup bei 'custom:<uuid>' IDs
   const customOilsAll = useAllCustomOils();
+  // Custom-Attrs aller Aufgießer — für Lookup wenn UUID in
+  // infusion.attributes statt Standard-Slug steht (User-Bug:
+  // selbst erstellte Buttons wurden nicht angezeigt).
+  const customAttrsAll = useAllCustomAttrs();
   const colorForAttr = (id: string): string => attrColors.data?.[id] ?? sauna.accent_color;
   const colorForOil = (id: string): string => oilColors.data?.[id] ?? '#f59e0b';
   const start = new Date(infusion.start_time);
@@ -300,6 +305,7 @@ export function InfusionCard({
             colorForAttr={colorForAttr}
             colorForOil={colorForOil}
             customOils={customOilsAll.data ?? []}
+            customAttrs={customAttrsAll.data ?? []}
           />
 
           {/* Footer-Zeile: drei Spalten ALLE UNTEN AUSGERICHTET damit es
@@ -553,13 +559,16 @@ type PillsBlockProps = {
   colorForAttr: (id: string) => string;
   colorForOil: (id: string) => string;
   customOils: CustomOil[];
+  /** ALLE Custom-Attrs aller Aufgießer für Lookup wenn ein attribute-ID
+   *  eine UUID statt eines Standard-Slugs ist (selbst erstellte Buttons). */
+  customAttrs: MemberCustomAttr[];
 };
 
 function PillsBlock({
   attributes, oils,
   attributesAreDefault = false,
   oilsAreDefault = false,
-  colorForAttr, colorForOil, customOils,
+  colorForAttr, colorForOil, customOils, customAttrs,
 }: PillsBlockProps) {
   if (attributes.length === 0 && oils.length === 0) return null;
 
@@ -597,26 +606,52 @@ function PillsBlock({
           </div>
           <div className="flex flex-wrap items-start" style={{ gap, padding: pillsPadding }}>
             {attributes.map((a) => {
-              const meta = ATTR_BY_ID[a as InfusionAttribute];
-              if (!meta) return null;
-              const c = colorForAttr(a);
-              return (
-                <span
-                  key={`a-${a}`}
-                  title={meta.label}
-                  className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
-                  style={{
-                    fontSize: pillFontSize,
-                    padding: pillPadding,
-                    gap: pillGap,
-                    background: tintBg(c),
-                    boxShadow: tintRing(c),
-                  }}
-                >
-                  <span aria-hidden>{meta.emoji}</span>
-                  <span>{meta.label}</span>
-                </span>
-              );
+              // 1) Standard-Attribut? → aus ATTR_BY_ID auflösen
+              const standardMeta = ATTR_BY_ID[a as InfusionAttribute];
+              if (standardMeta) {
+                const c = colorForAttr(a);
+                return (
+                  <span
+                    key={`a-${a}`}
+                    title={standardMeta.label}
+                    className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
+                    style={{
+                      fontSize: pillFontSize,
+                      padding: pillPadding,
+                      gap: pillGap,
+                      background: tintBg(c),
+                      boxShadow: tintRing(c),
+                    }}
+                  >
+                    <span aria-hidden>{standardMeta.emoji}</span>
+                    <span>{standardMeta.label}</span>
+                  </span>
+                );
+              }
+              // 2) Custom-Attr? → ID ist eine UUID, in customAttrs lookup
+              const customMeta = customAttrs.find((ca) => ca.id === a);
+              if (customMeta) {
+                const c = customMeta.color ?? '#a855f7';
+                return (
+                  <span
+                    key={`a-${a}`}
+                    title={customMeta.label}
+                    className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
+                    style={{
+                      fontSize: pillFontSize,
+                      padding: pillPadding,
+                      gap: pillGap,
+                      background: tintBg(c),
+                      boxShadow: tintRing(c),
+                    }}
+                  >
+                    <span aria-hidden>{customMeta.emoji}</span>
+                    <span>{customMeta.label}</span>
+                  </span>
+                );
+              }
+              // 3) Unbekannte ID → skip (kein crash bei DB-Inkonsistenz)
+              return null;
             })}
           </div>
         </div>

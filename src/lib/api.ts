@@ -2725,6 +2725,26 @@ export function useMyCustomAttrs(memberId: string | null | undefined) {
   });
 }
 
+/** ALLE Custom-Attrs aller Aufgießer — für Tafel-Lookup (wenn in
+ *  infusion.attributes als UUID enthalten). Analog useAllCustomOils.
+ *  Wichtig damit das Dashboard die selbst erstellten Besonderheits-
+ *  Buttons anzeigen kann (User-Bug: Custom-Attrs wurden ausgewählt
+ *  aber auf der Tafel nicht gerendert weil ATTR_BY_ID nur Standard-
+ *  Slugs kennt). */
+export function useAllCustomAttrs() {
+  return useQuery({
+    queryKey: ['all-custom-attrs'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('member_custom_attrs')
+        .select('*');
+      if (error) throw error;
+      return data as MemberCustomAttr[];
+    },
+    staleTime: 60_000,
+  });
+}
+
 export function useCreateCustomAttr() {
   const qc = useQueryClient();
   return useMutation({

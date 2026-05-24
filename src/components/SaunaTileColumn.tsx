@@ -134,8 +134,15 @@ export function SaunaTileColumn({
 
   return (
     // HELL-THEME: weißlicher Glaspanel statt forest-Dunkel.
+    // overflow:visible damit die Riff-Tiere (Fische/Hai/Schlange) von
+    // einer leeren Tile sichtbar über die Spalten-Grenze in die
+    // Tafel-Mitte / zur anderen Spalte schwimmen können (User-Wunsch:
+    // "bis zum Ende schwimmen also aus der Sauna-Karte heraus").
+    // Hintergrund-Background bleibt trotzdem in der Spalten-Form,
+    // weil background-Painting Border-Radius respektiert (kein
+    // overflow:hidden nötig dafür).
     <div
-      className="flex flex-1 min-w-0 min-h-0 flex-col rounded-2xl overflow-hidden"
+      className="flex flex-1 min-w-0 min-h-0 flex-col rounded-2xl"
       style={{
         background: 'rgba(255,255,255,0.85)',
         borderTop: `4px solid ${sauna.accent_color}`,

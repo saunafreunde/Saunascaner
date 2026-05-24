@@ -53,9 +53,15 @@ export function EditInfusionModal({
   const me = useCurrentMember();
   const isAdmin = isAdminHelper(me.data);
   const meisterDir = useMeisterDirectory();
-  // Custom-Buttons des aktuellen Users — werden im UI als zusätzliche
-  // Toggle-Buttons angezeigt und beim Save mit den Standard-attrs gemerged.
-  const myCustomAttrs = useMyCustomAttrs(me.data?.id);
+  // Custom-Buttons des AUFGIESSERS (nicht des bearbeitenden Users) — bei
+  // Admin-Edits eines fremden Aufgusses muss der Admin die Custom-Attrs
+  // des eigentlichen Aufgießers sehen können, sonst verschwinden bei
+  // Speichern eingebaute UUIDs aus dem Auswahl-UI (User-Bug:
+  // "selbsterstellte besonderheiten buttons werden auf dem dashboard
+  // nicht angezeigt" — kam von dieser User-Verwechslung). Fallback
+  // auf me.data?.id für Neu-Anlagen ohne saunameister_id.
+  const ownerMemberId = infusion.saunameister_id ?? me.data?.id;
+  const myCustomAttrs = useMyCustomAttrs(ownerMemberId);
 
   // Saunameister-Auswahl (nur Admin sieht das Dropdown im UI)
   const [saunameisterId, setSaunameisterId] = useState<string>(infusion.saunameister_id ?? '');
