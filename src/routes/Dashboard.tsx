@@ -27,11 +27,50 @@ import { unlockAudio } from '@/lib/evacuation';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import { SaunaTileColumn } from '@/components/SaunaTileColumn';
 import { EndOfDayScreen } from '@/components/EndOfDayScreen';
+import type { Sauna, Infusion } from '@/types/database';
 // Stage komplett eingebunden — User-Wunsch: Scenes/Themes UND Effekte
 // sollen auf der Tafel sichtbar sein.
 
 // AdSidebar (Werbe-Spalten) entfernt — Sauna-Tiles bekommen jetzt die
 // volle Breite, damit Attribute-Badges + Aufgieser-Info sichtbar sind.
+
+// ─── Helper: Cross-Sauna-Aktivität zu einer Slot-Zeit ────────────────────
+// Wird im EmptyTile-Riff gebraucht: Fische schwimmen in Richtung der
+// Sauna die zur gleichen Slot-Zeit aktiv ist + Leit-Text "→ Jetzt bei …".
+// Direction: links (sort_order kleiner) → other ist rechts, sonst links.
+function findOtherSaunaActivityAt(
+  ownSaunaId: string,
+  slotTime: Date,
+  saunas: Sauna[],
+  infusions: Infusion[],
+): { saunaName: string; tempLabel: string; direction: 'left' | 'right' } | null {
+  const ownSauna = saunas.find((s) => s.id === ownSaunaId);
+  if (!ownSauna) return null;
+  // Suche eine andere Sauna mit Aufguss innerhalb von [-5 min, +60 min]
+  // um den Slot-Start. Personal-Fallbacks zählen mit — auch sie laufen.
+  const slotMs = slotTime.getTime();
+  const matches = infusions.filter((i) => {
+    if (i.sauna_id === ownSaunaId) return false;
+    const start = new Date(i.start_time).getTime();
+    return start >= slotMs - 5 * 60_000 && start <= slotMs + 60 * 60_000;
+  });
+  if (matches.length === 0) return null;
+  // Direkt-benachbarte aktive Sauna nehmen (sort_order Differenz minimal)
+  matches.sort((a, b) => {
+    const sa = saunas.find((s) => s.id === a.sauna_id)?.sort_order ?? 0;
+    const sb = saunas.find((s) => s.id === b.sauna_id)?.sort_order ?? 0;
+    return Math.abs(sa - ownSauna.sort_order) - Math.abs(sb - ownSauna.sort_order);
+  });
+  const target = saunas.find((s) => s.id === matches[0].sauna_id);
+  if (!target) return null;
+  const direction: 'left' | 'right' =
+    ownSauna.sort_order < target.sort_order ? 'right' : 'left';
+  return {
+    saunaName: target.name,
+    tempLabel: target.temperature_label,
+    direction,
+  };
+}
 
 export default function Dashboard() {
   useWakeLock(true);
@@ -191,6 +230,10 @@ export default function Dashboard() {
           tileBgs={brand.data?.tile_bgs?.[saunaId] ?? []}
           tilesPerColumn={tilesPerColumn}
           mondayOpen={mondayOpen}
+          /* Für die Riff-Animation im EmptyTile: pro leerem Slot wird
+             geprüft, ob die andere Sauna zur gleichen Zeit einen
+             Aufguss hat. Wenn ja → Fische schwimmen dort hin + Leit-Text. */
+          otherSaunaInfo={(slot) => findOtherSaunaActivityAt(saunaId, slot, activeSaunas, allInfusions)}
         />
       );
     };

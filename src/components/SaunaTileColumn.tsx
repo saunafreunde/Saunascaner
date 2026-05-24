@@ -20,6 +20,13 @@ interface SaunaTileColumnProps {
   tilesPerColumn?: 3 | 4;
   /** Wenn true: Mo wird als Slot-Tag einbezogen (Admin-Setting). */
   mondayOpen?: boolean;
+  /** Callback: liefert Info über die andere Sauna die zur gleichen Slot-Zeit
+   *  einen Aufguss hat (für Riff-Leit-Pfeil im EmptyTile). */
+  otherSaunaInfo?: (slotTime: Date) => {
+    saunaName: string;
+    tempLabel: string;
+    direction: 'left' | 'right';
+  } | null;
 }
 
 /** Zeitpunkt (in Minuten seit Mitternacht) ab dem die Tafel auf den
@@ -96,6 +103,7 @@ export function SaunaTileColumn({
   tileBgs = [],
   tilesPerColumn = TILES_PER_COLUMN_DEFAULT,
   mondayOpen = false,
+  otherSaunaInfo,
 }: SaunaTileColumnProps) {
   // Globale Map<slotTs, maxEndTs> über ALLE Saunen — sorgt für synchrone
   // Spalten (siehe Doku in nextSlotStarts).
@@ -182,6 +190,7 @@ export function SaunaTileColumn({
                 slotTime={slotTime}
                 className="min-h-0 h-full overflow-hidden"
                 backgroundImage={tileBgs[slotIndex] ?? null}
+                otherSauna={otherSaunaInfo?.(slotTime) ?? null}
               />
             ),
           )}
