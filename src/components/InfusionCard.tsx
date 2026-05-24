@@ -572,16 +572,29 @@ function PillsBlock({
 }: PillsBlockProps) {
   if (attributes.length === 0 && oils.length === 0) return null;
 
-  const gap = 'clamp(3px, 0.8cqh, 8px)';
+  // User-Wunsch (Mai 2026): wenn nur EINE der beiden Sektionen aktiv ist
+  // (NUR Besonderheiten ODER NUR Öle), wird sie um 50% größer dargestellt
+  // damit sie den verfügbaren Platz besser nutzt — Karte wirkt weniger leer.
+  const hasAttrs = attributes.length > 0;
+  const hasOils  = oils.length > 0;
+  const onlyOne  = hasAttrs !== hasOils; // XOR
+
+  const gap = onlyOne ? 'clamp(5px, 1.2cqh, 12px)' : 'clamp(3px, 0.8cqh, 8px)';
   const subHeaderStyle: CSSProperties = {
-    fontSize: 'clamp(8px, 2cqh, 11px)',
+    fontSize: onlyOne ? 'clamp(12px, 3cqh, 17px)' : 'clamp(8px, 2cqh, 11px)',
     letterSpacing: '0.12em',
   };
-  const headerPadding = 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)';
-  const pillsPadding = 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)';
-  const pillFontSize = 'clamp(10px, 2.8cqh, 16px)';
-  const pillPadding = 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)';
-  const pillGap = 'clamp(2px, 0.5cqh, 5px)';
+  const headerPadding = onlyOne
+    ? 'clamp(3px, 0.9cqh, 6px) clamp(9px, 2.2cqh, 18px)'
+    : 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)';
+  const pillsPadding = onlyOne
+    ? 'clamp(6px, 1.5cqh, 12px) clamp(9px, 2.2cqh, 18px)'
+    : 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)';
+  const pillFontSize = onlyOne ? 'clamp(15px, 4.2cqh, 24px)' : 'clamp(10px, 2.8cqh, 16px)';
+  const pillPadding = onlyOne
+    ? 'clamp(3px, 0.9cqh, 7px) clamp(8px, 1.8cqh, 15px)'
+    : 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)';
+  const pillGap = onlyOne ? 'clamp(3px, 0.8cqh, 8px)' : 'clamp(2px, 0.5cqh, 5px)';
 
   return (
     /* "alles zu gepresst" → größerer Gap zwischen den beiden Cards
