@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { ATTRIBUTES, type InfusionAttribute } from '@/lib/attributes';
+import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList, sendBadgeAnnouncement } from '@/lib/telegram';
 import { checkAndAwardBadges } from '@/lib/checkBadges';
@@ -115,6 +115,38 @@ type SlotStatus =
   | { kind: 'fallback'; infusion: Infusion }   // Personal-Aufguss → übernehmbar
   | { kind: 'mine'; infusion: Infusion }       // eigener Aufguss
   | { kind: 'taken'; infusion: Infusion };     // anderer Aufgießer
+
+// 4-Farben-System (User-Entscheidung Mai 2026): Rot / Grün / Orange + Violett für mine.
+// Wird von BEIDEN Slot-Renderern genutzt (SaunaSlotRow Desktop + DaySaunaMatrix Mobile)
+// damit kein visueller Drift zwischen den Layouts entsteht.
+type SlotVisual = {
+  bg: string;          // Tailwind bg-…
+  text: string;        // Tailwind text-…
+  ring: string;        // Tailwind ring-…
+  icon: string | null; // Sub-Icon (Emoji), null wenn ohne
+  title: string;       // tooltip
+  disabled: boolean;
+};
+
+function slotVisualFor(status: SlotStatus, blockedBySecondary: boolean): SlotVisual {
+  if (status.kind === 'past') {
+    return { bg: 'bg-forest-950/30', text: 'text-forest-300/30', ring: 'ring-forest-900/30', icon: null, title: 'Vergangenheit', disabled: true };
+  }
+  if (status.kind === 'taken') {
+    return { bg: 'bg-rose-500/20', text: 'text-rose-100', ring: 'ring-rose-500/40', icon: '🧖', title: `Belegt — ${status.infusion.title}`, disabled: true };
+  }
+  if (status.kind === 'mine') {
+    return { bg: 'bg-violet-500/25', text: 'text-violet-100', ring: 'ring-violet-400/60 ring-2', icon: '✓', title: `Dein Aufguss — ${status.infusion.title}`, disabled: true };
+  }
+  if (status.kind === 'fallback') {
+    return { bg: 'bg-amber-500/20', text: 'text-amber-100', ring: 'ring-amber-500/40', icon: '👨‍🍳', title: 'Personal-Aufguss übernehmen', disabled: false };
+  }
+  // status.kind === 'free'
+  if (blockedBySecondary) {
+    return { bg: 'bg-amber-500/15', text: 'text-amber-200/70', ring: 'ring-amber-500/30', icon: '🔒', title: 'Erst Garantie-Sauna planen', disabled: true };
+  }
+  return { bg: 'bg-emerald-500/15', text: 'text-emerald-100', ring: 'ring-emerald-500/30', icon: null, title: 'Frei — neuer Aufguss', disabled: false };
+}
 
 function Card({ title, icon, children, className = '', accent }: {
   title?: string;
@@ -885,6 +917,15 @@ export default function Planner() {
           )}
         </div>
 
+        {/* ══ TAGES-ÜBERSICHT "Heute geplant" ══════════════════════ */}
+        <DailyOverview
+          date={todayDate}
+          infusions={infusions}
+          saunas={saunas}
+          meisterNameFor={(id) => meisterName(id)}
+          now={now}
+        />
+
         {/* ══ OFFENE TEAM-AUFGÜSSE — Quick-Liste über der Eingabe ═══ */}
         {isAufgieser && openTeamInfusions.length > 0 && (
           <div className="rounded-2xl bg-amber-950/30 p-4 ring-1 ring-amber-500/30 backdrop-blur space-y-2.5">
@@ -992,9 +1033,10 @@ export default function Planner() {
             {/* ── LEGENDE ─────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-3 text-[10px] text-forest-400 px-1">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" /> frei</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" /> Personal — übernehmen</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70" /> belegt</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-violet-500/70" /> mein Aufguss</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" /> 👨‍🍳 Personal — übernehmen</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" /> 🔒 gesperrt</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70" /> 🧖 belegt</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-violet-500/70" /> ✓ mein Aufguss</span>
             </div>
 
             {/* ── TAG ANZEIGE ────────────────────────────────────────── */}
@@ -1034,25 +1076,48 @@ export default function Planner() {
                         Montag — Ruhetag, keine Aufgüsse
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
-                        {saunas.filter((s) => s.is_active).map((s) => (
-                          <SaunaSlotRow
-                            key={s.id}
-                            sauna={s}
+                      <>
+                        {/* Mobile: 2 Saunen NEBENEINANDER mit zeit-synchroner
+                            linker Zeit-Spalte. Eine gemeinsame Grid-Matrix
+                            statt gestapelter SaunaSlotRows. */}
+                        <div className="lg:hidden">
+                          <DaySaunaMatrix
+                            saunas={saunas.filter((s) => s.is_active)}
                             slots={ctx.availableSlots}
                             selectedSaunaId={isSelected ? saunaId : ''}
                             selectedSlot={isSelected ? slot : ''}
                             slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
                             secondarySaunaBlocked={secondaryBlockedForDay}
                             garantieSlotsOpenToday={ctx.garantieSlotsOpen}
-                            onPick={(picked) => {
+                            onPick={(pickedSaunaId, picked) => {
                               setSelectedDate(d);
-                              setSaunaId(s.id);
+                              setSaunaId(pickedSaunaId);
                               setSlot(picked);
                             }}
                           />
-                        ))}
-                      </div>
+                        </div>
+                        {/* Desktop: bestehendes Stapeln pro Sauna mit breitem
+                            horizontalen Slot-Grid bleibt unverändert. */}
+                        <div className="hidden lg:block space-y-1.5">
+                          {saunas.filter((s) => s.is_active).map((s) => (
+                            <SaunaSlotRow
+                              key={s.id}
+                              sauna={s}
+                              slots={ctx.availableSlots}
+                              selectedSaunaId={isSelected ? saunaId : ''}
+                              selectedSlot={isSelected ? slot : ''}
+                              slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
+                              secondarySaunaBlocked={secondaryBlockedForDay}
+                              garantieSlotsOpenToday={ctx.garantieSlotsOpen}
+                              onPick={(picked) => {
+                                setSelectedDate(d);
+                                setSaunaId(s.id);
+                                setSlot(picked);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 );
@@ -1563,39 +1628,8 @@ function SaunaSlotRow({
           const blockedBySecondary =
             secondarySaunaBlocked && !isGarantieSauna && status.kind === 'free' && hourHasOpenGarantie;
 
-          let bg = 'bg-forest-950/40';
-          let text = 'text-forest-200';
-          let ring = 'ring-forest-800/40';
-          let label: React.ReactNode = hhmm;
-          let extra: React.ReactNode = null;
-          let disabled = false;
-          let title = '';
-
-          if (status.kind === 'past') {
-            bg = 'bg-forest-950/30'; text = 'text-forest-300/30'; ring = 'ring-forest-900/30';
-            disabled = true; title = 'Vergangenheit';
-          } else if (status.kind === 'taken') {
-            bg = 'bg-rose-500/15'; text = 'text-rose-200/80'; ring = 'ring-rose-500/30';
-            disabled = true; title = `Belegt — ${status.infusion.title}`;
-            extra = <span className="absolute -bottom-0.5 right-0.5 text-[8px] text-rose-300/80">🧖</span>;
-          } else if (status.kind === 'mine') {
-            bg = 'bg-violet-500/20'; text = 'text-violet-100'; ring = 'ring-violet-500/40';
-            disabled = true; title = `Dein Aufguss — ${status.infusion.title}`;
-            extra = <span className="absolute -bottom-0.5 right-0.5 text-[8px] text-violet-300">✓</span>;
-          } else if (status.kind === 'fallback') {
-            bg = 'bg-amber-500/20'; text = 'text-amber-100'; ring = 'ring-amber-500/40';
-            title = 'Personal-Aufguss übernehmen';
-            extra = <span className="absolute -bottom-0.5 right-0.5 text-[8px]">👨‍🍳</span>;
-          } else if (status.kind === 'free') {
-            if (blockedBySecondary) {
-              bg = 'bg-forest-950/40'; text = 'text-forest-300/40'; ring = 'ring-forest-800/30';
-              disabled = true; title = 'Erst Garantie-Slots übernehmen';
-            } else {
-              bg = 'bg-emerald-500/15'; text = 'text-emerald-100'; ring = 'ring-emerald-500/30';
-              title = 'Frei — neuer Aufguss';
-            }
-          }
-
+          const v = slotVisualFor(status, blockedBySecondary);
+          let { bg, text, ring } = v;
           if (isSelected) {
             bg = 'bg-forest-500';
             text = 'text-forest-950';
@@ -1606,17 +1640,234 @@ function SaunaSlotRow({
             <button
               key={hhmm}
               type="button"
-              disabled={disabled}
+              disabled={v.disabled}
               onClick={() => onPick(hhmm)}
-              title={title}
-              className={`relative rounded-lg min-h-[44px] px-2 py-2 text-sm lg:text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${disabled ? 'cursor-not-allowed opacity-60' : 'hover:brightness-125 active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
+              title={v.title}
+              className={`relative rounded-lg min-h-[44px] px-2 py-2 text-sm lg:text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${v.disabled ? 'cursor-not-allowed opacity-60' : 'hover:brightness-125 active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
             >
-              {label}
-              {extra}
+              {hhmm}
+              {v.icon && <span className="absolute -bottom-0.5 right-0.5 text-[8px]">{v.icon}</span>}
             </button>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── Mobile Sauna-Matrix (2 Spalten zeit-synchron) ────────────────────────────
+// Eine gemeinsame Grid-Tabelle für alle aktiven Saunen eines Tages: Zeit-Spalte
+// links + 1 Spalte pro Sauna. Slot 14:00 Sauna A steht damit auf gleicher Höhe
+// wie Slot 14:00 Sauna B. Wird nur unter `lg`-Breakpoint gerendert; Desktop
+// nutzt weiter die gestapelten SaunaSlotRows.
+
+function DaySaunaMatrix({
+  saunas,
+  slots,
+  selectedSaunaId,
+  selectedSlot,
+  slotStatus,
+  secondarySaunaBlocked,
+  garantieSlotsOpenToday,
+  onPick,
+}: {
+  saunas: Sauna[];
+  slots: string[];
+  selectedSaunaId: string;
+  selectedSlot: string;
+  slotStatus: (saunaId: string, hhmm: string) => SlotStatus;
+  secondarySaunaBlocked: boolean;
+  garantieSlotsOpenToday: { hour: number; saunaName: string; tempC: 80 | 100 }[];
+  onPick: (saunaId: string, hhmm: string) => void;
+}) {
+  return (
+    <div
+      className="grid gap-1 rounded-xl bg-forest-900/40 p-2 ring-1 ring-forest-800/40"
+      style={{ gridTemplateColumns: `auto repeat(${saunas.length}, minmax(0, 1fr))` }}
+    >
+      {/* Header-Row: leere Zeit-Zelle + 1 Header pro Sauna */}
+      <div className="sticky top-0 z-10 bg-forest-900/85 backdrop-blur-sm rounded-md px-1 py-1.5" aria-hidden />
+      {saunas.map((s) => (
+        <div
+          key={`h-${s.id}`}
+          className="sticky top-0 z-10 bg-forest-900/85 backdrop-blur-sm rounded-md px-1 py-1.5 flex items-center justify-center gap-1 min-w-0"
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+            style={{ background: s.accent_color, boxShadow: `0 0 4px ${s.accent_color}` }}
+          />
+          <span className="text-[10px] font-bold text-forest-100 truncate">{s.name.slice(0, 3)}</span>
+          <span
+            className="text-[9px] px-1 py-0.5 rounded font-mono tabular-nums"
+            style={{ background: `${s.accent_color}22`, color: s.accent_color }}
+          >
+            {s.temperature_label}
+          </span>
+        </div>
+      ))}
+
+      {/* Body: pro Slot-Stunde eine Row */}
+      {slots.flatMap((hhmm) => {
+        const hour = Number(hhmm.split(':')[0]);
+        const cells: React.ReactNode[] = [
+          <div
+            key={`t-${hhmm}`}
+            className="px-2 py-2 text-xs font-mono tabular-nums text-forest-200 flex items-center justify-end"
+          >
+            {hhmm}
+          </div>,
+        ];
+        for (const s of saunas) {
+          const status = slotStatus(s.id, hhmm);
+          const isSelected = selectedSaunaId === s.id && selectedSlot === hhmm;
+          const isGarantieSauna = garantieSlotsOpenToday.some(
+            (g) => g.hour === hour && g.saunaName === s.name,
+          );
+          const hourHasOpenGarantie = garantieSlotsOpenToday.some((g) => g.hour === hour);
+          const blockedBySecondary =
+            secondarySaunaBlocked && !isGarantieSauna && status.kind === 'free' && hourHasOpenGarantie;
+
+          const v = slotVisualFor(status, blockedBySecondary);
+          let { bg, text, ring } = v;
+          if (isSelected) {
+            bg = 'bg-forest-500';
+            text = 'text-forest-950';
+            ring = 'ring-forest-400 ring-2';
+          }
+          cells.push(
+            <button
+              key={`s-${s.id}-${hhmm}`}
+              type="button"
+              disabled={v.disabled}
+              onClick={() => onPick(s.id, hhmm)}
+              title={v.title}
+              className={`relative rounded-lg min-h-[44px] px-1.5 py-1.5 text-xs font-mono tabular-nums ring-1 transition flex items-center justify-center gap-1 ${bg} ${text} ${ring} ${v.disabled ? 'cursor-not-allowed opacity-60' : 'active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
+            >
+              <span>{hhmm}</span>
+              {v.icon && <span className="text-[10px]">{v.icon}</span>}
+            </button>,
+          );
+        }
+        return cells;
+      })}
+    </div>
+  );
+}
+
+// ─── Tages-Übersicht "Heute geplant" ──────────────────────────────────────────
+// Hero-Sektion oben im Planner: listet alle heutigen Aufgüsse mit Uhrzeit,
+// Sauna, Aufgießer und Pills (attrs + oils). Vergangene Aufgüsse bleiben
+// gedimmt sichtbar (Tagesverlauf). Beantwortet "was läuft heute?" ohne
+// Wochen-Planner zu scrollen.
+
+function DailyOverview({
+  date,
+  infusions,
+  saunas,
+  meisterNameFor,
+  now,
+}: {
+  date: Date;
+  infusions: Infusion[];
+  saunas: Sauna[];
+  meisterNameFor: (id: string | null) => string;
+  now: Date;
+}) {
+  const todaysInfusions = infusions
+    .filter((i) => isSameYMD(new Date(i.start_time), date))
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+  const dateLabel = `${WEEKDAY_LABEL_DE[date.getDay()]}, ${format(date, 'dd.MM.yyyy')}`;
+
+  return (
+    <div className="rounded-2xl bg-gradient-to-b from-amber-900/30 to-forest-950/60 p-4 ring-1 ring-amber-700/30 backdrop-blur">
+      <h2 className="text-sm font-semibold text-amber-100 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <span className="text-base">🔥</span>
+        <span>Heute geplant</span>
+        <span className="ml-auto text-[10px] font-normal text-forest-300 normal-case tabular-nums">{dateLabel}</span>
+      </h2>
+      {todaysInfusions.length === 0 ? (
+        <div className="text-center text-forest-300/80 py-6 text-sm">
+          🌱 Heute noch nichts geplant — sei der/die Erste!
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {todaysInfusions.map((inf) => {
+            const s = saunas.find((x) => x.id === inf.sauna_id);
+            if (!s) return null;
+            const start = new Date(inf.start_time);
+            const end = new Date(inf.end_time);
+            const isPast = now >= end;
+            const isRunning = now >= start && now < end;
+            const meister = meisterNameFor(inf.saunameister_id);
+            const attrs = (inf.attributes ?? []) as string[];
+            const oils = ((inf.oils ?? []).filter(Boolean) as string[]).slice(0, MAX_OIL_SLOTS);
+            return (
+              <div
+                key={inf.id}
+                className={`rounded-xl bg-forest-950/50 px-3 py-2.5 ring-1 ring-forest-800/40 transition ${isPast ? 'opacity-50' : ''}`}
+                style={{ borderLeft: `3px solid ${s.accent_color}` }}
+              >
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ background: s.accent_color, boxShadow: `0 0 6px ${s.accent_color}` }}
+                  />
+                  <span className="text-sm font-mono tabular-nums font-bold text-forest-100">
+                    {format(start, 'HH:mm')}
+                  </span>
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded font-mono tabular-nums"
+                    style={{ background: `${s.accent_color}22`, color: s.accent_color }}
+                  >
+                    {s.temperature_label}
+                  </span>
+                  {isRunning && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-emerald-950">
+                      live
+                    </span>
+                  )}
+                  {isPast && (
+                    <span className="text-[9px] text-forest-500">beendet</span>
+                  )}
+                </div>
+                <h3 className="text-sm font-semibold text-forest-50 leading-tight mb-1">{inf.title}</h3>
+                <div className="text-[11px] text-forest-300 flex items-center gap-1 mb-1.5">
+                  <span>👤</span>
+                  <span>{meister}</span>
+                  {inf.team_infusion && <span className="text-amber-400" title="Team-Aufguss">👥</span>}
+                </div>
+                {(attrs.length > 0 || oils.length > 0) && (
+                  <div className="flex flex-wrap gap-1">
+                    {attrs.map((a, i) => {
+                      const std = ATTR_BY_ID[a as InfusionAttribute];
+                      return (
+                        <span
+                          key={`a-${i}`}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-forest-900/60 text-forest-200 ring-1 ring-forest-800/40 whitespace-nowrap"
+                        >
+                          {std ? `${std.emoji} ${std.label}` : '⚡'}
+                        </span>
+                      );
+                    })}
+                    {oils.map((o, i) => {
+                      const std = OIL_BY_ID[o];
+                      return (
+                        <span
+                          key={`o-${i}`}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-100 ring-1 ring-amber-500/30 whitespace-nowrap"
+                        >
+                          {std ? `${std.emoji} ${std.name}` : '🌿'}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
