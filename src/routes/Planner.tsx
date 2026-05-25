@@ -106,7 +106,20 @@ function isSameYMD(a: Date, b: Date): boolean {
 // 15 Min), wird die im Select dynamisch ergänzt damit der Wert weiter
 // gespeichert wird ohne Verlust.
 const DEFAULT_DURATION_MIN = 20;
-const DURATION_OPTIONS = [20, 30, 45] as const;
+const DURATION_OPTIONS = [20, 30, 45, 90] as const;
+
+// Banja-Ritual: 90-Min-Spezial-Aufguss, 19:00 Uhr, ausschließlich 80°C-Sauna.
+// Marker = String 'banja' im attributes-Array (existiert als Standard-Attribute).
+// DB-Constraints siehe Migration 0104. UI-Side: hier zentralisierte Konstanten.
+const BANJA_DURATION_MIN = 90;
+const BANJA_START_HOUR = 19;
+const BANJA_SAUNA_TEMP_LABEL = '80°C';
+const BANJA_ATTR: InfusionAttribute = 'banja';
+const BANJA_TITLE_DEFAULT = '🇷🇺 Traditionelles Banja-Ritual';
+
+function isBanjaInfusion(inf: { attributes?: string[] | null; duration_minutes?: number } | null | undefined): boolean {
+  return !!inf && Array.isArray(inf.attributes) && inf.attributes.includes(BANJA_ATTR);
+}
 
 // Slot-Status pro (sauna, hhmm) für SlotMatrix
 type SlotStatus =
@@ -416,10 +429,19 @@ export default function Planner() {
     setSelectedDate(next);
   }
 
+  // Covering-Lookup: eine Infusion markiert ALLE Stunden-Slots die sie überlappt.
+  // Wichtig für Banja (90 Min) — der 19:00-Banja muss auch im 20:00-Slot derselben
+  // Sauna als 'taken' erscheinen. Generisch: jede Infusion mit duration > 60 spannt
+  // mehrere Slots. ceil(dur/60) Slots werden markiert (covering, nicht overlap).
   const infusionByKey = useMemo(() => {
     const map = new Map<string, Infusion>();
     for (const i of infusions) {
-      map.set(infusionKey(i.sauna_id, new Date(i.start_time)), i);
+      const start = new Date(i.start_time);
+      const slotsCovered = Math.max(1, Math.ceil((i.duration_minutes ?? 20) / 60));
+      for (let k = 0; k < slotsCovered; k++) {
+        const slotStart = new Date(start.getTime() + k * 60 * 60_000);
+        map.set(infusionKey(i.sauna_id, slotStart), i);
+      }
     }
     return map;
   }, [infusions]);
@@ -582,6 +604,26 @@ export default function Planner() {
       return setFormError(
         `⛔ Für ${String(selectedSlotHour).padStart(2,'0')}:00 ist erst der Personal-Slot in der ${dranGarantie?.saunaName ?? 'dran'}-Sauna zu übernehmen.`,
       );
+    }
+
+    // ── BANJA-RITUAL Validation (Mirror der DB-Constraints aus Migration 0104)
+    // Server-Side ist die Source of Truth — diese Checks geben dem User sofortiges
+    // Feedback BEVOR der Server-Call gemacht wird (UX statt Toast nach Fehler).
+    if ((attrs as string[]).includes(BANJA_ATTR)) {
+      if (duration !== BANJA_DURATION_MIN) {
+        return setFormError(`🇷🇺 Banja-Ritual muss genau ${BANJA_DURATION_MIN} Minuten dauern.`);
+      }
+      if (slot !== `${String(BANJA_START_HOUR).padStart(2, '0')}:00`) {
+        return setFormError(`🇷🇺 Banja-Ritual startet ausschließlich um ${BANJA_START_HOUR}:00 Uhr.`);
+      }
+      const banjaSauna = saunas.find((s) => s.id === saunaId);
+      if (banjaSauna?.temperature_label !== BANJA_SAUNA_TEMP_LABEL) {
+        return setFormError(`🇷🇺 Banja-Ritual findet ausschließlich in der ${BANJA_SAUNA_TEMP_LABEL}-Sauna statt.`);
+      }
+      const slot20 = slotStatusFor(selectedDate, saunaId, '20:00');
+      if (slot20.kind !== 'free') {
+        return setFormError('🇷🇺 Banja-Ritual benötigt 19:00 + 20:00 frei — 20:00 ist bereits belegt.');
+      }
     }
 
     try {
@@ -1130,6 +1172,75 @@ export default function Planner() {
               </div>
             ) : (
               <>
+                {/* ── BANJA-RITUAL QUICK-ACTION ─────────────────────────────
+                    90-Min-Spezial-Aufguss: 19:00 + 20:00 in der 80°C-Sauna.
+                    Bei Klick wird das Form vollständig vorausgefüllt
+                    (Sauna/Slot/Dauer/Titel/Attrs). User kann dann noch Material
+                    (Wenik, Sud, Öle, Custom-Materialien) ergänzen.            */}
+                {(() => {
+                  const banjaSauna = saunas.find(
+                    (s) => s.is_active && s.temperature_label === BANJA_SAUNA_TEMP_LABEL,
+                  );
+                  if (!banjaSauna) return null;
+                  const slot19 = slotStatusFor(selectedDate, banjaSauna.id, '19:00');
+                  const slot20 = slotStatusFor(selectedDate, banjaSauna.id, '20:00');
+                  const banjaStart = new Date(selectedDate);
+                  banjaStart.setHours(BANJA_START_HOUR, 0, 0, 0);
+                  const isInPast = banjaStart.getTime() < Date.now();
+                  const bothFree = slot19.kind === 'free' && slot20.kind === 'free';
+                  const canBook = (isAufgieser || isAdmin) && bothFree && !isInPast;
+
+                  let hint = '';
+                  if (isInPast) hint = '⏱️ 19:00 Uhr ist heute bereits vorbei.';
+                  else if (slot19.kind !== 'free') hint = '🔴 19:00 Uhr ist bereits belegt.';
+                  else if (slot20.kind !== 'free') hint = '🔴 20:00 Uhr ist bereits belegt.';
+                  else if (!isAufgieser && !isAdmin) hint = 'Nur Aufgießer dürfen Banja anlegen.';
+
+                  return (
+                    <div
+                      className={`rounded-2xl p-4 ring-1 backdrop-blur transition ${
+                        canBook
+                          ? 'bg-gradient-to-br from-rose-950/60 via-amber-950/40 to-forest-950/60 ring-rose-500/40'
+                          : 'bg-forest-950/40 ring-forest-800/40'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="text-3xl flex-shrink-0">🇷🇺</div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`text-sm font-bold ${canBook ? 'text-rose-100' : 'text-forest-300'}`}>
+                            Spezial: Traditionelles Banja-Ritual
+                          </h3>
+                          <p className={`text-[11px] mt-0.5 ${canBook ? 'text-rose-200/80' : 'text-forest-400/70'}`}>
+                            90 Min · 19:00 + 20:00 Uhr · {banjaSauna.name} · 2 Slots werden zu einem Block
+                          </p>
+                          {hint && (
+                            <p className="text-[10px] mt-1 text-forest-400">{hint}</p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!canBook}
+                          onClick={() => {
+                            setSelectedDate(selectedDate);
+                            setSaunaId(banjaSauna.id);
+                            setSlot('19:00');
+                            setDuration(BANJA_DURATION_MIN);
+                            setTitle(BANJA_TITLE_DEFAULT);
+                            setAttrs([BANJA_ATTR, 'wenik']);
+                          }}
+                          className={`flex-shrink-0 rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition ${
+                            canBook
+                              ? 'bg-rose-600 text-white hover:bg-rose-500 active:scale-95'
+                              : 'bg-forest-900/60 text-forest-500 cursor-not-allowed'
+                          }`}
+                        >
+                          Banja buchen
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {selectedFallbackId && (
                   <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
                     <p className="font-semibold">🔄 Du übernimmst einen Personal-Aufguss.</p>
@@ -1618,6 +1729,23 @@ function SaunaSlotRow({
         {slots.map((hhmm) => {
           const hour = Number(hhmm.split(':')[0]);
           const status = slotStatus(sauna.id, hhmm);
+
+          // Continuation-Skip: vorherige Mehrstunden-Infusion (z.B. Banja 19:00)
+          // covered diesen Slot — wird via col-span vorher gerendert.
+          if (status.kind === 'taken' || status.kind === 'mine' || status.kind === 'fallback') {
+            const infStartHour = new Date(status.infusion.start_time).getHours();
+            if (infStartHour < hour) return null;
+          }
+
+          // Col-Span für Mehrstunden-Aufgüsse (Banja 90 Min = 2 Cols).
+          const spanCols =
+            (status.kind === 'taken' || status.kind === 'mine' || status.kind === 'fallback')
+              ? Math.max(1, Math.ceil(status.infusion.duration_minutes / 60))
+              : 1;
+          const isBanjaBlock =
+            (status.kind === 'taken' || status.kind === 'mine')
+              && isBanjaInfusion(status.infusion);
+
           const isSelected = selectedSaunaId === sauna.id && selectedSlot === hhmm;
           // Ist diese Sauna die Garantie-Sauna für diesen Slot?
           const isGarantieSauna = garantieSlotsOpenToday.some((g) => g.hour === hour && g.saunaName === sauna.name);
@@ -1635,6 +1763,11 @@ function SaunaSlotRow({
             text = 'text-forest-950';
             ring = 'ring-forest-400 ring-2';
           }
+          if (isBanjaBlock) {
+            bg = 'bg-gradient-to-br from-rose-700/40 via-rose-600/30 to-amber-700/30';
+            text = 'text-rose-50';
+            ring = 'ring-rose-400/60 ring-2';
+          }
 
           return (
             <button
@@ -1642,11 +1775,21 @@ function SaunaSlotRow({
               type="button"
               disabled={v.disabled}
               onClick={() => onPick(hhmm)}
-              title={v.title}
-              className={`relative rounded-lg min-h-[44px] px-2 py-2 text-sm lg:text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${v.disabled ? 'cursor-not-allowed opacity-60' : 'hover:brightness-125 active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
+              title={isBanjaBlock ? `🇷🇺 Banja-Ritual — ${(status as { infusion: Infusion }).infusion.title}` : v.title}
+              style={spanCols > 1 ? { gridColumn: `span ${spanCols}` } : undefined}
+              className={`relative rounded-lg min-h-[44px] px-2 py-2 text-sm lg:text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${v.disabled && !isBanjaBlock ? 'cursor-not-allowed opacity-60' : 'hover:brightness-125 active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
             >
-              {hhmm}
-              {v.icon && <span className="absolute -bottom-0.5 right-0.5 text-[8px]">{v.icon}</span>}
+              {isBanjaBlock ? (
+                <span className="flex items-center justify-center gap-1.5 font-bold">
+                  <span>🇷🇺</span>
+                  <span className="uppercase tracking-wider text-[10px]">Banja 90 Min</span>
+                </span>
+              ) : (
+                <>
+                  {hhmm}
+                  {v.icon && <span className="absolute -bottom-0.5 right-0.5 text-[8px]">{v.icon}</span>}
+                </>
+              )}
             </button>
           );
         })}
@@ -1719,6 +1862,25 @@ function DaySaunaMatrix({
         ];
         for (const s of saunas) {
           const status = slotStatus(s.id, hhmm);
+
+          // ── Continuation-Skip: dieser Slot wird von einer vorherigen
+          //    Mehrstunden-Infusion (z.B. Banja 19:00 covers 20:00) bereits
+          //    via row-span gerendert. Zelle hier auslassen damit Grid
+          //    sauber bleibt.
+          if (status.kind === 'taken' || status.kind === 'mine' || status.kind === 'fallback') {
+            const infStartHour = new Date(status.infusion.start_time).getHours();
+            if (infStartHour < hour) continue;
+          }
+
+          // ── Row-Span für Banja (90 Min = 2 Slots). Generisch: ceil(dur/60).
+          const spanRows =
+            (status.kind === 'taken' || status.kind === 'mine' || status.kind === 'fallback')
+              ? Math.max(1, Math.ceil(status.infusion.duration_minutes / 60))
+              : 1;
+          const isBanjaBlock =
+            (status.kind === 'taken' || status.kind === 'mine')
+              && isBanjaInfusion(status.infusion);
+
           const isSelected = selectedSaunaId === s.id && selectedSlot === hhmm;
           const isGarantieSauna = garantieSlotsOpenToday.some(
             (g) => g.hour === hour && g.saunaName === s.name,
@@ -1734,17 +1896,36 @@ function DaySaunaMatrix({
             text = 'text-forest-950';
             ring = 'ring-forest-400 ring-2';
           }
+
+          // Banja-Block: kräftiges Rose-Visual mit Hero-Label "🇷🇺 BANJA 90 Min"
+          if (isBanjaBlock) {
+            bg = 'bg-gradient-to-br from-rose-700/40 via-rose-600/30 to-amber-700/30';
+            text = 'text-rose-50';
+            ring = 'ring-rose-400/60 ring-2';
+          }
+
           cells.push(
             <button
               key={`s-${s.id}-${hhmm}`}
               type="button"
               disabled={v.disabled}
               onClick={() => onPick(s.id, hhmm)}
-              title={v.title}
-              className={`relative rounded-lg min-h-[44px] px-1.5 py-1.5 text-xs font-mono tabular-nums ring-1 transition flex items-center justify-center gap-1 ${bg} ${text} ${ring} ${v.disabled ? 'cursor-not-allowed opacity-60' : 'active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
+              title={isBanjaBlock ? `🇷🇺 Banja-Ritual — ${(status as { infusion: Infusion }).infusion.title}` : v.title}
+              style={spanRows > 1 ? { gridRow: `span ${spanRows}` } : undefined}
+              className={`relative rounded-lg min-h-[44px] px-1.5 py-1.5 text-xs font-mono tabular-nums ring-1 transition flex flex-col items-center justify-center gap-0.5 ${bg} ${text} ${ring} ${v.disabled && !isBanjaBlock ? 'cursor-not-allowed opacity-60' : 'active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
             >
-              <span>{hhmm}</span>
-              {v.icon && <span className="text-[10px]">{v.icon}</span>}
+              {isBanjaBlock ? (
+                <>
+                  <span className="text-base">🇷🇺</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider">Banja</span>
+                  <span className="text-[8px] opacity-80">90 Min</span>
+                </>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <span>{hhmm}</span>
+                  {v.icon && <span className="text-[10px]">{v.icon}</span>}
+                </span>
+              )}
             </button>,
           );
         }

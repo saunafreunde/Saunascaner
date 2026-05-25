@@ -264,6 +264,23 @@ export function InfusionCard({
                 </div>
               )}
 
+              {/* Banja-Ritual-Badge: oben LINKS in der Titel-Box, prominent rose,
+                  damit sofort erkennbar dass es sich um den 90-Min-Spezial-Aufguss
+                  handelt der 2 Slots (19+20:00) gemerged belegt. */}
+              {(infusion.attributes ?? []).includes('banja' as InfusionAttribute) && (
+                <div
+                  className="absolute top-1 left-1 flex items-center flex-shrink-0"
+                  style={{ fontSize: 'clamp(8px, 1.9cqh, 11px)' }}
+                >
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-600 to-rose-500 px-2 py-0.5 font-black tracking-wider text-white whitespace-nowrap"
+                    style={{ boxShadow: '0 0 10px rgba(244,63,94,0.6)' }}
+                  >
+                    🇷🇺 BANJA · 90 MIN
+                  </span>
+                </div>
+              )}
+
               <h3
                 className="font-black text-slate-900 leading-tight w-full tracking-tight pr-1"
                 style={{
