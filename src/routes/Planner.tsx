@@ -394,8 +394,11 @@ export default function Planner() {
   const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [teamInfusion, setTeamInfusion] = useState(false);
-  // Aufguss-Dauer (User-Wunsch: 20/30/45 wählbar, Default 20)
+  // Aufguss-Dauer (User-Wunsch: 20/30/45 wählbar, Default 20; 90 = Banja)
   const [duration, setDuration] = useState<number>(DEFAULT_DURATION_MIN);
+  // Banja-Erkennung im Outer-Scope (für Button-Label + Disabled-State).
+  // submit() hat eine eigene lokale Kopie, hier nur fürs Rendering.
+  const isBanjaPlanned = (attrs as string[]).includes(BANJA_ATTR);
   // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
   // Bei nicht-Admins wird m.id verwendet (Backend lehnt fremde IDs eh ab).
   const [adminSaunameisterId, setAdminSaunameisterId] = useState<string>('');
@@ -630,10 +633,16 @@ export default function Planner() {
       if (banjaSauna?.temperature_label !== BANJA_SAUNA_TEMP_LABEL) {
         return setFormError(`🇷🇺 Banja-Ritual findet ausschließlich in der ${BANJA_SAUNA_TEMP_LABEL}-Sauna statt.`);
       }
-      const slot20 = slotStatusFor(selectedDate, saunaId, '20:00');
-      // 20:00 darf 'free' oder 'fallback' sein (Fallback wird automatisch gelöscht).
-      // Nur 'taken'/'mine' blockt — dann ist ein echter Aufgießer da.
-      if (slot20.kind === 'taken' || slot20.kind === 'mine') {
+      // Beide Banja-Slots prüfen: 'free' oder 'fallback' sind OK (Fallback wird
+      // serverseitig automatisch gelöscht via book_banja_ritual). 'taken'/'mine'
+      // blockt — ein echter Aufgießer ist dann da. Defense in depth: Server
+      // prüft das nochmal im RPC, aber UX-Feedback soll sofort kommen.
+      const slot19Status = slotStatusFor(selectedDate, saunaId, '19:00');
+      if (slot19Status.kind === 'taken' || slot19Status.kind === 'mine') {
+        return setFormError('🇷🇺 19:00-Slot ist bereits durch einen echten Aufgießer belegt.');
+      }
+      const slot20Status = slotStatusFor(selectedDate, saunaId, '20:00');
+      if (slot20Status.kind === 'taken' || slot20Status.kind === 'mine') {
         return setFormError('🇷🇺 20:00-Slot ist bereits durch einen echten Aufgießer belegt.');
       }
     }
@@ -1460,13 +1469,18 @@ export default function Planner() {
                 )}
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
-                  <button type="submit" disabled={addInf.isPending || takeoverFallback.isPending}
-                    className="flex-1 rounded-xl bg-forest-500 px-4 py-3 text-sm font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60">
-                    {addInf.isPending || takeoverFallback.isPending
+                  <button
+                    type="submit"
+                    disabled={addInf.isPending || takeoverFallback.isPending || bookBanja.isPending}
+                    className="flex-1 rounded-xl bg-forest-500 px-4 py-3 text-sm font-semibold text-forest-950 hover:bg-forest-400 transition disabled:opacity-60"
+                  >
+                    {addInf.isPending || takeoverFallback.isPending || bookBanja.isPending
                       ? 'Speichere …'
-                      : selectedFallbackId
-                        ? '🔄 Personal-Aufguss übernehmen'
-                        : 'Aufguss eintragen'}
+                      : isBanjaPlanned
+                        ? '🇷🇺 Banja-Ritual buchen'
+                        : selectedFallbackId
+                          ? '🔄 Personal-Aufguss übernehmen'
+                          : 'Aufguss eintragen'}
                   </button>
                   {!isStaff && (
                     <button type="button" onClick={saveAsTemplate} disabled={addTpl.isPending}
