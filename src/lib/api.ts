@@ -3613,6 +3613,44 @@ export function useApplyRecurringSlot() {
   });
 }
 
+// ─── Banja-Ritual buchen (Migration 0105) ─────────────────────────────────
+// Atomare Buchung: Löscht bestehende Personal-Fallbacks für 19+20:00 in der
+// 80°C-Sauna und legt 90-Min-Banja an. Behandelt damit den Bug, dass ein
+// Personal-Fallback auf 19/20:00 die Banja-Buchung sonst blockiert hätte.
+export function useBookBanjaRitual() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      sauna_id: string;
+      date: Date;          // wird zu YYYY-MM-DD (lokal) konvertiert
+      title: string;
+      attributes?: string[];
+      oils?: (string | null)[] | null;
+      team_infusion?: boolean;
+      saunameister_id?: string | null;  // Admin-Override
+    }) => {
+      // Date als YYYY-MM-DD in lokaler TZ (Berlin) — die RPC interpretiert
+      // den String als Europe/Berlin und baut daraus 19:00 + 20:00.
+      const y = p.date.getFullYear();
+      const mo = String(p.date.getMonth() + 1).padStart(2, '0');
+      const d = String(p.date.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${mo}-${d}`;
+      const { data, error } = await need().rpc('book_banja_ritual', {
+        p_sauna_id: p.sauna_id,
+        p_date: dateStr,
+        p_title: p.title,
+        p_attributes: p.attributes ?? ['banja', 'wenik'],
+        p_oils: p.oils ?? null,
+        p_team_infusion: p.team_infusion ?? false,
+        p_saunameister_id: p.saunameister_id ?? null,
+      });
+      if (error) throw error;
+      return data as string;  // neue infusion_id
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+  });
+}
+
 // ─── Personal-Fallback übernehmen (Migration 0034) ───────────────────────
 export function useTakeoverPersonalFallback() {
   const qc = useQueryClient();

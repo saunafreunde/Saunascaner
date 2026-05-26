@@ -45,7 +45,7 @@ import {
   sendBroadcastPush,
   useMyRecurringSlots, useApplyRecurringSlot, useRevokeMyRecurringSlot,
   useAbsences, useAddAbsence, useDeleteAbsence,
-  useTakeoverPersonalFallback, type Template,
+  useTakeoverPersonalFallback, useBookBanjaRitual, type Template,
   useScheduleSettings,
   useSuggestInfusionTitle,
 } from '@/lib/api';
@@ -202,6 +202,7 @@ export default function Planner() {
 
   const addInf = useAddInfusion();
   const takeoverFallback = useTakeoverPersonalFallback();
+  const bookBanja = useBookBanjaRitual();
   const delInf = useDeleteInfusion();
   const addTpl = useAddTemplate();
   const delTpl = useDeleteTemplate();
@@ -590,16 +591,24 @@ export default function Planner() {
     if (!title.trim()) return setFormError('Titel fehlt.');
     if (isMondaySelected) return setFormError('Montag keine Aufgüsse.');
 
+    // Banja-Pfad früh erkennen — umgeht mehrere Standard-Checks (Slot-Taken,
+    // Secondary-Block, Staff-Restriction), weil book_banja_ritual atomar
+    // Personal-Fallbacks aufräumt und als Spezial-Event eigene Regeln hat.
+    const isBanjaSubmit = (attrs as string[]).includes(BANJA_ATTR);
+
     const start = slotToDate(selectedDate, slot);
     if (isBefore(start, new Date())) return setFormError('Slot liegt in der Vergangenheit.');
-    if (isSlotTaken(slot)) return setFormError('Slot bereits belegt.');
-    // Staff darf NUR Personal-Fallbacks übernehmen
-    if (isStaff && !selectedFallbackId) {
+    if (!isBanjaSubmit && isSlotTaken(slot)) return setFormError('Slot bereits belegt.');
+    // Staff darf NUR Personal-Fallbacks übernehmen (Banja-Pfad nicht für Staff offen,
+    // RPC prüft Aufgießer/Admin nochmal serverseitig)
+    if (!isBanjaSubmit && isStaff && !selectedFallbackId) {
       return setFormError('Als Personal kannst du nur 👨‍🍳-Slots (Personal-Aufgüsse) übernehmen. Wähle einen gelben Slot in der Matrix.');
     }
     // Sperrregel gilt NICHT, wenn der gewählte Slot ein Personal-Fallback ist
-    // (übernehmen bringt die Garantie-Sauna ja erst zum vollständigen Besetzt-Status)
-    if (!selectedFallbackId && secondarySaunaBlocked) {
+    // (übernehmen bringt die Garantie-Sauna ja erst zum vollständigen Besetzt-Status).
+    // Banja ist Spezial-Event und überschreibt secondarySauna-Sperre ebenfalls
+    // (Banja in 80°C ist priorisiert auch wenn 100°C bei 19:00 noch Garantie-Fallback hat).
+    if (!isBanjaSubmit && !selectedFallbackId && secondarySaunaBlocked) {
       const dranGarantie = garantieSlotsOpenToday.find((g) => g.hour === selectedSlotHour);
       return setFormError(
         `⛔ Für ${String(selectedSlotHour).padStart(2,'0')}:00 ist erst der Personal-Slot in der ${dranGarantie?.saunaName ?? 'dran'}-Sauna zu übernehmen.`,
@@ -609,7 +618,8 @@ export default function Planner() {
     // ── BANJA-RITUAL Validation (Mirror der DB-Constraints aus Migration 0104)
     // Server-Side ist die Source of Truth — diese Checks geben dem User sofortiges
     // Feedback BEVOR der Server-Call gemacht wird (UX statt Toast nach Fehler).
-    if ((attrs as string[]).includes(BANJA_ATTR)) {
+    // Personal-Fallback auf 19/20:00 ist OK (wird via book_banja_ritual atomic übernommen).
+    if (isBanjaSubmit) {
       if (duration !== BANJA_DURATION_MIN) {
         return setFormError(`🇷🇺 Banja-Ritual muss genau ${BANJA_DURATION_MIN} Minuten dauern.`);
       }
@@ -621,13 +631,28 @@ export default function Planner() {
         return setFormError(`🇷🇺 Banja-Ritual findet ausschließlich in der ${BANJA_SAUNA_TEMP_LABEL}-Sauna statt.`);
       }
       const slot20 = slotStatusFor(selectedDate, saunaId, '20:00');
-      if (slot20.kind !== 'free') {
-        return setFormError('🇷🇺 Banja-Ritual benötigt 19:00 + 20:00 frei — 20:00 ist bereits belegt.');
+      // 20:00 darf 'free' oder 'fallback' sein (Fallback wird automatisch gelöscht).
+      // Nur 'taken'/'mine' blockt — dann ist ein echter Aufgießer da.
+      if (slot20.kind === 'taken' || slot20.kind === 'mine') {
+        return setFormError('🇷🇺 20:00-Slot ist bereits durch einen echten Aufgießer belegt.');
       }
     }
 
     try {
-      if (selectedFallbackId) {
+      if (isBanjaSubmit) {
+        // Banja-Pfad: atomare RPC book_banja_ritual übernimmt Personal-Fallbacks
+        // für 19+20:00 automatisch (löschen) und legt 90-Min-Banja als neue
+        // Infusion an. Umgeht die normale takeover/addInf-Verzweigung.
+        await bookBanja.mutateAsync({
+          sauna_id: saunaId,
+          date: selectedDate,
+          title: title.trim(),
+          attributes: [...attrs, ...customAttrIds] as string[],
+          oils: oils.some(Boolean) ? oils : null,
+          team_infusion: teamInfusion,
+          saunameister_id: (isAdmin && adminSaunameisterId) ? adminSaunameisterId : null,
+        });
+      } else if (selectedFallbackId) {
         await takeoverFallback.mutateAsync({
           infusion_id: selectedFallbackId,
           title: title.trim(),
@@ -1187,14 +1212,19 @@ export default function Planner() {
                   const banjaStart = new Date(selectedDate);
                   banjaStart.setHours(BANJA_START_HOUR, 0, 0, 0);
                   const isInPast = banjaStart.getTime() < Date.now();
-                  const bothFree = slot19.kind === 'free' && slot20.kind === 'free';
-                  const canBook = (isAufgieser || isAdmin) && bothFree && !isInPast;
+                  // Banja akzeptiert 'free' UND 'fallback' (Personal-Aufguss wird
+                  // automatisch übernommen/gelöscht via book_banja_ritual RPC).
+                  const slot19Bookable = slot19.kind === 'free' || slot19.kind === 'fallback';
+                  const slot20Bookable = slot20.kind === 'free' || slot20.kind === 'fallback';
+                  const takesOverFallback = slot19.kind === 'fallback' || slot20.kind === 'fallback';
+                  const canBook = (isAufgieser || isAdmin) && slot19Bookable && slot20Bookable && !isInPast;
 
                   let hint = '';
                   if (isInPast) hint = '⏱️ 19:00 Uhr ist heute bereits vorbei.';
-                  else if (slot19.kind !== 'free') hint = '🔴 19:00 Uhr ist bereits belegt.';
-                  else if (slot20.kind !== 'free') hint = '🔴 20:00 Uhr ist bereits belegt.';
+                  else if (!slot19Bookable) hint = '🔴 19:00 Uhr ist bereits durch einen Aufgießer belegt.';
+                  else if (!slot20Bookable) hint = '🔴 20:00 Uhr ist bereits durch einen Aufgießer belegt.';
                   else if (!isAufgieser && !isAdmin) hint = 'Nur Aufgießer dürfen Banja anlegen.';
+                  else if (takesOverFallback) hint = '👨‍🍳 Personal-Aufguss wird automatisch übernommen.';
 
                   return (
                     <div
