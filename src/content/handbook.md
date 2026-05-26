@@ -3,7 +3,12 @@
 > Die App der **Saunafreunde Schwarzwald e.V.** für Aufguss-Planung, Mitglieder-Verwaltung, WM-Tipspiel, Mini-Feed und vieles mehr.
 >
 > **Live unter:** [saunascaner.vercel.app](https://saunascaner.vercel.app)
-> **Stand:** 22.05.2026
+> **Stand:** 26.05.2026
+>
+> **Neu seit 22.05.2026**: Mobile-2-Spalten-Planner-Layout · 4-Farben-Slot-System (🔴 belegt · 🟢 frei · 🟠 gesperrt · 🟣 mein Aufguss) · „🔥 Heute geplant"-Hero · 🇷🇺 **Banja-Ritual** (90-Min-Spezial-Aufguss in 80°C-Sauna, automatische Personal-Aufguss-Übernahme).
+>
+> **Schnellzugriff zu Rollen-Handbüchern** (kompakte Anleitungen je Rolle):
+> [👋 Gast](/hilfe#gast) · [🤝 Fan](/hilfe#fan) · [🤝 Unterstützer](/hilfe#unterstuetzer) · [🧖 Aufgießer](/hilfe#aufgieser) · [👨‍🍳 Personal](/hilfe#personal) · [🛠️ CP](/hilfe#cp) · [⚙️ Admin](/hilfe#admin)
 
 ---
 
@@ -640,16 +645,62 @@ Wechsle mit den Pfeil-Buttons zwischen den Wochen — Anker-Tag oben zeigt immer
 
 ### Slot-Matrix
 
-Pro Sauna eine Zeile, pro Stunde eine Zelle:
+Pro Sauna eine Zeile, pro Stunde eine Zelle. **Neu seit 26.05.2026**: auf dem Smartphone stehen beide Saunen **NEBENEINANDER** (Mobile-2-Spalten-Layout, `DaySaunaMatrix`) — die Zeit-Spalte links synchronisiert beide Saunen auf gleicher Höhe, du siehst für jede Stunde direkt was in welcher Sauna geplant ist. Auf Desktop bleibt das gewohnte Stapel-Layout pro Sauna mit horizontalem Slot-Grid.
 
-| Farbe | Bedeutung |
+**4-Farben-System** (vereinheitlicht 26.05.2026):
+
+| Farbe | Status-Icon | Bedeutung | Klickbar |
+|---|---|---|---|
+| 🟢 emerald | — | **frei** — du kannst hier einen neuen Aufguss anlegen | ✅ |
+| 🟠 amber | 👨‍🍳 | **Personal-Aufguss** — du kannst ihn übernehmen | ✅ |
+| 🟠 amber | 🔒 | **gesperrt** — Garantie-Sauna der Stunde noch nicht durch Aufgießer belegt, übernimm zuerst dort | ❌ |
+| 🟣 violet | ✓ | **dein eigener** Aufguss | ❌ |
+| 🔴 rose | 🧖 | **belegt** — anderer Aufgießer hat den Slot | ❌ |
+| ⚫ grau | — | **vergangen** | ❌ |
+
+**Ein Klick wählt Sauna + Uhrzeit gleichzeitig.** Tipp: das **🔒-Icon** ist orange (nicht grau wie früher), damit du die Sperre auf den ersten Blick siehst.
+
+### 🔥 Heute geplant (Hero-Sektion oben)
+
+Über dem Wochen-Planner erscheint die **„🔥 Heute geplant"**-Karte mit allen heutigen Aufgüssen als vertikale Liste:
+- Sauna-Akzent-Punkt + Uhrzeit + Temperatur-Pill + Live/Beendet-Badge
+- Titel + 👤 Aufgießer-Name (+ Co-Aufgießer)
+- attrs/oils-Pills kompakt
+- Vergangene Aufgüsse heute bleiben gedimmt (`opacity-50`) sichtbar — Tagesverlauf auf einen Blick
+
+Beantwortet sofort die Frage „Was läuft heute?" ohne Wochen-Planner zu scrollen.
+
+### 🇷🇺 Banja-Ritual (90-Min-Spezial-Aufguss) ⭐ NEU 26.05.2026
+
+Das **Traditionelle Banja-Ritual** ist ein Spezial-Aufguss mit festen Regeln:
+
+| Parameter | Wert |
 |---|---|
-| 🟢 emerald | **frei** — du kannst hier einen neuen Aufguss anlegen |
-| 🟡 amber | **Personal-Aufguss** — du kannst ihn übernehmen |
-| 🟣 violet | **dein eigener** Aufguss |
-| 🔴 rose | **gesperrt** — anderer Aufgießer hat den Slot belegt |
+| Dauer | **90 Minuten** (belegt 2 Slots: 19:00 + 20:00) |
+| Startzeit | **ausschließlich 19:00 Uhr** (Berlin-Zeit) |
+| Sauna | **ausschließlich 80°C-Sauna** |
+| Standard-Materialien | Banja-Marker 🇷🇺 + 🍃 Wenik (Birkenreiser) |
 
-**Ein Klick wählt Sauna + Uhrzeit gleichzeitig.**
+**So buchst du eine Banja**:
+1. Oben im Planner siehst du den **„🇷🇺 Spezial: Traditionelles Banja-Ritual"**-Banner (rot-gold, prominent)
+2. **Ein Klick auf „Banja buchen"** füllt das Form komplett aus: Sauna=80°C · Slot=19:00 · Dauer=90 · Titel · Attrs=[banja, wenik]
+3. Optional: weitere Materialien ergänzen (Wenik-Birkenreiser, Sude, ätherische Öle, Räucher-Zutaten oder eigene Custom-Attrs/Oils)
+4. **„🇷🇺 Banja-Ritual buchen"**-Button drücken — fertig
+
+**Automatische Personal-Aufguss-Übernahme**:
+Wenn 19:00 oder 20:00 in der 80°C-Sauna noch Personal-Aufgüsse (👨‍🍳-Slots) hatten, übernimmt die Banja-Buchung sie **automatisch und atomar** (DB-RPC `book_banja_ritual`, Migration 0105). Du musst die Personal-Aufgüsse nicht vorher selbst übernehmen.
+
+**Visualisierung auf der Tafel**:
+- **Mobile-2-Spalten-Layout**: Banja-Block spannt 2 Rows in der 80°C-Spalte (gemerged mit rotem Gradient + "🇷🇺 Banja 90 Min"-Label)
+- **Desktop-Slot-Grid**: spannt 2 Spalten horizontal
+- **TV-Tafel**: 19:00-Tile zeigt die volle Banja-Card mit "🇷🇺 BANJA · 90 MIN"-Badge oben links (analog zum LIVE-Badge oben rechts), 20:00-Tile zeigt dezent "↑ 🇷🇺 Banja-Ritual läuft seit 19:00 Uhr"
+
+**Wann ist Banja nicht buchbar?**
+- Wenn 19:00 oder 20:00 schon durch einen **echten** Aufgießer belegt ist (rote/violette Slots)
+- Wenn 19:00 bereits vergangen ist
+- Wenn du kein Aufgießer/Admin bist
+
+Personal-Aufgüsse in 19+20:00 blockieren die Banja **NICHT** mehr (Bug-Fix 26.05.2026) — sie werden automatisch übernommen.
 
 ### Aufguss anlegen
 
