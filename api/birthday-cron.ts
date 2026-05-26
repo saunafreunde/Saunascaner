@@ -3,18 +3,17 @@
 //   1) Telegram-Glückwunsch an alle konfigurierten Chats
 //   2) Web-Push an alle Mitglieder mit Subscription (außer Geburtstagskind)
 //
-// Hinweis: dieser Endpoint war zwischenzeitlich in api/cron.ts konsolidiert
-// (Vercel-Hobby-12-Function-Limit). Seit Wechsel auf Pro wieder eigener File
-// für klarere Concern-Trennung.
+// FIX 0107 (Audit Phase 8 CRITICAL):
+//  - serviceClient() statt anon-Key → DELETE auf push_subscriptions funktioniert
+//  - tgBroadcast() für Telegram-Sends mit Throttle + 429-Retry
+//  - safer push_subscription NOT-IN-Query (Array-Form)
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import { serviceClient } from './_auth.js';
+import { tgBroadcast } from './_telegram.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Optional Cron-Schutz via CRON_SECRET (Vercel Cron sendet Bearer-Header
-  // wenn der Header in den Project-Settings als Cron Authorization eingestellt
-  // ist — sonst offen, wir akzeptieren beides).
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = req.headers.authorization ?? '';
@@ -22,13 +21,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!token || !supaUrl || !anonKey) {
-    return res.status(500).json({ error: 'env missing' });
+  const sb = serviceClient();
+  if (!token || !sb) {
+    return res.status(500).json({ error: 'env missing (TELEGRAM_BOT_TOKEN or SUPABASE_SERVICE_ROLE_KEY)' });
   }
-
-  const sb = createClient(supaUrl, anonKey);
 
   // Geburtstagskinder heute
   const { data: birthdays, error } = await sb.rpc('get_birthdays_today');
@@ -46,16 +42,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const person of list) {
     const display = person.sauna_name ? `${person.name} („${person.sauna_name}")` : person.name;
     const text = `🎂 Heute hat <b>${display}</b> Geburtstag!\nWir wünschen einen wunderbaren Tag — auf viele weitere Aufgüsse! 🥂`;
-    const results = await Promise.allSettled(
-      chats.map((chat_id) =>
-        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ chat_id, text, parse_mode: 'HTML' }),
-        })
-      )
-    );
-    telegramSent += results.filter((r) => r.status === 'fulfilled' && (r.value as Response).ok).length;
+    const results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({
+      chat_id, text, parse_mode: 'HTML',
+    }));
+    telegramSent += results.filter((r) => r.ok).length;
   }
 
   // Web-Push an alle außer Geburtstagskindern
@@ -68,10 +58,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (vapidPub && vapidPriv) {
     webpush.setVapidDetails(vapidSub, vapidPub, vapidPriv);
     const birthdayMemberIds = list.map((p) => p.member_id);
+    // FIX 0107 (Audit Phase 4 HIGH): UUID-Array sicher quoten statt nackt join(',')
+    const notInList = birthdayMemberIds.length > 0
+      ? `(${birthdayMemberIds.map((id) => `"${id}"`).join(',')})`
+      : '("00000000-0000-0000-0000-000000000000")';
     const { data: subsRaw } = await sb
       .from('push_subscriptions')
       .select('endpoint, p256dh_key, auth_key, member_id')
-      .not('member_id', 'in', `(${birthdayMemberIds.join(',') || '00000000-0000-0000-0000-000000000000'})`);
+      .not('member_id', 'in', notInList);
 
     type Sub = { endpoint: string; p256dh_key: string; auth_key: string; member_id: string };
     const subs = (subsRaw ?? []) as Sub[];
@@ -98,6 +92,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
       if (pushStale.length > 0) {
+        // FIX 0107 (Audit Phase 8 CRITICAL): mit serviceClient() funktioniert
+        // dieses DELETE jetzt wirklich (vorher silent NULL-Filter wegen anon-RLS).
         await sb.from('push_subscriptions').delete().in('endpoint', pushStale);
       }
     }

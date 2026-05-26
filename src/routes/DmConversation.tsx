@@ -41,15 +41,26 @@ export default function DmConversation() {
     return () => { supabase!.removeChannel(ch); };
   }, [conversationId, qc]);
 
-  // Auto-mark-read beim Öffnen + bei neuen empfangenen Nachrichten
+  // FIX 0107 (Audit Phase 1A CRITICAL): vorher feuerte markRead bei jeder
+  // messages.length-Änderung → in Kombination mit onSuccess-invalidation und
+  // 5s-Polling konnte das eine Mark-Read-Schleife (mehrere Calls/Sekunde) bauen.
+  // Jetzt: per-message-Ref tracken welche höchste-ID schon gemarkt wurde —
+  // nur wenn echt neue ungelesene fremde Message reinkommt, einmal markRead.
+  const lastMarkedMsgIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!conversationId) return;
-    const hasUnreadFromOther = messages.some((m) => !m.is_mine && !m.read_at);
-    if (hasUnreadFromOther) {
-      markRead.mutate(conversationId);
+    if (markRead.isPending) return;
+    // Höchste UNREAD-ID finden, ohne Array zu mutieren (.pop ist destruktiv)
+    let highestUnreadFromOther: string | null = null;
+    for (const m of messages) {
+      if (!m.is_mine && !m.read_at) highestUnreadFromOther = m.id;
     }
+    if (!highestUnreadFromOther) return;
+    if (lastMarkedMsgIdRef.current === highestUnreadFromOther) return;
+    lastMarkedMsgIdRef.current = highestUnreadFromOther;
+    markRead.mutate(conversationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, messages.length]);
+  }, [conversationId, messages]);
 
   // Auto-scroll-bottom bei neuen Nachrichten
   useEffect(() => {

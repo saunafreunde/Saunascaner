@@ -8,7 +8,7 @@ import {
 } from '@/lib/api';
 import {
   useMessage, useSendMail, useMarkMessage,
-  attachmentUrl, pollSharedTickets,
+  downloadAttachment, pollSharedTickets,
 } from '@/lib/email-api';
 import { Avatar } from '@/components/Avatar';
 
@@ -347,10 +347,14 @@ function SharedTicketDetail({
               <p className="text-[10px] uppercase tracking-wider text-forest-300 mb-1.5">📎 Anhänge ({messageQ.data.attachments.length})</p>
               <div className="flex flex-wrap gap-1.5">
                 {messageQ.data.attachments.map((a) => (
-                  <a key={a.index} href={attachmentUrl('INBOX', messageQ.data!.uid, a.index, accountId)} download={a.filename}
+                  <button key={a.index} type="button"
+                    onClick={async () => {
+                      try { await downloadAttachment('INBOX', messageQ.data!.uid, a.index, a.filename, accountId); }
+                      catch (e) { alert((e as Error).message); }
+                    }}
                     className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-[11px] text-amber-200 ring-1 ring-amber-500/30 hover:bg-amber-500/25">
                     <span className="truncate max-w-[180px]">{a.filename}</span>
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -364,7 +368,8 @@ function SharedTicketDetail({
                     <button onClick={() => setShowImages(true)} className="text-amber-100 font-semibold underline">Anzeigen</button>
                   </div>
                 )}
-                <iframe srcDoc={sanitizedHtml} sandbox="allow-same-origin" className="w-full min-h-[400px] rounded-md bg-white" style={{ colorScheme: 'light' }} />
+                {/* FIX 0107 (Audit Phase 4 CRITICAL): sandbox="" — siehe Postfach.tsx */}
+                <iframe srcDoc={sanitizedHtml} sandbox="" className="w-full min-h-[400px] rounded-md bg-white" style={{ colorScheme: 'light' }} />
               </>
             ) : (
               <pre className="text-sm text-forest-100 whitespace-pre-wrap font-sans leading-relaxed">{messageQ.data.text || '(leer)'}</pre>

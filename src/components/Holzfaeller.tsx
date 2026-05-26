@@ -28,19 +28,28 @@ export function Holzfaeller({ scale = 1 }: Props) {
   const [isExhausted, setIsExhausted] = useState(false);
 
   useEffect(() => {
+    // FIX 0107 (Audit Phase 9.C): vorher rekursive setTimeout-Kette ohne
+    // ID-Tracking → bis 41.5s nach Unmount noch pending callbacks im Event-Loop.
+    // Bei Scene-Toggle-Sturm (Admin testet) baut sich das auf. Jetzt: pending-
+    // Array + clearTimeout im Cleanup.
     let cancelled = false;
+    const pending: ReturnType<typeof setTimeout>[] = [];
+    const queueTimeout = (fn: () => void, ms: number): void => {
+      const id = setTimeout(() => {
+        if (cancelled) return;
+        fn();
+      }, ms);
+      pending.push(id);
+    };
     const cycle = () => {
       if (cancelled) return;
       const delay = 28000 + Math.random() * 7000;
-      setTimeout(() => {
-        if (cancelled) return;
+      queueTimeout(() => {
         setIsExhausted(true);
-        setTimeout(() => {
-          if (cancelled) return;
+        queueTimeout(() => {
           setIsExhausted(false);
           setTreeFallen(true);
-          setTimeout(() => {
-            if (cancelled) return;
+          queueTimeout(() => {
             setTreeFallen(false);
             cycle();
           }, 4500);
@@ -50,6 +59,7 @@ export function Holzfaeller({ scale = 1 }: Props) {
     cycle();
     return () => {
       cancelled = true;
+      pending.forEach(clearTimeout);
     };
   }, []);
 

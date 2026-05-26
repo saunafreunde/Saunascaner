@@ -10,15 +10,34 @@ export function useAuth() {
 
   useEffect(() => {
     if (!supabase) { setReady(true); return; }
+    let alive = true;
     supabase.auth.getSession().then(({ data }) => {
+      if (!alive) return;
       setSession(data.session);
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+    // FIX 0107 (Audit Phase 1A): vorher rief jeder Token-Refresh (~50min)
+    // qc.invalidateQueries() OHNE Args → ALLE Queries gleichzeitig re-fetched
+    // (Thundering Herd). Jetzt nur die wirklich user-spezifischen Caches.
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, s) => {
+      if (!alive) return;
       setSession(s);
-      qc.invalidateQueries();
+      if (evt === 'SIGNED_OUT') {
+        qc.clear();
+      } else if (evt === 'SIGNED_IN' || evt === 'USER_UPDATED') {
+        qc.invalidateQueries({ queryKey: ['current-member'] });
+        qc.invalidateQueries({ queryKey: ['my-notifications'] });
+        qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
+        qc.invalidateQueries({ queryKey: ['dm-unread'] });
+        qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
+      }
+      // TOKEN_REFRESHED + INITIAL_SESSION: nichts invalidieren — Session-Update
+      // reicht, Caches bleiben gültig.
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      alive = false;
+      sub.subscription.unsubscribe();
+    };
   }, [qc]);
 
   return {

@@ -188,7 +188,11 @@ export async function pollSharedTickets(): Promise<{ ok: boolean; polled: number
   }
 }
 
-// Anhang-Download-URL bauen (für direkten <a href>-Download oder fetch)
+// Anhang-Download-URL bauen — NUR für Backend-Calls per fetch+JWT.
+// FIX 0107 (Audit Phase 8 CRITICAL): direkter <a href={url} download> funktioniert
+// NICHT, weil Browser-Navigation den Authorization-Header NICHT setzt → Backend
+// returnt 401-JSON statt der Datei. Funktionierte vermutlich seit Day 1 nicht.
+// Stattdessen `downloadAttachment()` nutzen (fetch + blob + URL.createObjectURL).
 export function attachmentUrl(folder: string, uid: number, part: number, accountId?: string | null): string {
   const q = new URLSearchParams({
     action: 'attachment',
@@ -196,4 +200,41 @@ export function attachmentUrl(folder: string, uid: number, part: number, account
     ...(accountId ? { account: accountId } : {}),
   });
   return `/api/postfach?${q}`;
+}
+
+/**
+ * FIX 0107 (Audit Phase 8 CRITICAL): Lädt einen Anhang via fetch mit JWT-Header
+ * und triggert den Browser-Download via Blob-URL. Funktioniert für alle Auth-
+ * geschützten Anhänge.
+ */
+export async function downloadAttachment(
+  folder: string,
+  uid: number,
+  part: number,
+  filename: string,
+  accountId?: string | null,
+): Promise<void> {
+  const url = attachmentUrl(folder, uid, part, accountId);
+  const headers = await authHeaders();
+  // content-type braucht's beim GET nicht
+  delete (headers as Record<string, string>)['content-type'];
+  const r = await fetch(url, { headers });
+  if (!r.ok) {
+    let msg = `Download fehlgeschlagen (${r.status})`;
+    try {
+      const json = await r.json() as { error?: string };
+      if (json?.error) msg += ': ' + json.error;
+    } catch { /* ignore body parse */ }
+    throw new Error(msg);
+  }
+  const blob = await r.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Speicher freigeben — 5 Sek delay damit Browser Zeit hat zu starten
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
 }

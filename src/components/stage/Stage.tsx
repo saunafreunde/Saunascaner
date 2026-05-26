@@ -24,8 +24,10 @@ export function Stage() {
   const active = activeScenesForState(now, state.data ?? null);
   const lastEffect = state.data?.last_effect ?? null;
 
-  // Diagnose-Log (TODO: nach Effect-Bug-Fix entfernen)
-  if (import.meta.env.DEV || typeof window !== 'undefined') {
+  // FIX 0107 (Audit Phase 9.C): console.log feuerte alle 5s in Production
+  // (Bedingung `typeof window !== 'undefined'` ist im Browser IMMER true).
+  // → Memory-Leak auf 24/7-TV-Tafel. Jetzt nur in DEV-Builds.
+  if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console
     console.log('[Stage] state', { active, lastEffect });
   }

@@ -8,7 +8,7 @@ import { useCurrentMember, useMyEmailAccount, useMySharedAccounts } from '@/lib/
 import {
   useFolders, useMessages, useMessage,
   useSendMail, useMarkMessage, useDeleteMessage,
-  attachmentUrl,
+  downloadAttachment,
   type EmailMessageHeader,
 } from '@/lib/email-api';
 import { Avatar } from '@/components/Avatar';
@@ -383,13 +383,20 @@ function MailDetail({
         <div className="px-4 py-2 border-b border-forest-800/40 bg-forest-900/30">
           <p className="text-[10px] uppercase tracking-wider text-forest-300 mb-1.5">📎 Anhänge ({msg.attachments.length})</p>
           <div className="flex flex-wrap gap-1.5">
+            {/* FIX 0107 (Audit Phase 8 CRITICAL): button + downloadAttachment statt
+                <a href download> — Letzteres setzt KEINEN Bearer-Token → 401-JSON
+                wird als Datei gespeichert. */}
             {msg.attachments.map((a) => (
-              <a key={a.index} href={attachmentUrl(folder, msg.uid, a.index)} download={a.filename}
+              <button key={a.index} type="button"
+                onClick={async () => {
+                  try { await downloadAttachment(folder, msg.uid, a.index, a.filename); }
+                  catch (e) { alert((e as Error).message); }
+                }}
                 className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-[11px] text-amber-200 ring-1 ring-amber-500/30 hover:bg-amber-500/25">
                 <span>{fileIcon(a.contentType)}</span>
                 <span className="truncate max-w-[180px]">{a.filename}</span>
                 <span className="text-amber-300/60">{formatSize(a.size)}</span>
-              </a>
+              </button>
             ))}
           </div>
         </div>
@@ -406,9 +413,13 @@ function MailDetail({
                 </button>
               </div>
             )}
+            {/* FIX 0107 (Audit Phase 4 CRITICAL): vorher sandbox="allow-same-origin" →
+                Email-HTML konnte via DOMPurify-bypassbaren style/meta-Tags auf Parent-DOM
+                zugreifen (Cookies, LocalStorage). Voll-Sandbox blockiert das. Bilder
+                funktionieren weiterhin (absolute URLs werden vom Browser geladen). */}
             <iframe
               srcDoc={sanitizedHtml}
-              sandbox="allow-same-origin"
+              sandbox=""
               className="w-full min-h-[400px] rounded-md bg-white"
               style={{ colorScheme: 'light' }}
             />

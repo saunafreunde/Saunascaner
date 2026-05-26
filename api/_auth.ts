@@ -3,13 +3,33 @@
 import type { VercelRequest } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+// FIX 0107 (Audit Phase 4 HIGH): Type erweitert um 'fan' und 'gast' —
+// vorher loggen die Typescript die fehlten und switch/case auf role
+// hatte stillschweigend default-Pfade.
 export type AuthedMember = {
   id: string;
   auth_user_id: string;
-  role: 'member' | 'guest_aufgieser' | 'staff' | 'admin';
+  role: 'gast' | 'fan' | 'member' | 'guest_aufgieser' | 'staff' | 'admin';
   is_aufgieser: boolean;
   approved: boolean;
 };
+
+/**
+ * Service-Role-Supabase-Client für Cron/Webhook-Endpoints OHNE User-Auth.
+ * NICHT in user-facing Endpoints verwenden — der bypassed alle RLS.
+ *
+ * FIX 0107 (Audit Phase 8 CRITICAL): birthday-cron + send-* nutzten vorher
+ * den anon-Key → DELETE auf push_subscriptions wurde silent NULL gefiltert,
+ * stale Endpoints sammelten sich ewig an. Helper zentralisiert.
+ */
+export function serviceClient(): SupabaseClient | null {
+  const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supaUrl || !serviceKey) return null;
+  return createClient(supaUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 export type AuthOk = { ok: true; member: AuthedMember; service: SupabaseClient };
 export type AuthErr = { ok: false; status: number; error: string };

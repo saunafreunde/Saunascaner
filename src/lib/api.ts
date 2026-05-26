@@ -2391,6 +2391,10 @@ export function useActiveEvacuation() {
     // 5s-Polling als Fallback garantiert dass spätestens nach 5s der Overlay
     // verschwindet (Background-Tab, Wifi-Wechsel, Realtime-Reconnect-Probleme).
     refetchInterval: 5_000,
+    // FIX 0107 (Audit Phase 9.A): refetchIntervalInBackground:true damit Tafel
+    // im Standby-Tab den Evac-Alarm trotzdem in 5s sieht (vorher pausierte das
+    // Polling bei Tab-Blur, Alarm wurde erst beim wieder-fokussieren sichtbar).
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
 }

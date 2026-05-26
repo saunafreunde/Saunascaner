@@ -71,6 +71,13 @@ export default defineConfig({
       },
       workbox: {
         importScripts: ['/push-handler.js'],
+        // FIX 0107 (Audit Phase 9.B+9.F): alte Bundle-Snapshots wegräumen (sonst
+        // sammeln sich pro Deploy 5-10MB im CacheStorage an → Quota-Exceeded auf
+        // 24/7-TV nach 30 Tagen). skipWaiting + clientsClaim sind bei autoUpdate
+        // ohnehin Default, hier explizit für Sichtbarkeit.
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           // Storage-Bilder (Avatare, Event-Fotos): aggressiv cachen, 30 Tage
           {

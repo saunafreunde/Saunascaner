@@ -9,6 +9,7 @@ import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { AreaHubGate } from '@/components/AreaHubGate';
 import { AppReloadWatcher } from '@/components/AppReloadWatcher';
+import { ErrorBoundary, TafelErrorFallback } from '@/components/ErrorBoundary';
 
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows + Welcome-Tour
 const NO_BOTTOM_NAV_PATHS = [
@@ -74,13 +75,24 @@ export default function App() {
   useRealtimeSync();
   useApplyStoredTheme();
   return (
+    // FIX 0107 (Audit Phase 4 CRITICAL): outer ErrorBoundary verhindert
+    // weiße Seite wenn irgendein Route-Subtree crasht. Dashboard hat extra
+    // eine spezielle Tafel-Boundary (siehe Route /dashboard).
+    <ErrorBoundary label="App-Root" autoResetMs={0}>
     <Suspense fallback={<Splash />}>
       <GlobalEvacuationOverlay />
       <AppReloadWatcher />
       <div className="pb-[calc(env(safe-area-inset-bottom)+72px)] lg:pb-0 min-h-full">
         <Routes>
           <Route path="/" element={<RootEntry />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        {/* FIX 0107 (Audit Phase 4 CRITICAL): Dashboard hat eigene ErrorBoundary,
+            damit ein Render-Crash in Stage/SaunaTileColumn nicht den 85"-TV weiß macht.
+            Auto-Reset nach 60s. */}
+        <Route path="/dashboard" element={
+          <ErrorBoundary label="Dashboard" autoResetMs={60_000} fallback={(err, reset) => <TafelErrorFallback error={err} reset={reset} />}>
+            <Dashboard />
+          </ErrorBoundary>
+        } />
         <Route path="/scanner"   element={<Scanner />} />
         <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
         <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
@@ -122,6 +134,7 @@ export default function App() {
       </div>
       <BottomNavGate />
     </Suspense>
+    </ErrorBoundary>
   );
 }
 

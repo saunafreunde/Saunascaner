@@ -1,15 +1,28 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
 // Subscribes to realtime changes on the operational tables and invalidates
 // the matching React Query caches. Mount once near the app root.
+//
+// FIX 0107 (Audit Phase 9.A): vorher KEIN Subscription-State-Handler →
+// stille Total-Disconnects nach Supabase-Tenant-Park/JWT-Refresh-Fail/WLAN-Drop.
+// Jetzt: bei CHANNEL_ERROR/CLOSED/TIMED_OUT → Channel entfernen + nach 2s
+// re-subscriben. Logged in Production damit man im Vercel-Log sieht ob ein
+// Tafel-Browser Reconnect-Storm hat.
 export function useRealtimeSync() {
   const qc = useQueryClient();
+  const reconnectAttempts = useRef(0);
   useEffect(() => {
     if (!supabase) return;
-    const ch = supabase
-      .channel('app-realtime')
+    let cancelled = false;
+    let currentChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const subscribe = () => {
+      if (cancelled || !supabase) return;
+      const ch = supabase
+        .channel(`app-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'saunas' },
         () => qc.invalidateQueries({ queryKey: ['saunas'] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'infusions' },
@@ -89,7 +102,36 @@ export function useRealtimeSync() {
           qc.invalidateQueries({ queryKey: ['account-tickets'] });
           qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
         })
-      .subscribe();
-    return () => { supabase!.removeChannel(ch); };
+        .subscribe((status) => {
+          if (cancelled) return;
+          if (status === 'SUBSCRIBED') {
+            reconnectAttempts.current = 0; // erfolgreich → Backoff resetten
+            return;
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            // eslint-disable-next-line no-console
+            console.warn('[realtime] disconnected:', status, '· attempt', reconnectAttempts.current);
+            if (currentChannel) {
+              supabase!.removeChannel(currentChannel).catch(() => {});
+              currentChannel = null;
+            }
+            // Exponential Backoff: 2s · 5s · 10s · 30s · max 60s
+            const delays = [2000, 5000, 10000, 30000, 60000];
+            const delay = delays[Math.min(reconnectAttempts.current, delays.length - 1)];
+            reconnectAttempts.current += 1;
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(subscribe, delay);
+          }
+        });
+      currentChannel = ch;
+    };
+
+    subscribe();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (currentChannel) supabase!.removeChannel(currentChannel).catch(() => {});
+    };
   }, [qc]);
 }
