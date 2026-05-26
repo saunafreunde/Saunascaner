@@ -123,12 +123,24 @@ export function SaunaTileColumn({
     [now, tilesPerColumn, mondayOpen, globalSlotEnds],
   );
 
-  const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date })[]>(() => {
+  // Covering-Lookup: eine Infusion belegt diesen Slot wenn start_time <= slot
+  // UND end_time > slot. Wichtig für Banja-Ritual (90 Min, covered 19+20:00):
+  // ohne covering würde 20:00-Tile als EmptyTile/Riff erscheinen obwohl Banja
+  // läuft. `isContinuation` markiert ob dieser Slot NICHT der Start-Slot der
+  // Infusion ist — der Render-Pfad zeigt dann eine dezente Continuation-Card
+  // statt der vollen InfusionCard (sonst wäre Card 2× sichtbar).
+  const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date; isContinuation: boolean })[]>(() => {
     return slots.map((slotStart) => {
+      const slotTs = slotStart.getTime();
       const found = infusions.find(
-        (i) => i.sauna_id === sauna.id && new Date(i.start_time).getTime() === slotStart.getTime(),
+        (i) =>
+          i.sauna_id === sauna.id &&
+          new Date(i.start_time).getTime() <= slotTs &&
+          new Date(i.end_time).getTime() > slotTs,
       ) ?? null;
-      return { infusion: found, slotTime: slotStart };
+      const isContinuation =
+        !!found && new Date(found.start_time).getTime() < slotTs;
+      return { infusion: found, slotTime: slotStart, isContinuation };
     });
   }, [slots, infusions, sauna.id]);
 
@@ -166,9 +178,33 @@ export function SaunaTileColumn({
         }}
       >
         <AnimatePresence initial={false} mode="popLayout">
-          {tiles.map(({ infusion: inf, slotTime }, slotIndex) =>
+          {tiles.map(({ infusion: inf, slotTime, isContinuation }, slotIndex) =>
             inf ? (
-              inf.is_personal_fallback ? (
+              isContinuation ? (
+                // Continuation-Tile: bei Mehrstunden-Aufguss (z.B. Banja 90 Min)
+                // zeigen wir im Folge-Slot eine dezente "läuft seit X"-Karte
+                // statt die volle InfusionCard nochmal zu rendern. Behält das
+                // 2-Slot-Belegt-Gefühl ohne visuelle Doppelung.
+                <div
+                  key={`cont-${inf.id}-${slotTime.toISOString()}`}
+                  className="relative flex items-center justify-center rounded-2xl min-h-0 h-full overflow-hidden ring-1 ring-rose-400/40"
+                  style={{
+                    background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(244,63,94,0.18) 60%, ${sauna.accent_color}33 100%)`,
+                  }}
+                >
+                  <div className="flex flex-col items-center gap-2 text-center px-4">
+                    <span className="text-4xl">↑</span>
+                    <span className="text-sm font-black uppercase tracking-wider text-rose-100">
+                      {(inf.attributes ?? []).includes('banja' as never)
+                        ? '🇷🇺 Banja-Ritual läuft'
+                        : 'Aufguss läuft seit'}
+                    </span>
+                    <span className="text-xs font-mono tabular-nums text-rose-200/80">
+                      seit {new Date(inf.start_time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
+                    </span>
+                  </div>
+                </div>
+              ) : inf.is_personal_fallback ? (
                 <PersonalTile
                   key={inf.id}
                   infusion={inf}

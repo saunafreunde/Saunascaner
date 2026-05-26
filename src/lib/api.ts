@@ -3629,12 +3629,18 @@ export function useBookBanjaRitual() {
       team_infusion?: boolean;
       saunameister_id?: string | null;  // Admin-Override
     }) => {
-      // Date als YYYY-MM-DD in lokaler TZ (Berlin) — die RPC interpretiert
-      // den String als Europe/Berlin und baut daraus 19:00 + 20:00.
-      const y = p.date.getFullYear();
-      const mo = String(p.date.getMonth() + 1).padStart(2, '0');
-      const d = String(p.date.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${mo}-${d}`;
+      // Date als YYYY-MM-DD STRENG in Europe/Berlin (nicht Browser-Lokal!) —
+      // die RPC interpretiert den String als Berlin-TZ und baut daraus 19:00.
+      // Vorher (Browser-Lokal): User reist nach NY (UTC-5), 22:00 lokal = 04:00
+      // nächster Tag Berlin → Banja würde am falschen Tag gebucht.
+      // `en-CA` Locale liefert ISO-Format YYYY-MM-DD (auch wenn Locale nicht
+      // ZH/EN ist, dieses Format ist hart definiert).
+      const dateStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Berlin',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(p.date);
       const { data, error } = await need().rpc('book_banja_ritual', {
         p_sauna_id: p.sauna_id,
         p_date: dateStr,
