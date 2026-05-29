@@ -47,13 +47,18 @@ const NEXT_DAY_SWITCH_TOTAL_MINUTES = 21 * 60 + 15; // 21:15
  *
  * Cutoff-Regel pro Slot:
  *   - Wenn IRGENDEINE Sauna für diesen Slot einen Aufguss hat → cutoff =
- *     MAX(slot + 15 min, MAX(end_time aller Aufgüsse) + 1 min)
+ *     MAX(slot + 15 min, MAX(end_time aller Aufgüsse) + 5 sec)
  *   - Ohne Aufguss → cutoff = slot + 15 min (Standard-Aufguss-Dauer)
  *
  * Wichtig: die globale Slot→End-Time-Map wird über ALLE Saunen gebildet,
  * nicht pro Sauna. Dadurch zeigen 80°C und 100°C immer die gleichen
  * Stunden-Slots an (Symmetrie). Wenn 80°C einen laufenden Aufguss bis
- * 16:30 hat, bleibt der 16:00-Slot in BEIDEN Spalten bis 16:31 sichtbar.
+ * 16:30 hat, bleibt der 16:00-Slot in BEIDEN Spalten bis 16:30:05 sichtbar.
+ *
+ * Cutoff-Buffer 29.05.2026 von 60s auf 5s reduziert — vorher klebte die
+ * Card bis zu 65s nach Aufguss-Ende auf der Tafel (Buffer + useNow-Tick).
+ * Plus die globalSlotEnds-Map ist jetzt COVERING (markiert auch die Stunden-
+ * Slots in der Mitte eines mehrstündigen Aufgusses, z.B. Banja 19+20).
  */
 function nextSlotStarts(
   n: number,
@@ -80,9 +85,10 @@ function nextSlotStarts(
       const slotTs = slot.getTime();
       const defaultCutoff = slotTs + 15 * 60_000;            // 15 min Standard-Aufguss-Dauer
       const maxEnd = globalSlotEnds.get(slotTs);
-      // Wenn ein Aufguss länger läuft → cutoff verlängern, sonst Default.
-      const cutoff = maxEnd && maxEnd + 60_000 > defaultCutoff
-        ? maxEnd + 60_000
+      // Wenn ein Aufguss länger läuft → cutoff verlängern (mit kleinem 5s-Buffer),
+      // sonst Default. Vorher waren das 60s Buffer — gefühlt klebte die Card zu lang.
+      const cutoff = maxEnd && maxEnd + 5_000 > defaultCutoff
+        ? maxEnd + 5_000
         : defaultCutoff;
       if (cutoff <= from.getTime()) continue;
       result.push(slot);
@@ -107,13 +113,27 @@ export function SaunaTileColumn({
 }: SaunaTileColumnProps) {
   // Globale Map<slotTs, maxEndTs> über ALLE Saunen — sorgt für synchrone
   // Spalten (siehe Doku in nextSlotStarts).
+  //
+  // COVERING-Lookup 29.05.2026: für mehrstündige Aufgüsse (Banja 90 Min,
+  // theoretisch auch 30/45 Min wenn sie über die Stunde laufen) werden ALLE
+  // betroffenen Stunden-Slots markiert. Vorher nur start_time, dadurch wurde
+  // z.B. der 20:00-Slot bei einem 19:00-Banja schon ab 20:15 übersprungen
+  // (cutoff defaultCutoff 20:15 weil maxEnd für 20:00 leer) obwohl Banja noch
+  // bis 20:30 lief — Tafel rotierte zu früh weiter.
   const globalSlotEnds = useMemo(() => {
     const m = new Map<number, number>();
+    const HOUR_MS = 60 * 60_000;
     for (const i of infusions) {
       const startTs = new Date(i.start_time).getTime();
       const endTs = new Date(i.end_time).getTime();
-      const existing = m.get(startTs) ?? 0;
-      if (endTs > existing) m.set(startTs, endTs);
+      // Wie viele Stunden-Slots werden überdeckt? Mindestens 1.
+      const durMs = endTs - startTs;
+      const slotsCovered = Math.max(1, Math.ceil(durMs / HOUR_MS));
+      for (let s = 0; s < slotsCovered; s++) {
+        const slotTs = startTs + s * HOUR_MS;
+        const existing = m.get(slotTs) ?? 0;
+        if (endTs > existing) m.set(slotTs, endTs);
+      }
     }
     return m;
   }, [infusions]);

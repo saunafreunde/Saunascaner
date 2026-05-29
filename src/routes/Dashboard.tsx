@@ -74,7 +74,9 @@ function findOtherSaunaActivityAt(
 
 export default function Dashboard() {
   useWakeLock(true);
-  const now = useNow(5_000);
+  // 1s-Tick auf der Tafel, damit der nächste Aufguss ZÜGIG nachrutscht wenn
+  // ein laufender endet (vorher 5s → spürbarer "klebt"-Effekt).
+  const now = useNow(1_000);
   const saunas = useSaunas();
   const infusions = useInfusions();
   const members = useMeisterDirectory();
