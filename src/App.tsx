@@ -19,6 +19,7 @@ const NO_BOTTOM_NAV_PATHS = [
   '/checkin', '/checkin/signup', '/checkin/rate',
   '/gast-signup', '/login', '/forgot', '/reset-password',
   '/tour',
+  '/panel',
   '/m/',
 ];
 
@@ -71,6 +72,7 @@ const GameSolo        = lazy(() => import('@/routes/GameSolo'));
 const GameMatch       = lazy(() => import('@/routes/GameMatch'));
 const Dm              = lazy(() => import('@/routes/Dm'));
 const DmConversation  = lazy(() => import('@/routes/DmConversation'));
+const AnwesenheitsPanel = lazy(() => import('@/routes/AnwesenheitsPanel'));
 
 export default function App() {
   useRealtimeSync();
@@ -119,6 +121,8 @@ export default function App() {
         <Route path="/spiele/match/:matchId" element={<RequireAuth><GameMatch /></RequireAuth>} />
         <Route path="/dm"                    element={<RequireAuth><Dm /></RequireAuth>} />
         <Route path="/dm/:conversationId"    element={<RequireAuth><DmConversation /></RequireAuth>} />
+        {/* /panel — anonymer Desktop-Hub für Anwesenheit, PW-geschützt (SaunaPano!) */}
+        <Route path="/panel"                 element={<AnwesenheitsPanel />} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

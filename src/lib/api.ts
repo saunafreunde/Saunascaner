@@ -609,6 +609,68 @@ export function useSetMyAutoCheckin() {
   });
 }
 
+// ─── Anwesenheits-Panel (Migration 0110) ──────────────────────────────────
+// PW-geschützter Desktop-Hub um Mitglieder ohne Handy ein-/auszuchecken.
+// PW wird per Argument an die RPCs gegeben (anon-Pattern, analog Kiosk).
+
+export type PanelMember = {
+  id: string;
+  name: string;
+  member_number: number | null;
+  role: string;
+  is_aufgieser: boolean;
+  is_cp_employee: boolean;
+  is_present: boolean;
+  last_scan_at: string | null;
+  avatar_path: string | null;
+  sauna_name: string | null;
+};
+
+export function useVerifyPanelPassword() {
+  return useMutation({
+    mutationFn: async (password: string) => {
+      const { data, error } = await need().rpc('verify_panel_password', { p_panel_password: password });
+      if (error) throw error;
+      return Boolean(data);
+    },
+  });
+}
+
+export function usePanelMembers(password: string | null) {
+  return useQuery({
+    queryKey: ['panel-members', password ?? 'none'],
+    enabled: !!password,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
+    queryFn: async () => {
+      if (!password) return [] as PanelMember[];
+      const { data, error } = await need().rpc('list_panel_members', { p_panel_password: password });
+      if (error) throw error;
+      return (data ?? []) as PanelMember[];
+    },
+  });
+}
+
+export function usePanelSetPresence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { memberId: string; present: boolean; password: string }) => {
+      const { data, error } = await need().rpc('panel_set_presence', {
+        p_member_id: p.memberId,
+        p_present: p.present,
+        p_panel_password: p.password,
+      });
+      if (error) throw error;
+      return data as { ok: boolean; member_id: string; is_present: boolean; needs_family_modal: boolean };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['panel-members'] });
+      qc.invalidateQueries({ queryKey: ['present'] });
+      qc.invalidateQueries({ queryKey: ['members'] });
+    },
+  });
+}
+
 // ─── WLAN-Subnets (Admin-Pflege, Migration 0109) ──────────────────────────
 export type WifiSubnet = {
   id: string;
