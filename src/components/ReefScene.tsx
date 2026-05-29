@@ -91,12 +91,11 @@ const CORALS = [
 ];
 
 export function ReefScene({ direction, hintText }: Props) {
-  // Schwimm-Richtungen so verteilt dass immer etwas in beide Richtungen
-  // läuft (kreuzendes Treiben statt einseitige Wanderung):
-  //   - Schlange + Sponge: gegen die Default-Direction
-  //   - Octopus + Bucket + Dory: in Default-Direction
-  const mainDir: 'left' | 'right' = direction === 'left' ? 'left' : 'right';
-  const counterDir: 'left' | 'right' = mainDir === 'right' ? 'left' : 'right';
+  // User-Wunsch 29.05.2026: ALLE Tiere schwimmen einheitlich Richtung des
+  // Aufgusses (passend zum Pfeil im Hint-Text). Wenn beide Saunen leer sind
+  // (direction=null), Default 'right' damit die Szene nicht chaotisch wirkt.
+  // Quallen schweben vertikal — Richtung egal.
+  const dir: 'left' | 'right' = direction ?? 'right';
 
   return (
     <>
@@ -496,38 +495,32 @@ export function ReefScene({ direction, hintText }: Props) {
 
       {/* ─── LAYER 2: Tiere — Schwarm, Dory, Quallen, Octo, Bucket, Sponge, Snake ── */}
       <div className="reef-creatures" aria-hidden>
-        {/* Großer Fisch-Schwarm */}
-        {FISH.map((f) => {
-          const swimClass =
-            direction === 'right' ? 'swim-r' :
-            direction === 'left'  ? 'swim-l' :
-            (f.id % 2 === 0 ? 'swim-r' : 'swim-l');
-          return (
-            <div
-              key={`fish-${f.id}`}
-              className={`reef-fish ${swimClass}`}
-              style={{
-                top: `${f.y}%`,
-                '--du': `${f.dur}s`,
-                '--d': `${f.delay}s`,
-                '--bob': `${(f.id % 2 ? -1 : 1) * 6}px`,
-              } as React.CSSProperties}
-            >
-              <div style={{ display: 'inline-block', transform: `scale(${f.scale})`, transformOrigin: '0 50%' }}>
-                <Fish variant={f.variant} />
-              </div>
+        {/* Großer Fisch-Schwarm — alle in Aufguss-Richtung */}
+        {FISH.map((f) => (
+          <div
+            key={`fish-${f.id}`}
+            className={`reef-fish swim-${dir.charAt(0)}`}
+            style={{
+              top: `${f.y}%`,
+              '--du': `${f.dur}s`,
+              '--d': `${f.delay}s`,
+              '--bob': `${(f.id % 2 ? -1 : 1) * 6}px`,
+            } as React.CSSProperties}
+          >
+            <div style={{ display: 'inline-block', transform: `scale(${f.scale})`, transformOrigin: '0 50%' }}>
+              <Fish variant={f.variant} />
             </div>
-          );
-        })}
+          </div>
+        ))}
 
         {/* Dory — eigener langsamer großer Lauf, blau-gelb */}
-        <div className={`reef-dory swim-${mainDir.charAt(0)}`}>
+        <div className={`reef-dory swim-${dir.charAt(0)}`}>
           <div style={{ display: 'inline-block', transform: `scale(${DORY.scale})`, transformOrigin: '0 50%' }}>
             <Fish variant={3} />
           </div>
         </div>
 
-        {/* Quallen — schweben vertikal */}
+        {/* Quallen — schweben vertikal (richtungsunabhängig) */}
         {JELLIES.map((j) => (
           <div
             key={`jelly-${j.id}`}
@@ -543,29 +536,29 @@ export function ReefScene({ direction, hintText }: Props) {
           </div>
         ))}
 
-        {/* Tintenfisch — schwimmt in Default-Richtung */}
-        <div className={`reef-octo swim-${mainDir.charAt(0)}`}>
+        {/* Tintenfisch */}
+        <div className={`reef-octo swim-${dir.charAt(0)}`}>
           <div style={{ display: 'inline-block' }}>
             <Octopus />
           </div>
         </div>
 
-        {/* Saunafass — treibt gemächlich, mit Dampf */}
-        <div className={`reef-bucket swim-${counterDir.charAt(0)}`}>
+        {/* Saunafass */}
+        <div className={`reef-bucket swim-${dir.charAt(0)}`}>
           <div style={{ display: 'inline-block' }}>
             <SaunaBucket />
           </div>
         </div>
 
-        {/* Sponge-Charakter — schwimmt aufrecht, gegen die Default-Richtung */}
-        <div className={`reef-sponge swim-${counterDir.charAt(0)}`} style={{ '--bob': '-8px' } as React.CSSProperties}>
+        {/* Sponge-Charakter — schwimmt aufrecht */}
+        <div className={`reef-sponge swim-${dir.charAt(0)}`} style={{ '--bob': '-8px' } as React.CSSProperties}>
           <div className="reef-sponge-body" style={{ display: 'inline-block' }}>
             <SpongeCharacter />
           </div>
         </div>
 
-        {/* Sea-Snake / Aal — gegen die Default-Richtung */}
-        <div className={`reef-snake swim-${counterDir.charAt(0)}`}>
+        {/* Sea-Snake / Aal */}
+        <div className={`reef-snake swim-${dir.charAt(0)}`}>
           <div className="reef-snake-body" style={{ display: 'inline-block' }}>
             <SeaSnake />
           </div>
