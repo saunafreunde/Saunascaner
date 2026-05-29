@@ -1,25 +1,18 @@
 // Animierte Unterwasser-Riff-Szene als Hintergrund für leere Tile-Slots.
 //
-// User-Wunsch (Mai 2026, Iteration 2):
-//   - mehr Fische als ein Schwarm
-//   - +1 Hai mit Pacman-Maul (frisst Fische beim Vorbeischwimmen)
-//   - +1 Unterwasserschlange (schlängelt sich)
-//   - alle Tiere schwimmen über die Tile-Grenze hinaus ("aus der Karte heraus")
-//   - Schwimm-Richtung passt zur direction-Prop
+// User-Wunsch (29.05.2026, Iteration 3): Hai raus, dafür eine freundlichere
+// Crew: 🪼 Qualle, 🐙 Tintenfisch, 🛁 Saunafass (Vereinsbezug!),
+// 🟡 Sponge-Charakter und 🐠 Dory-Fisch. SeaSnake bleibt, Schwarm-Fische
+// bleiben (Dory ergänzt eine 4. Fisch-Variante).
 //
 // Architektur in 2 Layern:
 //   1. <reef-bg>     overflow:hidden → Wasser, Sonnenstrahlen, Korallen,
 //                    Algen, Sandboden, Bubbles, Hint-Text. Diese Elemente
 //                    sollen INNERHALB der Tile bleiben (Wasser darf nicht
 //                    aus der "Karte" laufen, sonst hässlich).
-//   2. <reef-creatures>  overflow:visible → Fische, Hai, Schlange, Snacks.
-//                    Diese Tiere DÜRFEN über die Tile-Grenze hinaus
-//                    sichtbar bleiben (geclippt nur vom Spalten-Rand).
-//
-// Pacman-Hai-Logik: Hai schwimmt 1× durch (18s). Synchron dazu
-// erscheinen "snack-Fische" entlang des Hai-Pfads, die kurz vor dem
-// Hai-Maul aufpoppen und beim Bite-Frame mit shrink+fade verschwinden.
-// Reine CSS-Choreographie über animation-delay.
+//   2. <reef-creatures>  overflow:visible → alle Tiere/Objekte. Dürfen
+//                    über die Tile-Grenze hinaus sichtbar bleiben
+//                    (geclippt nur vom Spalten-Rand).
 
 type Direction = 'left' | 'right' | null;
 
@@ -28,8 +21,9 @@ type Props = {
   hintText?: string;
 };
 
-// Hauptschwarm — 14 Fische in 3 Varianten, verschiedene Y-Positionen +
-// Geschwindigkeiten für lebendigen Schwarm-Effekt.
+// Hauptschwarm — 14 Fische in 4 Varianten (0=Gelb-Tropen, 1=Clown,
+// 2=Blau-Doktor, 3=Dory). Verschiedene Y-Positionen + Geschwindigkeiten
+// für lebendigen Schwarm-Effekt.
 const FISH = [
   { id: 0,  y: 14, scale: 0.95, dur: 14, delay: 0.0,  variant: 0 },
   { id: 1,  y: 22, scale: 0.70, dur: 11, delay: 2.0,  variant: 1 },
@@ -47,18 +41,28 @@ const FISH = [
   { id: 13, y: 54, scale: 0.95, dur: 15, delay: 3.0,  variant: 0 },
 ];
 
-// Snack-Fische — die "vom Hai gefressen" werden. Timing ist auf die
-// Hai-Animation (HAI_CYCLE = 18s) abgestimmt — sie erscheinen kurz
-// vor dem Hai am gleichen Punkt und verschwinden beim Bite-Frame.
-const SNACKS = [
-  { id: 0, y: 32, snackAt: 4 },   // Hai erreicht Mitte bei ~4s
-  { id: 1, y: 32, snackAt: 7 },
-  { id: 2, y: 33, snackAt: 11 },
-  { id: 3, y: 31, snackAt: 14 },
+// Dory bekommt einen eigenen Slot (langsamer + größer, damit erkennbar).
+const DORY = { y: 32, scale: 1.0, dur: 19, delay: 0.0 };
+
+// Quallen — schweben vertikal, driften sanft horizontal. 2 Stück an
+// verschiedenen Positionen.
+const JELLIES = [
+  { id: 0, x: 18, dur: 17, delay: 0.0,  hue: 320 }, // pink
+  { id: 1, x: 78, dur: 21, delay: 6.0,  hue: 270 }, // lila
 ];
 
-const HAI_CYCLE = 18;     // Hai braucht 18s für einen Durchgang
-const SNAKE_CYCLE = 22;   // Schlange noch langsamer
+// Tintenfisch — 1 Stück, schwimmt langsam diagonal mit waberenden Tentakeln.
+const OCTOPUS = { y: 58, dur: 24, delay: 4.0 };
+
+// Saunafass — Vereinsbezug! Treibt sehr gemächlich von einer Seite zur
+// anderen, mit aufsteigendem Dampf.
+const BUCKET = { y: 12, dur: 32, delay: 8.0 };
+
+// Sponge-Charakter — schwimmt aufrecht, etwas tapsig.
+const SPONGE = { y: 40, dur: 16, delay: 11.0 };
+
+const SNAKE_CYCLE = 22;   // Schlange treibt langsam quer
+const DORY_CYCLE = DORY.dur;
 
 const BUBBLES = Array.from({ length: 22 }, (_, i) => ({
   id: i,
@@ -87,10 +91,12 @@ const CORALS = [
 ];
 
 export function ReefScene({ direction, hintText }: Props) {
-  // Default-Direction für Hai + Schlange wenn beide Spalten leer:
-  // Hai immer 'right', Schlange immer 'left' → kreuzendes Treiben
-  const haiDir: 'left' | 'right' = direction === 'left' ? 'left' : 'right';
-  const snakeDir: 'left' | 'right' = direction === 'right' ? 'right' : 'left';
+  // Schwimm-Richtungen so verteilt dass immer etwas in beide Richtungen
+  // läuft (kreuzendes Treiben statt einseitige Wanderung):
+  //   - Schlange + Sponge: gegen die Default-Direction
+  //   - Octopus + Bucket + Dory: in Default-Direction
+  const mainDir: 'left' | 'right' = direction === 'left' ? 'left' : 'right';
+  const counterDir: 'left' | 'right' = mainDir === 'right' ? 'left' : 'right';
 
   return (
     <>
@@ -166,70 +172,136 @@ export function ReefScene({ direction, hintText }: Props) {
           animation: reef-fish-tail 0.35s ease-in-out infinite;
         }
 
-        /* ─── HAI ─────────────────────────────────────────────────────
-           Großer grauer Hai schwimmt 1× pro Cycle quer durch — langsam.
-           Pacman-Maul öffnet/schließt sich für "Fressen"-Effekt. */
-        @keyframes reef-hai-swim-r {
-          0%   { transform: translate3d(-45%, 0, 0) scaleX(1); }
-          50%  { transform: translate3d(50%, var(--bob, 8px), 0) scaleX(1); }
-          100% { transform: translate3d(145%, 0, 0) scaleX(1); }
-        }
-        @keyframes reef-hai-swim-l {
-          0%   { transform: translate3d(145%, 0, 0) scaleX(-1); }
-          50%  { transform: translate3d(50%, var(--bob, 8px), 0) scaleX(-1); }
-          100% { transform: translate3d(-45%, 0, 0) scaleX(-1); }
-        }
-        .reef-hai {
+        /* ─── DORY (eigener langsamer Lauf, größer als Schwarm) ────── */
+        .reef-dory {
           position: absolute;
           left: 0;
           width: 100%;
-          top: 28%;
+          top: ${DORY.y}%;
           will-change: transform;
         }
-        .reef-hai.swim-r { animation: reef-hai-swim-r ${HAI_CYCLE}s linear infinite; }
-        .reef-hai.swim-l { animation: reef-hai-swim-l ${HAI_CYCLE}s linear infinite; }
+        .reef-dory.swim-r { animation: reef-fish-swim-r ${DORY_CYCLE}s linear infinite; animation-delay: ${DORY.delay}s; }
+        .reef-dory.swim-l { animation: reef-fish-swim-l ${DORY_CYCLE}s linear infinite; animation-delay: ${DORY.delay}s; }
 
-        /* Pacman-Maul öffnet/schließt sich periodisch.
-           Wichtig: das öffnen via transform: rotate auf einem Pfad-Teil */
-        @keyframes reef-hai-mouth {
-          0%, 60%, 100% { transform: rotate(0deg); }   /* Maul zu */
-          70%, 90%      { transform: rotate(-24deg); } /* Maul auf — Bite-Frame */
+        /* ─── QUALLE — vertikales schweben + Bell-Pulse ─────────────── */
+        @keyframes reef-jelly-float {
+          0%   { transform: translate3d(0, 110%, 0); opacity: 0; }
+          10%  { opacity: 0.85; }
+          50%  { transform: translate3d(var(--drift, 10px), 30%, 0); }
+          90%  { opacity: 0.7; }
+          100% { transform: translate3d(0, -30%, 0); opacity: 0; }
         }
-        .reef-hai-jaw-upper {
-          transform-origin: 20px 35px; /* Drehpunkt am Hai-Maul-Hinge */
-          animation: reef-hai-mouth 2.5s ease-in-out infinite;
+        @keyframes reef-jelly-pulse {
+          0%, 100% { transform: scaleY(1)   scaleX(1); }
+          50%      { transform: scaleY(0.85) scaleX(1.08); }
         }
-        @keyframes reef-hai-tail {
-          0%, 100% { transform: rotate(-18deg); }
-          50%      { transform: rotate(18deg); }
+        @keyframes reef-jelly-tentacle {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(3px); }
         }
-        .reef-hai-tail {
-          transform-origin: 0% 50%;
-          animation: reef-hai-tail 0.5s ease-in-out infinite;
-        }
-
-        /* ─── Snack-Fische (werden vom Hai gefressen) ────────────────
-           Erscheinen kurz, werden vom Hai überrollt, dann shrink+fade. */
-        @keyframes reef-snack-life {
-          0%, 4%   { transform: scale(0); opacity: 0; }
-          8%       { transform: scale(1); opacity: 1; }
-          70%      { transform: scale(1); opacity: 1; }
-          75%      { transform: scale(0.6) rotate(45deg); opacity: 0.6; }
-          80%, 100% { transform: scale(0) rotate(180deg); opacity: 0; }
-        }
-        .reef-snack {
+        .reef-jelly {
           position: absolute;
-          left: 0; width: 100%;
+          width: 56px; height: 80px;
           will-change: transform, opacity;
-          animation: reef-snack-life 6s ease-in-out infinite;
+          animation: reef-jelly-float var(--du, 18s) linear infinite;
           animation-delay: var(--d, 0s);
         }
-        /* Container für Snack-Position innerhalb der Tile-Breite */
-        .reef-snack-pos {
+        .reef-jelly-bell {
+          transform-origin: 50% 30%;
+          animation: reef-jelly-pulse 2.4s ease-in-out infinite;
+        }
+        .reef-jelly-tentacles {
+          animation: reef-jelly-tentacle 2.4s ease-in-out infinite;
+        }
+
+        /* ─── TINTENFISCH — Jet-Style schwimmen, Tentakeln wabern ──── */
+        @keyframes reef-octo-swim-r {
+          0%   { transform: translate3d(-35%, 0, 0); }
+          50%  { transform: translate3d(50%, -8px, 0); }
+          100% { transform: translate3d(135%, 0, 0); }
+        }
+        @keyframes reef-octo-swim-l {
+          0%   { transform: translate3d(135%, 0, 0) scaleX(-1); }
+          50%  { transform: translate3d(50%, -8px, 0) scaleX(-1); }
+          100% { transform: translate3d(-35%, 0, 0) scaleX(-1); }
+        }
+        @keyframes reef-octo-arms {
+          0%, 100% { transform: rotate(-3deg); }
+          50%      { transform: rotate(3deg); }
+        }
+        .reef-octo {
           position: absolute;
-          display: inline-block;
-          font-size: 22px;
-          line-height: 1;
+          left: 0;
+          width: 100%;
+          top: ${OCTOPUS.y}%;
+          will-change: transform;
+        }
+        .reef-octo.swim-r { animation: reef-octo-swim-r ${OCTOPUS.dur}s ease-in-out infinite; animation-delay: ${OCTOPUS.delay}s; }
+        .reef-octo.swim-l { animation: reef-octo-swim-l ${OCTOPUS.dur}s ease-in-out infinite; animation-delay: ${OCTOPUS.delay}s; }
+        .reef-octo-arms {
+          transform-origin: 50% 30%;
+          animation: reef-octo-arms 1.6s ease-in-out infinite;
+        }
+
+        /* ─── SAUNAFASS — treibt gemächlich, mit Dampf ─────────────── */
+        @keyframes reef-bucket-drift-r {
+          0%   { transform: translate3d(-30%, 0, 0) rotate(-3deg); }
+          50%  { transform: translate3d(50%, 5px, 0) rotate(2deg); }
+          100% { transform: translate3d(130%, 0, 0) rotate(-3deg); }
+        }
+        @keyframes reef-bucket-drift-l {
+          0%   { transform: translate3d(130%, 0, 0) rotate(3deg); }
+          50%  { transform: translate3d(50%, 5px, 0) rotate(-2deg); }
+          100% { transform: translate3d(-30%, 0, 0) rotate(3deg); }
+        }
+        .reef-bucket {
+          position: absolute;
+          left: 0;
+          width: 100%;
+          top: ${BUCKET.y}%;
+          will-change: transform;
+        }
+        .reef-bucket.swim-r { animation: reef-bucket-drift-r ${BUCKET.dur}s linear infinite; animation-delay: ${BUCKET.delay}s; }
+        .reef-bucket.swim-l { animation: reef-bucket-drift-l ${BUCKET.dur}s linear infinite; animation-delay: ${BUCKET.delay}s; }
+        @keyframes reef-steam-rise {
+          0%   { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
+          30%  { opacity: 0.65; }
+          100% { transform: translate3d(4px, -28px, 0) scale(1.4); opacity: 0; }
+        }
+        .reef-steam {
+          will-change: transform, opacity;
+          animation: reef-steam-rise 3s ease-out infinite;
+          animation-delay: var(--d, 0s);
+          transform-origin: 50% 100%;
+        }
+
+        /* ─── SPONGE-CHARAKTER — schwimmt aufrecht ─────────────────── */
+        @keyframes reef-sponge-swim-r {
+          0%   { transform: translate3d(-30%, 0, 0); }
+          50%  { transform: translate3d(50%, var(--bob, -6px), 0); }
+          100% { transform: translate3d(130%, 0, 0); }
+        }
+        @keyframes reef-sponge-swim-l {
+          0%   { transform: translate3d(130%, 0, 0); }
+          50%  { transform: translate3d(50%, var(--bob, -6px), 0); }
+          100% { transform: translate3d(-30%, 0, 0); }
+        }
+        @keyframes reef-sponge-wiggle {
+          0%, 100% { transform: rotate(-2deg); }
+          50%      { transform: rotate(2deg); }
+        }
+        .reef-sponge {
+          position: absolute;
+          left: 0;
+          width: 100%;
+          top: ${SPONGE.y}%;
+          will-change: transform;
+        }
+        .reef-sponge.swim-r { animation: reef-sponge-swim-r ${SPONGE.dur}s ease-in-out infinite; animation-delay: ${SPONGE.delay}s; }
+        .reef-sponge.swim-l { animation: reef-sponge-swim-l ${SPONGE.dur}s ease-in-out infinite; animation-delay: ${SPONGE.delay}s; }
+        .reef-sponge-body {
+          transform-origin: 50% 100%;
+          animation: reef-sponge-wiggle 1.8s ease-in-out infinite;
         }
 
         /* ─── Unterwasserschlange ─────────────────────────────────────
@@ -344,7 +416,9 @@ export function ReefScene({ direction, hintText }: Props) {
 
         @media (prefers-reduced-motion: reduce) {
           .reef-fish, .reef-bubble, .reef-algae, .reef-coral, .reef-hint,
-          .reef-hai, .reef-snake, .reef-snack {
+          .reef-snake, .reef-dory, .reef-jelly, .reef-jelly-bell,
+          .reef-jelly-tentacles, .reef-octo, .reef-octo-arms,
+          .reef-bucket, .reef-steam, .reef-sponge, .reef-sponge-body {
             animation: none !important;
           }
         }
@@ -420,9 +494,9 @@ export function ReefScene({ direction, hintText }: Props) {
         {hintText && <div className="reef-hint">{hintText}</div>}
       </div>
 
-      {/* ─── LAYER 2: Tiere — Fische, Hai, Schlange, Snacks ───────── */}
+      {/* ─── LAYER 2: Tiere — Schwarm, Dory, Quallen, Octo, Bucket, Sponge, Snake ── */}
       <div className="reef-creatures" aria-hidden>
-        {/* Großer Hai-Schwarm */}
+        {/* Großer Fisch-Schwarm */}
         {FISH.map((f) => {
           const swimClass =
             direction === 'right' ? 'swim-r' :
@@ -446,38 +520,52 @@ export function ReefScene({ direction, hintText }: Props) {
           );
         })}
 
-        {/* Hai */}
-        <div className={`reef-hai swim-${haiDir.charAt(0)}`}>
-          <div style={{ display: 'inline-block' }}>
-            <Hai />
+        {/* Dory — eigener langsamer großer Lauf, blau-gelb */}
+        <div className={`reef-dory swim-${mainDir.charAt(0)}`}>
+          <div style={{ display: 'inline-block', transform: `scale(${DORY.scale})`, transformOrigin: '0 50%' }}>
+            <Fish variant={3} />
           </div>
         </div>
 
-        {/* Snack-Fische die "vom Hai gefressen" werden */}
-        {SNACKS.map((s) => {
-          // Snack erscheint synchron zum Hai bei seiner X-Position
-          // Hai-Cycle ist 18s → wenn snackAt=4, ist Hai bei ~22% Tile-Breite
-          // Wir setzen Snack einfach in der Tile-Mitte (50%) und timing es so
-          // dass er kurz vor Hai-Mitte erscheint und beim Bite verschwindet
-          const xPercent = 30 + (s.id * 12); // verteilt 30-66%
-          return (
-            <div
-              key={`snack-${s.id}`}
-              className="reef-snack-pos reef-snack"
-              style={{
-                left: `${xPercent}%`,
-                top: `${s.y}%`,
-                animationDelay: `${s.snackAt - 1}s`,
-                animationDuration: `${HAI_CYCLE}s`,
-              } as React.CSSProperties}
-            >
-              🐟
-            </div>
-          );
-        })}
+        {/* Quallen — schweben vertikal */}
+        {JELLIES.map((j) => (
+          <div
+            key={`jelly-${j.id}`}
+            className="reef-jelly"
+            style={{
+              left: `${j.x}%`,
+              '--du': `${j.dur}s`,
+              '--d': `${j.delay}s`,
+              '--drift': `${(j.id % 2 ? -1 : 1) * 14}px`,
+            } as React.CSSProperties}
+          >
+            <Jellyfish hue={j.hue} />
+          </div>
+        ))}
 
-        {/* Sea-Snake / Aal */}
-        <div className={`reef-snake swim-${snakeDir.charAt(0)}`}>
+        {/* Tintenfisch — schwimmt in Default-Richtung */}
+        <div className={`reef-octo swim-${mainDir.charAt(0)}`}>
+          <div style={{ display: 'inline-block' }}>
+            <Octopus />
+          </div>
+        </div>
+
+        {/* Saunafass — treibt gemächlich, mit Dampf */}
+        <div className={`reef-bucket swim-${counterDir.charAt(0)}`}>
+          <div style={{ display: 'inline-block' }}>
+            <SaunaBucket />
+          </div>
+        </div>
+
+        {/* Sponge-Charakter — schwimmt aufrecht, gegen die Default-Richtung */}
+        <div className={`reef-sponge swim-${counterDir.charAt(0)}`} style={{ '--bob': '-8px' } as React.CSSProperties}>
+          <div className="reef-sponge-body" style={{ display: 'inline-block' }}>
+            <SpongeCharacter />
+          </div>
+        </div>
+
+        {/* Sea-Snake / Aal — gegen die Default-Richtung */}
+        <div className={`reef-snake swim-${counterDir.charAt(0)}`}>
           <div className="reef-snake-body" style={{ display: 'inline-block' }}>
             <SeaSnake />
           </div>
@@ -528,6 +616,26 @@ function Fish({ variant }: { variant: number }) {
       </svg>
     );
   }
+  if (variant === 3) {
+    // Dory — Pacific Tang: blau Körper, gelber Schwanz, schwarze Markierung
+    return (
+      <svg viewBox="0 0 80 40" width="80" height="40" style={{ overflow: 'visible' }}>
+        <g className="reef-fish-tail" style={{ transformOrigin: '0px 20px' }}>
+          <polygon points="0,20 -18,2 -10,20 -18,38" fill="#fbbf24" stroke="#1c1917" strokeWidth="0.9" />
+        </g>
+        <ellipse cx="38" cy="20" rx="32" ry="14" fill="#1d4ed8" />
+        <path d="M 18,8 Q 38,3 58,8 L 55,14 L 21,14 Z" fill="#1e40af" stroke="#1c1917" strokeWidth="0.6" />
+        <path d="M 14,16 Q 28,11 50,14 Q 60,20 55,29 Q 38,33 16,28 Z" fill="#000000" opacity="0.78" />
+        <path d="M 14,16 Q 28,11 50,14 L 50,18 Q 28,15 14,20 Z" fill="#1d4ed8" />
+        <path d="M 56,12 Q 70,10 73,16 L 66,20 Z" fill="#fbbf24" stroke="#1c1917" strokeWidth="0.5" />
+        <path d="M 26,32 Q 34,36 42,32 Z" fill="#fbbf24" stroke="#1c1917" strokeWidth="0.5" />
+        <circle cx="62" cy="16" r="4" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
+        <circle cx="62.5" cy="16" r="2.2" fill="#1c1917" />
+        <circle cx="63" cy="15" r="0.8" fill="#ffffff" />
+        <path d="M 70,20 Q 73,22 70,25" stroke="#1c1917" strokeWidth="1" fill="none" />
+      </svg>
+    );
+  }
   return (
     <svg viewBox="0 0 70 36" width="70" height="36" style={{ overflow: 'visible' }}>
       <g className="reef-fish-tail" style={{ transformOrigin: '0px 18px' }}>
@@ -546,65 +654,160 @@ function Fish({ variant }: { variant: number }) {
   );
 }
 
-// ─── Hai (mit Pacman-Maul) ─────────────────────────────────────────────
-function Hai() {
+// ─── Qualle ────────────────────────────────────────────────────────────
+function Jellyfish({ hue }: { hue: number }) {
+  const bell = `hsla(${hue}, 75%, 70%, 0.78)`;
+  const inner = `hsla(${hue}, 60%, 85%, 0.55)`;
+  const tent = `hsla(${hue}, 70%, 75%, 0.55)`;
   return (
-    <svg viewBox="-50 -10 200 90" width="200" height="90" style={{ overflow: 'visible' }}>
-      {/* Schwanz — animiert */}
-      <g className="reef-hai-tail" style={{ transformOrigin: '0px 35px' }}>
-        <polygon points="0,35 -38,5 -22,35 -38,65" fill="#475569" stroke="#1c1917" strokeWidth="1.2" />
-      </g>
-      {/* Körper-Hauptmasse (Unterseite — bleibt fest) */}
-      <ellipse cx="70" cy="42" rx="70" ry="22" fill="#64748b" />
-      {/* Heller Bauch */}
-      <ellipse cx="70" cy="55" rx="60" ry="14" fill="#cbd5e1" />
-      {/* Trennlinie */}
-      <path d="M 5,46 Q 70,52 135,46" stroke="#475569" strokeWidth="1.5" fill="none" />
-
-      {/* Rückenflosse */}
-      <path d="M 60,22 Q 75,5 90,22 L 85,32 L 65,32 Z" fill="#475569" stroke="#1c1917" strokeWidth="0.8" />
-      {/* Brustflosse */}
-      <path d="M 55,60 Q 50,75 70,72 L 75,62 Z" fill="#475569" stroke="#1c1917" strokeWidth="0.8" />
-
-      {/* OBERKIEFER — Pacman-Maul, dreht sich (animiert) */}
-      <g className="reef-hai-jaw-upper">
+    <svg viewBox="0 0 56 80" width="56" height="80" style={{ overflow: 'visible' }}>
+      {/* Bell (oben) — pulsiert */}
+      <g className="reef-jelly-bell">
+        <ellipse cx="28" cy="28" rx="26" ry="22" fill={bell} />
+        <ellipse cx="28" cy="20" rx="20" ry="12" fill={inner} />
+        <ellipse cx="20" cy="18" rx="3" ry="2" fill="rgba(255,255,255,0.9)" />
+        {/* Bell-Saum unten */}
         <path
-          d="M 130,42 Q 135,30 120,28 L 70,32 Q 70,28 110,30 L 130,35 Z"
-          fill="#64748b"
-          stroke="#1c1917"
-          strokeWidth="0.8"
+          d="M 2,30 Q 8,42 14,32 Q 20,42 28,32 Q 36,42 42,32 Q 48,42 54,30 L 54,36 Q 28,46 2,36 Z"
+          fill={bell}
         />
-        {/* Reißzähne oben */}
-        <polygon points="80,32 82,40 84,32" fill="#ffffff" />
-        <polygon points="88,32 90,42 92,32" fill="#ffffff" />
-        <polygon points="100,32 102,42 104,32" fill="#ffffff" />
-        <polygon points="115,30 117,40 119,30" fill="#ffffff" />
       </g>
+      {/* Tentakeln (lang nach unten, wabern) */}
+      <g className="reef-jelly-tentacles">
+        <path d="M 10,38 Q 8,55 12,76"  stroke={tent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+        <path d="M 18,40 Q 22,58 16,78" stroke={tent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+        <path d="M 28,42 Q 24,60 30,78" stroke={tent} strokeWidth="3"   fill="none" strokeLinecap="round" />
+        <path d="M 38,40 Q 42,58 36,78" stroke={tent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+        <path d="M 46,38 Q 50,58 44,76" stroke={tent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
 
-      {/* UNTERKIEFER — bleibt fest */}
+// ─── Tintenfisch (Oktopus) ─────────────────────────────────────────────
+function Octopus() {
+  return (
+    <svg viewBox="0 0 90 70" width="90" height="70" style={{ overflow: 'visible' }}>
+      {/* Tentakeln (hintere Schicht) */}
+      <g className="reef-octo-arms">
+        <path d="M 22,40 Q 12,55 8,68"  stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 30,46 Q 24,60 18,70" stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 42,48 Q 40,62 36,70" stroke="#9333ea" strokeWidth="7" fill="none" strokeLinecap="round" />
+        <path d="M 50,48 Q 52,62 56,70" stroke="#9333ea" strokeWidth="7" fill="none" strokeLinecap="round" />
+        <path d="M 60,46 Q 66,60 72,70" stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 68,40 Q 78,55 82,68" stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
+      </g>
+      {/* Kopf-Mantel */}
+      <ellipse cx="45" cy="30" rx="32" ry="26" fill="#c084fc" />
+      <ellipse cx="45" cy="22" rx="26" ry="14" fill="#d8b4fe" />
+      <ellipse cx="36" cy="18" rx="4" ry="2.5" fill="rgba(255,255,255,0.85)" />
+      {/* Augen */}
+      <circle cx="34" cy="28" r="5" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
+      <circle cx="34" cy="29" r="2.6" fill="#1c1917" />
+      <circle cx="35" cy="28" r="0.8" fill="#ffffff" />
+      <circle cx="56" cy="28" r="5" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
+      <circle cx="56" cy="29" r="2.6" fill="#1c1917" />
+      <circle cx="57" cy="28" r="0.8" fill="#ffffff" />
+      {/* Lächeln */}
+      <path d="M 38,40 Q 45,46 52,40" stroke="#1c1917" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ─── Saunafass (Vereinsbezug!) ──────────────────────────────────────────
+function SaunaBucket() {
+  return (
+    <svg viewBox="0 0 80 80" width="80" height="80" style={{ overflow: 'visible' }}>
+      {/* Dampf über dem Fass (3 kleine Wölkchen mit gestaffelten Delays) */}
+      <g transform="translate(28, 8)">
+        <ellipse className="reef-steam" cx="6"  cy="0" rx="5" ry="3" fill="rgba(255,255,255,0.6)" style={{ animationDelay: '0s' }} />
+        <ellipse className="reef-steam" cx="14" cy="0" rx="6" ry="3.5" fill="rgba(255,255,255,0.5)" style={{ animationDelay: '0.8s' }} />
+        <ellipse className="reef-steam" cx="22" cy="0" rx="5" ry="3" fill="rgba(255,255,255,0.55)" style={{ animationDelay: '1.6s' }} />
+      </g>
+      {/* Fass-Korpus */}
+      <defs>
+        <linearGradient id="bucket-wood" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"   stopColor="#7c4a1a" />
+          <stop offset="30%"  stopColor="#a0651e" />
+          <stop offset="60%"  stopColor="#8a5318" />
+          <stop offset="100%" stopColor="#5a3010" />
+        </linearGradient>
+      </defs>
+      <ellipse cx="40" cy="25" rx="28" ry="6" fill="#5a3010" />
       <path
-        d="M 130,42 Q 135,55 120,58 L 70,52 Q 70,56 110,55 L 130,50 Z"
-        fill="#475569"
-        stroke="#1c1917"
-        strokeWidth="0.8"
+        d="M 12,25 Q 12,68 18,72 L 62,72 Q 68,68 68,25 Z"
+        fill="url(#bucket-wood)"
+        stroke="#3a2008"
+        strokeWidth="1"
       />
-      {/* Reißzähne unten */}
-      <polygon points="80,52 82,44 84,52" fill="#ffffff" />
-      <polygon points="88,52 90,42 92,52" fill="#ffffff" />
-      <polygon points="100,52 102,42 104,52" fill="#ffffff" />
-      <polygon points="115,55 117,45 119,55" fill="#ffffff" />
+      {/* Wasser oben */}
+      <ellipse cx="40" cy="25" rx="26" ry="4.5" fill="#7dd3fc" />
+      <ellipse cx="40" cy="24.5" rx="20" ry="2.5" fill="#bae6fd" opacity="0.7" />
+      {/* Holz-Lamellen */}
+      <line x1="22" y1="28" x2="22" y2="70" stroke="#3a2008" strokeWidth="0.7" />
+      <line x1="32" y1="28" x2="32" y2="71" stroke="#3a2008" strokeWidth="0.7" />
+      <line x1="48" y1="28" x2="48" y2="71" stroke="#3a2008" strokeWidth="0.7" />
+      <line x1="58" y1="28" x2="58" y2="70" stroke="#3a2008" strokeWidth="0.7" />
+      {/* Metall-Bänder */}
+      <path d="M 14,40 L 66,40" stroke="#cbd5e1" strokeWidth="2.5" />
+      <path d="M 14,40 L 66,40" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
+      <path d="M 15,60 L 65,60" stroke="#cbd5e1" strokeWidth="2.5" />
+      <path d="M 15,60 L 65,60" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
+      {/* Henkel */}
+      <path d="M 10,30 Q 4,18 22,18" stroke="#cbd5e1" strokeWidth="2" fill="none" />
+      {/* Aufkleber: kleines Saunafreunde-Logo (S) */}
+      <circle cx="40" cy="55" r="7" fill="#fef3c7" stroke="#92400e" strokeWidth="0.8" />
+      <text x="40" y="58.5" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#92400e">S</text>
+    </svg>
+  );
+}
 
-      {/* Auge — wütend */}
-      <circle cx="100" cy="22" r="5" fill="#ffffff" stroke="#1c1917" strokeWidth="1" />
-      <circle cx="101" cy="22" r="2.5" fill="#1c1917" />
-      <circle cx="102" cy="21" r="0.8" fill="#ffffff" />
-      {/* Augenbraue (wütend) */}
-      <path d="M 93,15 L 107,18" stroke="#1c1917" strokeWidth="2" strokeLinecap="round" />
-
-      {/* Kiemen */}
-      <path d="M 78,38 Q 80,42 78,48" stroke="#1c1917" strokeWidth="1" fill="none" opacity="0.7" />
-      <path d="M 84,38 Q 86,42 84,48" stroke="#1c1917" strokeWidth="1" fill="none" opacity="0.7" />
-      <path d="M 90,38 Q 92,42 90,48" stroke="#1c1917" strokeWidth="1" fill="none" opacity="0.7" />
+// ─── Sponge-Charakter (gelber Würfel mit Hose) ─────────────────────────
+function SpongeCharacter() {
+  return (
+    <svg viewBox="0 0 60 80" width="60" height="80" style={{ overflow: 'visible' }}>
+      {/* Beine */}
+      <rect x="18" y="64" width="6" height="14" fill="#fde68a" stroke="#1c1917" strokeWidth="0.6" rx="1" />
+      <rect x="36" y="64" width="6" height="14" fill="#fde68a" stroke="#1c1917" strokeWidth="0.6" rx="1" />
+      <ellipse cx="21" cy="78" rx="4" ry="2" fill="#1c1917" />
+      <ellipse cx="39" cy="78" rx="4" ry="2" fill="#1c1917" />
+      {/* Hose (braun) mit Gürtel */}
+      <rect x="10" y="52" width="40" height="16" fill="#92400e" stroke="#1c1917" strokeWidth="0.7" />
+      <rect x="10" y="52" width="40" height="2.5" fill="#1c1917" />
+      <rect x="28" y="52" width="4" height="2.5" fill="#fbbf24" />
+      {/* Hauptkörper — gelber Schwamm-Würfel mit Löchern */}
+      <rect x="6" y="8" width="48" height="48" rx="3" fill="#fbbf24" stroke="#1c1917" strokeWidth="0.9" />
+      {/* Schwamm-Löcher */}
+      <circle cx="12" cy="16" r="1.6" fill="#d97706" opacity="0.5" />
+      <circle cx="22" cy="14" r="2.2" fill="#d97706" opacity="0.5" />
+      <circle cx="44" cy="20" r="1.6" fill="#d97706" opacity="0.5" />
+      <circle cx="48" cy="34" r="2"   fill="#d97706" opacity="0.5" />
+      <circle cx="10" cy="38" r="2"   fill="#d97706" opacity="0.5" />
+      <circle cx="32" cy="42" r="1.6" fill="#d97706" opacity="0.5" />
+      <circle cx="14" cy="48" r="2"   fill="#d97706" opacity="0.5" />
+      {/* Weißes Hemd-Kragen-Detail */}
+      <rect x="12" y="44" width="36" height="6" fill="#ffffff" stroke="#1c1917" strokeWidth="0.5" />
+      <rect x="28" y="44" width="4" height="6" fill="#dc2626" />
+      {/* Augen */}
+      <circle cx="22" cy="26" r="6" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
+      <circle cx="22" cy="27" r="3.5" fill="#3b82f6" />
+      <circle cx="22" cy="27" r="1.5" fill="#1c1917" />
+      <circle cx="23" cy="26" r="0.6" fill="#ffffff" />
+      <circle cx="38" cy="26" r="6" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
+      <circle cx="38" cy="27" r="3.5" fill="#3b82f6" />
+      <circle cx="38" cy="27" r="1.5" fill="#1c1917" />
+      <circle cx="39" cy="26" r="0.6" fill="#ffffff" />
+      {/* Wimpern */}
+      <path d="M 17,21 L 19,22.5" stroke="#1c1917" strokeWidth="0.8" />
+      <path d="M 22,19 L 22,21" stroke="#1c1917" strokeWidth="0.8" />
+      <path d="M 38,19 L 38,21" stroke="#1c1917" strokeWidth="0.8" />
+      <path d="M 43,21 L 41,22.5" stroke="#1c1917" strokeWidth="0.8" />
+      {/* Großer Smile mit Zähnen */}
+      <path d="M 18,36 Q 30,44 42,36 L 42,38 Q 30,46 18,38 Z" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
+      <line x1="27" y1="36.5" x2="27" y2="42" stroke="#1c1917" strokeWidth="0.5" />
+      <line x1="33" y1="36.5" x2="33" y2="42" stroke="#1c1917" strokeWidth="0.5" />
+      {/* Nase */}
+      <ellipse cx="30" cy="32" rx="1.5" ry="2" fill="#f59e0b" />
     </svg>
   );
 }
