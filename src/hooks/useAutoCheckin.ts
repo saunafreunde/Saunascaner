@@ -34,23 +34,25 @@ import { useCurrentMember } from '@/lib/api';
 async function probeLocalIp(): Promise<string | null> {
   if (typeof RTCPeerConnection === 'undefined') return null;
   return new Promise<string | null>((resolve) => {
-    let pc: RTCPeerConnection;
+    let pc: RTCPeerConnection | null = null;
     try {
       pc = new RTCPeerConnection({ iceServers: [] });
     } catch {
       resolve(null);
       return;
     }
+    // Nach try-Block ist pc garantiert nicht-null (sonst hätte catch returned)
+    const peer = pc;
     const cleanup = (result: string | null) => {
-      try { pc.close(); } catch { /* ignore */ }
+      try { peer.close(); } catch { /* ignore */ }
       resolve(result);
     };
     const timeout = setTimeout(() => cleanup(null), 1500);
-    pc.createDataChannel('');
-    pc.createOffer()
-      .then((o) => pc.setLocalDescription(o))
+    peer.createDataChannel('');
+    peer.createOffer()
+      .then((o) => peer.setLocalDescription(o))
       .catch(() => { clearTimeout(timeout); cleanup(null); });
-    pc.onicecandidate = (e) => {
+    peer.onicecandidate = (e) => {
       if (!e.candidate) return;
       // candidate.candidate: "candidate:... typ host 172.20.28.36 ..."
       const match = /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/.exec(e.candidate.candidate);

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 // Subscribes to realtime changes on the operational tables and invalidates
@@ -16,8 +17,21 @@ export function useRealtimeSync() {
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
-    let currentChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
+    let currentChannel: RealtimeChannel | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Helper: removeChannel returnt Promise<'ok'|'timed out'|'error'> — wir
+    // wollen Fehler einfach schlucken, kein await-rejected nach unmount.
+    const safeRemove = (channel: RealtimeChannel): void => {
+      if (!supabase) return;
+      try {
+        const result = supabase.removeChannel(channel);
+        // result kann Promise oder sync sein — both handle silent
+        if (result && typeof (result as Promise<unknown>).then === 'function') {
+          (result as Promise<unknown>).catch(() => { /* ignore */ });
+        }
+      } catch { /* ignore */ }
+    };
 
     const subscribe = () => {
       if (cancelled || !supabase) return;
@@ -112,7 +126,7 @@ export function useRealtimeSync() {
             // eslint-disable-next-line no-console
             console.warn('[realtime] disconnected:', status, '· attempt', reconnectAttempts.current);
             if (currentChannel) {
-              supabase!.removeChannel(currentChannel).catch(() => {});
+              safeRemove(currentChannel);
               currentChannel = null;
             }
             // Exponential Backoff: 2s · 5s · 10s · 30s · max 60s
@@ -131,7 +145,7 @@ export function useRealtimeSync() {
     return () => {
       cancelled = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (currentChannel) supabase!.removeChannel(currentChannel).catch(() => {});
+      if (currentChannel) safeRemove(currentChannel);
     };
   }, [qc]);
 }
