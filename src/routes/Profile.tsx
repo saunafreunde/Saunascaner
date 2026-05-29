@@ -322,7 +322,7 @@ export default function Profile() {
 
         {/* Sauna-Tablet-PIN (nur eigenes Profil) */}
         {isMyself && <MyCheckinPinCard />}
-        {isMyself && <AutoCheckinToggleCard enabled={m.auto_checkin_enabled} />}
+        {isMyself && me.data && <AutoCheckinToggleCard enabled={me.data.auto_checkin_enabled} />}
 
         {/* Auszeichnungen */}
         <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-700/30 p-5">
