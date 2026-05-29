@@ -43,6 +43,36 @@ Der Verein hat regelmäßig Aufgaben die helfende Hände brauchen:
 - `super_helper` — 15 Aufgaben fertig
 - `helper_legend` — 30 Aufgaben fertig
 
+## 🤖 Auto-Check-in via WLAN (Migration 0108+0109)
+
+Du musst nicht mehr aktiv am Tablet einchecken — sobald dein Handy im Sauna-WLAN ist, wirst du automatisch eingecheckt.
+
+**Aktivieren** (einmalig):
+1. Profil → „🤖 Automatischer Check-in" Toggle einschalten
+2. Beim nächsten App-Öffnen im Sauna-WLAN: silent eingecheckt
+3. Familien-Konfig (Partner/Kinder) öffnet automatisch falls hinterlegt
+
+**Wie es funktioniert** (technisch):
+- Browser liest deine LAN-IP (z. B. `172.20.28.36`) via WebRTC
+- Backend matched gegen konfigurierte Sauna-Subnets (`172.20.0.0/16`)
+- Wenn Match + Opt-in → `is_present = true` + Push-Bestätigung
+- **Kein Standort/GPS, kein Tracking, kein Tablet-Setup** — nur WLAN-Erkennung
+
+**Auto-Check-out**:
+- Nach 4 Stunden Idle ohne weiteres Event → automatisch ausgecheckt
+- Spätestens 23:30 (Berlin-Zeit) → alle anwesenden Mitglieder zurückgesetzt
+- Manuell aus: am Tablet PIN nochmal, oder im Profil einfach Toggle aus
+
+**Nicht im Sauna-WLAN?**
+- App-Start außerhalb (Heim, Auto, Mobilnetz) → nichts passiert
+- Mobile-Daten (LTE) hat andere Public-IP → kein Auto-Checkin (gewünscht)
+- Manueller PIN-Check-in am Tablet bleibt jederzeit verfügbar
+
+**Datenschutz**:
+- Opt-in, Default off
+- Toggle jederzeit zurücknehmbar
+- Public-IP wird nicht gespeichert, nur live geprüft
+
 ## Familien-Mitgliedschaft (Migration 0076)
 
 Wenn du Partner oder Kinder mitbringst:
@@ -69,6 +99,7 @@ Wenn du Partner oder Kinder mitbringst:
 | Funktion | Wo | Beschreibung |
 |---|---|---|
 | 🔑 Check-in am Tablet | Sauna-Eingang | PIN-Pad oder QR-Scan |
+| 🤖 Auto-Check-in via WLAN | Profil-Toggle | Handy im Sauna-WLAN → automatisch eingecheckt |
 | 👨‍👩‍👧 Familien-Check-in | nach PIN | Partner + Kinder eintragen |
 | 🤝 Helfer-Aufgabe übernehmen | [/unterstuetzer](https://saunascaner.vercel.app/unterstuetzer) | Klick „Beitreten" |
 | 🚨 Notfall-Alarm auslösen | Roter Button im /unterstuetzer | Vollbild-Alarm + Telegram-Push |

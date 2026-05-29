@@ -19,6 +19,7 @@ import {
   useCurrentMember, useMember, useMemberStats,
   useAttendanceStreak, useWmLeaderboard,
   useFavoriteOils, useSignatureInfusion, useSetMotto,
+  useSetMyAutoCheckin,
 } from '@/lib/api';
 import { OIL_BY_ID } from '@/lib/oils';
 import { Avatar } from '@/components/Avatar';
@@ -321,6 +322,7 @@ export default function Profile() {
 
         {/* Sauna-Tablet-PIN (nur eigenes Profil) */}
         {isMyself && <MyCheckinPinCard />}
+        {isMyself && <AutoCheckinToggleCard enabled={m.auto_checkin_enabled} />}
 
         {/* Auszeichnungen */}
         <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-700/30 p-5">
@@ -377,6 +379,47 @@ export default function Profile() {
         />
       )}
     </PageBackground>
+  );
+}
+
+// Auto-Check-in via WLAN-Subnet (Migration 0108+0109)
+// Opt-in: wenn aktiv und User im Sauna-WLAN → silent toggle is_present=true
+function AutoCheckinToggleCard({ enabled }: { enabled: boolean }) {
+  const setAuto = useSetMyAutoCheckin();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function onToggle(next: boolean) {
+    setBusy(true); setErr(null);
+    try { await setAuto.mutateAsync(next); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="rounded-2xl bg-forest-950/60 ring-1 ring-forest-800/40 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🤖</span>
+            <h3 className="text-forest-100 font-semibold">Automatischer Check-in</h3>
+          </div>
+          <p className="text-xs text-forest-400 mt-1 leading-relaxed">
+            Wenn aktiv: Sobald du dich mit deinem Handy ins Sauna-WLAN einloggst, wirst du automatisch eingecheckt — kein PIN, kein Tap.
+            {' '}Sicher: erkennt das Sauna-Netz am Subnet, dein Standort wird nicht abgefragt.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onToggle(!enabled)}
+          className={`relative shrink-0 w-12 h-7 rounded-full transition ${enabled ? 'bg-emerald-500' : 'bg-forest-800'} ${busy ? 'opacity-50' : ''}`}
+          aria-pressed={enabled}
+          aria-label="Auto-Check-in aktivieren oder deaktivieren"
+        >
+          <span className={`absolute top-1 transition-all w-5 h-5 rounded-full bg-white shadow ${enabled ? 'left-6' : 'left-1'}`} />
+        </button>
+      </div>
+      {err && <p className="text-xs text-rose-300 mt-2">{err}</p>}
+    </div>
   );
 }
 

@@ -10,6 +10,7 @@ import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { AreaHubGate } from '@/components/AreaHubGate';
 import { AppReloadWatcher } from '@/components/AppReloadWatcher';
 import { ErrorBoundary, TafelErrorFallback } from '@/components/ErrorBoundary';
+import { useAutoCheckin } from '@/hooks/useAutoCheckin';
 
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows + Welcome-Tour
 const NO_BOTTOM_NAV_PATHS = [
@@ -74,6 +75,7 @@ const DmConversation  = lazy(() => import('@/routes/DmConversation'));
 export default function App() {
   useRealtimeSync();
   useApplyStoredTheme();
+  useAutoCheckin();   // Migration 0108+0109: opt-in Auto-Check-in via WLAN-Subnet
   return (
     // FIX 0107 (Audit Phase 4 CRITICAL): outer ErrorBoundary verhindert
     // weiße Seite wenn irgendein Route-Subtree crasht. Dashboard hat extra

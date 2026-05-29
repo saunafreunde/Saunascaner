@@ -589,8 +589,25 @@ export type Member = {
   // der Tafel wenn ein Aufguss keine eigenen attrs/oils hat.
   default_mood_attributes: string[];
   default_mood_oils: string[];
+  // Auto-Check-in via WLAN (Migration 0108+0109) — opt-in pro Mitglied
+  auto_checkin_enabled: boolean;
   created_at: string;
 };
+
+// ─── Auto-Check-in (Migration 0108+0109) ──────────────────────────────────
+export function useSetMyAutoCheckin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { data, error } = await need().rpc('set_my_auto_checkin', { p_enabled: enabled });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+    },
+  });
+}
 
 export function useMember(memberId: string | null | undefined) {
   return useQuery({
