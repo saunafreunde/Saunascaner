@@ -609,6 +609,63 @@ export function useSetMyAutoCheckin() {
   });
 }
 
+// ─── WLAN-Subnets (Admin-Pflege, Migration 0109) ──────────────────────────
+export type WifiSubnet = {
+  id: string;
+  cidr: string;
+  label: string;
+  enabled: boolean;
+  created_at: string;
+};
+
+export function useWifiSubnets() {
+  return useQuery({
+    queryKey: ['wifi-subnets'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('org_wifi_subnets')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as WifiSubnet[];
+    },
+  });
+}
+
+export function useAdminAddWifiSubnet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { cidr: string; label: string }) => {
+      const { data, error } = await need().rpc('admin_add_wifi_subnet', { p_cidr: p.cidr, p_label: p.label });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wifi-subnets'] }),
+  });
+}
+
+export function useAdminToggleWifiSubnet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { id: string; enabled: boolean }) => {
+      const { error } = await need().rpc('admin_toggle_wifi_subnet', { p_id: p.id, p_enabled: p.enabled });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wifi-subnets'] }),
+  });
+}
+
+export function useAdminDeleteWifiSubnet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('admin_delete_wifi_subnet', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wifi-subnets'] }),
+  });
+}
+
 export function useMember(memberId: string | null | undefined) {
   return useQuery({
     queryKey: ['member', memberId ?? 'none'],

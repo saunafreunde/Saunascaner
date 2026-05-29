@@ -1,6 +1,6 @@
 # ⚙️ Handbuch für Admins
 
-> Du bist **Admin** (`role='admin'`)? Dieses Handbuch zeigt dir alle 17 Tabs in 5 Gruppen, plus die Vorschau-Funktionen, Cache-Reload und Bühnen-Steuerung.
+> Du bist **Admin** (`role='admin'`)? Dieses Handbuch zeigt dir alle 18 Tabs in 5 Gruppen, plus die Vorschau-Funktionen, Cache-Reload und Bühnen-Steuerung.
 >
 > **Default-Bereich:** [/admin](https://saunascaner.vercel.app/admin) · **Stand:** 26.05.2026
 
@@ -54,13 +54,14 @@
 | 🏆 WM-Tipps | `/admin#wm` | WM-Spielplan, Ergebnisse eintragen, Tipspiel-Leaderboard. Auch für WM-Admins (`is_wm_admin=true`) zugänglich |
 | 🎭 **Bühne** | `/admin#stage` | TV-Tafel-Bühnen-System steuern (Migrationen 0070-0072) |
 
-### 🎨 Setup (5 Tabs)
+### 🎨 Setup (6 Tabs)
 
 | Tab | Route | Funktion |
 |---|---|---|
 | 🎨 Branding | `/admin#branding` | Logo, Farben, `org_name`, Tafel-Background |
 | 🎨 Farben | `/admin#colors` | Eigenschaften-Farben + Öl-Farben anpassen (`set_attribute_color`, `set_oil_color`) |
 | 🚫 Öle deaktivieren | `/admin#oils` | Einzelne Standard-Öle für die Auswahl sperren (`set_oil_disabled`) |
+| 📡 WLAN-Netze | `/admin#wifi` | Subnets fürs Auto-Check-in pflegen (Migration 0109, default `172.20.0.0/16`) |
 | 📖 Handbuch-Editor | `/admin#handbook` | In-App-Editor für `src/content/handbook.md` (Live-Preview) |
 | 🧹 **Cache-Reload** | `/admin#system` | App-Update an alle Geräte pushen (`trigger_app_reload`) |
 
