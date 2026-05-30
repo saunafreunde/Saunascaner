@@ -179,38 +179,109 @@ export type TitleStyleId = 'poetisch' | 'kurz' | 'mystisch' | 'sinnlich' | 'frec
 export type StyledTitle = { style: TitleStyleId; title: string };
 
 // Wortbänke pro Stil — bei jedem Aufruf wird zufällig kombiniert.
+// Erweitert 30.05.2026: jede Bank ungefähr verdoppelt für mehr Variation
+// beim "🎲 Neu würfeln". Stil-Charakter bleibt klar erhalten.
 const POETISCH = {
-  prefix: ['🌿', '🍃', '✨', '🌙', '☀️'],
-  adjektiv: ['flüsternder', 'goldener', 'tanzender', 'duftender', 'leiser', 'dampfender', 'sanfter', 'kühler', 'warmer', 'wilder'],
-  substantiv: ['Hauch', 'Tanz', 'Atem', 'Schimmer', 'Klang', 'Schleier', 'Flügel', 'Wiege', 'Gruß', 'Bogen'],
-  von_im: ['des', 'der', 'aus dem', 'im', 'vom'],
-  ort: ['Waldes', 'Schwarzwalds', 'Morgens', 'Abends', 'Sommers', 'Himmels', 'Birkenhains', 'Sonnentals', 'Nordwinds', 'Kräutergartens'],
+  prefix: ['🌿', '🍃', '✨', '🌙', '☀️', '🌅', '🌳', '🌾', '💫', '🪶', '🦋', '🌸'],
+  adjektiv: [
+    'flüsternder', 'goldener', 'tanzender', 'duftender', 'leiser', 'dampfender',
+    'sanfter', 'kühler', 'warmer', 'wilder', 'zitternder', 'frischer',
+    'glühender', 'ruhiger', 'weicher', 'samtener', 'milder', 'glänzender',
+    'leuchtender', 'träumender', 'schimmernder', 'atmender', 'sonniger', 'silberner',
+  ],
+  substantiv: [
+    'Hauch', 'Tanz', 'Atem', 'Schimmer', 'Klang', 'Schleier',
+    'Flügel', 'Wiege', 'Gruß', 'Bogen', 'Kuss', 'Strom',
+    'Welle', 'Reigen', 'Funke', 'Lied', 'Märchen', 'Spiegel',
+    'Glanz', 'Mantel', 'Wirbel', 'Hauch',
+  ],
+  von_im: ['des', 'der', 'aus dem', 'im', 'vom', 'auf dem', 'am', 'beim', 'aus'],
+  ort: [
+    'Waldes', 'Schwarzwalds', 'Morgens', 'Abends', 'Sommers', 'Himmels',
+    'Birkenhains', 'Sonnentals', 'Nordwinds', 'Kräutergartens',
+    'Bachs', 'Frühlings', 'Mondes', 'Sterns', 'Tannenwalds',
+    'Bergstroms', 'Lichts', 'Aufgangs', 'Lagerfeuers', 'Quellbachs',
+    'Bergsees', 'Heidekrauts', 'Nebels', 'Tals',
+  ],
 };
 
 const KURZ = {
-  basis: ['Glut', 'Atem', 'Hauch', 'Welle', 'Funke', 'Klang', 'Blitz', 'Sprung', 'Tanz', 'Wirbel', 'Sturm', 'Brise'],
-  suffix: ['stoß', '-Bad', '-Kuss', '-Kick', 'feuer', '-Wave', '-Zauber', '-Welt'],
+  basis: [
+    'Glut', 'Atem', 'Hauch', 'Welle', 'Funke', 'Klang',
+    'Blitz', 'Sprung', 'Tanz', 'Wirbel', 'Sturm', 'Brise',
+    'Lava', 'Eis', 'Fels', 'Wald', 'Dunst', 'Feuer',
+    'Glanz', 'Strudel', 'Wind', 'Quelle', 'Boom', 'Frost',
+    'Flamme', 'Hitze', 'Donner', 'Echo',
+  ],
+  suffix: [
+    'stoß', '-Bad', '-Kuss', '-Kick', 'feuer', '-Wave',
+    '-Zauber', '-Welt', '-Reise', '-Zone', '-Schock', '-Hauch',
+    '-Spritzer', '-Symphonie', '-Orgie', '-Magic', '-Rausch', '-Boost',
+  ],
 };
 
 const MYSTISCH = {
-  prefix: ['🔮', '🐉', '🌋', '⚡', '🔱', '🗝️', '🌌'],
-  wesen: ['Phönix', 'Drache', 'Schamane', 'Druide', 'Götter', 'Walküren', 'Schmied', 'Nymphe', 'Sturmgeist', 'Salamander'],
-  verb: ['weckt', 'beschwört', 'tanzt mit', 'erweckt', 'küsst', 'lockt'],
-  ergaenzung: ['die Glut', 'das Feuer', 'den Sturm', 'die Tiefe', 'das Echo', 'die Asche', 'das Licht'],
+  prefix: ['🔮', '🐉', '🌋', '⚡', '🔱', '🗝️', '🌌', '🦅', '🗡️', '🏔️', '🌠', '🪬'],
+  wesen: [
+    'Phönix', 'Drache', 'Schamane', 'Druide', 'Götter', 'Walküren',
+    'Schmied', 'Nymphe', 'Sturmgeist', 'Salamander',
+    'Hexe', 'Sphinx', 'Zentaur', 'Faun', 'Kobold',
+    'Erdenmagier', 'Feuergeist', 'Schicksal', 'Orakel', 'Titan',
+    'Drudin', 'Walkürengruß', 'Nordlicht', 'Runenmeister',
+  ],
+  verb: [
+    'weckt', 'beschwört', 'tanzt mit', 'erweckt', 'küsst', 'lockt',
+    'zähmt', 'entfesselt', 'ruft', 'beschwingt', 'formt', 'schmiedet',
+    'flüstert mit', 'umarmt', 'fängt ein',
+  ],
+  ergaenzung: [
+    'die Glut', 'das Feuer', 'den Sturm', 'die Tiefe', 'das Echo',
+    'die Asche', 'das Licht', 'die Schatten', 'den Atem', 'das Funkeln',
+    'die Tiefen', 'das Brausen', 'den Glanz', 'das Eis', 'das Rauschen',
+  ],
 };
 
 const SINNLICH = {
-  prefix: ['🌹', '💋', '🔥', '💕', '🌸'],
-  adjektiv: ['Heiße', 'Sanfte', 'Verlockende', 'Verführerische', 'Zarte', 'Glühende', 'Wilde', 'Atemberaubende'],
-  substantiv: ['Berührung', 'Verführung', 'Umarmung', 'Liebkosung', 'Versuchung', 'Hingabe', 'Sehnsucht', 'Welle'],
-  modifier: ['der Sinne', 'der Glut', 'der Wärme', 'des Augenblicks', 'für die Haut', 'in Hitze', 'des Moments'],
+  prefix: ['🌹', '💋', '🔥', '💕', '🌸', '✨', '🍷', '🕯️', '🌿', '💫'],
+  adjektiv: [
+    'Heiße', 'Sanfte', 'Verlockende', 'Verführerische', 'Zarte',
+    'Glühende', 'Wilde', 'Atemberaubende',
+    'Pulsierende', 'Brennende', 'Süße', 'Honig-warme', 'Cremige',
+    'Knisternde', 'Sinnliche', 'Lockende', 'Berauschende', 'Schmelzende',
+  ],
+  substantiv: [
+    'Berührung', 'Verführung', 'Umarmung', 'Liebkosung', 'Versuchung',
+    'Hingabe', 'Sehnsucht', 'Welle',
+    'Reise', 'Begegnung', 'Erfüllung', 'Zärtlichkeit', 'Magie',
+    'Wärme', 'Lust', 'Glut', 'Hingabe', 'Verzauberung',
+  ],
+  modifier: [
+    'der Sinne', 'der Glut', 'der Wärme', 'des Augenblicks',
+    'für die Haut', 'in Hitze', 'des Moments',
+    'auf nackter Haut', 'im Glühen', 'der Verheißung', 'des Vergessens',
+    'der Lust', 'in Flammen', 'unter der Haut', 'der Stille',
+  ],
 };
 
 const FRECH = {
-  prefix: ['😉', '🤪', '🥵', '🤘', '🎬'],
-  intro: ['Operation', 'Mission', 'Tatort', 'Achtung', 'Vorsicht', 'Hallo'],
-  thema: ['Schwitzwurst', 'Hitze-Hammer', 'Glut-Knaller', 'Volldampf', 'Heiße Sache', 'Ofen aus', 'Augen zu', 'Schwitzkasten'],
-  zusatz: ['!', ' deluxe', ' XXL', ' & durch', ' Spezial', ' — jetzt!'],
+  prefix: ['😉', '🤪', '🥵', '🤘', '🎬', '🤙', '🍻', '🙈', '💨', '🚀', '🔥', '🎉'],
+  intro: [
+    'Operation', 'Mission', 'Tatort', 'Achtung', 'Vorsicht', 'Hallo',
+    'Alarm', 'Voilà', 'Tadaa', 'Yo', 'Hochkonjunktur', 'Notruf',
+    'Showtime', 'Bühne frei für',
+  ],
+  thema: [
+    'Schwitzwurst', 'Hitze-Hammer', 'Glut-Knaller', 'Volldampf',
+    'Heiße Sache', 'Ofen aus', 'Augen zu', 'Schwitzkasten',
+    'Heiße Hütte', 'Schweißbruder', 'Schwitzparade', 'Saunaschock',
+    'Ofengeflüster', 'Glühwein-Style', 'Hot-Hot-Hot', 'Brennzauber',
+    'Verdampf-Spezial', 'Schwitzfest', 'Heißduscher',
+  ],
+  zusatz: [
+    '!', ' deluxe', ' XXL', ' & durch', ' Spezial', ' — jetzt!',
+    ' Premium', ' ohne Pardon', ' mit Bums', ' ohne Reue', ' on Fire',
+    ' mit Wumms', ' à la Carte', ' — Vorhang auf', ' für Mutige',
+  ],
 };
 
 // ──────────────────────────────────────────────────────────────────────
