@@ -55,7 +55,6 @@ export function EmptyTile({
       <ReefScene
         direction={otherSauna?.direction ?? null}
         hintText={hintText}
-        tempLabel={sauna.temperature_label}
       />
 
       {/* Akzent-Stripe links — bleibt für visuelle Konsistenz mit den

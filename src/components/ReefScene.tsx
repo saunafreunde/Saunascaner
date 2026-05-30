@@ -19,18 +19,7 @@ type Direction = 'left' | 'right' | null;
 type Props = {
   direction: Direction;
   hintText?: string;
-  /** Sauna-Temperature-Label (z.B. "80°C" / "100°C"). Wenn "80°C" →
-   *  Fische, Dory, Octopi, Snake nur in der unteren Tile-Hälfte (cooler).
-   *  Saunafass + Quallen + Korallen bleiben unverändert. User-Wunsch 30.05.2026. */
-  tempLabel?: string;
 };
-
-/** Mappt einen y-Prozent-Wert (0-100) auf die untere Hälfte (50-80) wenn
- *  halfOnly aktiv. Sonst unverändert. */
-function mapY(y: number, halfOnly: boolean): number {
-  if (!halfOnly) return y;
-  return 50 + (y / 100) * 30; // [0..100] → [50..80]
-}
 
 // Hauptschwarm — 20 Fische in 4 Varianten (0=Gelb-Tropen, 1=Clown,
 // 2=Blau-Doktor, 3=Dory). Verschiedene Y-Positionen + Geschwindigkeiten
@@ -109,16 +98,12 @@ const CORALS = [
   { id: 4, x: 92, c1: '#f472b6', c2: '#db2777', s: 0.8 },
 ];
 
-export function ReefScene({ direction, hintText, tempLabel }: Props) {
+export function ReefScene({ direction, hintText }: Props) {
   // User-Wunsch 29.05.2026: ALLE Tiere schwimmen einheitlich Richtung des
   // Aufgusses (passend zum Pfeil im Hint-Text). Wenn beide Saunen leer sind
   // (direction=null), Default 'right' damit die Szene nicht chaotisch wirkt.
   // Quallen schweben vertikal — Richtung egal.
   const dir: 'left' | 'right' = direction ?? 'right';
-
-  // User-Wunsch 30.05.2026: bei 80°C-Sauna schwimmen Fische nur in der
-  // unteren Hälfte (sind cooler, halten sich nicht im warmen Bereich oben auf).
-  const halfOnly = tempLabel === '80°C';
 
   return (
     <>
@@ -506,7 +491,7 @@ export function ReefScene({ direction, hintText, tempLabel }: Props) {
             key={`fish-${f.id}`}
             className={`reef-fish swim-${dir.charAt(0)}`}
             style={{
-              top: `${mapY(f.y, halfOnly)}%`,
+              top: `${f.y}%`,
               '--du': `${f.dur}s`,
               '--d': `${f.delay}s`,
               '--bob': `${(f.id % 2 ? -1 : 1) * 6}px`,
@@ -521,7 +506,7 @@ export function ReefScene({ direction, hintText, tempLabel }: Props) {
         {/* Dory — eigener langsamer großer Lauf, blau-gelb */}
         <div
           className={`reef-dory swim-${dir.charAt(0)}`}
-          style={{ top: `${mapY(DORY.y, halfOnly)}%` } as React.CSSProperties}
+          style={{ top: `${DORY.y}%` } as React.CSSProperties}
         >
           <div style={{ display: 'inline-block', transform: `scale(${DORY.scale})`, transformOrigin: '0 50%' }}>
             <Fish variant={3} />
@@ -550,7 +535,7 @@ export function ReefScene({ direction, hintText, tempLabel }: Props) {
             key={`octo-${o.id}`}
             className={`reef-octo swim-${dir.charAt(0)}`}
             style={{
-              top: `${mapY(o.y, halfOnly)}%`,
+              top: `${o.y}%`,
               '--du': `${o.dur}s`,
               '--d': `${o.delay}s`,
             } as React.CSSProperties}
@@ -571,7 +556,7 @@ export function ReefScene({ direction, hintText, tempLabel }: Props) {
         {/* Sea-Snake / Aal — schlängelt unten am Boden */}
         <div
           className={`reef-snake swim-${dir.charAt(0)}`}
-          style={{ top: `${mapY(65, halfOnly)}%` } as React.CSSProperties}
+          style={{ top: '65%' } as React.CSSProperties}
         >
           <div className="reef-snake-body" style={{ display: 'inline-block' }}>
             <SeaSnake />
