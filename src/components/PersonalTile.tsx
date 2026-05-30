@@ -34,6 +34,10 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
       transition={{ layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.35 } }}
       className={`relative flex flex-col overflow-hidden rounded-2xl backdrop-blur-xl ring-1 ring-slate-300/50 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] p-2.5 ${className}`}
       style={{
+        // z-index analog InfusionCard: über den Riff-Tieren (z=0) damit
+        // nichts in die Aufguss-Kachel reinläuft (User-Wunsch 30.05.2026)
+        zIndex: 2,
+        isolation: 'isolate',
         transformOrigin: '50% 100%',
         // Identisch zur InfusionCard: sauna-getönt in Ecken, warm-crème in Mitte
         background: backgroundImage

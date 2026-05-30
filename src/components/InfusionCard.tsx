@@ -144,6 +144,11 @@ export function InfusionCard({
             : 'ring-slate-300/60'
       }${stage !== null ? ` imminent-runner imminent-${stage}` : ''}${running ? ' running-glow' : ''} ${className}`}
       style={{
+        // User-Wunsch 30.05.2026: Aufguss-Cards stehen ÜBER den Riff-Tieren
+        // der Nachbar-EmptyTile (z-index der reef-creatures ist 0). So
+        // schwimmen Fische unter den Cards durch statt visuell darüber.
+        zIndex: 2,
+        isolation: 'isolate',
         transformOrigin: '50% 100%',
         // Container-Query auf jede Tile: alle Schriftgrößen darunter skalieren
         // proportional zur Tile-Höhe via clamp(min, Ncqh, max). Wirkt sowohl

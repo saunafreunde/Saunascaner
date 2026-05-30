@@ -19,11 +19,22 @@ type Direction = 'left' | 'right' | null;
 type Props = {
   direction: Direction;
   hintText?: string;
+  /** Sauna-Temperature-Label (z.B. "80°C" / "100°C"). Wenn "80°C" →
+   *  Fische, Dory, Octopi, Snake nur in der unteren Tile-Hälfte (cooler).
+   *  Saunafass + Quallen + Korallen bleiben unverändert. User-Wunsch 30.05.2026. */
+  tempLabel?: string;
 };
 
-// Hauptschwarm — 14 Fische in 4 Varianten (0=Gelb-Tropen, 1=Clown,
+/** Mappt einen y-Prozent-Wert (0-100) auf die untere Hälfte (50-80) wenn
+ *  halfOnly aktiv. Sonst unverändert. */
+function mapY(y: number, halfOnly: boolean): number {
+  if (!halfOnly) return y;
+  return 50 + (y / 100) * 30; // [0..100] → [50..80]
+}
+
+// Hauptschwarm — 20 Fische in 4 Varianten (0=Gelb-Tropen, 1=Clown,
 // 2=Blau-Doktor, 3=Dory). Verschiedene Y-Positionen + Geschwindigkeiten
-// für lebendigen Schwarm-Effekt.
+// für lebendigen Schwarm-Effekt. Erweitert 30.05.2026 von 14 auf 20.
 const FISH = [
   { id: 0,  y: 14, scale: 0.95, dur: 14, delay: 0.0,  variant: 0 },
   { id: 1,  y: 22, scale: 0.70, dur: 11, delay: 2.0,  variant: 1 },
@@ -39,6 +50,12 @@ const FISH = [
   { id: 11, y: 28, scale: 0.85, dur: 13, delay: 0.8,  variant: 0 },
   { id: 12, y: 42, scale: 0.65, dur: 10, delay: 5.0,  variant: 1 },
   { id: 13, y: 54, scale: 0.95, dur: 15, delay: 3.0,  variant: 0 },
+  { id: 14, y: 12, scale: 0.55, dur: 9,  delay: 9.5,  variant: 1 },
+  { id: 15, y: 33, scale: 0.78, dur: 17, delay: 4.7,  variant: 2 },
+  { id: 16, y: 46, scale: 0.62, dur: 9,  delay: 6.2,  variant: 0 },
+  { id: 17, y: 24, scale: 0.92, dur: 14, delay: 10.5, variant: 1 },
+  { id: 18, y: 50, scale: 0.70, dur: 12, delay: 8.3,  variant: 2 },
+  { id: 19, y: 16, scale: 0.80, dur: 16, delay: 11.0, variant: 0 },
 ];
 
 // Dory bekommt einen eigenen Slot (langsamer + größer, damit erkennbar).
@@ -51,15 +68,17 @@ const JELLIES = [
   { id: 1, x: 78, dur: 21, delay: 6.0,  hue: 270 }, // lila
 ];
 
-// Tintenfisch — 1 Stück, schwimmt langsam diagonal mit waberenden Tentakeln.
-const OCTOPUS = { y: 58, dur: 24, delay: 4.0 };
+// 3 Tintenfische — verschiedene Farben + Tiefen für lebendiges Riff.
+// User-Wunsch 30.05.2026: vorher 1, jetzt 3.
+const OCTOPI = [
+  { id: 0, y: 58, dur: 24, delay: 4.0,  color: '#c084fc', accent: '#9333ea' }, // lila (Klassiker)
+  { id: 1, y: 38, dur: 28, delay: 12.0, color: '#fb7185', accent: '#e11d48' }, // rosé
+  { id: 2, y: 70, dur: 22, delay: 8.0,  color: '#60a5fa', accent: '#2563eb' }, // blau
+];
 
 // Saunafass — Vereinsbezug! Treibt sehr gemächlich von einer Seite zur
-// anderen, mit aufsteigendem Dampf.
+// anderen, mit aufsteigendem Dampf + 2 schwimmenden Holz-Kellen daneben.
 const BUCKET = { y: 12, dur: 32, delay: 8.0 };
-
-// Sponge-Charakter — schwimmt aufrecht, etwas tapsig.
-const SPONGE = { y: 40, dur: 16, delay: 11.0 };
 
 const SNAKE_CYCLE = 22;   // Schlange treibt langsam quer
 const DORY_CYCLE = DORY.dur;
@@ -90,12 +109,16 @@ const CORALS = [
   { id: 4, x: 92, c1: '#f472b6', c2: '#db2777', s: 0.8 },
 ];
 
-export function ReefScene({ direction, hintText }: Props) {
+export function ReefScene({ direction, hintText, tempLabel }: Props) {
   // User-Wunsch 29.05.2026: ALLE Tiere schwimmen einheitlich Richtung des
   // Aufgusses (passend zum Pfeil im Hint-Text). Wenn beide Saunen leer sind
   // (direction=null), Default 'right' damit die Szene nicht chaotisch wirkt.
   // Quallen schweben vertikal — Richtung egal.
   const dir: 'left' | 'right' = direction ?? 'right';
+
+  // User-Wunsch 30.05.2026: bei 80°C-Sauna schwimmen Fische nur in der
+  // unteren Hälfte (sind cooler, halten sich nicht im warmen Bereich oben auf).
+  const halfOnly = tempLabel === '80°C';
 
   return (
     <>
@@ -127,12 +150,16 @@ export function ReefScene({ direction, hintText }: Props) {
         .reef-sunray-2 { left: 52%; transform: rotate(4deg); }
         .reef-sunray-3 { left: 78%; transform: rotate(-6deg); }
 
-        /* ─── Tier-Layer (overflow:visible, Fische ragen aus Tile raus) ─ */
+        /* ─── Tier-Layer (overflow:visible, Fische ragen aus Tile raus) ─
+           z-index: 0 sodass Tiere UNTER den Nachbar-Aufguss-Cards durch-
+           schwimmen statt visuell darüber zu liegen. User-Wunsch 30.05.2026:
+           "nichts soll in die aufguss kachel laufen immer darunter weg". */
         .reef-creatures {
           position: absolute;
           inset: 0;
           overflow: visible;
           pointer-events: none;
+          z-index: 0;
         }
 
         /* ─── Fisch-Schwimm-Animation — verlängerter Pfad damit Fisch
@@ -213,7 +240,7 @@ export function ReefScene({ direction, hintText }: Props) {
           animation: reef-jelly-tentacle 2.4s ease-in-out infinite;
         }
 
-        /* ─── TINTENFISCH — Jet-Style schwimmen, Tentakeln wabern ──── */
+        /* ─── TINTENFISCHE (3 Stück) — Jet-Style, Tentakeln wabern ──── */
         @keyframes reef-octo-swim-r {
           0%   { transform: translate3d(-35%, 0, 0); }
           50%  { transform: translate3d(50%, -8px, 0); }
@@ -228,15 +255,20 @@ export function ReefScene({ direction, hintText }: Props) {
           0%, 100% { transform: rotate(-3deg); }
           50%      { transform: rotate(3deg); }
         }
+        /* Parametrisiert: jeder Octopus bekommt --du + --d + top als inline-style.
+           Dadurch können beliebig viele Tintenfische parallel laufen ohne CSS-Spam. */
         .reef-octo {
           position: absolute;
           left: 0;
           width: 100%;
-          top: ${OCTOPUS.y}%;
           will-change: transform;
+          animation-name: reef-octo-swim-r;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+          animation-duration: var(--du, 24s);
+          animation-delay: var(--d, 0s);
         }
-        .reef-octo.swim-r { animation: reef-octo-swim-r ${OCTOPUS.dur}s ease-in-out infinite; animation-delay: ${OCTOPUS.delay}s; }
-        .reef-octo.swim-l { animation: reef-octo-swim-l ${OCTOPUS.dur}s ease-in-out infinite; animation-delay: ${OCTOPUS.delay}s; }
+        .reef-octo.swim-l { animation-name: reef-octo-swim-l; }
         .reef-octo-arms {
           transform-origin: 50% 30%;
           animation: reef-octo-arms 1.6s ease-in-out infinite;
@@ -274,34 +306,7 @@ export function ReefScene({ direction, hintText }: Props) {
           transform-origin: 50% 100%;
         }
 
-        /* ─── SPONGE-CHARAKTER — schwimmt aufrecht ─────────────────── */
-        @keyframes reef-sponge-swim-r {
-          0%   { transform: translate3d(-30%, 0, 0); }
-          50%  { transform: translate3d(50%, var(--bob, -6px), 0); }
-          100% { transform: translate3d(130%, 0, 0); }
-        }
-        @keyframes reef-sponge-swim-l {
-          0%   { transform: translate3d(130%, 0, 0); }
-          50%  { transform: translate3d(50%, var(--bob, -6px), 0); }
-          100% { transform: translate3d(-30%, 0, 0); }
-        }
-        @keyframes reef-sponge-wiggle {
-          0%, 100% { transform: rotate(-2deg); }
-          50%      { transform: rotate(2deg); }
-        }
-        .reef-sponge {
-          position: absolute;
-          left: 0;
-          width: 100%;
-          top: ${SPONGE.y}%;
-          will-change: transform;
-        }
-        .reef-sponge.swim-r { animation: reef-sponge-swim-r ${SPONGE.dur}s ease-in-out infinite; animation-delay: ${SPONGE.delay}s; }
-        .reef-sponge.swim-l { animation: reef-sponge-swim-l ${SPONGE.dur}s ease-in-out infinite; animation-delay: ${SPONGE.delay}s; }
-        .reef-sponge-body {
-          transform-origin: 50% 100%;
-          animation: reef-sponge-wiggle 1.8s ease-in-out infinite;
-        }
+        /* Sponge-Charakter raus (User-Wunsch 30.05.2026) */
 
         /* ─── Unterwasserschlange ─────────────────────────────────────
            Schlängelt sich quer durch — pseudo-Aal/Sea-Snake.
@@ -417,7 +422,7 @@ export function ReefScene({ direction, hintText }: Props) {
           .reef-fish, .reef-bubble, .reef-algae, .reef-coral, .reef-hint,
           .reef-snake, .reef-dory, .reef-jelly, .reef-jelly-bell,
           .reef-jelly-tentacles, .reef-octo, .reef-octo-arms,
-          .reef-bucket, .reef-steam, .reef-sponge, .reef-sponge-body {
+          .reef-bucket, .reef-steam {
             animation: none !important;
           }
         }
@@ -501,7 +506,7 @@ export function ReefScene({ direction, hintText }: Props) {
             key={`fish-${f.id}`}
             className={`reef-fish swim-${dir.charAt(0)}`}
             style={{
-              top: `${f.y}%`,
+              top: `${mapY(f.y, halfOnly)}%`,
               '--du': `${f.dur}s`,
               '--d': `${f.delay}s`,
               '--bob': `${(f.id % 2 ? -1 : 1) * 6}px`,
@@ -514,7 +519,10 @@ export function ReefScene({ direction, hintText }: Props) {
         ))}
 
         {/* Dory — eigener langsamer großer Lauf, blau-gelb */}
-        <div className={`reef-dory swim-${dir.charAt(0)}`}>
+        <div
+          className={`reef-dory swim-${dir.charAt(0)}`}
+          style={{ top: `${mapY(DORY.y, halfOnly)}%` } as React.CSSProperties}
+        >
           <div style={{ display: 'inline-block', transform: `scale(${DORY.scale})`, transformOrigin: '0 50%' }}>
             <Fish variant={3} />
           </div>
@@ -536,29 +544,35 @@ export function ReefScene({ direction, hintText }: Props) {
           </div>
         ))}
 
-        {/* Tintenfisch */}
-        <div className={`reef-octo swim-${dir.charAt(0)}`}>
-          <div style={{ display: 'inline-block' }}>
-            <Octopus />
+        {/* 3 Tintenfische in verschiedenen Farben + Tiefen */}
+        {OCTOPI.map((o) => (
+          <div
+            key={`octo-${o.id}`}
+            className={`reef-octo swim-${dir.charAt(0)}`}
+            style={{
+              top: `${mapY(o.y, halfOnly)}%`,
+              '--du': `${o.dur}s`,
+              '--d': `${o.delay}s`,
+            } as React.CSSProperties}
+          >
+            <div style={{ display: 'inline-block' }}>
+              <Octopus color={o.color} accent={o.accent} />
+            </div>
           </div>
-        </div>
+        ))}
 
-        {/* Saunafass */}
+        {/* Saunafass — bleibt OBEN auf dem Wasser (auch bei 80°), mit Kellen */}
         <div className={`reef-bucket swim-${dir.charAt(0)}`}>
           <div style={{ display: 'inline-block' }}>
             <SaunaBucket />
           </div>
         </div>
 
-        {/* Sponge-Charakter — schwimmt aufrecht */}
-        <div className={`reef-sponge swim-${dir.charAt(0)}`} style={{ '--bob': '-8px' } as React.CSSProperties}>
-          <div className="reef-sponge-body" style={{ display: 'inline-block' }}>
-            <SpongeCharacter />
-          </div>
-        </div>
-
-        {/* Sea-Snake / Aal */}
-        <div className={`reef-snake swim-${dir.charAt(0)}`}>
+        {/* Sea-Snake / Aal — schlängelt unten am Boden */}
+        <div
+          className={`reef-snake swim-${dir.charAt(0)}`}
+          style={{ top: `${mapY(65, halfOnly)}%` } as React.CSSProperties}
+        >
           <div className="reef-snake-body" style={{ display: 'inline-block' }}>
             <SeaSnake />
           </div>
@@ -677,133 +691,132 @@ function Jellyfish({ hue }: { hue: number }) {
   );
 }
 
-// ─── Tintenfisch (Oktopus) ─────────────────────────────────────────────
-function Octopus() {
+// ─── Tintenfisch (Oktopus) — Farbe konfigurierbar ──────────────────────
+function Octopus({ color = '#c084fc', accent = '#9333ea' }: { color?: string; accent?: string }) {
+  // Heller Mantel-Highlight aus color abgeleitet (mix mit weiß)
+  const highlight = color === '#c084fc' ? '#d8b4fe'
+                  : color === '#fb7185' ? '#fda4af'
+                  : '#93c5fd';
   return (
     <svg viewBox="0 0 90 70" width="90" height="70" style={{ overflow: 'visible' }}>
-      {/* Tentakeln (hintere Schicht) */}
+      {/* Tentakeln */}
       <g className="reef-octo-arms">
-        <path d="M 22,40 Q 12,55 8,68"  stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
-        <path d="M 30,46 Q 24,60 18,70" stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
-        <path d="M 42,48 Q 40,62 36,70" stroke="#9333ea" strokeWidth="7" fill="none" strokeLinecap="round" />
-        <path d="M 50,48 Q 52,62 56,70" stroke="#9333ea" strokeWidth="7" fill="none" strokeLinecap="round" />
-        <path d="M 60,46 Q 66,60 72,70" stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
-        <path d="M 68,40 Q 78,55 82,68" stroke="#a855f7" strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 22,40 Q 12,55 8,68"  stroke={color}  strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 30,46 Q 24,60 18,70" stroke={color}  strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 42,48 Q 40,62 36,70" stroke={accent} strokeWidth="7" fill="none" strokeLinecap="round" />
+        <path d="M 50,48 Q 52,62 56,70" stroke={accent} strokeWidth="7" fill="none" strokeLinecap="round" />
+        <path d="M 60,46 Q 66,60 72,70" stroke={color}  strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 68,40 Q 78,55 82,68" stroke={color}  strokeWidth="6" fill="none" strokeLinecap="round" />
       </g>
-      {/* Kopf-Mantel */}
-      <ellipse cx="45" cy="30" rx="32" ry="26" fill="#c084fc" />
-      <ellipse cx="45" cy="22" rx="26" ry="14" fill="#d8b4fe" />
+      <ellipse cx="45" cy="30" rx="32" ry="26" fill={color} />
+      <ellipse cx="45" cy="22" rx="26" ry="14" fill={highlight} />
       <ellipse cx="36" cy="18" rx="4" ry="2.5" fill="rgba(255,255,255,0.85)" />
-      {/* Augen */}
       <circle cx="34" cy="28" r="5" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
       <circle cx="34" cy="29" r="2.6" fill="#1c1917" />
       <circle cx="35" cy="28" r="0.8" fill="#ffffff" />
       <circle cx="56" cy="28" r="5" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
       <circle cx="56" cy="29" r="2.6" fill="#1c1917" />
       <circle cx="57" cy="28" r="0.8" fill="#ffffff" />
-      {/* Lächeln */}
       <path d="M 38,40 Q 45,46 52,40" stroke="#1c1917" strokeWidth="1.4" fill="none" strokeLinecap="round" />
     </svg>
   );
 }
 
-// ─── Saunafass (Vereinsbezug!) ──────────────────────────────────────────
+// ─── Saunafass + 2 Holz-Kellen ──────────────────────────────────────────
+// User-Wunsch 30.05.2026: zum Fass passen die typischen Sauna-Schöpfkellen
+// dazu (Holz-Stiel + Holz-Schale). Beide schwimmen mit dem Fass treibend.
 function SaunaBucket() {
   return (
-    <svg viewBox="0 0 80 80" width="80" height="80" style={{ overflow: 'visible' }}>
-      {/* Dampf über dem Fass (3 kleine Wölkchen mit gestaffelten Delays) */}
-      <g transform="translate(28, 8)">
-        <ellipse className="reef-steam" cx="6"  cy="0" rx="5" ry="3" fill="rgba(255,255,255,0.6)" style={{ animationDelay: '0s' }} />
-        <ellipse className="reef-steam" cx="14" cy="0" rx="6" ry="3.5" fill="rgba(255,255,255,0.5)" style={{ animationDelay: '0.8s' }} />
-        <ellipse className="reef-steam" cx="22" cy="0" rx="5" ry="3" fill="rgba(255,255,255,0.55)" style={{ animationDelay: '1.6s' }} />
+    <svg viewBox="-50 -10 200 100" width="200" height="100" style={{ overflow: 'visible' }}>
+      {/* ── Kelle LINKS (kleiner, schräg vorne treibend) ── */}
+      <g transform="translate(-20, 50) rotate(-25)">
+        <SaunaLadle scale={0.85} />
       </g>
-      {/* Fass-Korpus */}
-      <defs>
-        <linearGradient id="bucket-wood" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"   stopColor="#7c4a1a" />
-          <stop offset="30%"  stopColor="#a0651e" />
-          <stop offset="60%"  stopColor="#8a5318" />
-          <stop offset="100%" stopColor="#5a3010" />
-        </linearGradient>
-      </defs>
-      <ellipse cx="40" cy="25" rx="28" ry="6" fill="#5a3010" />
-      <path
-        d="M 12,25 Q 12,68 18,72 L 62,72 Q 68,68 68,25 Z"
-        fill="url(#bucket-wood)"
-        stroke="#3a2008"
-        strokeWidth="1"
-      />
-      {/* Wasser oben */}
-      <ellipse cx="40" cy="25" rx="26" ry="4.5" fill="#7dd3fc" />
-      <ellipse cx="40" cy="24.5" rx="20" ry="2.5" fill="#bae6fd" opacity="0.7" />
-      {/* Holz-Lamellen */}
-      <line x1="22" y1="28" x2="22" y2="70" stroke="#3a2008" strokeWidth="0.7" />
-      <line x1="32" y1="28" x2="32" y2="71" stroke="#3a2008" strokeWidth="0.7" />
-      <line x1="48" y1="28" x2="48" y2="71" stroke="#3a2008" strokeWidth="0.7" />
-      <line x1="58" y1="28" x2="58" y2="70" stroke="#3a2008" strokeWidth="0.7" />
-      {/* Metall-Bänder */}
-      <path d="M 14,40 L 66,40" stroke="#cbd5e1" strokeWidth="2.5" />
-      <path d="M 14,40 L 66,40" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
-      <path d="M 15,60 L 65,60" stroke="#cbd5e1" strokeWidth="2.5" />
-      <path d="M 15,60 L 65,60" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
-      {/* Henkel */}
-      <path d="M 10,30 Q 4,18 22,18" stroke="#cbd5e1" strokeWidth="2" fill="none" />
-      {/* Aufkleber: kleines Saunafreunde-Logo (S) */}
-      <circle cx="40" cy="55" r="7" fill="#fef3c7" stroke="#92400e" strokeWidth="0.8" />
-      <text x="40" y="58.5" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#92400e">S</text>
+
+      {/* ── Saunafass MITTE ── */}
+      <g transform="translate(28, 0)">
+        {/* Dampf über dem Fass (3 kleine Wölkchen mit gestaffelten Delays) */}
+        <g transform="translate(28, 8)">
+          <ellipse className="reef-steam" cx="6"  cy="0" rx="5" ry="3" fill="rgba(255,255,255,0.6)" style={{ animationDelay: '0s' }} />
+          <ellipse className="reef-steam" cx="14" cy="0" rx="6" ry="3.5" fill="rgba(255,255,255,0.5)" style={{ animationDelay: '0.8s' }} />
+          <ellipse className="reef-steam" cx="22" cy="0" rx="5" ry="3" fill="rgba(255,255,255,0.55)" style={{ animationDelay: '1.6s' }} />
+        </g>
+        <defs>
+          <linearGradient id="bucket-wood" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#7c4a1a" />
+            <stop offset="30%"  stopColor="#a0651e" />
+            <stop offset="60%"  stopColor="#8a5318" />
+            <stop offset="100%" stopColor="#5a3010" />
+          </linearGradient>
+        </defs>
+        <ellipse cx="40" cy="25" rx="28" ry="6" fill="#5a3010" />
+        <path
+          d="M 12,25 Q 12,68 18,72 L 62,72 Q 68,68 68,25 Z"
+          fill="url(#bucket-wood)"
+          stroke="#3a2008"
+          strokeWidth="1"
+        />
+        <ellipse cx="40" cy="25" rx="26" ry="4.5" fill="#7dd3fc" />
+        <ellipse cx="40" cy="24.5" rx="20" ry="2.5" fill="#bae6fd" opacity="0.7" />
+        <line x1="22" y1="28" x2="22" y2="70" stroke="#3a2008" strokeWidth="0.7" />
+        <line x1="32" y1="28" x2="32" y2="71" stroke="#3a2008" strokeWidth="0.7" />
+        <line x1="48" y1="28" x2="48" y2="71" stroke="#3a2008" strokeWidth="0.7" />
+        <line x1="58" y1="28" x2="58" y2="70" stroke="#3a2008" strokeWidth="0.7" />
+        <path d="M 14,40 L 66,40" stroke="#cbd5e1" strokeWidth="2.5" />
+        <path d="M 14,40 L 66,40" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
+        <path d="M 15,60 L 65,60" stroke="#cbd5e1" strokeWidth="2.5" />
+        <path d="M 15,60 L 65,60" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
+        <path d="M 10,30 Q 4,18 22,18" stroke="#cbd5e1" strokeWidth="2" fill="none" />
+        <circle cx="40" cy="55" r="7" fill="#fef3c7" stroke="#92400e" strokeWidth="0.8" />
+        <text x="40" y="58.5" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#92400e">S</text>
+      </g>
+
+      {/* ── Kelle RECHTS (größer, schräg hinten treibend) ── */}
+      <g transform="translate(115, 35) rotate(20)">
+        <SaunaLadle scale={1.0} />
+      </g>
     </svg>
   );
 }
 
-// ─── Sponge-Charakter (gelber Würfel mit Hose) ─────────────────────────
-function SpongeCharacter() {
+// ─── Sauna-Schöpfkelle (Holz) ─────────────────────────────────────────
+// Klassische Sauna-Kelle: langer Holz-Stiel + runde Holz-Schale.
+// Wird relativ zu eigenem 0,0 gezeichnet damit transform-rotate sauber dreht.
+function SaunaLadle({ scale = 1 }: { scale?: number }) {
   return (
-    <svg viewBox="0 0 60 80" width="60" height="80" style={{ overflow: 'visible' }}>
-      {/* Beine */}
-      <rect x="18" y="64" width="6" height="14" fill="#fde68a" stroke="#1c1917" strokeWidth="0.6" rx="1" />
-      <rect x="36" y="64" width="6" height="14" fill="#fde68a" stroke="#1c1917" strokeWidth="0.6" rx="1" />
-      <ellipse cx="21" cy="78" rx="4" ry="2" fill="#1c1917" />
-      <ellipse cx="39" cy="78" rx="4" ry="2" fill="#1c1917" />
-      {/* Hose (braun) mit Gürtel */}
-      <rect x="10" y="52" width="40" height="16" fill="#92400e" stroke="#1c1917" strokeWidth="0.7" />
-      <rect x="10" y="52" width="40" height="2.5" fill="#1c1917" />
-      <rect x="28" y="52" width="4" height="2.5" fill="#fbbf24" />
-      {/* Hauptkörper — gelber Schwamm-Würfel mit Löchern */}
-      <rect x="6" y="8" width="48" height="48" rx="3" fill="#fbbf24" stroke="#1c1917" strokeWidth="0.9" />
-      {/* Schwamm-Löcher */}
-      <circle cx="12" cy="16" r="1.6" fill="#d97706" opacity="0.5" />
-      <circle cx="22" cy="14" r="2.2" fill="#d97706" opacity="0.5" />
-      <circle cx="44" cy="20" r="1.6" fill="#d97706" opacity="0.5" />
-      <circle cx="48" cy="34" r="2"   fill="#d97706" opacity="0.5" />
-      <circle cx="10" cy="38" r="2"   fill="#d97706" opacity="0.5" />
-      <circle cx="32" cy="42" r="1.6" fill="#d97706" opacity="0.5" />
-      <circle cx="14" cy="48" r="2"   fill="#d97706" opacity="0.5" />
-      {/* Weißes Hemd-Kragen-Detail */}
-      <rect x="12" y="44" width="36" height="6" fill="#ffffff" stroke="#1c1917" strokeWidth="0.5" />
-      <rect x="28" y="44" width="4" height="6" fill="#dc2626" />
-      {/* Augen */}
-      <circle cx="22" cy="26" r="6" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
-      <circle cx="22" cy="27" r="3.5" fill="#3b82f6" />
-      <circle cx="22" cy="27" r="1.5" fill="#1c1917" />
-      <circle cx="23" cy="26" r="0.6" fill="#ffffff" />
-      <circle cx="38" cy="26" r="6" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
-      <circle cx="38" cy="27" r="3.5" fill="#3b82f6" />
-      <circle cx="38" cy="27" r="1.5" fill="#1c1917" />
-      <circle cx="39" cy="26" r="0.6" fill="#ffffff" />
-      {/* Wimpern */}
-      <path d="M 17,21 L 19,22.5" stroke="#1c1917" strokeWidth="0.8" />
-      <path d="M 22,19 L 22,21" stroke="#1c1917" strokeWidth="0.8" />
-      <path d="M 38,19 L 38,21" stroke="#1c1917" strokeWidth="0.8" />
-      <path d="M 43,21 L 41,22.5" stroke="#1c1917" strokeWidth="0.8" />
-      {/* Großer Smile mit Zähnen */}
-      <path d="M 18,36 Q 30,44 42,36 L 42,38 Q 30,46 18,38 Z" fill="#ffffff" stroke="#1c1917" strokeWidth="0.8" />
-      <line x1="27" y1="36.5" x2="27" y2="42" stroke="#1c1917" strokeWidth="0.5" />
-      <line x1="33" y1="36.5" x2="33" y2="42" stroke="#1c1917" strokeWidth="0.5" />
-      {/* Nase */}
-      <ellipse cx="30" cy="32" rx="1.5" ry="2" fill="#f59e0b" />
-    </svg>
+    <g transform={`scale(${scale})`}>
+      <defs>
+        <linearGradient id={`ladle-wood-${scale}`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%"  stopColor="#a0651e" />
+          <stop offset="100%" stopColor="#5a3010" />
+        </linearGradient>
+      </defs>
+      {/* Stiel (lang, leicht konisch) */}
+      <path
+        d="M 0,3 L 32,1 L 32,-1 L 0,-3 Z"
+        fill={`url(#ladle-wood-${scale})`}
+        stroke="#3a2008"
+        strokeWidth="0.5"
+      />
+      {/* Stiel-Holzmaserung */}
+      <line x1="5" y1="0" x2="28" y2="0" stroke="#3a2008" strokeWidth="0.3" opacity="0.7" />
+      {/* Verbindungs-Ring zwischen Stiel und Schale */}
+      <ellipse cx="-2" cy="0" rx="2" ry="3.5" fill="#5a3010" />
+      {/* Schale (runde Holzkugel-Hälfte) */}
+      <ellipse cx="-9" cy="0" rx="9" ry="7" fill="#7c4a1a" stroke="#3a2008" strokeWidth="0.6" />
+      {/* Schale-Highlight oben */}
+      <ellipse cx="-9" cy="-3" rx="6" ry="2" fill="#a0651e" opacity="0.6" />
+      {/* Wasser in der Schale (winziger Spiegel) */}
+      <ellipse cx="-9" cy="-1" rx="5" ry="1.5" fill="#7dd3fc" opacity="0.7" />
+      {/* Schale-Lamellen (Andeutung) */}
+      <line x1="-15" y1="-2" x2="-15" y2="2" stroke="#3a2008" strokeWidth="0.4" />
+      <line x1="-12" y1="-3" x2="-12" y2="3" stroke="#3a2008" strokeWidth="0.4" />
+      <line x1="-6"  y1="-3" x2="-6"  y2="3" stroke="#3a2008" strokeWidth="0.4" />
+    </g>
   );
 }
+
+// Sponge-Charakter komplett entfernt (User-Wunsch 30.05.2026)
 
 // ─── Sea-Snake / Aal ───────────────────────────────────────────────────
 function SeaSnake() {
