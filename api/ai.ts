@@ -30,9 +30,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'suggest-title') return await suggestTitle(req, res);
     return res.status(400).json({ error: `unknown action: ${action}` });
   } catch (e) {
-    const msg = (e as Error).message;
-    console.error('[api/ai] error', action, msg);
-    return res.status(500).json({ error: msg });
+    // Verbessertes Logging 30.05.2026 — Name + Status + Stack damit der
+    // Vercel-Log-Auszug aussagekräftig ist (vorher nur message → bei
+    // Anthropic-API-Fehler "Request failed with status code 401" o.ä.)
+    const err = e as { message?: string; name?: string; status?: number; stack?: string };
+    const msg = err?.message ?? String(e);
+    console.error('[api/ai] error', action, {
+      name: err?.name,
+      status: err?.status,
+      message: msg,
+      stack: err?.stack?.split('\n').slice(0, 3).join(' | '),
+    });
+    return res.status(500).json({
+      error: msg,
+      errorName: err?.name,
+      errorStatus: err?.status,
+    });
   }
 }
 

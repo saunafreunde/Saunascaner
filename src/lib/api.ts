@@ -430,14 +430,20 @@ export function useSuggestInfusionTitle() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
-      if (!r.ok) throw new Error(`AI-Fehler ${r.status}`);
-      const json = await r.json() as { titles?: string[]; title?: string; error?: string };
-      if (json.error) throw new Error(json.error);
-      // Bevorzuge titles[], fall back auf title als Single-Element-Array
-      if (Array.isArray(json.titles) && json.titles.length > 0) {
+      // FIX 30.05.2026: vorher warf if(!r.ok) sofort und las den Body nicht —
+      // Frontend sah nur "AI-Fehler 500" statt der echten Anthropic-Message.
+      // Jetzt: Body IMMER parsen, falls error-Feld da → echten Text werfen.
+      let json: { titles?: string[]; title?: string; error?: string } | null = null;
+      try { json = await r.json(); } catch { /* leere/kaputte Response */ }
+      if (!r.ok) {
+        const msg = json?.error ?? `AI-Fehler ${r.status}`;
+        throw new Error(msg);
+      }
+      if (json?.error) throw new Error(json.error);
+      if (Array.isArray(json?.titles) && json.titles.length > 0) {
         return json.titles.map((t) => t.trim()).filter(Boolean);
       }
-      if (json.title) return [json.title.trim()];
+      if (json?.title) return [json.title.trim()];
       return [];
     },
   });
