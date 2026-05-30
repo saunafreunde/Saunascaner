@@ -166,3 +166,199 @@ export function generateInfusionTitle(
   }
   return `${vibe.emoji} ${vibeName}`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 5-Stile-Generator (Picker-Modus, kein AI nötig)
+//
+// User-Wunsch 30.05.2026: statt 1 AI-Titel (Anthropic-API) → 5 Vorschläge
+// in 5 sehr unterschiedlichen Stilen, alles regelbasiert. Spart API-Kosten
+// + funktioniert offline + sofort.
+// ═══════════════════════════════════════════════════════════════════════
+
+export type TitleStyleId = 'poetisch' | 'kurz' | 'mystisch' | 'sinnlich' | 'frech';
+export type StyledTitle = { style: TitleStyleId; title: string };
+
+// Wortbänke pro Stil — bei jedem Aufruf wird zufällig kombiniert.
+const POETISCH = {
+  prefix: ['🌿', '🍃', '✨', '🌙', '☀️'],
+  adjektiv: ['flüsternder', 'goldener', 'tanzender', 'duftender', 'leiser', 'dampfender', 'sanfter', 'kühler', 'warmer', 'wilder'],
+  substantiv: ['Hauch', 'Tanz', 'Atem', 'Schimmer', 'Klang', 'Schleier', 'Flügel', 'Wiege', 'Gruß', 'Bogen'],
+  von_im: ['des', 'der', 'aus dem', 'im', 'vom'],
+  ort: ['Waldes', 'Schwarzwalds', 'Morgens', 'Abends', 'Sommers', 'Himmels', 'Birkenhains', 'Sonnentals', 'Nordwinds', 'Kräutergartens'],
+};
+
+const KURZ = {
+  basis: ['Glut', 'Atem', 'Hauch', 'Welle', 'Funke', 'Klang', 'Blitz', 'Sprung', 'Tanz', 'Wirbel', 'Sturm', 'Brise'],
+  suffix: ['stoß', '-Bad', '-Kuss', '-Kick', 'feuer', '-Wave', '-Zauber', '-Welt'],
+};
+
+const MYSTISCH = {
+  prefix: ['🔮', '🐉', '🌋', '⚡', '🔱', '🗝️', '🌌'],
+  wesen: ['Phönix', 'Drache', 'Schamane', 'Druide', 'Götter', 'Walküren', 'Schmied', 'Nymphe', 'Sturmgeist', 'Salamander'],
+  verb: ['weckt', 'beschwört', 'tanzt mit', 'erweckt', 'küsst', 'lockt'],
+  ergaenzung: ['die Glut', 'das Feuer', 'den Sturm', 'die Tiefe', 'das Echo', 'die Asche', 'das Licht'],
+};
+
+const SINNLICH = {
+  prefix: ['🌹', '💋', '🔥', '💕', '🌸'],
+  adjektiv: ['Heiße', 'Sanfte', 'Verlockende', 'Verführerische', 'Zarte', 'Glühende', 'Wilde', 'Atemberaubende'],
+  substantiv: ['Berührung', 'Verführung', 'Umarmung', 'Liebkosung', 'Versuchung', 'Hingabe', 'Sehnsucht', 'Welle'],
+  modifier: ['der Sinne', 'der Glut', 'der Wärme', 'des Augenblicks', 'für die Haut', 'in Hitze', 'des Moments'],
+};
+
+const FRECH = {
+  prefix: ['😉', '🤪', '🥵', '🤘', '🎬'],
+  intro: ['Operation', 'Mission', 'Tatort', 'Achtung', 'Vorsicht', 'Hallo'],
+  thema: ['Schwitzwurst', 'Hitze-Hammer', 'Glut-Knaller', 'Volldampf', 'Heiße Sache', 'Ofen aus', 'Augen zu', 'Schwitzkasten'],
+  zusatz: ['!', ' deluxe', ' XXL', ' & durch', ' Spezial', ' — jetzt!'],
+};
+
+// ──────────────────────────────────────────────────────────────────────
+// Seed-basierte Picker — deterministisch innerhalb eines Aufrufs, aber
+// abwechslungsreich beim "🎲 Neu würfeln" durch Date.now()-Seed-Bump.
+
+function pick<T>(arr: T[], seed: number): T {
+  return arr[Math.abs(seed) % arr.length];
+}
+
+// Hash für stabile Differenzierung pro Stil (sonst alle 5 mit gleichem seed)
+function shift(seed: number, salt: number): number {
+  return Math.imul(seed ^ salt, 2654435761) | 0;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Helfer: zieht passendes Öl/Attribut als "Hauptbestandteil" für die Titel.
+type GenContext = {
+  oils: { id: string; name: string; emoji: string; category: OilCategory }[];
+  attrs: InfusionAttribute[];
+  /** Erstes Öl (für Stile die ein Öl nennen). */
+  oilName: string | null;
+  /** Erstes Attribut-Label (für Stile die eine Eigenschaft nennen). */
+  attrLabel: string | null;
+};
+
+function buildContext(attributes: string[], oils: string[]): GenContext {
+  const validOils = oils
+    .filter((o) => OIL_BY_ID[o])
+    .map((o) => ({ id: o, name: OIL_BY_ID[o].name, emoji: OIL_BY_ID[o].emoji, category: OIL_BY_ID[o].category }));
+  const validAttrs = attributes.filter((a) => (ATTR_BY_ID as Record<string, unknown>)[a]) as InfusionAttribute[];
+  return {
+    oils: validOils,
+    attrs: validAttrs,
+    oilName: validOils[0]?.name ?? null,
+    attrLabel: validAttrs[0] ? ATTR_BY_ID[validAttrs[0]].label : null,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Stil-Builder — jeder returnt EINEN Titel passend zum Stil
+
+function buildPoetisch(ctx: GenContext, seed: number): string {
+  const prefix = pick(POETISCH.prefix, seed);
+  const adj = pick(POETISCH.adjektiv, shift(seed, 1));
+  const sub = pick(POETISCH.substantiv, shift(seed, 2));
+  if (ctx.oilName) {
+    const part = pick(['des ' + ctx.oilName + 's', 'aus ' + ctx.oilName, 'vom ' + ctx.oilName], shift(seed, 3));
+    return `${prefix} ${capitalize(adj)} ${sub} ${part}`;
+  }
+  const von = pick(POETISCH.von_im, shift(seed, 3));
+  const ort = pick(POETISCH.ort, shift(seed, 4));
+  return `${prefix} ${capitalize(adj)} ${sub} ${von} ${ort}`;
+}
+
+function buildKurz(ctx: GenContext, seed: number): string {
+  // 1-2 Wörter, prägnant
+  if (ctx.oilName) {
+    // Variante A: Öl + suffix
+    const suf = pick(KURZ.suffix, seed);
+    return `${ctx.oilName}${suf}`;
+  }
+  if (ctx.attrLabel) {
+    const suf = pick(KURZ.suffix, seed);
+    return `${ctx.attrLabel}${suf}`;
+  }
+  const a = pick(KURZ.basis, seed);
+  const b = pick(KURZ.suffix, shift(seed, 1));
+  return `${a}${b}`;
+}
+
+function buildMystisch(ctx: GenContext, seed: number): string {
+  const prefix = pick(MYSTISCH.prefix, seed);
+  const wesen = pick(MYSTISCH.wesen, shift(seed, 1));
+  const verb = pick(MYSTISCH.verb, shift(seed, 2));
+  if (ctx.oilName) {
+    return `${prefix} ${wesen} ${verb} ${ctx.oilName}`;
+  }
+  const erg = pick(MYSTISCH.ergaenzung, shift(seed, 3));
+  return `${prefix} ${wesen} ${verb} ${erg}`;
+}
+
+function buildSinnlich(ctx: GenContext, seed: number): string {
+  const prefix = pick(SINNLICH.prefix, seed);
+  const adj = pick(SINNLICH.adjektiv, shift(seed, 1));
+  const sub = pick(SINNLICH.substantiv, shift(seed, 2));
+  if (ctx.oilName) {
+    return `${prefix} ${adj} ${sub} mit ${ctx.oilName}`;
+  }
+  const mod = pick(SINNLICH.modifier, shift(seed, 3));
+  return `${prefix} ${adj} ${sub} ${mod}`;
+}
+
+function buildFrech(ctx: GenContext, seed: number): string {
+  const prefix = pick(FRECH.prefix, seed);
+  const variant = Math.abs(shift(seed, 1)) % 3;
+  if (variant === 0) {
+    // "Operation Schwitzwurst!"
+    const intro = pick(FRECH.intro, shift(seed, 2));
+    const thema = pick(FRECH.thema, shift(seed, 3));
+    const zus = pick(FRECH.zusatz, shift(seed, 4));
+    return `${prefix} ${intro} ${thema}${zus}`;
+  }
+  if (variant === 1 && ctx.oilName) {
+    return `${prefix} ${ctx.oilName} knockt dich um`;
+  }
+  if (variant === 2 && ctx.attrLabel) {
+    const adj = pick(['extra', 'ultra', 'mega', 'voll', 'richtig'], shift(seed, 5));
+    return `${prefix} ${capitalize(adj)} ${ctx.attrLabel}!`;
+  }
+  // Fallback
+  const intro = pick(FRECH.intro, shift(seed, 2));
+  const thema = pick(FRECH.thema, shift(seed, 3));
+  return `${prefix} ${intro} ${thema}`;
+}
+
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const STYLE_ORDER: TitleStyleId[] = ['poetisch', 'kurz', 'mystisch', 'sinnlich', 'frech'];
+
+/**
+ * Generiert genau 5 Titel-Vorschläge in 5 unterschiedlichen Stilen.
+ *
+ * Reine Funktion — keine Network-Calls, keine API-Keys, instant.
+ * Bei gleichem seed identischer Output (für Determinismus in Tests).
+ * "🎲 Neu würfeln" im UI: einfach mit neuem Date.now()-Seed aufrufen.
+ *
+ * @returns Array von 5 StyledTitle in fester Reihenfolge:
+ *   [poetisch, kurz, mystisch, sinnlich, frech]
+ */
+export function generateInfusionTitles(
+  attributes: string[],
+  oils: string[],
+  seed: number = Date.now(),
+): StyledTitle[] {
+  const ctx = buildContext(attributes, oils);
+  return STYLE_ORDER.map((style, i): StyledTitle => {
+    const subSeed = shift(seed, i * 7919); // jeder Stil eigener Seed-Salt
+    let title: string;
+    switch (style) {
+      case 'poetisch': title = buildPoetisch(ctx, subSeed); break;
+      case 'kurz':     title = buildKurz(ctx, subSeed); break;
+      case 'mystisch': title = buildMystisch(ctx, subSeed); break;
+      case 'sinnlich': title = buildSinnlich(ctx, subSeed); break;
+      case 'frech':    title = buildFrech(ctx, subSeed); break;
+    }
+    return { style, title };
+  });
+}

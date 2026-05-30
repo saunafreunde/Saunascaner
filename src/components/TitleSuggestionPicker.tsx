@@ -1,27 +1,19 @@
-// Picker für 5 AI-generierte Aufguss-Titel-Vorschläge.
+// Picker für 5 Aufguss-Titel-Vorschläge in unterschiedlichen Stilen.
 //
-// User-Wunsch 29.05.2026: vorher EIN AI-Titel der direkt ins Input
-// geschrieben wurde — Vorschläge waren sich oft sehr ähnlich, User wollte
-// auswählen können. Jetzt: 5 Vorschläge in 5 verschiedenen Stilen
-// (poetisch, kurz, mystisch, sinnlich, augenzwinkernd), Click setzt
-// den Titel + schließt Picker. "🎲 Neu" generiert nochmal.
+// User-Wunsch 30.05.2026: vorher Anthropic-API-Call (Claude Haiku),
+// jetzt 100 % regelbasiert via generateInfusionTitles().
+// Vorteile gegenüber AI:
+//   - 0 API-Kosten, kein Vercel-Env nötig
+//   - Instant (kein Network-Call → ~0 ms)
+//   - Funktioniert offline (Auch auf der Sauna-Tafel oder im Vereinsraum
+//     wenn das WLAN gerade muckt)
+//   - Keine Rate-Limits
+//   - 100 % vorhersagbar (für Tests)
 //
-// Verwendung:
-//   const [open, setOpen] = useState(false);
-//   ...
-//   <button onClick={() => setOpen(true)}>✨ Vorschlagen</button>
-//   {open && (
-//     <TitleSuggestionPicker
-//       attributes={attrs}
-//       oils={oils}
-//       onPick={(title) => { setTitle(title); setOpen(false); }}
-//       onClose={() => setOpen(false)}
-//     />
-//   )}
+// Stile: 🌿 Poetisch · ⚡ Kurz · 🔮 Mystisch · 🌹 Sinnlich · 😉 Frech
 
 import { useEffect, useState } from 'react';
-import { useSuggestInfusionTitle } from '@/lib/api';
-import { generateInfusionTitle } from '@/lib/titleGenerator';
+import { generateInfusionTitles, type StyledTitle } from '@/lib/titleGenerator';
 
 interface Props {
   attributes: string[];
@@ -30,35 +22,18 @@ interface Props {
   onClose: () => void;
 }
 
-const STYLE_LABELS = ['🌿 Poetisch', '⚡ Kurz', '🔮 Mystisch', '🌹 Sinnlich', '😉 Frech'];
+const STYLE_LABEL: Record<StyledTitle['style'], string> = {
+  poetisch: '🌿 Poetisch',
+  kurz:     '⚡ Kurz',
+  mystisch: '🔮 Mystisch',
+  sinnlich: '🌹 Sinnlich',
+  frech:    '😉 Frech',
+};
 
 export function TitleSuggestionPicker({ attributes, oils, onPick, onClose }: Props) {
-  const suggest = useSuggestInfusionTitle();
-  const [titles, setTitles] = useState<string[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function fetchTitles() {
-    setErr(null);
-    try {
-      const list = await suggest.mutateAsync({ attributes, oils });
-      if (list.length > 0) {
-        setTitles(list);
-        return;
-      }
-      // Leere Liste → regelbasiert als 5 Varianten
-      setTitles(Array.from({ length: 5 }, () => generateInfusionTitle(attributes, oils)));
-    } catch (e) {
-      setErr((e as Error).message);
-      // Bei API-Outage: 5 regelbasierte Varianten
-      setTitles(Array.from({ length: 5 }, () => generateInfusionTitle(attributes, oils)));
-    }
-  }
-
-  // Initial laden beim Open
-  useEffect(() => {
-    fetchTitles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [seed, setSeed] = useState(() => Date.now());
+  // Re-Generate bei seed-Wechsel (auch initial)
+  const titles = generateInfusionTitles(attributes, oils, seed);
 
   // ESC zum Schließen
   useEffect(() => {
@@ -93,47 +68,33 @@ export function TitleSuggestionPicker({ attributes, oils, onPick, onClose }: Pro
           </button>
         </div>
 
-        {suggest.isPending && titles.length === 0 ? (
-          <div className="py-12 text-center text-forest-400">
-            <div className="text-3xl mb-2">✨</div>
-            <p className="text-sm">Vorschläge werden erstellt …</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {titles.map((t, i) => (
-              <button
-                key={`${i}-${t}`}
-                type="button"
-                onClick={() => onPick(t)}
-                className="group w-full rounded-xl bg-forest-900/60 ring-1 ring-forest-800/50 px-3 py-2.5 text-left hover:bg-forest-800/80 hover:ring-amber-500/60 transition active:scale-[0.98]"
-              >
-                <div className="flex items-start gap-2.5">
-                  <span className="text-[10px] uppercase tracking-wider text-forest-500 group-hover:text-amber-400/80 mt-1 flex-shrink-0 w-16">
-                    {STYLE_LABELS[i] ?? `Stil ${i + 1}`}
-                  </span>
-                  <span className="flex-1 text-sm font-semibold text-forest-100 group-hover:text-amber-100 leading-snug">
-                    {t}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {err && (
-          <p className="mt-3 text-xs text-rose-300/80 text-center">
-            {err} — Vorschläge sind regelbasiert.
-          </p>
-        )}
+        <div className="space-y-2">
+          {titles.map(({ style, title }) => (
+            <button
+              key={style}
+              type="button"
+              onClick={() => onPick(title)}
+              className="group w-full rounded-xl bg-forest-900/60 ring-1 ring-forest-800/50 px-3 py-2.5 text-left hover:bg-forest-800/80 hover:ring-amber-500/60 transition active:scale-[0.98]"
+            >
+              <div className="flex items-start gap-2.5">
+                <span className="text-[10px] uppercase tracking-wider text-forest-500 group-hover:text-amber-400/80 mt-1 flex-shrink-0 w-16">
+                  {STYLE_LABEL[style]}
+                </span>
+                <span className="flex-1 text-sm font-semibold text-forest-100 group-hover:text-amber-100 leading-snug">
+                  {title}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={fetchTitles}
-            disabled={suggest.isPending}
-            className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs font-medium text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800 disabled:opacity-40 transition"
+            onClick={() => setSeed(Date.now() + Math.floor(Math.random() * 99999))}
+            className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs font-medium text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800 transition"
           >
-            {suggest.isPending ? '🎲 …' : '🎲 Neu würfeln'}
+            🎲 Neu würfeln
           </button>
           <button
             type="button"
