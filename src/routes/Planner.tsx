@@ -10,7 +10,7 @@ import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
-import { generateInfusionTitle } from '@/lib/titleGenerator';
+import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { lookupMemberName } from '@/lib/memberDisplay';
 import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
@@ -47,7 +47,6 @@ import {
   useAbsences, useAddAbsence, useDeleteAbsence,
   useTakeoverPersonalFallback, useBookBanjaRitual, type Template,
   useScheduleSettings,
-  useSuggestInfusionTitle,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
@@ -208,7 +207,10 @@ export default function Planner() {
   const delTpl = useDeleteTemplate();
   const trigEvac = useTriggerEvacuation();
   const endEvac = useEndEvacuation();
-  const suggestTitle = useSuggestInfusionTitle();
+  // suggestTitle wird nicht mehr direkt im Planner gerufen — der neue
+  // TitleSuggestionPicker hält den Mutation-Hook selbst und liefert beim
+  // onPick den ausgewählten Titel zurück (User-Wunsch 29.05.2026: 5 statt 1).
+  const [titlePickerOpen, setTitlePickerOpen] = useState(false);
 
   // Stamm-Slot + Urlaub (Migrationen 0027/0028)
   const myRecurringQ = useMyRecurringSlots(member.data?.id ?? null);
@@ -1303,33 +1305,26 @@ export default function Planner() {
                     <label className="text-xs text-forest-300">Titel</label>
                     <button
                       type="button"
-                      onClick={async () => {
-                        const validOils = oils.filter((o): o is string => !!o);
-                        // Erst AI (Claude Haiku) versuchen, bei Fehler Fallback
-                        // auf regelbasiert. So funktioniert das Feature auch
-                        // bei API-Outage / fehlendem ANTHROPIC_API_KEY.
-                        try {
-                          const aiTitle = await suggestTitle.mutateAsync({
-                            attributes: attrs,
-                            oils: validOils,
-                          });
-                          if (aiTitle) setTitle(aiTitle);
-                          else setTitle(generateInfusionTitle(attrs, validOils));
-                        } catch {
-                          setTitle(generateInfusionTitle(attrs, validOils));
-                        }
-                      }}
-                      disabled={suggestTitle.isPending || (attrs.length === 0 && oils.every((o) => !o))}
-                      title="KI-Vorschlag (Claude Haiku) basierend auf Eigenschaften + Ölen. Bei Netzwerkfehler Fallback auf regelbasiert. Mehrfach klicken = neue Variation."
+                      onClick={() => setTitlePickerOpen(true)}
+                      disabled={attrs.length === 0 && oils.every((o) => !o)}
+                      title="Öffnet 5 KI-Vorschläge in unterschiedlichen Stilen (poetisch, kurz, mystisch, sinnlich, frech). Bei API-Outage Fallback auf regelbasiert."
                       className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
                     >
-                      {suggestTitle.isPending ? '✨ …' : '✨ Vorschlagen'}
+                      ✨ Vorschlagen
                     </button>
                   </div>
                   <input value={title} onChange={(e) => setTitle(e.target.value)}
                     placeholder="z.B. Eukalyptus klassisch"
                     className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
                 </div>
+                {titlePickerOpen && (
+                  <TitleSuggestionPicker
+                    attributes={attrs}
+                    oils={oils.filter((o): o is string => !!o)}
+                    onPick={(t) => { setTitle(t); setTitlePickerOpen(false); }}
+                    onClose={() => setTitlePickerOpen(false)}
+                  />
+                )}
 
                 <div>
                   <label className="text-xs text-forest-300">Eigenschaften</label>

@@ -413,9 +413,14 @@ export function useSetOilDisabled() {
 }
 
 // ─── AI-Titel-Vorschlag (Claude Haiku) ──────────────────────────────────
-// Ruft den Anthropic-Endpoint /api/ai?action=suggest-title auf. Bei Fehler
-// (Netzwerk, fehlender API-Key, Rate-Limit) wirft der Hook — der Caller
-// kann dann auf den regelbasierten generateInfusionTitle() zurückfallen.
+// Ruft den Anthropic-Endpoint /api/ai?action=suggest-title auf und gibt
+// 5 sehr unterschiedliche Titel-Vorschläge zurück. Bei Fehler (Netzwerk,
+// fehlender API-Key, Rate-Limit) wirft der Hook — der Caller kann dann
+// auf den regelbasierten generateInfusionTitle() zurückfallen.
+//
+// 29.05.2026: Returnt jetzt string[] statt string. Backend liefert beide
+// (titles + title für Backward-Compat). Hook ist nicht-rückwärtskompatibel,
+// alle Caller müssen migriert werden.
 
 export function useSuggestInfusionTitle() {
   return useMutation({
@@ -426,9 +431,14 @@ export function useSuggestInfusionTitle() {
         body: JSON.stringify(input),
       });
       if (!r.ok) throw new Error(`AI-Fehler ${r.status}`);
-      const json = await r.json() as { title?: string; error?: string };
+      const json = await r.json() as { titles?: string[]; title?: string; error?: string };
       if (json.error) throw new Error(json.error);
-      return (json.title ?? '').trim();
+      // Bevorzuge titles[], fall back auf title als Single-Element-Array
+      if (Array.isArray(json.titles) && json.titles.length > 0) {
+        return json.titles.map((t) => t.trim()).filter(Boolean);
+      }
+      if (json.title) return [json.title.trim()];
+      return [];
     },
   });
 }

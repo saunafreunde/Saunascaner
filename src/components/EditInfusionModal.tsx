@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
-import { generateInfusionTitle } from '@/lib/titleGenerator';
+import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import {
-  useUpdateInfusion, useSuggestInfusionTitle,
+  useUpdateInfusion,
   useCurrentMember, useMeisterDirectory, useCoAufgieser, useAdminSetCoAufgieser,
   useMyCustomAttrs,
 } from '@/lib/api';
@@ -79,7 +79,8 @@ export function EditInfusionModal({
   }, [existingCoIds]);
 
   const update = useUpdateInfusion();
-  const suggestTitle = useSuggestInfusionTitle();
+  // suggestTitle wandert in den TitleSuggestionPicker (5 statt 1, User-Wunsch 29.05.2026)
+  const [titlePickerOpen, setTitlePickerOpen] = useState(false);
   const setCoAuf = useAdminSetCoAufgieser();
 
   // Esc schließt
@@ -176,26 +177,22 @@ export function EditInfusionModal({
               <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Titel</label>
               <button
                 type="button"
-                onClick={async () => {
-                  const validOils = oils.filter((o): o is string => !!o);
-                  try {
-                    const aiTitle = await suggestTitle.mutateAsync({
-                      attributes: attrs,
-                      oils: validOils,
-                    });
-                    if (aiTitle) setTitle(aiTitle);
-                    else setTitle(generateInfusionTitle(attrs, validOils));
-                  } catch {
-                    setTitle(generateInfusionTitle(attrs, validOils));
-                  }
-                }}
-                disabled={suggestTitle.isPending || (attrs.length === 0 && oils.every((o) => !o))}
-                title="KI-Vorschlag (Claude Haiku) aus Eigenschaften + Ölen. Bei Netzwerkfehler Fallback auf regelbasiert."
+                onClick={() => setTitlePickerOpen(true)}
+                disabled={attrs.length === 0 && oils.every((o) => !o)}
+                title="5 KI-Vorschläge in 5 Stilen (poetisch, kurz, mystisch, sinnlich, frech). Bei API-Outage Fallback auf regelbasiert."
                 className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
               >
-                {suggestTitle.isPending ? '✨ …' : '✨ Vorschlagen'}
+                ✨ Vorschlagen
               </button>
             </div>
+            {titlePickerOpen && (
+              <TitleSuggestionPicker
+                attributes={attrs}
+                oils={oils.filter((o): o is string => !!o)}
+                onPick={(t) => { setTitle(t); setTitlePickerOpen(false); }}
+                onClose={() => setTitlePickerOpen(false)}
+              />
+            )}
             <input
               type="text"
               value={title}
