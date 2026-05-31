@@ -588,6 +588,8 @@ export type Member = {
   family_children_count: number;
   present_with_partner: boolean;
   present_children_count: number;
+  // Avatar-Lock (Migration 0111): nur Admin kann avatar_path ändern wenn true
+  avatar_locked: boolean;
   // Gast-Felder (Migration 0040)
   gast_referral_source: string | null;
   gast_consent_at: string | null;
@@ -1091,6 +1093,7 @@ export function useSetAvatar() {
       const { data, error } = await need().rpc('set_my_avatar', { p_path: avatarPath ?? '' });
       if (error) throw error;
       if (data === 'not_authorized') throw new Error('Nicht berechtigt.');
+      if (data === 'avatar_locked') throw new Error('Dein Profilbild wurde vom Admin gesperrt — nur der Admin kann es ändern.');
       return data as string;
     },
     onSuccess: () => {
@@ -1098,6 +1101,45 @@ export function useSetAvatar() {
       qc.invalidateQueries({ queryKey: ['member'] });
       qc.invalidateQueries({ queryKey: ['members-directory'] });
       qc.invalidateQueries({ queryKey: ['member-photos'] });
+    },
+  });
+}
+
+// Admin: Avatar für beliebigen Member setzen (bypasses Lock). Migration 0111.
+export function useAdminSetMemberAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { memberId: string; avatarPath: string | null }) => {
+      const { error } = await need().rpc('admin_set_member_avatar', {
+        p_member_id: p.memberId,
+        p_path: p.avatarPath ?? '',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['all-members'] });
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
+      qc.invalidateQueries({ queryKey: ['members-directory'] });
+    },
+  });
+}
+
+// Admin: Avatar-Lock toggeln. Migration 0111.
+export function useAdminSetAvatarLock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { memberId: string; locked: boolean }) => {
+      const { data, error } = await need().rpc('admin_set_avatar_lock', {
+        p_member_id: p.memberId,
+        p_locked: p.locked,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['all-members'] });
+      qc.invalidateQueries({ queryKey: ['current-member'] });
     },
   });
 }

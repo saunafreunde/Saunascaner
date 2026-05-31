@@ -18,6 +18,7 @@ import { SharedEmailAccountsTab } from '@/components/admin/SharedEmailAccountsTa
 import { ColorsAdminTab } from '@/components/admin/ColorsAdminTab';
 import { OilsAdminTab } from '@/components/admin/OilsAdminTab';
 import { WifiSubnetsTab } from '@/components/admin/WifiSubnetsTab';
+import { AdminAvatarManager } from '@/components/admin/AdminAvatarManager';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import {
   useSaunas, useToggleSauna,
@@ -896,6 +897,7 @@ function MembersTab() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
+                    <AdminAvatarManager member={m} />
                     <EditableName member={m} />
                     {m.sauna_name && <span className="text-xs text-forest-300/60">({m.sauna_name})</span>}
                     {m.role === 'admin' && (
