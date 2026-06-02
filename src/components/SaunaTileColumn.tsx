@@ -144,12 +144,15 @@ export function SaunaTileColumn({
   );
 
   // Covering-Lookup: eine Infusion belegt diesen Slot wenn start_time <= slot
-  // UND end_time > slot. Wichtig für Banja-Ritual (90 Min, covered 19+20:00):
-  // ohne covering würde 20:00-Tile als EmptyTile/Riff erscheinen obwohl Banja
-  // läuft. `isContinuation` markiert ob dieser Slot NICHT der Start-Slot der
-  // Infusion ist — der Render-Pfad zeigt dann eine dezente Continuation-Card
-  // statt der vollen InfusionCard (sonst wäre Card 2× sichtbar).
-  const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date; isContinuation: boolean })[]>(() => {
+  // UND end_time > slot. Wichtig für Banja-Ritual (90 Min, covered 19+20:00).
+  // `isContinuation` markiert ob dieser Slot NICHT der Start-Slot der Infusion
+  // ist — Continuation-Tiles werden im Render SKIPPED (return null), weil die
+  // Start-Tile per gridRow:span N visuell beide Slots überdeckt (User-Wunsch
+  // 30.05.2026: "karte muss uber 2 sauna karten gehen also so gross wie sonst 2 aufgüsse").
+  //
+  // `slotsSpanned`: wie viele 1-Stunden-Slots die Infusion belegt (1 normal, 2 Banja).
+  const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date; isContinuation: boolean; slotsSpanned: number })[]>(() => {
+    const HOUR_MS = 60 * 60_000;
     return slots.map((slotStart) => {
       const slotTs = slotStart.getTime();
       const found = infusions.find(
@@ -160,7 +163,10 @@ export function SaunaTileColumn({
       ) ?? null;
       const isContinuation =
         !!found && new Date(found.start_time).getTime() < slotTs;
-      return { infusion: found, slotTime: slotStart, isContinuation };
+      const slotsSpanned = found
+        ? Math.max(1, Math.ceil((new Date(found.end_time).getTime() - new Date(found.start_time).getTime()) / HOUR_MS))
+        : 1;
+      return { infusion: found, slotTime: slotStart, isContinuation, slotsSpanned };
     });
   }, [slots, infusions, sauna.id]);
 
@@ -198,41 +204,31 @@ export function SaunaTileColumn({
         }}
       >
         <AnimatePresence initial={false} mode="popLayout">
-          {tiles.map(({ infusion: inf, slotTime, isContinuation }, slotIndex) =>
-            inf ? (
-              isContinuation ? (
-                // Continuation-Tile: bei Mehrstunden-Aufguss (z.B. Banja 90 Min)
-                // zeigen wir im Folge-Slot eine dezente "läuft seit X"-Karte
-                // statt die volle InfusionCard nochmal zu rendern. Behält das
-                // 2-Slot-Belegt-Gefühl ohne visuelle Doppelung.
-                <div
-                  key={`cont-${inf.id}-${slotTime.toISOString()}`}
-                  className="relative flex items-center justify-center rounded-2xl min-h-0 h-full overflow-hidden ring-1 ring-rose-400/40"
-                  style={{
-                    background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(244,63,94,0.18) 60%, ${sauna.accent_color}33 100%)`,
-                  }}
-                >
-                  <div className="flex flex-col items-center gap-2 text-center px-4">
-                    <span className="text-4xl">↑</span>
-                    <span className="text-sm font-black uppercase tracking-wider text-rose-100">
-                      {(inf.attributes ?? []).includes('banja' as never)
-                        ? '🇷🇺 Banja-Ritual läuft'
-                        : 'Aufguss läuft seit'}
-                    </span>
-                    <span className="text-xs font-mono tabular-nums text-rose-200/80">
-                      seit {new Date(inf.start_time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
-                    </span>
-                  </div>
-                </div>
-              ) : inf.is_personal_fallback ? (
-                <PersonalTile
-                  key={inf.id}
-                  infusion={inf}
-                  sauna={sauna}
-                  className="min-h-0 h-full overflow-hidden"
-                  backgroundImage={tileBgs[slotIndex] ?? null}
-                />
-              ) : (
+          {tiles.map(({ infusion: inf, slotTime, isContinuation, slotsSpanned }, slotIndex) => {
+            // Continuation-Tile SKIPPEN: die Start-Tile spannt per gridRow:span N
+            // schon über die mehreren Slots. Ein zweites Render wäre Doppelung.
+            // User-Wunsch 30.05.2026.
+            if (inf && isContinuation) return null;
+
+            // Span-Style nur wenn Mehrstunden-Aufguss (Banja: span 2). Sonst
+            // automatic grid placement (1 row).
+            const spanStyle: React.CSSProperties | undefined = slotsSpanned > 1
+              ? { gridRow: `span ${slotsSpanned}` }
+              : undefined;
+
+            if (inf) {
+              if (inf.is_personal_fallback) {
+                return (
+                  <PersonalTile
+                    key={inf.id}
+                    infusion={inf}
+                    sauna={sauna}
+                    className="min-h-0 h-full overflow-hidden"
+                    backgroundImage={tileBgs[slotIndex] ?? null}
+                  />
+                );
+              }
+              return (
                 <InfusionCard
                   key={inf.id}
                   infusion={inf}
@@ -244,9 +240,11 @@ export function SaunaTileColumn({
                   compact
                   className="min-h-0 h-full overflow-hidden"
                   backgroundImage={tileBgs[slotIndex] ?? null}
+                  style={spanStyle}
                 />
-              )
-            ) : (
+              );
+            }
+            return (
               <EmptyTile
                 key={`empty-${slotTime.toISOString()}`}
                 sauna={sauna}
@@ -255,8 +253,8 @@ export function SaunaTileColumn({
                 backgroundImage={tileBgs[slotIndex] ?? null}
                 otherSauna={otherSaunaInfo?.(slotTime) ?? null}
               />
-            ),
-          )}
+            );
+          })}
         </AnimatePresence>
       </div>
     </div>

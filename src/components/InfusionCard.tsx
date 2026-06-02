@@ -54,6 +54,7 @@ export function InfusionCard({
   compact = false,
   className = '',
   backgroundImage = null,
+  style: extraStyle,
 }: {
   infusion: Infusion;
   sauna: Sauna;
@@ -64,6 +65,10 @@ export function InfusionCard({
   compact?: boolean;
   className?: string;
   backgroundImage?: string | null;
+  /** Zusätzliches inline-style — wird auf das motion.div-Root gemergt.
+   *  Hauptverwendung: gridRow span 2 für Banja-Ritual (90 Min, 2 Slots).
+   *  Migration 30.05.2026. */
+  style?: React.CSSProperties;
 }) {
   // Color-Overrides (Admin-konfigurierbar via Migration 0088).
   // Fallback wenn nicht gesetzt: sauna.accent_color (Attribute) bzw.
@@ -150,6 +155,9 @@ export function InfusionCard({
         zIndex: 2,
         isolation: 'isolate',
         transformOrigin: '50% 100%',
+        // Optionales extra-style (z.B. gridRow: span 2 für Banja) am Ende
+        // gemergt damit Caller wins
+        ...(extraStyle ?? {}),
         // Container-Query auf jede Tile: alle Schriftgrößen darunter skalieren
         // proportional zur Tile-Höhe via clamp(min, Ncqh, max). Wirkt sowohl
         // bei 3 als auch 4 Tiles, sowohl 1080p als auch 4K.
