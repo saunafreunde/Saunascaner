@@ -14,6 +14,7 @@ import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID } from '@/lib/oils';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 import { slotHoursForWeekday } from '@/lib/garantie';
+import { useHolidaySet, isHolidayDate } from '@/lib/api';
 
 // Aus vite.config.ts via `define`. Hilft beim Erkennen, ob das Tablet noch ein
 // veraltetes PWA-Bundle bedient (Hash am PIN-Screen mit dem aktuellen Deploy
