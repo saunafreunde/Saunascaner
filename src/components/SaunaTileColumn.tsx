@@ -20,6 +20,9 @@ interface SaunaTileColumnProps {
   tilesPerColumn?: 3 | 4;
   /** Wenn true: Mo wird als Slot-Tag einbezogen (Admin-Setting). */
   mondayOpen?: boolean;
+  /** Set<YYYY-MM-DD> aller Feiertage. An diesen Tagen Aufguss ab 11:00
+   *  statt erst 14:00. Migration 0113. */
+  holidaySet?: Set<string>;
   /** Callback: liefert Info über die andere Sauna die zur gleichen Slot-Zeit
    *  einen Aufguss hat (für Riff-Leit-Pfeil im EmptyTile). */
   otherSaunaInfo?: (slotTime: Date) => {
@@ -65,6 +68,7 @@ function nextSlotStarts(
   from: Date,
   mondayOpen: boolean,
   globalSlotEnds: Map<number, number>,
+  holidaySet: Set<string>,
 ): Date[] {
   const result: Date[] = [];
   const startHour = from.getHours();
@@ -76,7 +80,13 @@ function nextSlotStarts(
   let dayOffset = startDayOffset;
   while (result.length < n && dayOffset < maxDayOffset) {
     const weekday = (from.getDay() + dayOffset) % 7;
-    const hours = slotHoursForWeekday(weekday, { mondayOpen });
+    // Datum-Lokal als YYYY-MM-DD für Holiday-Lookup (Migration 0113)
+    const dayDate = new Date(from); dayDate.setDate(dayDate.getDate() + dayOffset);
+    const yyyy = dayDate.getFullYear();
+    const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(dayDate.getDate()).padStart(2, '0');
+    const isHoliday = holidaySet.has(`${yyyy}-${mm}-${dd}`);
+    const hours = slotHoursForWeekday(weekday, { mondayOpen, isHoliday });
     for (const h of hours) {
       if (dayOffset === 0 && h < startHour) continue;
       const slot = new Date(from);
@@ -109,8 +119,10 @@ export function SaunaTileColumn({
   tileBgs = [],
   tilesPerColumn = TILES_PER_COLUMN_DEFAULT,
   mondayOpen = false,
+  holidaySet,
   otherSaunaInfo,
 }: SaunaTileColumnProps) {
+  const holidays = holidaySet ?? new Set<string>();
   // Globale Map<slotTs, maxEndTs> über ALLE Saunen — sorgt für synchrone
   // Spalten (siehe Doku in nextSlotStarts).
   //
@@ -139,8 +151,8 @@ export function SaunaTileColumn({
   }, [infusions]);
 
   const slots = useMemo(
-    () => nextSlotStarts(tilesPerColumn, now, mondayOpen, globalSlotEnds),
-    [now, tilesPerColumn, mondayOpen, globalSlotEnds],
+    () => nextSlotStarts(tilesPerColumn, now, mondayOpen, globalSlotEnds, holidays),
+    [now, tilesPerColumn, mondayOpen, globalSlotEnds, holidays],
   );
 
   // Covering-Lookup: eine Infusion belegt diesen Slot wenn start_time <= slot

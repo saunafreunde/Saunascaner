@@ -94,8 +94,8 @@ function UnlockScreen({ onUnlock }: { onUnlock: () => void }) {
 
 // Slot-Stunden via zentrale garantie.ts (Single Source of Truth). Bei Mo:
 // abhängig von schedule_settings.monday_open (siehe Migration 0083).
-function getAvailableSlots(forDate: Date, mondayOpen: boolean): string[] {
-  return slotHoursForWeekday(forDate.getDay(), { mondayOpen }).map(
+function getAvailableSlots(forDate: Date, mondayOpen: boolean, isHoliday: boolean = false): string[] {
+  return slotHoursForWeekday(forDate.getDay(), { mondayOpen, isHoliday }).map(
     (h) => `${String(h).padStart(2, '0')}:00`,
   );
 }
@@ -252,13 +252,17 @@ function OilRoomContent() {
 
   const todayDate = new Date();
   const tomorrowDate = addDays(todayDate, 1);
+  const holidaySet = useHolidaySet();
+  const activeDate = day === 'today' ? todayDate : tomorrowDate;
+  const isHoliday = isHolidayDate(activeDate, holidaySet);
   const availableSlots = useMemo(
-    () => getAvailableSlots(day === 'today' ? todayDate : tomorrowDate, mondayOpen),
+    () => getAvailableSlots(activeDate, mondayOpen, isHoliday),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [day, mondayOpen]
+    [day, mondayOpen, isHoliday]
   );
   // Mo blockiert nur wenn Admin Mo nicht geöffnet hat (Migration 0083).
-  const isMondaySelected = (day === 'today' ? todayDate : tomorrowDate).getDay() === 1 && !mondayOpen;
+  // Feiertag öffnet auch den Montag.
+  const isMondaySelected = activeDate.getDay() === 1 && !mondayOpen && !isHoliday;
 
   useEffect(() => {
     if (availableSlots.length > 0 && !availableSlots.includes(slot)) {

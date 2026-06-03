@@ -16,6 +16,7 @@ import {
   publicAssetUrl,
   useCoAufgieser,
   useScheduleSettings,
+  useHolidaySet,
 } from '@/lib/api';
 import { Stage } from '@/components/stage/Stage';
 // ALL_BADGES / BadgeDefinition entfernt — Tafel rendert keine
@@ -83,6 +84,7 @@ export default function Dashboard() {
   const evac = useActiveEvacuation();
   const brand = useBrandSettings();
   const scheduleQ = useScheduleSettings();
+  const holidaySet = useHolidaySet();
   const tilesPerColumn = scheduleQ.data?.tiles_per_column ?? 3;
   const mondayOpen = !!scheduleQ.data?.monday_open;
 
@@ -232,6 +234,7 @@ export default function Dashboard() {
           tileBgs={brand.data?.tile_bgs?.[saunaId] ?? []}
           tilesPerColumn={tilesPerColumn}
           mondayOpen={mondayOpen}
+          holidaySet={holidaySet}
           /* Für die Riff-Animation im EmptyTile: pro leerem Slot wird
              geprüft, ob die andere Sauna zur gleichen Zeit einen
              Aufguss hat. Wenn ja → Fische schwimmen dort hin + Leit-Text. */

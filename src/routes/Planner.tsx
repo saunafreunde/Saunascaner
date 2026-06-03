@@ -47,6 +47,7 @@ import {
   useAbsences, useAddAbsence, useDeleteAbsence,
   useTakeoverPersonalFallback, useBookBanjaRitual, type Template,
   useScheduleSettings,
+  useHolidaySet, isHolidayDate,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
@@ -72,8 +73,8 @@ function fmtDuration(ms: number): string {
 // Slot-Stunden via zentrale garantie.ts (Single Source of Truth).
 // mondayOpen kommt aus schedule_settings (Migration 0083) — bei true
 // werden auch am Montag Slots (11–20 wie Sa/So) angeboten.
-function getAvailableSlots(forDate: Date, mondayOpen: boolean): string[] {
-  return slotHoursForWeekday(forDate.getDay(), { mondayOpen }).map(
+function getAvailableSlots(forDate: Date, mondayOpen: boolean, isHoliday: boolean = false): string[] {
+  return slotHoursForWeekday(forDate.getDay(), { mondayOpen, isHoliday }).map(
     (h) => `${String(h).padStart(2, '0')}:00`,
   );
 }
@@ -462,17 +463,20 @@ export default function Planner() {
     garantieSlotsOpen: { hour: number; saunaName: string; tempC: 80 | 100 }[];
   };
 
+  const holidaySet = useHolidaySet();
   const dayContextOf = useCallback((date: Date): DayContext => {
+    const isHol = isHolidayDate(date, holidaySet);
     const isMonday = date.getDay() === 1;
-    const isMondayBlocked = isMonday && !mondayOpen; // mondayOpen aus schedule_settings
+    // Feiertag öffnet auch den Montag (überschreibt mondayOpen)
+    const isMondayBlocked = isMonday && !mondayOpen && !isHol;
     const isPast = date.getTime() < todayDate.getTime();
-    const availableSlots = getAvailableSlots(date, mondayOpen);
+    const availableSlots = getAvailableSlots(date, mondayOpen, isHol);
     const garantieSlotsOpen: DayContext['garantieSlotsOpen'] = [];
     if (!isMondayBlocked) {
       const weekday = date.getDay();
-      for (const h of slotHoursForWeekday(weekday, { mondayOpen })) {
+      for (const h of slotHoursForWeekday(weekday, { mondayOpen, isHoliday: isHol })) {
         const slotDate = setMinutes(setHours(date, h), 0);
-        const tempC = garantieTemperatureFor(slotDate, { mondayOpen });
+        const tempC = garantieTemperatureFor(slotDate, { mondayOpen, isHoliday: isHol });
         if (tempC === null) continue;
         const garantieSauna = saunas.find((s) => s.temperature_label === `${tempC}°C` && s.is_active);
         if (!garantieSauna) continue;
@@ -482,7 +486,7 @@ export default function Planner() {
       }
     }
     return { date, isMonday: isMondayBlocked, isPast, availableSlots, garantieSlotsOpen };
-  }, [todayDate, saunas, infusionByKey, mondayOpen]);
+  }, [todayDate, saunas, infusionByKey, mondayOpen, holidaySet]);
 
   const slotStatusFor = useCallback((date: Date, saunaIdLookup: string, hhmm: string): SlotStatus => {
     const start = slotToDate(date, hhmm);
@@ -528,12 +532,13 @@ export default function Planner() {
   // ─── durch echte Aufgießer (nicht Personal-Fallback) belegt sind.
   const isGarantieSauna = useMemo(() => {
     const start = slotToDate(selectedDate, slot);
-    const temp = garantieTemperatureFor(start, { mondayOpen });
+    const isHol = isHolidayDate(selectedDate, holidaySet);
+    const temp = garantieTemperatureFor(start, { mondayOpen, isHoliday: isHol });
     if (temp === null) return false;
     const sauna = saunas.find((s) => s.id === saunaId);
     if (!sauna) return false;
     return sauna.temperature_label === `${temp}°C`;
-  }, [selectedDate, slot, saunaId, saunas, mondayOpen]);
+  }, [selectedDate, slot, saunaId, saunas, mondayOpen, holidaySet]);
 
   const garantieSlotsOpenToday = selectedDayCtx.garantieSlotsOpen;
   // Per-Stunde-Sperre (Migration 0092): Zweit-Sauna ist nur für die konkrete

@@ -13,6 +13,10 @@ export type GarantieOpts = {
   /** Wenn true: Montag wird wie Sa/So behandelt (11-20, alternierend startend mit 80°C).
    *  Default: false (Mo ist Ruhetag). Settings via useScheduleSettings(). */
   mondayOpen?: boolean;
+  /** Wenn true: Tag wird wie Sa/So behandelt — erster Aufguss ab 11:00 statt
+   *  erst 14:00 (auch wenn der Tag ein Di/Mi/Do/Mo wäre). Caller liefert das
+   *  pro Datum via useHolidays()-Lookup. Migration 0113, 30.05.2026. */
+  isHoliday?: boolean;
 };
 
 // Normale Vereins-Aufgusszeiten:
@@ -20,6 +24,9 @@ export type GarantieOpts = {
 //   • Fr/Sa/So: 11–20 Uhr (10 Slots)
 //   • Mo: geschlossen (außer mondayOpen=true → wie Sa/So 11–20)
 //   • Fr-Spezial: 11/12/13 immer 80°C
+//   • Feiertag: wie Sa/So (11–20), unabhängig vom Wochentag — überschreibt
+//     mondayOpen + Di/Mi/Do-Spätstart. Fr-Spezial bleibt erhalten wenn der
+//     Feiertag zufällig auf einen Fr fällt.
 const LAST_SLOT_HOUR = 20;
 const DITHU_START_HOUR = 14;
 
@@ -27,6 +34,14 @@ export function garantieTemperatureFor(date: Date, opts: GarantieOpts = {}): 80 
   const dow = date.getDay();
   const hour = date.getHours();
   const mondayOpen = opts.mondayOpen ?? false;
+  const isHoliday = opts.isHoliday ?? false;
+
+  // Feiertag (Vorrang): wie Sa/So ab 11:00. Fr-Spezial-Logik (siehe unten)
+  // greift weiterhin wenn der Feiertag auf einen Fr fällt.
+  if (isHoliday && dow !== 5) {
+    if (hour < 11 || hour > LAST_SLOT_HOUR) return null;
+    return ((hour - 11) % 2 === 0) ? 80 : 100;
+  }
 
   if (dow === 1) {
     if (!mondayOpen) return null;
@@ -51,13 +66,17 @@ export function isGarantieSlot(date: Date, opts: GarantieOpts = {}): boolean {
 }
 
 // Hilfsfunktion: alle Slot-Stunden eines Wochentags (für UI-Default + Sperr-Check).
-// Bei Mo + mondayOpen=true → wie Sa/So.
+// Bei Mo + mondayOpen=true → wie Sa/So. Bei isHoliday=true → 11-20 (überschreibt alles).
 export function slotHoursForWeekday(weekday: number, opts: GarantieOpts = {}): number[] {
   const mondayOpen = opts.mondayOpen ?? false;
-  // 11..20 = [11, 12, ..., 20] = 10 Slots (Fr/Sa/So + Mo wenn offen)
+  const isHoliday = opts.isHoliday ?? false;
+  // 11..20 = [11, 12, ..., 20] = 10 Slots (Fr/Sa/So + Mo wenn offen + jeder Feiertag)
   const elevenToTwenty = Array.from({ length: LAST_SLOT_HOUR - 11 + 1 }, (_, i) => 11 + i);
-  // 13..20 = [13, 14, ..., 20] = 8 Slots (Di/Mi/Do)
+  // 14..20 = [14, 15, ..., 20] = 7 Slots (Di/Mi/Do)
   const dithuHours = Array.from({ length: LAST_SLOT_HOUR - DITHU_START_HOUR + 1 }, (_, i) => DITHU_START_HOUR + i);
+
+  // Feiertag überschreibt: 11-20 (auch wenn Mo/Di/Mi/Do)
+  if (isHoliday) return elevenToTwenty;
 
   if (weekday === 1) {
     return mondayOpen ? elevenToTwenty : [];

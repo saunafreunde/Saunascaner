@@ -627,6 +627,70 @@ export function useSetMyAutoCheckin() {
   });
 }
 
+// ─── Feiertage (Migration 0113) ──────────────────────────────────────────
+// Admin pflegt eine Liste von Feiertagen. An diesen Tagen wird die Sauna
+// wie an Sa/So behandelt (Aufguss ab 11:00 statt erst 14:00).
+
+export type Holiday = { date: string; label: string; created_at: string };
+
+export function useHolidays() {
+  return useQuery({
+    queryKey: ['holidays'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('holidays')
+        .select('*')
+        .order('date', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Holiday[];
+    },
+    staleTime: 10 * 60_000, // Feiertage ändern sich selten
+  });
+}
+
+/** Liefert eine Set<YYYY-MM-DD>-Lookup-Map für schnelles isHoliday(date). */
+export function useHolidaySet(): Set<string> {
+  const q = useHolidays();
+  // useMemo wäre besser, aber Set ist billig — bei jeder Render-Run erstellen ist ok
+  const s = new Set<string>();
+  (q.data ?? []).forEach((h) => s.add(h.date));
+  return s;
+}
+
+/** Helper: prüft ob ein Date in der Holiday-Set ist (lokales Berlin-Datum). */
+export function isHolidayDate(date: Date, holidaySet: Set<string>): boolean {
+  // Lokales Datum als YYYY-MM-DD (kein toISOString — der ist UTC).
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return holidaySet.has(`${y}-${m}-${d}`);
+}
+
+export function useAdminAddHoliday() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { date: string; label: string }) => {
+      const { error } = await need().rpc('admin_add_holiday', {
+        p_date: p.date,
+        p_label: p.label,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['holidays'] }),
+  });
+}
+
+export function useAdminDeleteHoliday() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (date: string) => {
+      const { error } = await need().rpc('admin_delete_holiday', { p_date: date });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['holidays'] }),
+  });
+}
+
 // ─── Anwesenheits-Panel (Migration 0110) ──────────────────────────────────
 // PW-geschützter Desktop-Hub um Mitglieder ohne Handy ein-/auszuchecken.
 // PW wird per Argument an die RPCs gegeben (anon-Pattern, analog Kiosk).
