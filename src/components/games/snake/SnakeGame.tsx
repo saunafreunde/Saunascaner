@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSubmitScore } from '@/lib/games';
+import { useSwipe } from '@/hooks/useSwipe';
 
 // Snake: 20×20 Grid, Pure-CSS-Rendering.
 // Score = food*10 + survival_time/2 (1 Punkt pro 2 Sekunden).
@@ -135,6 +136,15 @@ export default function SnakeGame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Wisch-Steuerung (Mobile): 4 Richtungen auf Spielfeld
+  const swipe = useSwipe({
+    onSwipeUp:    () => turn('U'),
+    onSwipeDown:  () => turn('D'),
+    onSwipeLeft:  () => turn('L'),
+    onSwipeRight: () => turn('R'),
+    onTap:        () => setPaused((v) => !v),
+  });
+
   function reset() {
     const s = initialSnake();
     setSnake(s);
@@ -159,9 +169,14 @@ export default function SnakeGame() {
       </div>
 
       <div
+        {...swipe}
         className="mx-auto grid gap-px rounded-xl bg-forest-950/90 p-1.5 ring-1 ring-forest-700/50 shadow-2xl shadow-black/60"
-        style={{ gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`, maxWidth: 360 }}
-        aria-label="Snake-Spielfeld"
+        style={{
+          ...swipe.style,
+          gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
+          maxWidth: 360,
+        }}
+        aria-label="Snake-Spielfeld — wische in eine Richtung"
       >
         {Array.from({ length: ROWS }).flatMap((_, y) =>
           Array.from({ length: COLS }).map((_, x) => {
@@ -210,7 +225,7 @@ export default function SnakeGame() {
       </div>
 
       <div className="mt-3 text-xs text-forest-400 text-center">
-        Pfeiltasten · P = Pause · Aktuell: {dir}
+        Wische auf das Spielfeld · Pfeiltasten · P = Pause · Aktuell: {dir}
       </div>
 
       {gameOver && (

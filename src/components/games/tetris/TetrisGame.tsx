@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSwipe } from '@/hooks/useSwipe';
 import { useSubmitScore } from '@/lib/games';
 
 // Klassisches Tetris (SRS-Light): 10 Spalten × 20 Reihen.
@@ -227,6 +228,15 @@ export default function TetrisGame() {
     });
   }
 
+  // Wisch-Steuerung (Mobile): ←→ verschiebt, ↓ Hard-Drop, ↑/Tap = drehen
+  const swipe = useSwipe({
+    onSwipeLeft:  () => softMove(-1),
+    onSwipeRight: () => softMove(1),
+    onSwipeDown:  () => hardDrop(),
+    onSwipeUp:    () => rotateBtn(),
+    onTap:        () => rotateBtn(),
+  });
+
   return (
     <div className="mx-auto max-w-md p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -237,9 +247,14 @@ export default function TetrisGame() {
       </div>
 
       <div
+        {...swipe}
         className="mx-auto grid gap-px rounded-xl bg-forest-950/90 p-2 ring-1 ring-forest-700/50 shadow-2xl shadow-black/60"
-        style={{ gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`, maxWidth: 360 }}
-        aria-label="Spielfeld"
+        style={{
+          ...swipe.style,
+          gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
+          maxWidth: 360,
+        }}
+        aria-label="Spielfeld — wische ↔ um zu bewegen, ↓ für Hard-Drop, ↑ oder Tap dreht"
       >
         {displayBoard.flatMap((row, y) =>
           row.map((cell, x) => (
@@ -271,7 +286,7 @@ export default function TetrisGame() {
       </div>
 
       <div className="mt-3 text-xs text-forest-400 text-center">
-        Tastatur: ← → · ↑/X dreht · ↓ schneller · Leertaste = Hard-Drop · P = Pause
+        Wische auf Spielfeld · ↔ bewegt · ↓ Hard-Drop · ↑/Tap dreht · Tastatur: ← → ↑ ↓ X Leertaste P
       </div>
 
       {gameOver && (
