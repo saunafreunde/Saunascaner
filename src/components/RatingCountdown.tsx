@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { useRatableInfusions, type RatableInfusion } from '@/lib/api';
+import { useRatableInfusions, useCurrentMember, type RatableInfusion } from '@/lib/api';
+import { isAufgieser } from '@/lib/roles';
+import { computeRatingWindowClose } from '@/lib/ratingWindow';
 
 interface RatingCountdownProps {
   memberId: string;
@@ -13,12 +15,11 @@ const SIZE = 64;
 const STROKE = 5;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRC = 2 * Math.PI * RADIUS;
-const WINDOW_MS = 3 * 60 * 60 * 1000;
 
-function CountdownRing({ msLeft }: { msLeft: number }) {
-  const progress = Math.max(0, Math.min(1, msLeft / WINDOW_MS));
-  const offset = CIRC * (1 - progress);
-  const color = progress > 0.5 ? '#22c55e' : progress > 0.2 ? '#f59e0b' : '#ef4444';
+function CountdownRing({ progress }: { progress: number }) {
+  const p = Math.max(0, Math.min(1, progress));
+  const offset = CIRC * (1 - p);
+  const color = p > 0.5 ? '#22c55e' : p > 0.2 ? '#f59e0b' : '#ef4444';
 
   return (
     <svg width={SIZE} height={SIZE} className="shrink-0">
@@ -49,6 +50,8 @@ function CountdownRing({ msLeft }: { msLeft: number }) {
 
 export function RatingCountdown({ memberId, meisterName, onRate }: RatingCountdownProps) {
   const { data } = useRatableInfusions(memberId);
+  const me = useCurrentMember();
+  const isAufg = isAufgieser(me.data);
   const ratable = data ?? [];
 
   if (ratable.length === 0) {
@@ -63,7 +66,7 @@ export function RatingCountdown({ memberId, meisterName, onRate }: RatingCountdo
           🌞
         </motion.div>
         <p className="text-sm text-forest-300/80">Genieße den Tag!</p>
-        <p className="text-xs text-forest-400 mt-1">Bewertungen erscheinen 3h nach Aufguss-Ende.</p>
+        <p className="text-xs text-forest-400 mt-1">Bewertbare Aufgüsse erscheinen hier nach dem Aufguss.</p>
       </div>
     );
   }
@@ -71,8 +74,12 @@ export function RatingCountdown({ memberId, meisterName, onRate }: RatingCountdo
   return (
     <div className="space-y-2">
       {ratable.map((inf, idx) => {
-        const windowClose = new Date(new Date(inf.end_time).getTime() + WINDOW_MS);
+        // Rolen-spezifisches Fenster: Aufgießer +3h, alle anderen bis Folgetag 12:00.
+        const openMs = new Date(inf.end_time).getTime();
+        const windowClose = computeRatingWindowClose(inf.start_time, inf.end_time, isAufg);
         const msLeft = windowClose.getTime() - Date.now();
+        const totalMs = Math.max(1, windowClose.getTime() - openMs);
+        const progress = msLeft / totalMs;
         const timeLeft = formatDistanceToNow(windowClose, { locale: de, addSuffix: false });
 
         return (
@@ -84,7 +91,7 @@ export function RatingCountdown({ memberId, meisterName, onRate }: RatingCountdo
             className="flex items-center gap-3 rounded-xl bg-amber-950/40 px-3 py-2.5 ring-1 ring-amber-700/30 hover:ring-amber-500/50 hover:bg-amber-950/60 transition cursor-pointer"
             onClick={() => onRate(inf)}
           >
-            <CountdownRing msLeft={msLeft} />
+            <CountdownRing progress={progress} />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-amber-100 truncate">{inf.title}</div>
               <div className="text-xs text-amber-300/70 mt-0.5 truncate">

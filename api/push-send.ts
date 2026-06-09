@@ -183,6 +183,7 @@ async function processQueue(req: VercelRequest, res: VercelResponse) {
             const saunaName = sauna?.name ?? 'Sauna';
             const time = new Date(startTime).toLocaleString('de-DE', {
               weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+              timeZone: 'Europe/Berlin',
             });
             const pushPayload = JSON.stringify({
               title: `🌟 ${meisterName} plant einen Aufguss`,

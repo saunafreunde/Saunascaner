@@ -236,6 +236,14 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
       && !member.data?.is_personal_planer) {
     return <Navigate to={member.data?.role === 'staff' ? '/mitarbeiter' : '/'} replace />;
   }
+  // /mitarbeiter-Bereich nur für Staff + Admin (Preview) — Defense-in-Depth analog /cp.
+  // Backend-RPCs blocken zwar Schreibzugriffe, aber Nicht-Staff sollen Personal-interne
+  // Infos (offene Schichten o.ä.) gar nicht erst zu sehen bekommen.
+  if (loc.pathname.startsWith('/mitarbeiter')
+      && member.data?.role !== 'staff'
+      && member.data?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
   return <>{children}</>;
 }
 

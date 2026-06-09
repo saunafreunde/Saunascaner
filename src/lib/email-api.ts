@@ -175,12 +175,15 @@ export function useDeleteMessage(accountId?: string | null) {
   });
 }
 
-// Trigger des Shared-Ticket-Pollings (Cron-Action, Frontend-Aufruf für sofortigen Refresh).
-// CRON_SECRET-Header wird hier NICHT gesetzt — der Endpoint akzeptiert Aufrufe ohne Header
-// solange env CRON_SECRET nicht gesetzt ist.
+// Trigger des Shared-Ticket-Pollings für sofortigen Refresh. Sendet das User-JWT mit —
+// das Backend verlangt einen eingeloggten Shared-Inbox-Admin (oder ein gültiges
+// CRON_SECRET). Ohne Auth-Header würde der Endpoint sonst anonymen IMAP-Poll-DoS erlauben.
 export async function pollSharedTickets(): Promise<{ ok: boolean; polled: number }> {
   try {
-    const r = await fetch('/api/postfach?action=poll-shared-tickets', { method: 'GET' });
+    const r = await fetch('/api/postfach?action=poll-shared-tickets', {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
     const json = await r.json();
     return json;
   } catch {

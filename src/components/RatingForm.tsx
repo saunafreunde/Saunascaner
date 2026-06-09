@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { RATING_CATEGORIES, type RatingCategoryId } from '@/lib/ratingCategories';
 import { useSubmitRating, useMyRatingForInfusion, useCurrentMember, type RatableInfusion } from '@/lib/api';
 import { isAufgieser } from '@/lib/roles';
+import { computeRatingWindowClose } from '@/lib/ratingWindow';
 import { RatingStars } from './RatingStars';
 import { EchoPromptModal } from './feed/EchoPromptModal';
 
@@ -37,24 +37,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   infusion_not_found: 'Aufguss nicht gefunden.',
 };
 
-const TZ = 'Europe/Berlin';
-
-// Berechnet den rolen-spezifischen Bewertungs-Deadline:
-//  • Aufgießer: end_time + 3h
-//  • Andere (Gast/Fan/Helfer/Staff/CP/Admin): Tag+1 12:00 in Berlin-Zeit
-// Synchron mit submit_rating() in Migration 0082.
-function computeWindowClose(startTimeIso: string, endTimeIso: string, isAufg: boolean): Date {
-  if (isAufg) return new Date(new Date(endTimeIso).getTime() + 3 * 60 * 60 * 1000);
-  const startBerlin = toZonedTime(startTimeIso, TZ);
-  const dayPlus1NoonWall = new Date(
-    startBerlin.getFullYear(),
-    startBerlin.getMonth(),
-    startBerlin.getDate() + 1,
-    12, 0, 0, 0,
-  );
-  return fromZonedTime(dayPlus1NoonWall, TZ);
-}
-
 export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess }: RatingFormProps) {
   const [ratings, setRatings] = useState<Ratings>(EMPTY_RATINGS);
   const [comment, setComment] = useState('');
@@ -86,7 +68,7 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
   const isEditing = !!myRatingQ.data;
 
   // Countdown until window closes — rolen-spezifisch (siehe Migration 0082)
-  const windowClose = computeWindowClose(infusion.start_time, infusion.end_time, isAufg);
+  const windowClose = computeRatingWindowClose(infusion.start_time, infusion.end_time, isAufg);
   const timeLeft = formatDistanceToNow(windowClose, { locale: de, addSuffix: false });
 
   async function handleSubmit() {

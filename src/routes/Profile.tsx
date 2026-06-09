@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { format, parse } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { de } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
 import { PageBackground } from '@/components/PageBackground';
@@ -63,7 +64,7 @@ export default function Profile() {
   const wmRank = wmEntry ? (lbQ.data ?? []).findIndex((e) => e.member_id === memberId) + 1 : null;
 
   // Today birthday check
-  const todayMD = format(new Date(), 'MM-dd');
+  const todayMD = formatInTimeZone(new Date(), 'Europe/Berlin', 'MM-dd');
   const birthdayMD = m?.birthday ? format(parse(m.birthday, 'yyyy-MM-dd', new Date()), 'MM-dd') : null;
   const isBirthdayToday = birthdayMD === todayMD;
 

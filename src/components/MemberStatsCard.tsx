@@ -1,3 +1,4 @@
+import { formatInTimeZone } from 'date-fns-tz';
 import { useMemberStatsFull } from '@/lib/api';
 
 interface Props {
@@ -78,9 +79,14 @@ function StatTile({ emoji, value, label, accent, small }: {
 }
 
 function formatMemberSince(iso: string): string {
-  const d = new Date(iso);
+  // Jahr/Monat in Berliner Zeit bestimmen, damit die Mitgliedsdauer nicht an
+  // Monatsgrenzen um einen Monat abweicht, wenn das Gerät nicht in Berlin steht.
   const now = new Date();
-  const months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  const dY = Number(formatInTimeZone(iso, 'Europe/Berlin', 'yyyy'));
+  const dM = Number(formatInTimeZone(iso, 'Europe/Berlin', 'M'));
+  const nY = Number(formatInTimeZone(now, 'Europe/Berlin', 'yyyy'));
+  const nM = Number(formatInTimeZone(now, 'Europe/Berlin', 'M'));
+  const months = (nY - dY) * 12 + (nM - dM);
   if (months < 1) return 'diesem Monat';
   if (months < 12) return `${months} Monaten`;
   const years = Math.floor(months / 12);

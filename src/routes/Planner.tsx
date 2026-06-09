@@ -12,6 +12,7 @@ import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { lookupMemberName } from '@/lib/memberDisplay';
+import { berlinYmd } from '@/lib/time';
 import AchievementToast from '@/components/AchievementToast';
 import { RatingForm } from '@/components/RatingForm';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
@@ -2272,7 +2273,7 @@ function AbsencePanel({
   onAdd: (p: { start: string; end: string; note?: string | null }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = berlinYmd();
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [note, setNote] = useState('');

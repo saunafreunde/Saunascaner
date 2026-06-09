@@ -9,6 +9,12 @@ export const TZ = 'Europe/Berlin';
 export const fmtClock = (d: Date | string) => formatInTimeZone(d, TZ, 'HH:mm');
 export const fmtDate  = (d: Date | string) => formatInTimeZone(d, TZ, 'dd.MM.yyyy');
 
+// Kalendertag (YYYY-MM-DD) in Berliner Zeit — TZ-sicherer Ersatz für das
+// fehleranfällige `d.toISOString().slice(0,10)`, das auf einem lokal um
+// Mitternacht konstruierten Date (bzw. server-seitig in UTC) einen Tag
+// daneben liegt. Default-Argument = jetzt.
+export const berlinYmd = (d: Date | string = new Date()) => formatInTimeZone(d, TZ, 'yyyy-MM-dd');
+
 // date-fns-tz v3.x reicht die `locale`-Option in formatInTimeZone NICHT zuverlässig
 // durch — englische Wochentage erscheinen. Stattdessen: erst in Berliner Zeit
 // konvertieren, dann mit format + locale aus date-fns korrekt formatieren.

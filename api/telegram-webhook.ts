@@ -514,13 +514,41 @@ function slotHoursForWeekday(weekday: number): number[] {
   return [11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 }
 
+// ─── Berlin-Zeit-Helper ──────────────────────────────────────────────────
+// Der Server läuft auf Vercel in UTC. Aufguss-Zeiten/Slots gelten aber in
+// Europe/Berlin. Bare new Date(iso).getHours()/.getDay() liefert hier die
+// UTC-Werte → z.B. ein 14:00-Berlin-Aufguss (12:00Z im Sommer) wurde mit
+// Slot-Stunde 14 nie gematcht und erschien fälschlich als „frei".
+function berlinYmdOffsetDays(offsetDays: number): string {
+  const d = new Date(Date.now() + offsetDays * 86_400_000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(d); // YYYY-MM-DD
+}
+function berlinUtcOffset(ymd: string): string {
+  // '+01:00' oder '+02:00' für das gegebene Berliner Datum (DST-bewusst).
+  const probe = new Date(`${ymd}T12:00:00Z`);
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin', timeZoneName: 'longOffset' })
+    .formatToParts(probe).find((p) => p.type === 'timeZoneName')?.value ?? 'GMT+01:00';
+  const m = name.match(/([+-]\d{2}:\d{2})/);
+  return m ? m[1] : '+01:00';
+}
+function berlinInstant(ymd: string, hour = 0): Date {
+  return new Date(`${ymd}T${String(hour).padStart(2, '0')}:00:00${berlinUtcOffset(ymd)}`);
+}
+function berlinHourOf(d: Date): number {
+  const h = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', hour12: false })
+    .formatToParts(d).find((p) => p.type === 'hour')?.value ?? '0';
+  return Number(h) % 24;
+}
+function berlinWeekdayOf(d: Date): number {
+  const wd = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin', weekday: 'short' }).format(d);
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wd);
+}
+
 async function sendDayList(sb: SupabaseClient, token: string, chatId: number, day: 'today' | 'tomorrow', fromTelegramId?: number) {
   const offset = day === 'tomorrow' ? 1 : 0;
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() + offset);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  const targetYmd = berlinYmdOffsetDays(offset);
+  const start = berlinInstant(targetYmd, 0);
+  const end = berlinInstant(berlinYmdOffsetDays(offset + 1), 0);
 
   // Aktiver User (verknüpft?) für „eigener Aufguss"-Markierung
   let myMemberId: string | null = null;
@@ -540,7 +568,7 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
 
   // 2) Aktive Saunen + erlaubte Stunden für den Tag → freie Slots ermitteln
   const { data: saunas } = await sb.from('saunas').select('id, name, temperature_label').eq('is_active', true);
-  const weekday = start.getDay();
+  const weekday = berlinWeekdayOf(start);
   const hours = slotHoursForWeekday(weekday);
 
   // Header
@@ -561,7 +589,7 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
   type Inf = NonNullable<typeof infs>[number];
   const infByKey = new Map<string, Inf>();
   for (const i of (infs ?? [])) {
-    const h = new Date(i.start_time).getHours();
+    const h = berlinHourOf(new Date(i.start_time));
     infByKey.set(`${i.sauna_id}|${h}`, i);
   }
 
@@ -575,7 +603,7 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
     for (const sa of (saunas ?? [])) {
       const i = infByKey.get(`${sa.id}|${h}`);
       const hh = String(h).padStart(2, '0');
-      const isFuture = new Date(start.getTime() + h * 3600_000).getTime() > Date.now();
+      const isFuture = berlinInstant(targetYmd, h).getTime() > Date.now();
 
       if (!i) {
         // FREIER Slot
@@ -622,8 +650,8 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
 }
 
 async function sendWeekList(sb: SupabaseClient, token: string, chatId: number) {
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  const end = new Date(start); end.setDate(end.getDate() + 7);
+  const start = berlinInstant(berlinYmdOffsetDays(0), 0);
+  const end = berlinInstant(berlinYmdOffsetDays(7), 0);
 
   const { data, error } = await sb
     .from('infusions')

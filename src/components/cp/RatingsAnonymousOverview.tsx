@@ -9,7 +9,9 @@ const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const HOURS = Array.from({ length: 15 }, (_, i) => 8 + i); // 08:00 - 22:00
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Lokaler Kalendertag (Europe/Berlin am Vereins-Gerät) — NICHT toISOString(),
+  // das eine lokal um Mitternacht gebaute Date in UTC zum Vortag verschiebt.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function ratingColor(avg: number | null | undefined): string {

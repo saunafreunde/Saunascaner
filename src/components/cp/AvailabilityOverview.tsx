@@ -5,7 +5,9 @@ import { useStaffAvailability } from '@/lib/api';
 // Zeigt 14 Tage voraus als Tabelle: Mitarbeiter × Tag → Zeitfenster
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Lokaler Kalendertag (Europe/Berlin am Vereins-Gerät) — NICHT toISOString(),
+  // das eine lokal um Mitternacht gebaute Date in UTC zum Vortag verschiebt.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function addDays(d: Date, n: number): Date {
   const x = new Date(d);

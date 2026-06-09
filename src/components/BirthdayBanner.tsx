@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBirthdaysToday } from '@/lib/api';
 import { fireBadgeUnlock } from '@/lib/confetti';
+import { berlinYmd } from '@/lib/time';
 
 /**
  * Banner für die Tafel: zeigt heutige Geburtstagskinder.
@@ -24,7 +25,7 @@ export function BirthdayBanner() {
   // Konfetti einmalig pro Tag
   useEffect(() => {
     if (list.length === 0 || confettiFired) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = berlinYmd();
     const key = `birthday-confetti-${today}`;
     if (localStorage.getItem(key)) return;
     fireBadgeUnlock();
