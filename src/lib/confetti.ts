@@ -1,3 +1,5 @@
+import { berlinYmd } from './time';
+
 // Lazy-loaded confetti — only fetched when actually triggered.
 type ConfettiFn = (opts?: Record<string, unknown>) => void;
 let confettiPromise: Promise<ConfettiFn> | null = null;
@@ -40,7 +42,7 @@ export async function fireBadgeUnlock() {
  * Uses localStorage to ensure idempotency.
  */
 export async function fireFirstInfusionOfDay(memberId: string) {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = berlinYmd(); // YYYY-MM-DD in Europe/Berlin
   const key = `firstInfusion_${memberId}_${today}`;
   if (localStorage.getItem(key)) return false;
   localStorage.setItem(key, '1');

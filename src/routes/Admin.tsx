@@ -41,7 +41,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { isAdmin, isWmAdmin } from '@/lib/roles';
 import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
-import { fmtClock } from '@/lib/time';
+import { fmtClock, berlinYmd } from '@/lib/time';
 
 type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm' | 'news' | 'aroma' | 'activity' | 'stage' | 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays';
 
@@ -437,7 +437,7 @@ function FanUpgradeRequestItem({
   const defaultPaidUntil = useMemo(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() + 1);
-    return d.toISOString().slice(0, 10);
+    return berlinYmd(d);
   }, []);
   const [paidUntil, setPaidUntil] = useState(defaultPaidUntil);
   const [rejectMode, setRejectMode] = useState(false);

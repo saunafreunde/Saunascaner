@@ -9,7 +9,7 @@ type Props = {
 export default function BadgeChip({ badge, size = 'md', earnedAt }: Props) {
   const s = TIER_STYLES[badge.tier];
   const tooltip = earnedAt
-    ? `${badge.label} · ${badge.description} · ${new Date(earnedAt).toLocaleDateString('de-DE')}`
+    ? `${badge.label} · ${badge.description} · ${new Date(earnedAt).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}`
     : `${badge.label} · ${badge.description}`;
 
   return (

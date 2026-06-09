@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const caption = [
     '🚨 *EVAKUIERUNG ausgelöst*',
     `Auslöser: ${esc(p.triggeredBy)}`,
-    `Zeit: ${new Date(p.triggeredAt).toLocaleString('de-DE')}`,
+    `Zeit: ${new Date(p.triggeredAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })}`,
     '',
     `Anwesend \\(${p.presentNames.length}\\):`,
     ...(p.presentNames.length ? p.presentNames.map((n) => `• ${esc(n)}`) : ['_keine Personen erfasst_']),

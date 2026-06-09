@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { format, parse } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { de } from 'date-fns/locale';
 import Tilt from 'react-parallax-tilt';
 import { useReducedMotion } from 'framer-motion';
@@ -26,7 +27,7 @@ export default function Members() {
   const isAdmin = me.data?.role === 'admin';
 
   const members = dirQ.data ?? [];
-  const todayMD = format(new Date(), 'MM-dd');
+  const todayMD = formatInTimeZone(new Date(), 'Europe/Berlin', 'MM-dd');
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

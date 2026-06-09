@@ -6,7 +6,9 @@ import { useStaffAttendance } from '@/lib/api';
 // (PDF-Export wäre nice-to-have, hier nur CSV als Basis-Variante)
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Lokaler Kalendertag (Europe/Berlin am Vereins-Gerät) — NICHT toISOString(),
+  // das eine lokal um Mitternacht gebaute Date in UTC zum Vortag verschiebt.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function downloadCsv(filename: string, rows: string[][]) {

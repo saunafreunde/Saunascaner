@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { format, isToday, isYesterday } from 'date-fns';
+import { format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import { de } from 'date-fns/locale';
+import { TZ } from '@/lib/time';
 import { PageBackground } from '@/components/PageBackground';
 import { useCurrentMember, useMyConversations, useConversationMessages, useSendDmMessage, useMarkDmRead } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -79,16 +81,20 @@ export default function DmConversation() {
     }
   }
 
-  function formatDayHeader(d: Date): string {
-    if (isToday(d)) return 'Heute';
-    if (isYesterday(d)) return 'Gestern';
-    return format(d, 'EEEE, d. MMMM', { locale: de });
+  // Tages-Header in Berliner Zeit — Vergleich über Berlin-Datums-Strings,
+  // damit Gruppierung und „Heute"/„Gestern" auch von unterwegs (Gerät ≠ Berlin) stimmen.
+  const todayBerlin = format(toZonedTime(new Date(), TZ), 'yyyy-MM-dd');
+  const yesterdayBerlin = format(toZonedTime(new Date(Date.now() - 86_400_000), TZ), 'yyyy-MM-dd');
+  function formatDayHeader(dayStr: string): string {
+    if (dayStr === todayBerlin) return 'Heute';
+    if (dayStr === yesterdayBerlin) return 'Gestern';
+    return format(toZonedTime(new Date(`${dayStr}T12:00:00Z`), TZ), 'EEEE, d. MMMM', { locale: de });
   }
 
-  // Gruppieren nach Tag für Datums-Header
+  // Gruppieren nach Tag (Berliner Zeit) für Datums-Header
   const groups: Array<{ day: string; messages: typeof messages }> = [];
   messages.forEach((m) => {
-    const day = format(new Date(m.created_at), 'yyyy-MM-dd');
+    const day = format(toZonedTime(m.created_at, TZ), 'yyyy-MM-dd');
     const lastGroup = groups[groups.length - 1];
     if (lastGroup && lastGroup.day === day) {
       lastGroup.messages.push(m);
@@ -122,7 +128,7 @@ export default function DmConversation() {
           groups.map((g) => (
             <div key={g.day} className="space-y-1">
               <div className="text-center text-[10px] uppercase tracking-wider text-forest-500 my-2">
-                {formatDayHeader(new Date(g.day))}
+                {formatDayHeader(g.day)}
               </div>
               {g.messages.map((m) => (
                 <div key={m.id} className={`flex ${m.is_mine ? 'justify-end' : 'justify-start'}`}>
@@ -133,7 +139,7 @@ export default function DmConversation() {
                   }`}>
                     <div className="whitespace-pre-wrap break-words">{m.body}</div>
                     <div className={`text-[10px] mt-0.5 ${m.is_mine ? 'text-forest-950/60 text-right' : 'text-forest-400'}`}>
-                      {format(new Date(m.created_at), 'HH:mm')}
+                      {format(toZonedTime(m.created_at, TZ), 'HH:mm')}
                       {m.is_mine && m.read_at && <span className="ml-1">✓✓</span>}
                       {m.is_mine && !m.read_at && <span className="ml-1">✓</span>}
                     </div>

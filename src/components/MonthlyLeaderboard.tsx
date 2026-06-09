@@ -11,7 +11,7 @@ export default function MonthlyLeaderboard() {
   const lb = useMonthlyLeaderboard();
   const entries = lb.data ?? [];
 
-  const monthName = new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  const monthName = new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric', timeZone: 'Europe/Berlin' });
 
   if (lb.isLoading) {
     return (

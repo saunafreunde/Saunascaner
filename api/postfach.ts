@@ -109,8 +109,26 @@ async function withImap<T>(
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '');
 
-  // Cron-Action: ohne User-Auth, mit Cron-Secret-Header (Migration 0080)
+  // poll-shared-tickets: optionaler Cron-Bypass via CRON_SECRET, sonst MUSS der
+  // Aufrufer ein eingeloggter Shared-Inbox-Admin sein. Aktuell ruft KEIN pg_cron
+  // diesen Endpoint auf — der einzige Trigger ist das Frontend (SharedTicketsView).
+  // Vorher lief der Handler vor jeder Auth und war ohne gesetztes CRON_SECRET
+  // komplett offen → anonymer, teurer IMAP-Poll-DoS gegen alle Shared-Accounts.
   if (action === 'poll-shared-tickets') {
+    const cronSecret = process.env.CRON_SECRET;
+    const got = req.headers['x-cron-secret'] ?? req.query.cron_secret;
+    if (cronSecret && got === cronSecret) {
+      return await handlePollSharedTickets(req, res);
+    }
+    const cronAuth = await authenticate(req);
+    if (!cronAuth.ok) return res.status(cronAuth.status).json({ error: cronAuth.error });
+    const { data: adminRows, error: adminErr } = await cronAuth.service
+      .from('shared_email_admins')
+      .select('account_id')
+      .eq('member_id', cronAuth.member.id)
+      .limit(1);
+    if (adminErr) return res.status(500).json({ error: adminErr.message });
+    if (!adminRows || adminRows.length === 0) return res.status(403).json({ error: 'forbidden' });
     return await handlePollSharedTickets(req, res);
   }
 
@@ -397,19 +415,11 @@ async function handleSend(
   return res.status(200).json({ ok: true, messageId: info.messageId });
 }
 
-// ─── poll-shared-tickets (Cron-only) ─────────────────────────────────────
-// Wird vom pg_cron alle 2 Min via net.http_post aufgerufen. Holt für jeden
-// shared Account die letzten 50 INBOX-Mails und ruft pro Mail
+// ─── poll-shared-tickets ─────────────────────────────────────────────────
+// Holt für jeden shared Account die letzten 50 INBOX-Mails und ruft pro Mail
 // email_ticket_upsert_from_inbound auf (Server entscheidet INSERT vs UPDATE).
-async function handlePollSharedTickets(req: VercelRequest, res: VercelResponse) {
-  // Wenn CRON_SECRET in env gesetzt ist, dann strikt prüfen. Sonst offen
-  // (analog zu push-reminder-cron — der pg_cron-Job sendet keinen Header).
-  const expected = process.env.CRON_SECRET;
-  if (expected) {
-    const got = req.headers['x-cron-secret'] ?? req.query.cron_secret;
-    if (got !== expected) return res.status(401).json({ error: 'unauthorized' });
-  }
-
+// Auth (Cron-Secret ODER eingeloggter Shared-Admin) wird im Entry-Point geprüft.
+async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse) {
   const svc = makeServiceClient();
   const { data: accounts, error } = await svc
     .from('email_accounts')

@@ -25,7 +25,7 @@ export function downloadStatsPdf(d: StatsExportData) {
   y += 6;
   doc.setFontSize(10);
   doc.setTextColor(120);
-  doc.text(`Zeitraum: ${d.rangeLabel} · Erstellt: ${new Date().toLocaleString('de-DE')}`, 18, y);
+  doc.text(`Zeitraum: ${d.rangeLabel} · Erstellt: ${new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })}`, 18, y);
   y += 8;
 
   // Section: by meister
