@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { differenceInMinutes } from 'date-fns';
+import { useNow } from '@/hooks/useNow';
 import {
   useCurrentMember, useMyFollowing, useAufgieserStars, useInfusions, useSaunas,
   useBrandSettings, brandAssetUrl,
@@ -17,9 +18,10 @@ import { PushPermission } from '@/components/PushPermission';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { PendingRatingsBlock } from '@/components/PendingRatingsBlock';
 import { FanUpgradeCTA } from '@/components/gast/FanUpgradeCTA';
+import { GastLiveNow } from '@/components/gast/GastLiveNow';
 import { isAdmin, isGast } from '@/lib/roles';
 import { lookupMemberName } from '@/lib/memberDisplay';
-import { fmtClock } from '@/lib/time';
+import { fmtClock, berlinYmd } from '@/lib/time';
 
 // /gast — interner Bereich für Sauna-Besucher (Rolle 'gast').
 // Auch für Admins zur Vorschau über /gast?preview=1 aufrufbar.
@@ -50,28 +52,30 @@ export default function Gast() {
     [stars.data, followedIds]
   );
 
+  // Tickende Uhr (30s) für Live/Vergangen-Status UND die Zeit-Filter unten —
+  // ein eingefrorenes Date.now() im useMemo würde gestartete Aufgüsse mit
+  // negativem Countdown („in -30m") in der Favoriten-Liste stehen lassen.
+  const now = useNow(30_000);
+
   const upcomingFromFavorites = useMemo(() => {
-    const now = Date.now();
+    const nowMs = now.getTime();
     return (infusions.data ?? [])
       .filter((i) => i.saunameister_id && followedIds.has(i.saunameister_id))
-      .filter((i) => new Date(i.start_time).getTime() > now && !i.is_personal_fallback)
+      .filter((i) => new Date(i.start_time).getTime() > nowMs && !i.is_personal_fallback)
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
       .slice(0, 8);
-  }, [infusions.data, followedIds]);
+  }, [infusions.data, followedIds, now]);
 
+  // Aufgüsse des heutigen Berliner Kalendertags — komplett (auch vergangene),
+  // damit der Tagesverlauf sichtbar bleibt. Live/Vergangen wird beim Rendern
+  // über `now` markiert statt hier weggefiltert.
   const todayAufgusse = useMemo(() => {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const todayEnd = todayStart + 24 * 3600 * 1000;
+    const todayYmd = berlinYmd(now);
     return (infusions.data ?? [])
       .filter((i) => !i.is_personal_fallback && i.saunameister_id)
-      .filter((i) => {
-        const t = new Date(i.start_time).getTime();
-        return t >= todayStart && t < todayEnd && t > now.getTime() - 60 * 60 * 1000;
-      })
-      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
-      .slice(0, 6);
-  }, [infusions.data]);
+      .filter((i) => berlinYmd(i.start_time) === todayYmd)
+      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
+  }, [infusions.data, now]);
 
   const saunaById = useMemo(() => {
     const m = new Map<string, { name: string; accent_color: string }>();
@@ -108,24 +112,19 @@ export default function Gast() {
         {/* Profil-Header ganz oben (Avatar + Name + Motto editierbar) */}
         {me.data && <GastProfileHeader member={me.data} />}
 
+        {/* Live-Hero: läuft gerade ein Aufguss? Wann kommt der nächste? */}
+        <GastLiveNow
+          infusions={infusions.data ?? []}
+          saunaById={saunaById}
+          meisterName={meisterName}
+          followedIds={followedIds}
+        />
+
         {/* Noch zu bewertende Aufgüsse (vom letzten Sauna-Tag) */}
         <PendingRatingsBlock />
 
         {/* Eigener Checkin-PIN für Tablet */}
         <MyCheckinPinCard />
-
-        {/* Stats-Dashboard */}
-        {me.data && <MemberStatsCard memberId={me.data.id} />}
-
-        {/* Aktivitäts-Chart */}
-        {me.data && <MemberAttendanceChart memberId={me.data.id} />}
-
-        {/* Achievement-Galerie */}
-        {me.data && <MemberAchievementsGallery memberId={me.data.id} />}
-
-        {/* Fan-Upgrade-CTA — milestone-getriggert (≥5 Bewertungen oder ≥3 Sauna-Tage).
-            Zeigt auch Status-Card wenn Antrag schon läuft. Echte Gäste only. */}
-        <FanUpgradeCTA />
 
         {/* Begrüßungs-Block für brandneue Gäste */}
         {isReallyGast && followedStars.length === 0 && !previewMode && (
@@ -216,25 +215,36 @@ export default function Gast() {
           </section>
         )}
 
-        {/* Heute live */}
+        {/* Heute in der Sauna — kompletter Tagesverlauf mit Live-Status */}
         {todayAufgusse.length > 0 && (
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
-              📅 Heute in der Sauna
-            </h2>
+            <div className="flex items-end justify-between gap-3 mb-3">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90">
+                📅 Heute in der Sauna ({todayAufgusse.length})
+              </h2>
+              <Link to="/dashboard" className="text-xs text-forest-400 hover:text-amber-300 underline">
+                Zur Tafel →
+              </Link>
+            </div>
             <ul className="space-y-2">
               {todayAufgusse.map((i) => {
                 const sauna = saunaById.get(i.sauna_id);
                 const isFav = i.saunameister_id ? followedIds.has(i.saunameister_id) : false;
+                const startMs = new Date(i.start_time).getTime();
+                const endMs = new Date(i.end_time).getTime();
+                const isLive = now.getTime() >= startMs && now.getTime() < endMs;
+                const isPast = now.getTime() >= endMs;
                 return (
                   <li key={i.id}>
                     <Link
                       to={i.saunameister_id ? `/aufgieser/${i.saunameister_id}` : '/aufgieser'}
                       className={`flex items-center gap-3 rounded-xl px-4 py-2.5 ring-1 transition ${
-                        isFav
-                          ? 'bg-amber-900/20 ring-amber-500/30 hover:bg-amber-900/30'
-                          : 'bg-forest-950/70 ring-forest-800/40 hover:ring-forest-700'
-                      }`}
+                        isLive
+                          ? 'bg-emerald-900/25 ring-emerald-500/40 hover:bg-emerald-900/35'
+                          : isFav
+                            ? 'bg-amber-900/20 ring-amber-500/30 hover:bg-amber-900/30'
+                            : 'bg-forest-950/70 ring-forest-800/40 hover:ring-forest-700'
+                      } ${isPast ? 'opacity-50' : ''}`}
                     >
                       <span className="text-sm tabular-nums text-forest-200 font-semibold">
                         {fmtClock(i.start_time)}
@@ -249,6 +259,11 @@ export default function Gast() {
                         </div>
                         <div className="text-[11px] text-forest-400">{sauna?.name ?? 'Sauna'}</div>
                       </div>
+                      {isLive && (
+                        <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-950">
+                          Live
+                        </span>
+                      )}
                       {isFav && <span className="text-base">❤️</span>}
                     </Link>
                   </li>
@@ -258,31 +273,53 @@ export default function Gast() {
           </section>
         )}
 
-        {/* Discovery / leerer Zustand */}
-        {followedStars.length === 0 && todayAufgusse.length === 0 && (
-          <section className="rounded-2xl bg-forest-950/70 ring-1 ring-forest-800/50 p-6 text-center">
-            <p className="text-forest-300/90">Heute sind keine Aufgüsse eingetragen. Schau morgen wieder rein!</p>
-          </section>
-        )}
-
-        {/* Quick-Actions */}
-        <section className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Link to="/aufgieser" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">🌟</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">Aufgießer</div>
-            <div className="text-[10px] text-forest-400">entdecken</div>
-          </Link>
-          <Link to="/wm" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">🏆</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">WM-Tipspiel</div>
-            <div className="text-[10px] text-forest-400">mittippen</div>
-          </Link>
-          <Link to="/dashboard" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">📺</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">Tafel</div>
-            <div className="text-[10px] text-forest-400">aktueller Plan</div>
-          </Link>
+        {/* Quick-Actions — alle Gast-Bereiche auf einen Blick */}
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
+            🚀 Entdecken
+          </h2>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            <Link to="/aufgieser" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+              <div className="text-2xl">🌟</div>
+              <div className="mt-1 text-xs font-semibold text-forest-100">Aufgießer</div>
+              <div className="text-[10px] text-forest-400">entdecken</div>
+            </Link>
+            <Link to="/feed" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+              <div className="text-2xl">📸</div>
+              <div className="mt-1 text-xs font-semibold text-forest-100">Feed</div>
+              <div className="text-[10px] text-forest-400">Community</div>
+            </Link>
+            <Link to="/spiele" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+              <div className="text-2xl">🎮</div>
+              <div className="mt-1 text-xs font-semibold text-forest-100">Spiele</div>
+              <div className="text-[10px] text-forest-400">14 Games</div>
+            </Link>
+            <Link to="/wm" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+              <div className="text-2xl">🏆</div>
+              <div className="mt-1 text-xs font-semibold text-forest-100">WM-Tipspiel</div>
+              <div className="text-[10px] text-forest-400">mittippen</div>
+            </Link>
+            <Link to="/dashboard" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+              <div className="text-2xl">📺</div>
+              <div className="mt-1 text-xs font-semibold text-forest-100">Tafel</div>
+              <div className="text-[10px] text-forest-400">aktueller Plan</div>
+            </Link>
+            <Link to="/hilfe" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+              <div className="text-2xl">📖</div>
+              <div className="mt-1 text-xs font-semibold text-forest-100">Handbuch</div>
+              <div className="text-[10px] text-forest-400">Anleitung</div>
+            </Link>
+          </div>
         </section>
+
+        {/* ── Mein Sauna-Jahr: Stats · Aktivität · Erfolge ── */}
+        {me.data && <MemberStatsCard memberId={me.data.id} />}
+        {me.data && <MemberAttendanceChart memberId={me.data.id} />}
+        {me.data && <MemberAchievementsGallery memberId={me.data.id} />}
+
+        {/* Fan-Upgrade-CTA — milestone-getriggert (≥5 Bewertungen oder ≥3 Sauna-Tage).
+            Zeigt auch Status-Card wenn Antrag schon läuft. Echte Gäste only. */}
+        <FanUpgradeCTA />
 
         {/* Benachrichtigungen — Push-Aktivierung */}
         {me.data && (

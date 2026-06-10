@@ -515,6 +515,15 @@ export default function Planner() {
   );
   const isMondaySelected = selectedDayCtx.isMonday;
 
+  // Slot-Clamp: beim Tages-Wechsel kann der gewählte Slot außerhalb der
+  // Öffnungs-Stunden des neuen Tages liegen (Sa 11:00 gewählt → Di startet
+  // erst 14:00). Dann auf den ersten verfügbaren Slot zurücksetzen, damit
+  // der „Gewählt:"-Chip und submit() nie einen nicht-existenten Slot führen.
+  useEffect(() => {
+    const avail = selectedDayCtx.availableSlots;
+    if (avail.length > 0 && !avail.includes(slot)) setSlot(avail[0]);
+  }, [selectedDayCtx.availableSlots, slot]);
+
   // ID des aktuell gewählten Personal-Fallbacks (für Submit-Branch)
   const selectedFallbackId = useMemo(() => {
     const inf = getInfusionAt(selectedDate, saunaId, slot);
@@ -601,6 +610,11 @@ export default function Planner() {
     if (!saunaId) return setFormError('Bitte eine Sauna wählen.');
     if (!title.trim()) return setFormError('Titel fehlt.');
     if (isMondaySelected) return setFormError('Montag keine Aufgüsse.');
+    // Defense in depth zum Slot-Clamp-Effect: nie außerhalb der Öffnungs-
+    // Stunden des Tages eintragen (Server prüft Öffnungszeiten NICHT).
+    if (!selectedDayCtx.availableSlots.includes(slot)) {
+      return setFormError('Slot liegt außerhalb der Aufgusszeiten dieses Tages — bitte oben neu wählen.');
+    }
 
     // Banja-Pfad früh erkennen — umgeht mehrere Standard-Checks (Slot-Taken,
     // Secondary-Block, Staff-Restriction), weil book_banja_ritual atomar
@@ -799,6 +813,30 @@ export default function Planner() {
   const meisterName = (id: string | null) => lookupMemberName(meisterDir.data, id, '—');
   const evacuation = evacQ.data;
   const openPolls = (pollsQ.data ?? []).filter((p) => !p.my_answer);
+  // Actionable-Zähler für die Heute-Zone: offene Abfragen + bewertbare Aufgüsse.
+  // Wird als Badge am Zonen-Header gerendert — bleibt auch bei ZUGEKLAPPTER
+  // Zone sichtbar, sonst würde eine gemerkte Collapse-Entscheidung neue Polls
+  // dauerhaft verstecken (TodayLiveBento ist deren einziger Einstiegspunkt).
+  const heuteOffen = openPolls.length + (ratableQ.data?.length ?? 0);
+
+  // ─── Bereichs-Sprungleiste ───────────────────────────────────────────────
+  // Rollenabhängige Zonen-Anker im Sticky-Header — macht die lange Hub-Seite
+  // navigierbar ohne Scrollen. IDs matchen die HubZone-id-Props unten.
+  const navSections = [
+    { id: 'heute', label: '🔥 Heute', show: true },
+    { id: 'planen', label: '📋 Planen', show: isAufgieser || isStaff },
+    { id: 'atelier', label: '🧖 Atelier', show: isAufgieser },
+    { id: 'stammslot', label: '📅 Stamm-Slot', show: canApplyStammSlot && !!m },
+    { id: 'profil', label: '🏆 Profil', show: !!m },
+  ].filter((s) => s.show);
+
+  function jumpToZone(zoneId: string) {
+    // Zugeklappte Zone erst öffnen, dann scrollen (Children brauchen einen Tick zum Mounten)
+    window.dispatchEvent(new CustomEvent('hubzone:open', { detail: { id: zoneId } }));
+    setTimeout(() => {
+      document.getElementById(zoneId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  }
 
   return (
     <PageBackground page="planner">
@@ -924,6 +962,25 @@ export default function Planner() {
             </button>
           </div>
         </div>
+        {/* Bereichs-Sprungleiste: ein Tap springt zur Zone (öffnet sie falls zugeklappt) */}
+        {navSections.length > 1 && (
+          <nav
+            aria-label="Bereiche"
+            className="mx-auto flex max-w-7xl gap-1.5 overflow-x-auto px-4 sm:px-6 pb-2 [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {navSections.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => jumpToZone(s.id)}
+                className="shrink-0 rounded-full bg-forest-900/70 px-3 py-1.5 text-[11px] font-semibold text-forest-200 ring-1 ring-forest-700/50 hover:bg-forest-800 hover:text-amber-200 active:scale-95 transition"
+              >
+                {s.label}
+              </button>
+            ))}
+          </nav>
+        )}
       </header>
 
       {evacToast && (
@@ -1001,14 +1058,42 @@ export default function Planner() {
           )}
         </div>
 
-        {/* ══ TAGES-ÜBERSICHT "Heute geplant" ══════════════════════ */}
-        <DailyOverview
-          date={todayDate}
-          infusions={infusions}
-          saunas={saunas}
-          meisterNameFor={(id) => meisterName(id)}
-          now={now}
-        />
+        {/* ══ ZONE: HEUTE — Tagesprogramm + Live-Status in EINER Zone ═══════
+            (vorher: DailyOverview standalone hier + "Heute Live"-Zone weit
+            unten NACH dem Formular — zusammengehörige Tages-Infos waren
+            quer über die Seite verteilt) */}
+        <HubZone
+          id="heute" icon="🔥" title="Heute" subtitle="Tagesprogramm · Live-Status · Anwesende"
+          accent="#f59e0b" collapsible
+          badge={heuteOffen > 0 ? (
+            <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-amber-950 tabular-nums">
+              {heuteOffen} offen
+            </span>
+          ) : undefined}
+        >
+          <div className="space-y-4">
+            <DailyOverview
+              date={todayDate}
+              infusions={infusions}
+              saunas={saunas}
+              meisterNameFor={(id) => meisterName(id)}
+              now={now}
+            />
+            <TodayLiveBento
+              memberId={m?.id ?? ""}
+              isPresent={isPresent}
+              isAdmin={isAdmin}
+              infusions={infusions}
+              saunas={saunas}
+              meisterName={meisterName}
+              now={new Date(nowTick)}
+              presentMembers={(presentQ.data ?? []).map((p) => ({ id: p.id, name: p.name, is_aufgieser: p.is_aufgieser }))}
+              openPolls={openPolls}
+              onOpenPoll={(poll) => setActivePoll(poll)}
+              onRate={(inf) => setRatingFormInfusion(inf)}
+            />
+          </div>
+        </HubZone>
 
         {/* ══ OFFENE TEAM-AUFGÜSSE — Quick-Liste über der Eingabe ═══ */}
         {isAufgieser && openTeamInfusions.length > 0 && (
@@ -1084,10 +1169,15 @@ export default function Planner() {
           </div>
         )}
 
-        {/* ══ AUFGUSS-FORMULAR: Volle Breite (Aufgießer + Staff) ═══ */}
+        {/* ══ ZONE: AUFGUSS PLANEN — klarer 2-Schritte-Flow (Aufgießer + Staff) ═══ */}
         {(isAufgieser || isStaff) && (
-          <form onSubmit={submit} className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur space-y-4">
-            <h2 className="text-sm font-semibold text-forest-100 uppercase tracking-wider">Neuen Aufguss eintragen</h2>
+          <HubZone id="planen" icon="📋" title="Aufguss planen" subtitle="Schritt 1: Slot wählen · Schritt 2: Details eintragen" accent="#38bdf8" collapsible>
+          <form onSubmit={submit} className="space-y-4">
+            {/* ── SCHRITT 1: Slot wählen ──────────────────────────────── */}
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-sky-300/90">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/20 ring-1 ring-sky-500/40 text-[10px] text-sky-200">1</span>
+              Slot wählen
+            </p>
 
             {/* ── TAGES-PAGER ─────────────────────────────────────────── */}
             <div className="flex items-center justify-between gap-2 rounded-xl bg-forest-900/40 px-3 py-2 ring-1 ring-forest-800/40">
@@ -1287,6 +1377,39 @@ export default function Planner() {
                     </div>
                   );
                 })()}
+
+                {/* ── SCHRITT 2: gewählten Slot zusammenfassen + Details ──
+                    Vorher war nirgends sichtbar WAS man in der Matrix oben
+                    angeklickt hat — man musste hochscrollen und den
+                    markierten Slot suchen. */}
+                {(() => {
+                  const saunaSel = saunas.find((s) => s.id === saunaId);
+                  const dayLbl = dayOffset === 0 ? 'Heute' : dayOffset === 1 ? 'Morgen'
+                    : `${WEEKDAY_LABEL_DE_SHORT[selectedDate.getDay()]} ${format(selectedDate, 'dd.MM.')}`;
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-sky-500/10 px-3 py-2.5 ring-1 ring-sky-500/30">
+                      <span aria-hidden>📍</span>
+                      <span className="text-xs font-semibold text-sky-200">Gewählt:</span>
+                      <span className="text-sm font-semibold text-forest-50 tabular-nums">{dayLbl} · {slot} Uhr</span>
+                      {saunaSel && (
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[11px] font-mono tabular-nums"
+                          style={{ background: `${saunaSel.accent_color}22`, color: saunaSel.accent_color }}
+                        >
+                          {saunaSel.name} {saunaSel.temperature_label}
+                        </span>
+                      )}
+                      {selectedFallbackId && (
+                        <span className="text-[11px] font-semibold text-amber-300">🔄 Personal-Übernahme</span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-sky-300/90 pt-1">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/20 ring-1 ring-sky-500/40 text-[10px] text-sky-200">2</span>
+                  Details eintragen
+                </p>
 
                 {selectedFallbackId && (
                   <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
@@ -1493,28 +1616,12 @@ export default function Planner() {
               </>
             )}
           </form>
+          </HubZone>
         )}
 
-        {/* ══ ZONE 1: Heute Live ══════════════════════════════════════════ */}
-        <HubZone icon="🔥" title="Heute Live" subtitle="Was heute passiert" accent="#f59e0b">
-          <TodayLiveBento
-            memberId={m?.id ?? ""}
-            isPresent={isPresent}
-            isAdmin={isAdmin}
-            infusions={infusions}
-            saunas={saunas}
-            meisterName={meisterName}
-            now={new Date(nowTick)}
-            presentMembers={(presentQ.data ?? []).map((p) => ({ id: p.id, name: p.name, is_aufgieser: p.is_aufgieser }))}
-            openPolls={openPolls}
-            onOpenPoll={(poll) => setActivePoll(poll)}
-            onRate={(inf) => setRatingFormInfusion(inf)}
-          />
-        </HubZone>
-
-        {/* ══ ZONE 2: Mein Aufguss-Atelier (nur Aufgieser) ═════════════════ */}
+        {/* ══ ZONE: Mein Aufguss-Atelier (nur Aufgieser) ═════════════════ */}
         {isAufgieser && (
-          <HubZone icon="🧖" title="Mein Atelier" subtitle="Werkbank für Aufgüsse" accent="#22c55e">
+          <HubZone id="atelier" icon="🧖" title="Mein Atelier" subtitle="Werkbank für Aufgüsse" accent="#22c55e" collapsible>
             <AtelierTabs
               myInfusions={myInfusions}
               myMemberId={m?.id}
@@ -1539,9 +1646,9 @@ export default function Planner() {
           </HubZone>
         )}
 
-        {/* ══ ZONE 2.5: Stamm-Slot & Urlaub (nur Vereins-Aufgießer, NICHT Gast-Aufgießer) ═════════════════ */}
+        {/* ══ ZONE: Stamm-Slot & Urlaub (nur Vereins-Aufgießer, NICHT Gast-Aufgießer) ═════════════════ */}
         {canApplyStammSlot && m && (
-          <HubZone icon="📅" title="Stamm-Slot & Urlaub" subtitle="Feste Wochenslots beantragen · Abwesenheit eintragen" accent="#fbbf24">
+          <HubZone id="stammslot" icon="📅" title="Stamm-Slot & Urlaub" subtitle="Feste Wochenslots beantragen · Abwesenheit eintragen" accent="#fbbf24" collapsible defaultCollapsed>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <StammSlotPanel
                 slots={myRecurringQ.data ?? []}
@@ -1598,9 +1705,9 @@ export default function Planner() {
           </HubZone>
         )}
 
-        {/* ══ ZONE 3: Mein Profil & Erfolge ═════════════════════════════════ */}
+        {/* ══ ZONE: Mein Profil & Erfolge ═════════════════════════════════ */}
         {m && (
-          <HubZone icon="🏆" title="Mein Profil & Erfolge" subtitle="Identität · Bewertungen · Trophäen" accent="#a78bfa">
+          <HubZone id="profil" icon="🏆" title="Mein Profil & Erfolge" subtitle="Identität · Bewertungen · Trophäen" accent="#a78bfa" collapsible defaultCollapsed>
             <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-800/30 p-4">
