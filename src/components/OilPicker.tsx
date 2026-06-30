@@ -122,7 +122,7 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
               if (e.key === 'Enter') { e.preventDefault(); pickByNumber(numInput); }
             }}
             inputMode="numeric"
-            placeholder="1–59"
+            placeholder="1–64"
             className={`w-20 rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-sm tabular-nums ring-1 focus:outline-none focus:ring-2 ${
               shake ? 'ring-rose-500' : 'ring-forest-700/50 focus:ring-forest-400'
             }`}

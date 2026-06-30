@@ -14,6 +14,7 @@ const CATEGORY_LABEL: Record<OilCategory, string> = {
   kraut:    'Kraut',
   minze:    'Minze',
   sonstige: 'Sonstige',
+  saison:   'Saison',
 };
 
 // Aroma-Wolke — read-only Anzeige der Lieblings-Öle eines Aufgießers.

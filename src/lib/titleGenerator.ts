@@ -60,6 +60,7 @@ const CATEGORY_VIBE: Record<OilCategory, { emoji: string; names: string[] }> = {
   kraut:     { emoji: '🌿', names: ['Kräuter-Garten', 'Wiesen-Frische', 'Bauern-Kraut'] },
   minze:     { emoji: '❄️', names: ['Minz-Kühle', 'Eis-Atem', 'Frische-Kick'] },
   sonstige:  { emoji: '🌸', names: ['Blüten-Bouquet', 'Garten-Mix', 'Harmonie'] },
+  saison:    { emoji: '🎄', names: ['Winter-Zauber', 'Weihnachts-Stube', 'Advents-Wärme'] },
 };
 
 // Schablonen wenn NUR Attribute (keine Öle) gewählt sind.
