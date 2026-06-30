@@ -412,6 +412,60 @@ export function useSetOilDisabled() {
   });
 }
 
+// ─── Öl-Wiegungen / Verbrauch (Admin) ───────────────────────────────────
+// Tabelle oil_weighings (Migration 0114) — append-only Log des aktuellen
+// Flaschengewichts. Verbrauch = Differenz aufeinanderfolgender Wiegungen
+// pro Öl (wird im OilWeighingTab berechnet). Alle RPCs is_admin()-gated.
+
+export interface OilWeighing {
+  id: string;
+  oil_id: string;
+  weight_g: number;
+  note: string | null;
+  weighed_by: string | null;
+  weighed_by_name: string | null;
+  created_at: string;
+}
+
+export function useOilWeighings() {
+  return useQuery<OilWeighing[]>({
+    queryKey: ['oil-weighings'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('get_oil_weighings', { p_limit: 2000 });
+      if (error) throw error;
+      // numeric kommt je nach PostgREST-Version als string — sicher zu number casten.
+      return ((data ?? []) as OilWeighing[]).map((r) => ({ ...r, weight_g: Number(r.weight_g) }));
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useRecordOilWeighing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { oil: string; weightG: number; note?: string | null }) => {
+      const { error } = await need().rpc('record_oil_weighing', {
+        p_oil: input.oil,
+        p_weight_g: input.weightG,
+        p_note: input.note ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['oil-weighings'] }),
+  });
+}
+
+export function useDeleteOilWeighing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('delete_oil_weighing', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['oil-weighings'] }),
+  });
+}
+
 // ─── AI-Titel-Vorschlag (Claude Haiku) ──────────────────────────────────
 // Ruft den Anthropic-Endpoint /api/ai?action=suggest-title auf und gibt
 // 5 sehr unterschiedliche Titel-Vorschläge zurück. Bei Fehler (Netzwerk,
