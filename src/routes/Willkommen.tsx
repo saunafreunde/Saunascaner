@@ -18,8 +18,9 @@ export default function Willkommen() {
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
 
   // Beim Mounten: Falls noch eine Tablet-Session aktiv ist → ausloggen (Kiosk-Pattern).
+  // scope:'local' — nur das Tablet, NICHT die Member-Tokens auf anderen Geräten.
   useEffect(() => {
-    supabase?.auth.signOut().catch(() => {});
+    supabase?.auth.signOut({ scope: 'local' }).catch(() => {});
   }, []);
 
   return (

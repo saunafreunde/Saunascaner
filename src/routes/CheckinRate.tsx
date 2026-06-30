@@ -54,7 +54,8 @@ export default function CheckinRate() {
   }, [familyModal]);
 
   async function handleLogout() {
-    await supabase?.auth.signOut().catch(() => {});
+    // scope:'local' — nur das Tablet ausloggen, nicht die Member-Tokens global widerrufen.
+    await supabase?.auth.signOut({ scope: 'local' }).catch(() => {});
     nav('/checkin');
   }
 

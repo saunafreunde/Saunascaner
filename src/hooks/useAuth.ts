@@ -59,7 +59,10 @@ export function useAuth() {
     },
     signOut: async () => {
       if (!supabase) return;
-      await supabase.auth.signOut();
+      // scope:'local' — nur DIESES Gerät ausloggen. Default 'global' würde die
+      // Refresh-Tokens des Users serverseitig auf ALLEN Geräten widerrufen
+      // (Footgun: Member fliegt überall raus, u.a. via Kiosk-Auto-Logout).
+      await supabase.auth.signOut({ scope: 'local' });
     },
   };
 }

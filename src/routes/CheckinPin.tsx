@@ -31,9 +31,10 @@ export default function CheckinPin() {
     return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
   }, []);
 
-  // Beim Mounten: Falls noch eine Tablet-Session aktiv ist → ausloggen
+  // Beim Mounten: Falls noch eine Tablet-Session aktiv ist → ausloggen.
+  // scope:'local' — nur das Tablet, NICHT die Tokens des Members auf anderen Geräten.
   useEffect(() => {
-    supabase?.auth.signOut().catch(() => {});
+    supabase?.auth.signOut({ scope: 'local' }).catch(() => {});
   }, []);
 
   const handleKey = (k: string) => {
