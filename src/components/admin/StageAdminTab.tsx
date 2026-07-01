@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   useTvStageState, useSetStageManualScenes, useToggleStageScene, useTriggerStageEffect,
 } from '@/lib/api';
 import { SCENE_REGISTRY } from '@/components/stage/scenes';
-import { EFFECT_REGISTRY } from '@/components/stage/effects';
+import { EFFECT_REGISTRY, EFFECT_CATEGORIES } from '@/components/stage/effects';
 import { EffectPlayer } from '@/components/stage/effects/EffectPlayer';
 import { activeScenesForState, currentSeasonLabel, THEME_PRESETS } from '@/lib/season';
 
 // Admin-Tab „🎭 Bühne": steuert TV-Tafel-Szenarien + Effekte.
-// Drei Sektionen: Aktive Layer (Checkboxes), Themes (One-Click), Effekte (Trigger).
+// Drei Sektionen: Aktive Layer (Checkboxes), Themes (One-Click), Effekte
+// (nach Kategorie gruppiert + Suche + Lokal-Test-Modus).
 
 export function StageAdminTab() {
   const stateQ = useTvStageState();
@@ -35,6 +36,12 @@ export function StageAdminTab() {
       nonce: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     });
   }
+
+  // Effekt-Suche + Lokal-Test-Modus. Im Test-Modus spielen die Effekt-Buttons
+  // lokal ab (umgeht Realtime) statt an die Tafel zu senden — ersetzt die
+  // frühere zweite Vollliste aller Effekte.
+  const [effectSearch, setEffectSearch] = useState('');
+  const [localTestMode, setLocalTestMode] = useState(false);
 
   const state = stateQ.data;
   const active = activeScenesForState(now, state ?? null);
@@ -102,6 +109,17 @@ export function StageAdminTab() {
       window.alert((e as Error).message);
     }
   }
+
+  // Effekte nach Kategorie gruppiert + nach Suchbegriff (Label) gefiltert.
+  const effectGroups = useMemo(() => {
+    const q = effectSearch.trim().toLowerCase();
+    return EFFECT_CATEGORIES.map((cat) => ({
+      cat,
+      effects: Object.values(EFFECT_REGISTRY).filter(
+        (e) => e.category === cat.id && (q === '' || e.label.toLowerCase().includes(q)),
+      ),
+    })).filter((g) => g.effects.length > 0);
+  }, [effectSearch]);
 
   if (stateQ.isLoading) {
     return <div className="text-forest-300 text-center py-12">Lade…</div>;
@@ -204,32 +222,71 @@ export function StageAdminTab() {
         </div>
       </section>
 
-      {/* ── Effekte (One-Shot Trigger) ── */}
+      {/* ── Effekte (One-Shot Trigger, nach Kategorie gruppiert) ── */}
       <section className="rounded-2xl bg-forest-950/70 ring-1 ring-forest-800/50 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-widest text-forest-300 mb-4">
-          🎆 Effekte (sofort an der Tafel)
-        </h2>
-        <p className="text-xs text-forest-400 mb-3">
-          Effekt läuft einmal kurz, verschwindet dann automatisch. Realtime-Latency ~1s.
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          {Object.values(EFFECT_REGISTRY).map((eff) => (
-            <button
-              key={eff.id}
-              onClick={() => handleEffect(eff.id)}
-              disabled={triggerEffect.isPending || isCoolingDown}
-              className="rounded-xl bg-amber-500/15 ring-1 ring-amber-500/40 px-3 py-3 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center gap-1"
-            >
-              <span className="text-2xl" aria-hidden>{eff.emoji}</span>
-              <span>{eff.label}</span>
-              <span className="text-[10px] text-amber-300/60">
-                {isCoolingDown ? `${Math.ceil(cooldownRemainingMs / 1000)}s…` : `${Math.round(eff.durationMs / 1000)}s`}
-              </span>
-            </button>
-          ))}
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-forest-300">
+            🎆 Effekte {localTestMode ? '(Lokal-Test)' : '(sofort an der Tafel)'}
+          </h2>
+          <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-forest-300 bg-forest-900/60 ring-1 ring-forest-700/40 px-3 py-1.5 rounded-lg">
+            <input
+              type="checkbox"
+              checked={localTestMode}
+              onChange={(e) => setLocalTestMode(e.target.checked)}
+              className="w-4 h-4 accent-forest-500"
+            />
+            🧪 Lokal-Test-Modus <span className="text-forest-400/70 normal-case">(umgeht Realtime)</span>
+          </label>
         </div>
-        {isCoolingDown && (
-          <p className="text-[11px] text-amber-300/70 mt-2 italic">
+        <p className="text-xs text-forest-400 mb-3">
+          {localTestMode
+            ? 'Effekt läuft nur HIER im Admin ab (Diagnose der Render-Strecke, ohne Tafel). Sichtbar hier aber nicht auf der Tafel → Realtime-Problem.'
+            : 'Effekt läuft einmal kurz auf der Tafel, verschwindet dann automatisch. Realtime-Latency ~1s.'}
+        </p>
+
+        {/* Suche */}
+        <input
+          value={effectSearch}
+          onChange={(e) => setEffectSearch(e.target.value)}
+          placeholder="🔍 Effekt suchen…"
+          className="w-full sm:max-w-xs mb-4 rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400 placeholder:text-forest-500"
+        />
+
+        {/* Klapp-Gruppen pro Kategorie */}
+        <div className="space-y-3">
+          {effectGroups.map(({ cat, effects }) => (
+            <details key={cat.id} open className="group rounded-xl bg-forest-900/30 ring-1 ring-forest-800/40 overflow-hidden">
+              <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-semibold text-forest-200 flex items-center gap-2 hover:bg-forest-900/50">
+                <span aria-hidden>{cat.emoji}</span>
+                <span>{cat.label}</span>
+                <span className="text-[10px] text-forest-400 font-normal">({effects.length})</span>
+                <span className="ml-auto text-forest-500 text-xs transition group-open:rotate-180">▾</span>
+              </summary>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-3 pt-0">
+                {effects.map((eff) => (
+                  <button
+                    key={eff.id}
+                    onClick={() => (localTestMode ? playLocal(eff.id) : handleEffect(eff.id))}
+                    disabled={!localTestMode && (triggerEffect.isPending || isCoolingDown)}
+                    className="rounded-xl bg-amber-500/15 ring-1 ring-amber-500/40 px-3 py-3 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center gap-1"
+                  >
+                    <span className="text-2xl" aria-hidden>{eff.emoji}</span>
+                    <span className="text-center leading-tight">{eff.label}</span>
+                    <span className="text-[10px] text-amber-300/60">
+                      {!localTestMode && isCoolingDown ? `${Math.ceil(cooldownRemainingMs / 1000)}s…` : `${Math.round(eff.durationMs / 1000)}s`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </details>
+          ))}
+          {effectGroups.length === 0 && (
+            <p className="text-xs text-forest-400 italic py-2">Kein Effekt gefunden für „{effectSearch}".</p>
+          )}
+        </div>
+
+        {!localTestMode && isCoolingDown && (
+          <p className="text-[11px] text-amber-300/70 mt-3 italic">
             ⏱ Bitte {Math.ceil(cooldownRemainingMs / 1000)}s warten — vorheriger Effekt läuft noch (sonst überschreibt der Neue ihn auf der Tafel).
           </p>
         )}
@@ -239,28 +296,6 @@ export function StageAdminTab() {
             ({new Date(state.last_effect.triggered_at).toLocaleTimeString('de-DE')})
           </p>
         )}
-      </section>
-
-      {/* ── Lokal-Test (Diagnose) ── */}
-      <section className="rounded-2xl bg-forest-950/40 ring-1 ring-forest-800/40 p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-forest-400 mb-2">
-          🧪 Lokal-Test (umgeht Realtime — testet nur die Render-Strecke)
-        </h2>
-        <p className="text-[11px] text-forest-400/80 mb-2">
-          Wenn der Effekt hier sichtbar ist aber auf der Tafel nicht: Realtime-Problem.
-          Wenn hier auch nichts kommt: Render-Problem.
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {Object.values(EFFECT_REGISTRY).map((eff) => (
-            <button
-              key={eff.id}
-              onClick={() => playLocal(eff.id)}
-              className="rounded-md bg-forest-900/60 ring-1 ring-forest-700/40 px-2 py-1 text-[11px] text-forest-200 hover:bg-forest-800"
-            >
-              {eff.emoji} {eff.label}
-            </button>
-          ))}
-        </div>
       </section>
 
       {/* Lokal-Render-Slot. EffectPlayer rendert mit fixed inset-0, z-100 →
