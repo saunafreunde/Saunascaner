@@ -53,20 +53,23 @@ export function SaunafreundeLogo({ className, style }: { className?: string; sty
       {/* ── Rundes Siegel ── */}
       <g transform="translate(1000,190)">
         <defs>
-          <path id="sfl-arc-top" d="M -128 0 A 128 128 0 0 1 128 0" fill="none" />
-          <path id="sfl-arc-bottom" d="M -134 6 A 134 134 0 0 0 134 6" fill="none" />
-          <clipPath id="sfl-clip"><circle r="118" /></clipPath>
+          {/* Saubere Text-Bögen (Endpunkte NICHT diametral → keine Degeneration).
+              Oben Sweep 1, unten Sweep 0 → beide Texte stehen aufrecht, lesbar. */}
+          <path id="sfl-arc-top" d="M -131.6 -47.9 A 140 140 0 0 1 131.6 -47.9" fill="none" />
+          <path id="sfl-arc-bottom" d="M -123.6 65.7 A 140 140 0 0 0 123.6 65.7" fill="none" />
+          <clipPath id="sfl-clip"><circle r="116" /></clipPath>
         </defs>
 
-        {/* Ringe */}
-        <circle r="166" fill="#f3f6ef" stroke={GREEN_DARK} strokeWidth="6" />
-        <circle r="150" fill="none" stroke="#7fae5f" strokeWidth="2.5" />
+        {/* Rand: kräftiger Außenring + feiner Zierring + Innenrahmen ums Bild */}
+        <circle r="166" fill="#f3f6ef" stroke={GREEN_DARK} strokeWidth="5" />
+        <circle r="157" fill="none" stroke="#6fa24f" strokeWidth="1.6" />
+        <circle r="120" fill="#eaf1e3" stroke={GREEN_DARK} strokeWidth="3" />
 
-        {/* Bogen-Texte */}
-        <text fontFamily="'Segoe UI',system-ui,sans-serif" fontSize="46" fontWeight={800} fill={GREEN_DARK} letterSpacing="1">
+        {/* Bogen-Texte — Rundschrift-Stack, sauber auf dem Bogen zentriert */}
+        <text fontFamily={font} fontSize="44" fontWeight={700} fill={GREEN_DARK} letterSpacing="2">
           <textPath href="#sfl-arc-top" startOffset="50%" textAnchor="middle">100%</textPath>
         </text>
-        <text fontFamily="'Segoe UI',system-ui,sans-serif" fontSize="37" fontWeight={700} fill={GREEN_DARK} letterSpacing="3">
+        <text fontFamily={font} fontSize="30" fontWeight={600} fill={GREEN_DARK} letterSpacing="4">
           <textPath href="#sfl-arc-bottom" startOffset="50%" textAnchor="middle">Black Forest</textPath>
         </text>
 
