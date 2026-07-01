@@ -4,10 +4,11 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 // durationMs: nach dieser Zeit unmounted EffectPlayer die Komponente.
 // category: Gruppierung für die Klapp-Sektionen im Admin-Tab (StageAdminTab).
 
-export type EffectCategory = 'feier' | 'episch' | 'fantasy' | 'natur' | 'saison';
+export type EffectCategory = 'verein' | 'feier' | 'episch' | 'fantasy' | 'natur' | 'saison';
 
 // Reihenfolge = Reihenfolge der Klapp-Gruppen im Admin-UI.
 export const EFFECT_CATEGORIES: { id: EffectCategory; label: string; emoji: string }[] = [
+  { id: 'verein',  label: 'Verein & Logo',        emoji: '🌲' },
   { id: 'feier',   label: 'Feier & Party',        emoji: '🎉' },
   { id: 'episch',  label: 'Episch & Action',      emoji: '💥' },
   { id: 'fantasy', label: 'Fantasy & Fun',        emoji: '🦄' },
@@ -25,6 +26,10 @@ export type EffectMeta = {
 };
 
 export const EFFECT_REGISTRY: Record<string, EffectMeta> = {
+  // ── Verein & Logo ──
+  'logo-reveal':      { id: 'logo-reveal',      label: 'Logo-Reveal',        emoji: '🎇',   durationMs: 10_000, category: 'verein',  component: lazy(() => import('./LogoRevealEffect')) },
+  'logo-show':        { id: 'logo-show',        label: 'Große Logo-Show',    emoji: '🎆',   durationMs: 25_000, category: 'verein',  component: lazy(() => import('./LogoShowEffect')) },
+
   // ── Feier & Party ──
   'fireworks':        { id: 'fireworks',        label: 'Feuerwerk',          emoji: '🎆',   durationMs: 15_000, category: 'feier',   component: lazy(() => import('./FireworksEffect')) },
   'confetti':         { id: 'confetti',         label: 'Konfetti',           emoji: '🎊',   durationMs: 10_000, category: 'feier',   component: lazy(() => import('./ConfettiEffect')) },
