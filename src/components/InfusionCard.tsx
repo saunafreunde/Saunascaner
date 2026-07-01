@@ -127,7 +127,11 @@ export function InfusionCard({
 
   return (
     <motion.div
-      layout
+      // KEIN layout-Prop im Tafel/compact-Modus: framer-motions Layout-Projektion
+      // driftete beim Stundenwechsel (Slot-Reflow) im Zusammenspiel mit dem
+      // Dauer-Transform rotateX/scale + perspective → Boxen blieben verschoben
+      // bis zum Reload. Ohne layout regelt CSS-Grid die Positionen instant.
+      layout={!compact}
       initial={{ opacity: 0, y: 30, scale: 0.98, rotateX: 1.5 }}
       animate={{
         opacity: 1, y: 0, scale: 1, rotateX: 1.5,

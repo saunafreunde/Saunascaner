@@ -36,7 +36,7 @@ export function EmptyTile({
 
   return (
     <motion.div
-      layout
+      // kein layout-Prop: verhindert Layout-Projektions-Drift beim Stundenwechsel (Tafel-only).
       initial={{ opacity: 0, y: 20, scale: 0.98, rotateX: 1.5 }}
       animate={{ opacity: 1, y: 0, scale: 1, rotateX: 1.5 }}
       exit={{ opacity: 0, y: -20, scale: 0.96 }}
