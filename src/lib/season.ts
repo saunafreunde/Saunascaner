@@ -20,17 +20,26 @@ export type SeasonName =
   | 'herbst'
   | 'halloween';
 
-// Variable Feiertage pro Jahr (Sonntag-Datum für Ostern; Faschings-Dienstag).
-// Vorausberechnete Werte für 2026, 2027, 2028 — danach erweitern.
-type YearMap = { ostersonntag: string; faschingsdienstag: string };
-const KALENDER_JAHRE: Record<number, YearMap> = {
-  2026: { ostersonntag: '2026-04-05', faschingsdienstag: '2026-02-17' },
-  2027: { ostersonntag: '2027-03-28', faschingsdienstag: '2027-02-09' },
-  2028: { ostersonntag: '2028-04-16', faschingsdienstag: '2028-02-29' },
-};
-
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Ostersonntag algorithmisch (Gauß / Meeus-Jones-Butcher, gregorianisch) — damit
+// die Oster- und Faschings-Saison ohne jährliche Wartung DAUERHAFT funktioniert.
+// Vorher: KALENDER_JAHRE hartcodiert bis 2028 → ab 2029 lautlos keine Auto-Saison.
+// Faschingsdienstag = Ostersonntag − 47 Tage.
+function easterSunday(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const mm = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * mm + 114) / 31); // 3 = März, 4 = April
+  const day = ((h + l - 7 * mm + 114) % 31) + 1;
+  return new Date(year, month - 1, day); // lokale Mitternacht
 }
 
 function daysBetween(a: Date, b: Date): number {
@@ -66,21 +75,19 @@ export function seasonsForDate(d: Date): SeasonName[] {
   // 27.12. - 6.1.
   if ((m === 12 && day >= 27) || (m === 1 && day <= 6)) result.push('silvester');
 
-  // ─── Ostern (variabel) ──────────────────────────────────────────────────
+  // ─── Ostern (variabel, berechnet) ────────────────────────────────────────
   // 7 Tage vor Ostersonntag bis Ostermontag.
-  const cal = KALENDER_JAHRE[year];
-  if (cal) {
-    const oster = new Date(cal.ostersonntag);
-    const heute = new Date(ymd(d));
-    const diffOster = daysBetween(heute, oster);
-    if (diffOster >= -1 && diffOster <= 7) result.push('oster');
+  const heute = new Date(d.getFullYear(), d.getMonth(), d.getDate()); // lokale Mitternacht
+  const oster = easterSunday(year);
+  const diffOster = daysBetween(heute, oster);
+  if (diffOster >= -1 && diffOster <= 7) result.push('oster');
 
-    // ─── Fasching ─────────────────────────────────────────────────────────
-    // 4 Tage vor Faschingsdienstag bis Faschingsdienstag.
-    const fasching = new Date(cal.faschingsdienstag);
-    const diffFasching = daysBetween(heute, fasching);
-    if (diffFasching >= 0 && diffFasching <= 4) result.push('fasching');
-  }
+  // ─── Fasching ─────────────────────────────────────────────────────────
+  // 4 Tage vor Faschingsdienstag (= Ostern − 47) bis Faschingsdienstag.
+  const fasching = new Date(oster);
+  fasching.setDate(fasching.getDate() - 47);
+  const diffFasching = daysBetween(heute, fasching);
+  if (diffFasching >= 0 && diffFasching <= 4) result.push('fasching');
 
   return result;
 }
