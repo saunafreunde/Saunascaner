@@ -49,8 +49,8 @@ export default function LogoRevealEffect() {
         .fx-lr-center { position:absolute; inset:0; display:grid; place-items:center; }
         .fx-lr-halo { position:absolute; left:50%; top:50%; width:min(70vw,1100px); height:min(48vh,620px); border-radius:50%; background: radial-gradient(ellipse, rgba(255,236,170,0.55) 0%, rgba(74,122,52,0.25) 40%, transparent 70%); animation: fx-lr-halo 3.2s ease-in-out 0.6s infinite; will-change: transform,opacity; }
         .fx-lr-wrap { width:min(74vw,1200px); animation: fx-lr-logo 10s cubic-bezier(0.22,1,0.36,1) forwards; will-change: transform,opacity,filter; }
-        .fx-lr-inner { animation: fx-lr-glow2 2.4s ease-in-out 1.6s infinite; will-change: filter; }
-        .fx-lr-inner svg { display:block; width:100%; height:auto; filter: drop-shadow(0 10px 24px rgba(0,0,0,0.45)); }
+        .fx-lr-inner { background: linear-gradient(135deg,#ffffff,#edf3e7); border-radius: 2.4vw; padding: 3.4% 4.6%; box-shadow: 0 22px 64px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.85); animation: fx-lr-glow2 2.4s ease-in-out 1.6s infinite; will-change: filter; }
+        .fx-lr-inner svg { display:block; width:100%; height:auto; }
         .fx-lr-burst { position:absolute; }
         .fx-lr-flash { position:absolute; left:0; top:0; width:120px; height:120px; border-radius:50%; background: radial-gradient(circle, var(--c) 0%, transparent 68%); mix-blend-mode:screen; animation: fx-lr-flash 0.8s ease-out var(--del) both; will-change: transform,opacity; }
         .fx-lr-part { position:absolute; left:0; top:0; width:9px; height:9px; border-radius:50%; background: var(--c); mix-blend-mode:screen; filter: drop-shadow(0 0 10px var(--c)) drop-shadow(0 0 20px var(--c)); animation: fx-lr-p 2.4s ease-out var(--del) both; will-change: transform,opacity; }

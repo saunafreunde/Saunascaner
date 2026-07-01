@@ -92,8 +92,8 @@ export default function LogoShowEffect() {
         .fx-ls-center { position:absolute; inset:0; display:grid; place-items:center; }
         .fx-ls-rays { position:absolute; left:50%; top:50%; width:min(120vw,1800px); height:min(120vw,1800px); border-radius:50%; background: repeating-conic-gradient(from 0deg, rgba(255,240,190,0.14) 0deg 5deg, transparent 5deg 16deg); mix-blend-mode:screen; animation: fx-ls-rays-spin 22s linear infinite, fx-ls-rays-in 25s ease-in-out forwards; will-change: transform,opacity; }
         .fx-ls-wrap { width:min(76vw,1240px); animation: fx-ls-logo 25s cubic-bezier(0.22,1,0.36,1) forwards; will-change: transform,opacity,filter; }
-        .fx-ls-inner { animation: fx-ls-glow 2.6s ease-in-out 6.2s infinite; will-change: filter; }
-        .fx-ls-inner svg { display:block; width:100%; height:auto; filter: drop-shadow(0 12px 28px rgba(0,0,0,0.5)); }
+        .fx-ls-inner { background: linear-gradient(135deg,#ffffff,#edf3e7); border-radius: 2.2vw; padding: 3.2% 4.4%; box-shadow: 0 24px 70px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.85); animation: fx-ls-glow 2.6s ease-in-out 6.2s infinite; will-change: filter; }
+        .fx-ls-inner svg { display:block; width:100%; height:auto; }
 
         .fx-ls-conf { position:absolute; top:0; width:10px; height:16px; border-radius:2px; background: var(--c); animation: fx-ls-conf var(--dur,6s) linear var(--del,0s) forwards; will-change: transform,opacity; }
         .fx-ls-spark { position:absolute; bottom:32%; width:6px; height:6px; border-radius:50%; background:#fde68a; filter: drop-shadow(0 0 8px #fbbf24); mix-blend-mode:screen; animation: fx-ls-spark 2.4s ease-out var(--del,0s) infinite; will-change: transform,opacity; }
