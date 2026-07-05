@@ -735,7 +735,7 @@ Wenn du einen gelben 🟡 Slot anklickst, wechselt der Button auf **„🔄 Pers
 - **Meine geplanten Aufgüsse** — Karten-Ansicht. Klick auf eine Karte → Edit-Modal. Du kannst Titel, Eigenschaften, Öle, Co-Aufgießer und Dauer ändern (bis 60 Min vor Start).
 - **Templates** — Aufguss-Vorlagen mit einem Klick wiederverwenden
 - **Eigene Buttons (Custom-Attrs)** — du legst dir **eigene Besonderheiten** mit Emoji + Label + Farbe an (z.B. „🌶️ Scharf-Variante", „🎄 Weihnachtsmix"). Diese erscheinen beim Aufguss-Anlegen unter „Meine Buttons". Wenn du sie verwendest, sind sie öffentlich sichtbar (auf der Tafel, im Feed). Verwaltung: Profil → „Eigene Buttons".
-- **Eigene Öle (Custom-Oils)** ⭐ neu — analog zu den Buttons: bis zu **15 eigene Öl-Einträge** (Name + Emoji + Farbe) im Profil. **Privat in der Auswahl** (nur du siehst sie im Öl-Picker), aber **öffentlich sobald in einem Aufguss verwendet** (Tafel zeigt sie wie Standard-Öle). Verwaltung: Profil → „Meine eigenen Öle".
+- **Eigene Öle (Custom-Oils)** ⭐ neu — analog zu den Buttons: bis zu **50 eigene Öl-Einträge** (Name + Emoji + Farbe) im Profil. **Privat in der Auswahl** (nur du siehst sie im Öl-Picker), aber **öffentlich sobald in einem Aufguss verwendet** (Tafel zeigt sie wie Standard-Öle). Verwaltung: Profil → „Meine eigenen Öle".
 
 **Vorlage speichern:** beim Anlegen → „Als Vorlage" → kann später mit einem Klick wieder eingetragen werden.
 

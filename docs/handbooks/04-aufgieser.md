@@ -144,7 +144,7 @@ Wenn du wöchentlich denselben Slot haben möchtest:
 - **Meine geplanten Aufgüsse** — Karten-Ansicht. Klick auf Karte → `EditInfusionModal` (Titel/Eigenschaften/Öle/Co-Aufgießer/Dauer ändern, bis 60 Min vor Start)
 - **Templates** — Vorlagen mit einem Klick wiederverwenden. Beim Anlegen → „Als Vorlage" speichern
 - **Eigene Buttons (Custom-Attrs)** — bis zu 14 eigene Besonderheiten mit Emoji + Label + Farbe (z.B. „🌶️ Scharf-Variante", „🎄 Weihnachtsmix"). Erscheinen beim Aufguss-Anlegen unter „Meine Buttons". Öffentlich sichtbar sobald in einem Aufguss verwendet (auf Tafel, im Feed)
-- **Eigene Öle (Custom-Oils)** — bis zu 15 eigene Öl-Einträge (Name + Emoji + Farbe). Privat im Picker, öffentlich sobald verwendet
+- **Eigene Öle (Custom-Oils)** — bis zu 50 eigene Öl-Einträge (Name + Emoji + Farbe). Privat im Picker, öffentlich sobald verwendet
 - **Default-Mood** (Profil) — Standard-attrs + Standard-Öle die genutzt werden wenn dein Aufguss leere attrs/oils hat. Wird auf der Tafel mit „🪶 Sein Stil"-Header gezeigt
 - **Star-Profil** (`/aufgieser/<deine-id>`) — Trading-Card + Bio + Story + Specialties + Rating-Radar + Foto-Galerie + Gästebuch + Wünsche
 

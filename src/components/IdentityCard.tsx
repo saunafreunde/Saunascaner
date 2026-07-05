@@ -306,7 +306,7 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
             <div className="flex items-center gap-2">
               <span className="text-xs">🌿</span>
               <h3 className="text-[11px] font-bold text-violet-300/80 uppercase tracking-[0.12em]">
-                Meine eigenen Öle <span className="text-forest-500 normal-case tracking-normal">({(myOils.data ?? []).length}/15)</span>
+                Meine eigenen Öle <span className="text-forest-500 normal-case tracking-normal">({(myOils.data ?? []).length}/50)</span>
               </h3>
             </div>
           </div>
@@ -317,7 +317,7 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
           {/* Add-Form mit EmojiPicker (Modal) + ColorPicker-Preset.
               Identische UX wie CustomAttrCreator damit "Buttons" und "Öle"
               konsistent angelegt werden. */}
-          {(myOils.data?.length ?? 0) < 15 && (
+          {(myOils.data?.length ?? 0) < 50 && (
             <div className="space-y-2 mb-3 rounded-xl bg-violet-950/30 ring-1 ring-violet-700/30 p-2.5">
               {/* Live-Preview */}
               <div className="flex items-center gap-2">
