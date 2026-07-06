@@ -4,7 +4,7 @@
 // ?action=tablet-signup: Body { name, email, dsgvo, ref?, origin? } — Schnell-Signup am Tablet
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PIN_RE = /^\d{4}$/;
@@ -139,9 +139,17 @@ async function handleTabletSignup(
   if (!cleanEmail.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
   if (!dsgvo) return res.status(400).json({ error: 'dsgvo_required' });
 
-  // Prüfen ob Email bereits einen Account hat → in dem Fall PIN ausgeben
-  const { data: existingUsers } = await admin.auth.admin.listUsers();
-  const existing = existingUsers?.users.find((u) => u.email?.toLowerCase() === cleanEmail);
+  // Prüfen ob Email bereits einen Account hat → in dem Fall PIN ausgeben.
+  // listUsers ist paginiert (Default 50!) — ohne Loop würde ab User 51 die
+  // Wiederanmeldung eines Bestands-Gasts fehlschlagen (createUser → email exists).
+  let existing: User | undefined;
+  for (let page = 1; page <= 40; page++) {
+    const { data: userPage, error: listErr } = await admin.auth.admin.listUsers({ page, perPage: 500 });
+    if (listErr) return res.status(500).json({ error: 'user lookup failed: ' + listErr.message });
+    const users = userPage?.users ?? [];
+    existing = users.find((u) => u.email?.toLowerCase() === cleanEmail);
+    if (existing || users.length < 500) break;
+  }
   if (existing) {
     // Existierenden Member-PIN ausgeben
     const { data: memberRow } = await admin
