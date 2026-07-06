@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
@@ -44,6 +45,7 @@ function TreeLine({ y, fill, trees }: { y: number; fill: string; trees: number[]
 
 export default function Willkommen() {
   const nav = useNavigate();
+  const qc = useQueryClient();
   const brand = useBrandSettings();
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
@@ -51,9 +53,21 @@ export default function Willkommen() {
 
   // Beim Mounten: Falls noch eine Tablet-Session aktiv ist → ausloggen (Kiosk-Pattern).
   // scope:'local' — nur das Tablet, NICHT die Member-Tokens auf anderen Geräten.
+  // WICHTIG: signOut feuert SIGNED_OUT → useAuth macht qc.clear() und razt damit
+  // auch die gerade ladende brand-settings-Query; auf einem Kiosk ohne
+  // Fokus-Wechsel refetcht sie nie → Logo bliebe dauerhaft der Platzhalter.
+  // Deshalb: nur bei echter Session ausloggen und die Brand-Query danach
+  // gezielt neu laden.
   useEffect(() => {
-    supabase?.auth.signOut({ scope: 'local' }).catch(() => {});
-  }, []);
+    if (!supabase) return;
+    const sb = supabase;
+    (async () => {
+      const { data } = await sb.auth.getSession();
+      if (!data.session) return;
+      await sb.auth.signOut({ scope: 'local' }).catch(() => {});
+      qc.refetchQueries({ queryKey: ['brand-settings'] });
+    })();
+  }, [qc]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-schwarzwald-soft flex flex-col items-center justify-center p-6">
