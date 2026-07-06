@@ -30,6 +30,7 @@ export const NO_AREA_HUB_PATHS = [
   '/forgot',
   '/reset-password',
   '/tour',
+  '/datenschutz',
   '/m/',
 ];
 

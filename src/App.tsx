@@ -20,6 +20,7 @@ const NO_BOTTOM_NAV_PATHS = [
   '/gast-signup', '/login', '/forgot', '/reset-password',
   '/tour',
   '/panel',
+  '/datenschutz',
   '/m/',
 ];
 
@@ -53,6 +54,7 @@ const ForgotPassword  = lazy(() => import('@/routes/ForgotPassword'));
 const ResetPassword   = lazy(() => import('@/routes/ResetPassword'));
 const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
 const GastSignup      = lazy(() => import('@/routes/GastSignup'));
+const Datenschutz     = lazy(() => import('@/routes/Datenschutz'));
 const GastHome        = lazy(() => import('@/routes/Gast'));
 const FanHome         = lazy(() => import('@/routes/Fan'));
 const CheckinPin      = lazy(() => import('@/routes/CheckinPin'));
@@ -127,6 +129,8 @@ export default function App() {
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/gast-signup"    element={<GastSignup />} />
+        {/* Öffentliche Datenschutzerklärung — muss VOR dem Signup lesbar sein (DSGVO) */}
+        <Route path="/datenschutz"    element={<Datenschutz />} />
         <Route path="/willkommen"     element={<Willkommen />} />
         <Route path="/checkin"        element={<CheckinPin />} />
         <Route path="/checkin/signup" element={<CheckinSignup />} />

@@ -226,9 +226,18 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
 
   const svc = makeServiceClient();
 
-  // Prüfen ob User existiert — entscheidet ob magiclink (für Existing) oder invite (für Neue)
-  const { data: existingUser } = await svc.auth.admin.listUsers();
-  const userExists = existingUser?.users.some((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? false;
+  // Prüfen ob User existiert — entscheidet ob magiclink (für Existing) oder invite (für Neue).
+  // listUsers ist paginiert (Default 50!) — ohne Loop würde ab User 51 jeder
+  // Bestands-User fälschlich als neu gelten und generateLink('signup') fehlschlagen.
+  const emailLc = email.toLowerCase();
+  let userExists = false;
+  for (let page = 1; page <= 40; page++) {
+    const { data: userPage, error: listErr } = await svc.auth.admin.listUsers({ page, perPage: 500 });
+    if (listErr) return res.status(500).json({ error: 'user lookup failed: ' + listErr.message });
+    const users = userPage?.users ?? [];
+    if (users.some((u) => u.email?.toLowerCase() === emailLc)) { userExists = true; break; }
+    if (users.length < 500) break;
+  }
 
   const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
   const redirectTo = redirect_to ?? `${origin}/planner`;

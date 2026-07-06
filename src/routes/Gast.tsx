@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { differenceInMinutes } from 'date-fns';
 import { useNow } from '@/hooks/useNow';
+import { useAuth } from '@/hooks/useAuth';
 import {
   useCurrentMember, useMyFollowing, useAufgieserStars, useInfusions, useSaunas,
-  useBrandSettings, brandAssetUrl,
+  useBrandSettings, brandAssetUrl, useDeleteMyAccount,
 } from '@/lib/api';
 import { StarTradingCard } from '@/components/StarTradingCard';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
@@ -27,10 +28,35 @@ import { fmtClock, berlinYmd } from '@/lib/time';
 // Auch für Admins zur Vorschau über /gast?preview=1 aufrufbar.
 export default function Gast() {
   const me = useCurrentMember();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+  const deleteAccount = useDeleteMyAccount();
   const [params] = useSearchParams();
   // Preview-Modus akzeptiert sowohl ?preview=1 (alte URLs) als auch ?preview=gast (neu)
   const previewMode = (params.get('preview') === '1' || params.get('preview') === 'gast') && isAdmin(me.data);
   const isReallyGast = isGast(me.data);
+
+  // GDPR-Self-Delete (RPC delete_my_account, nur für gast+fan erlaubt) —
+  // löst das Versprechen aus dem Signup-Consent ein („jederzeit löschbar").
+  const handleDeleteAccount = async () => {
+    const ok1 = window.confirm(
+      'Gäste-Account wirklich löschen?\n\n' +
+      'Alle deine Daten werden unwiderruflich entfernt:\n' +
+      '• Profil, Bewertungen, Favoriten, Badges\n' +
+      '• Feed-Beiträge, Kommentare, Reactions\n' +
+      '• Nachrichten und Spielstände'
+    );
+    if (!ok1) return;
+    const ok2 = window.confirm('Wirklich sicher? Diese Aktion kann nicht rückgängig gemacht werden.');
+    if (!ok2) return;
+    try {
+      await deleteAccount.mutateAsync();
+      await signOut();
+      navigate('/', { replace: true });
+    } catch (err) {
+      window.alert(`Löschen fehlgeschlagen: ${(err as Error).message}`);
+    }
+  };
 
   const stars = useAufgieserStars();
   const following = useMyFollowing();
@@ -332,6 +358,36 @@ export default function Gast() {
               Lieblings-Aufgießer einen neuen Aufguss planen.
             </p>
             <PushPermission memberId={me.data.id} />
+          </section>
+        )}
+
+        {/* GDPR — Recht auf Vergessen. Nur für echte Gäste sichtbar (analog Fan.tsx). */}
+        {isReallyGast && (
+          <section className="rounded-3xl bg-forest-950/40 ring-1 ring-forest-800/40 p-5">
+            <details className="group">
+              <summary className="cursor-pointer text-xs font-semibold text-forest-400 hover:text-forest-200 list-none flex items-center gap-2">
+                <span className="transition group-open:rotate-90">▸</span>
+                Datenschutz & Account-Löschung
+              </summary>
+              <div className="mt-3 space-y-3 text-xs text-forest-300/80 leading-relaxed">
+                <p>
+                  Du kannst deinen Gäste-Account jederzeit selbst löschen. Alle Daten werden
+                  sofort und vollständig entfernt — Profil, Bewertungen, Favoriten, Badges,
+                  Feed-Beiträge, Nachrichten und Spielstände. Es bleibt nichts zurück.
+                  Details in der{' '}
+                  <Link to="/datenschutz" className="underline text-forest-200 hover:text-amber-300">
+                    Datenschutzerklärung
+                  </Link>.
+                </p>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteAccount.isPending}
+                  className="rounded-lg bg-rose-500/20 px-4 py-2 text-xs font-semibold text-rose-200 ring-1 ring-rose-500/40 hover:bg-rose-500/30 disabled:opacity-50"
+                >
+                  {deleteAccount.isPending ? 'Lösche…' : '🗑 Gäste-Account endgültig löschen'}
+                </button>
+              </div>
+            </details>
           </section>
         )}
       </main>
