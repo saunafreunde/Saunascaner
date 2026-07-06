@@ -432,11 +432,10 @@ In der Profil-Box gibt es einen **PushPermission**-Block — aktivierst du das, 
 | ❌ **Aufgüsse planen** | Reserviert für Aufgießer-Rollen |
 | ❌ **Helfer-Aufgaben annehmen** | Reserviert für 🤝 Helfer |
 | ❌ **Im Mitglieder-Directory auftauchen** | Gäste sind aus `list_members_directory()` gefiltert (RLS) |
-| ❌ **Feed-Posts erstellen** | Lesen + reagieren ja, posten nein |
 
 ### 🛡️ Recht auf Vergessen (DSGVO)
 
-In deinem Profil findest du **„🛡️ Account löschen"** — ein Klick + Bestätigung löscht **alle deine Daten**:
+In deinem Gast-Bereich findest du ganz unten den ausklappbaren Abschnitt **„Datenschutz & Account-Löschung"** — ein Klick + Bestätigung löscht **alle deine Daten**:
 - Member-Eintrag
 - Auth-Account
 - Follows, Reactions, Bewertungen
