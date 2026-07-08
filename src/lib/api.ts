@@ -1797,6 +1797,7 @@ export type AvailabilityEntry = {
   start_time: string;  // HH:MM:SS
   end_time: string;
   note: string | null;
+  hours: number[];     // Start-Stunden (Migration 0117), z.B. [13,14,15] = 13–16 Uhr
 };
 
 export function useMyAvailability(from: string, to: string) {
@@ -1805,7 +1806,7 @@ export function useMyAvailability(from: string, to: string) {
     queryFn: async () => {
       const { data, error } = await need().rpc('list_my_availability', { p_from: from, p_to: to });
       if (error) throw error;
-      return (data ?? []) as AvailabilityEntry[];
+      return ((data ?? []) as AvailabilityEntry[]).map((r) => ({ ...r, hours: r.hours ?? [] }));
     },
   });
 }
@@ -1837,6 +1838,21 @@ export function useDeleteMyAvailability() {
   });
 }
 
+// Verfügbarkeit als Stundenslots setzen (Migration 0117). Leeres Array löscht den Tag.
+export function useSetMyAvailabilityHours() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { date: string; hours: number[] }) => {
+      const { error } = await need().rpc('set_my_availability_hours', {
+        p_date: p.date,
+        p_hours: p.hours,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-availability'] }),
+  });
+}
+
 // ─── CP: alle Mitarbeiter-Verfügbarkeiten lesen ───────────────────────────
 export type StaffAvailabilityEntry = AvailabilityEntry & {
   member_id: string;
@@ -1849,7 +1865,27 @@ export function useStaffAvailability(from: string, to: string) {
     queryFn: async () => {
       const { data, error } = await need().rpc('list_staff_availability', { p_from: from, p_to: to });
       if (error) throw error;
-      return (data ?? []) as StaffAvailabilityEntry[];
+      return ((data ?? []) as StaffAvailabilityEntry[]).map((r) => ({ ...r, hours: r.hours ?? [] }));
+    },
+  });
+}
+
+// CP/Admin bestätigt Verfügbarkeit eines Mitarbeiters für einen Tag (grün→blau).
+// Erzeugt personal_shifts aus zusammenhängenden Stunden-Läufen. Leeres Array = zurücknehmen.
+export function useConfirmStaffAvailability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { member_id: string; date: string; hours: number[] }) => {
+      const { error } = await need().rpc('confirm_staff_availability', {
+        p_member_id: p.member_id,
+        p_date: p.date,
+        p_hours: p.hours,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['personal-shifts'] });
+      qc.invalidateQueries({ queryKey: ['staff-monthly-stats'] });
     },
   });
 }

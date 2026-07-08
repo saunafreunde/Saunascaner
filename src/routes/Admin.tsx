@@ -21,6 +21,7 @@ import { OilWeighingTab } from '@/components/admin/OilWeighingTab';
 import { WifiSubnetsTab } from '@/components/admin/WifiSubnetsTab';
 import { AdminAvatarManager } from '@/components/admin/AdminAvatarManager';
 import { HolidaysTab } from '@/components/admin/HolidaysTab';
+import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import {
   useSaunas, useToggleSauna,
@@ -225,6 +226,10 @@ export default function Admin() {
       </header>
 
       <div className="mx-auto max-w-6xl p-4 sm:p-6">
+        {/* Notfall-Alarm — nur Admin, immer erreichbar (Rollen-Guard in der Komponente) */}
+        <div className="mb-4">
+          <EvacuationAlarmButton />
+        </div>
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}
         {tab === 'invitations' && <InvitationsTab />}

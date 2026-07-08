@@ -6,8 +6,8 @@ import {
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList } from '@/lib/telegram';
 
-// Großer Evakuierungs-Alarm-Button — für alle Member sichtbar.
-// Bei aktiver Evakuierung zeigt die Komponente Status + Abbrechen.
+// Großer Evakuierungs-Alarm-Button — NUR für Admin sichtbar (Betriebsentscheidung:
+// Personal löst nicht selbst aus). Bei aktiver Evakuierung: Status + Abbrechen.
 export function EvacuationAlarmButton() {
   const me = useCurrentMember();
   const evac = useActiveEvacuation();
@@ -18,6 +18,9 @@ export function EvacuationAlarmButton() {
   const [busy, setBusy] = useState(false);
 
   const isActive = !!evac.data;
+
+  // Nur Admin darf den Alarm sehen/auslösen (auf /mitarbeiter, /cp, /unterstuetzer verborgen).
+  if (me.data?.role !== 'admin') return null;
 
   async function triggerAlarm() {
     if (!me.data) return;

@@ -9,27 +9,22 @@ import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { LogoutButton } from '@/components/LogoutButton';
 import { PageBackground } from '@/components/PageBackground';
 import { MyPresenceToggle } from '@/components/MyPresenceToggle';
-import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
-import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { PushPermission } from '@/components/PushPermission';
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { MiniDashboardTimeline } from '@/components/MiniDashboardTimeline';
 import { NotificationsInbox } from '@/components/staff/NotificationsInbox';
 import { AvailabilityCalendar } from '@/components/staff/AvailabilityCalendar';
 import { MyShiftsList } from '@/components/staff/MyShiftsList';
+import { WeeklyPlanDownload } from '@/components/staff/WeeklyPlanDownload';
 import { OpenCancellationsList } from '@/components/staff/OpenCancellationsList';
 import { SwapRequestsList } from '@/components/staff/SwapRequestsList';
 import { fmtClock } from '@/lib/time';
 import { lookupMemberName } from '@/lib/memberDisplay';
 
 // /mitarbeiter — Bereich für role='staff' Personal.
-// Layout-Reihenfolge (Phase-2-Refactor):
-//   1. Notfall-Button ganz oben (sofort erreichbar)
-//   2. Mini-Tafel als Timeline (statt TV-Tafel-Link — auf Handy unleserlich)
-//   3. Anwesenheit + PIN kompakt nebeneinander
-//   4. Personal-Fallback-Slots (Personal muss durchführen, nicht „übernehmen")
-//   5. Push-Aktivierung
-//   6. Quick-Links (Aufgießer / WM / Hilfe — Tafel-Link entfernt)
+// Anwesenheit nur per „Ich bin da" (MyPresenceToggle) — kein Check-in-PIN.
+// Evakuierungs-Alarm ist nur für Admin (Betriebsentscheidung).
+// Verfügbarkeit als Stunden-Slots (grün) → CP bestätigt (blau) → Wochenplan-PDF.
 //
 // Personal bewertet KEINE Aufgüsse — kein PendingRatingsBlock im Bereich.
 export default function Mitarbeiter() {
@@ -75,10 +70,7 @@ export default function Mitarbeiter() {
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">
-        {/* 1. Notfall-Button — ganz oben, sofort erreichbar */}
-        <EvacuationAlarmButton />
-
-        {/* 2. Notifications-Inbox (nur sichtbar bei pending Items) */}
+        {/* Notifications-Inbox (nur sichtbar bei pending Items) */}
         <NotificationsInbox />
 
         {/* 3. Offene Absagen — sofort sichtbar, damit andere übernehmen können */}
@@ -87,19 +79,19 @@ export default function Mitarbeiter() {
         {/* 4. Mini-Tafel: kompakte Timeline statt TV-Tafel-Link */}
         <MiniDashboardTimeline />
 
-        {/* 5. Anwesenheit + PIN kompakt */}
-        <div className="grid sm:grid-cols-2 gap-4">
-          <MyPresenceToggle />
-          <MyCheckinPinCard />
-        </div>
+        {/* Anwesenheit — „Ich bin da" ist die einzige Präsenz-Meldung fürs Personal */}
+        <MyPresenceToggle />
 
-        {/* 6. Meine Schichten (eigene zukünftige + Cancel/Swap-Buttons) */}
+        {/* Meine Schichten (eigene zukünftige + Cancel/Swap-Buttons) */}
         <MyShiftsList />
 
-        {/* 7. Tausch-Anfragen (eingehende + ausgehende) */}
+        {/* Wochenplan als PDF herunterladen */}
+        <WeeklyPlanDownload />
+
+        {/* Tausch-Anfragen (eingehende + ausgehende) */}
         <SwapRequestsList />
 
-        {/* 8. Meine Verfügbarkeit (60 Tage voraus) */}
+        {/* Meine Verfügbarkeit (Monatsansicht, Stunden-Slots) */}
         <AvailabilityCalendar />
 
         {/* 4. Personal-Fallback-Slots — Pflicht-Durchführung */}

@@ -1,92 +1,99 @@
-import { useMemo, useState } from 'react';
-import type { AvailabilityEntry } from '@/lib/api';
+import { useEffect, useMemo, useState } from 'react';
 import {
   useMyAvailability,
-  useSetMyAvailability,
-  useDeleteMyAvailability,
+  useSetMyAvailabilityHours,
+  useListPersonalShifts,
+  useCurrentMember,
+  useHolidaySet,
+  isHolidayDate,
 } from '@/lib/api';
+import { operatingHours, shiftHours, formatHoursRanges } from '@/lib/staffHours';
 
-// Mitarbeiter-Verfügbarkeit für nächste 60 Tage
-// Pro Tag: verfügbar/nicht verfügbar + optionales Zeitfenster + Notiz
-// „Nicht bindend" — CP nutzt es als Planungs-Hilfe.
+// Mitarbeiter-Verfügbarkeit (Dienstplan-Umbau, Migration 0117).
+// Monatsansicht, Tage untereinander. Pro Tag klickbare Stunden-Slots:
+//   grün = ich bin verfügbar (Klick toggelt)   ·   blau = vom CP bestätigt (= Dienst, read-only)
+// Betriebszeiten je Wochentag/Feiertag aus src/lib/staffHours.ts.
 
 function isoDate(d: Date): string {
-  // Lokaler Kalendertag (Europe/Berlin am Vereins-Gerät) — NICHT toISOString(),
-  // das eine lokal um Mitternacht gebaute Date in UTC zum Vortag verschiebt.
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-
-function addDays(d: Date, n: number): Date {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-
-function fmtDayShort(d: Date): string {
-  return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-}
-
-const DAYS_AHEAD = 60;
+const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const MONTHS = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+];
+const MAX_MONTHS_AHEAD = 11;
 
 export function AvailabilityCalendar() {
+  const me = useCurrentMember();
+  const holidaySet = useHolidaySet();
+  const setHours = useSetMyAvailabilityHours();
+
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
-  const horizonEnd = useMemo(() => addDays(today, DAYS_AHEAD), [today]);
+  const [monthOffset, setMonthOffset] = useState(0);
 
-  const list = useMyAvailability(isoDate(today), isoDate(horizonEnd));
-  const setAvail = useSetMyAvailability();
-  const deleteAvail = useDeleteMyAvailability();
-
-  const [editingDate, setEditingDate] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ start: string; end: string; note: string }>({
-    start: '18:00',
-    end: '22:00',
-    note: '',
-  });
-
-  const days = useMemo(
-    () => Array.from({ length: DAYS_AHEAD + 1 }, (_, i) => addDays(today, i)),
-    [today]
+  const monthStart = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() + monthOffset, 1),
+    [today, monthOffset]
+  );
+  const monthEnd = useMemo(
+    () => new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0),
+    [monthStart]
   );
 
-  const availByDate = useMemo(() => {
-    const map = new Map<string, AvailabilityEntry>();
-    (list.data ?? []).forEach((a) => map.set(a.date, a));
-    return map;
-  }, [list.data]);
+  const avail = useMyAvailability(isoDate(monthStart), isoDate(monthEnd));
+  const shifts = useListPersonalShifts(isoDate(monthStart), isoDate(monthEnd));
 
-  const openEdit = (date: string) => {
-    setEditingDate(date);
-    const existing = availByDate.get(date);
-    setDraft({
-      start: existing?.start_time.slice(0, 5) ?? '18:00',
-      end: existing?.end_time.slice(0, 5) ?? '22:00',
-      note: existing?.note ?? '',
+  // Lokale, sofort reagierende Kopie der grünen Stunden je Tag (optimistisch).
+  const [local, setLocal] = useState<Record<string, number[]>>({});
+  useEffect(() => {
+    const m: Record<string, number[]> = {};
+    (avail.data ?? []).forEach((a) => {
+      m[a.date] = a.hours;
     });
-  };
+    setLocal(m);
+  }, [avail.data]);
 
-  const save = async () => {
-    if (!editingDate) return;
-    await setAvail.mutateAsync({
-      date: editingDate,
-      start_time: draft.start,
-      end_time: draft.end,
-      note: draft.note || null,
-    });
-    setEditingDate(null);
-  };
+  // Bestätigte (blaue) Stunden je Tag aus den eigenen Schichten.
+  const confirmedByDate = useMemo(() => {
+    const m = new Map<string, Set<number>>();
+    (shifts.data ?? [])
+      .filter((s) => !me.data || s.staff_member_id === me.data.id)
+      .forEach((s) => {
+        const set = m.get(s.shift_date) ?? new Set<number>();
+        shiftHours(s.start_time, s.end_time).forEach((h) => set.add(h));
+        m.set(s.shift_date, set);
+      });
+    return m;
+  }, [shifts.data, me.data]);
 
-  const removeDate = async (date: string) => {
-    await deleteAvail.mutateAsync(date);
-    if (editingDate === date) setEditingDate(null);
+  const days = useMemo(() => {
+    const n = monthEnd.getDate();
+    return Array.from({ length: n }, (_, i) =>
+      new Date(monthStart.getFullYear(), monthStart.getMonth(), i + 1)
+    );
+  }, [monthStart, monthEnd]);
+
+  const toggle = (iso: string, h: number, locked: boolean) => {
+    if (locked) return;
+    const cur = local[iso] ?? [];
+    const next = cur.includes(h)
+      ? cur.filter((x) => x !== h)
+      : [...cur, h].sort((a, b) => a - b);
+    setLocal((p) => ({ ...p, [iso]: next }));
+    setHours.mutate(
+      { date: iso, hours: next },
+      { onError: () => void avail.refetch() }
+    );
   };
 
   return (
     <section className="rounded-3xl bg-forest-950/85 ring-1 ring-forest-800/60 p-5">
-      <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
+      <div className="flex items-baseline justify-between mb-1 flex-wrap gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90">
           📅 Meine Verfügbarkeit
         </h2>
@@ -94,113 +101,123 @@ export function AvailabilityCalendar() {
           Nicht bindend — wir versuchen das zu berücksichtigen
         </span>
       </div>
-
-      <p className="text-xs text-forest-300/80 mb-4 leading-relaxed">
-        Trag ein, wann du im Folgemonat (oder weiter voraus) Zeit hast. Du gibst pro Tag ein
-        Zeitfenster + optional eine Notiz an. Du kannst jederzeit ändern oder löschen.
+      <p className="text-xs text-forest-300/80 mb-3 leading-relaxed">
+        Tippe die Stunden an, in denen du kannst — <span className="text-emerald-300 font-semibold">grün</span> = verfügbar.
+        Sobald wir dich einplanen, wird der Slot <span className="text-sky-300 font-semibold">blau</span> = dein Dienst.
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+      {/* Monats-Navigation */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => setMonthOffset((o) => Math.max(0, o - 1))}
+          disabled={monthOffset === 0}
+          className="rounded-lg bg-forest-900/60 ring-1 ring-forest-800/40 px-3 py-1.5 text-sm text-forest-200 disabled:opacity-30"
+        >
+          ←
+        </button>
+        <div className="text-sm font-semibold text-forest-100">
+          {MONTHS[monthStart.getMonth()]} {monthStart.getFullYear()}
+        </div>
+        <button
+          onClick={() => setMonthOffset((o) => Math.min(MAX_MONTHS_AHEAD, o + 1))}
+          disabled={monthOffset >= MAX_MONTHS_AHEAD}
+          className="rounded-lg bg-forest-900/60 ring-1 ring-forest-800/40 px-3 py-1.5 text-sm text-forest-200 disabled:opacity-30"
+        >
+          →
+        </button>
+      </div>
+
+      {/* Legende */}
+      <div className="flex items-center gap-4 mb-3 text-[11px] text-forest-300">
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded bg-emerald-500/30 ring-1 ring-emerald-500/50" /> verfügbar
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded bg-sky-500/40 ring-1 ring-sky-400/60" /> bestätigter Dienst
+        </span>
+      </div>
+
+      <div className="space-y-1.5">
         {days.map((d) => {
           const iso = isoDate(d);
-          const entry = availByDate.get(iso);
-          const isEditing = editingDate === iso;
-          return (
-            <button
-              key={iso}
-              onClick={() => openEdit(iso)}
-              className={`text-left rounded-xl px-3 py-2 ring-1 transition ${
-                entry
-                  ? 'bg-emerald-500/15 ring-emerald-500/40 text-emerald-100'
-                  : 'bg-forest-900/40 ring-forest-800/30 text-forest-400 hover:ring-amber-500/40'
-              } ${isEditing ? 'ring-2 ring-amber-500' : ''}`}
-            >
-              <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">
-                {fmtDayShort(d)}
+          const isPast = d < today;
+          const isHoliday = isHolidayDate(d, holidaySet);
+          const slots = operatingHours(d, isHoliday);
+          const confirmed = confirmedByDate.get(iso) ?? new Set<number>();
+          const greenHours = local[iso] ?? [];
+          const isToday = iso === isoDate(today);
+
+          const dayLabel = (
+            <div className="w-20 flex-shrink-0">
+              <div className={`text-xs font-semibold ${isToday ? 'text-amber-300' : 'text-forest-100'}`}>
+                {WD[d.getDay()]} {String(d.getDate()).padStart(2, '0')}.{String(d.getMonth() + 1).padStart(2, '0')}.
               </div>
-              {entry ? (
-                <>
-                  <div className="text-xs font-semibold font-mono mt-0.5">
-                    {entry.start_time.slice(0, 5)}–{entry.end_time.slice(0, 5)}
+              {isHoliday && <div className="text-[9px] text-amber-400/80">Feiertag</div>}
+            </div>
+          );
+
+          // Ruhetag (Montag) — keine Slots
+          if (slots.length === 0) {
+            return (
+              <div key={iso} className="flex items-center gap-3 rounded-xl bg-forest-900/25 px-3 py-2 opacity-60">
+                {dayLabel}
+                <div className="text-[11px] italic text-forest-500">Ruhetag</div>
+              </div>
+            );
+          }
+          // Vergangene Tage — nur anzeigen, nicht editierbar
+          if (isPast) {
+            return (
+              <div key={iso} className="flex items-center gap-3 rounded-xl bg-forest-900/25 px-3 py-2 opacity-40">
+                {dayLabel}
+                <div className="text-[11px] italic text-forest-600">vergangen</div>
+              </div>
+            );
+          }
+
+          const confirmedHours = [...confirmed].sort((a, b) => a - b);
+
+          return (
+            <div
+              key={iso}
+              className={`flex items-start gap-3 rounded-xl px-3 py-2 ring-1 ${
+                isToday ? 'bg-forest-900/60 ring-amber-500/30' : 'bg-forest-900/40 ring-forest-800/30'
+              }`}
+            >
+              {dayLabel}
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap gap-1">
+                  {slots.map((h) => {
+                    const isConfirmed = confirmed.has(h);
+                    const isGreen = greenHours.includes(h);
+                    const cls = isConfirmed
+                      ? 'bg-sky-500/40 ring-1 ring-sky-400/60 text-sky-50 cursor-default'
+                      : isGreen
+                        ? 'bg-emerald-500/30 ring-1 ring-emerald-500/50 text-emerald-50 hover:bg-emerald-500/40'
+                        : 'bg-forest-950/60 ring-1 ring-forest-800/40 text-forest-500 hover:ring-emerald-500/40 hover:text-forest-300';
+                    return (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => toggle(iso, h, isConfirmed)}
+                        title={`${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00${isConfirmed ? ' · bestätigt' : ''}`}
+                        className={`h-8 w-9 rounded-md text-xs font-semibold tabular-nums transition ${cls}`}
+                      >
+                        {h}
+                      </button>
+                    );
+                  })}
+                </div>
+                {confirmedHours.length > 0 && (
+                  <div className="mt-1 text-[10px] text-sky-300/90">
+                    Dienst: {formatHoursRanges(confirmedHours)}
                   </div>
-                  {entry.note && (
-                    <div className="text-[10px] opacity-70 truncate mt-0.5">{entry.note}</div>
-                  )}
-                </>
-              ) : (
-                <div className="text-[10px] italic mt-1">+ verfügbar</div>
-              )}
-            </button>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
-
-      {editingDate && (
-        <div className="mt-4 rounded-2xl bg-forest-900/60 ring-1 ring-amber-500/30 p-4 space-y-3">
-          <div className="text-xs font-semibold text-amber-200">
-            {new Date(editingDate).toLocaleDateString('de-DE', {
-              weekday: 'long',
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-            })}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs text-forest-300">
-              Von
-              <input
-                type="time"
-                value={draft.start}
-                onChange={(e) => setDraft({ ...draft, start: e.target.value })}
-                className="mt-1 w-full rounded-lg bg-forest-950/80 ring-1 ring-forest-800/40 px-2 py-1.5 text-sm text-forest-100"
-              />
-            </label>
-            <label className="text-xs text-forest-300">
-              Bis
-              <input
-                type="time"
-                value={draft.end}
-                onChange={(e) => setDraft({ ...draft, end: e.target.value })}
-                className="mt-1 w-full rounded-lg bg-forest-950/80 ring-1 ring-forest-800/40 px-2 py-1.5 text-sm text-forest-100"
-              />
-            </label>
-          </div>
-          <label className="block text-xs text-forest-300">
-            Notiz (optional)
-            <input
-              type="text"
-              value={draft.note}
-              onChange={(e) => setDraft({ ...draft, note: e.target.value })}
-              placeholder={'z.B. „Nur kurz, eil danach Termin"'}
-              className="mt-1 w-full rounded-lg bg-forest-950/80 ring-1 ring-forest-800/40 px-2 py-1.5 text-sm text-forest-100"
-            />
-          </label>
-          <div className="flex gap-2">
-            <button
-              onClick={save}
-              disabled={setAvail.isPending}
-              className="flex-1 rounded-lg bg-amber-500/30 text-amber-100 ring-1 ring-amber-500/50 px-3 py-2 text-sm font-semibold hover:bg-amber-500/40 disabled:opacity-40"
-            >
-              {setAvail.isPending ? 'Speichere…' : 'Speichern'}
-            </button>
-            {availByDate.has(editingDate) && (
-              <button
-                onClick={() => removeDate(editingDate)}
-                disabled={deleteAvail.isPending}
-                className="rounded-lg bg-rose-500/20 text-rose-200 ring-1 ring-rose-500/40 px-3 py-2 text-sm font-semibold hover:bg-rose-500/30 disabled:opacity-40"
-              >
-                Löschen
-              </button>
-            )}
-            <button
-              onClick={() => setEditingDate(null)}
-              className="rounded-lg bg-forest-900/60 ring-1 ring-forest-800/40 px-3 py-2 text-sm text-forest-200"
-            >
-              Abbrechen
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

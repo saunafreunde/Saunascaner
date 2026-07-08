@@ -219,8 +219,8 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Stats Bento */}
-        {statsQ.data && (
+        {/* Stats Bento — für Personal (role='staff') ausgeblendet: gemachte Aufgüsse sind kein Personal-Thema */}
+        {statsQ.data && m.role !== 'staff' && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatTile label="Aufgüsse gesamt" value={statsQ.data.total_infusions} icon="🔥" />
             <StatTile label="Team-Aufgüsse" value={statsQ.data.team_infusions} icon="🤝" />
