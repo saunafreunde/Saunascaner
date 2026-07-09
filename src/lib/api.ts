@@ -127,6 +127,26 @@ export function useInfusions() {
   });
 }
 
+// Aufgüsse eines beliebigen Zeitraums (für Wochen-/Monats-Übersichten).
+// infusions_read_public erlaubt SELECT auf alle (auch vergangene) Aufgüsse.
+export function useInfusionsRange(from: Date, to: Date, enabled = true) {
+  return useQuery({
+    queryKey: ['infusions-range', from.toISOString(), to.toISOString()],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('infusions')
+        .select('*')
+        .gte('start_time', from.toISOString())
+        .lt('start_time', to.toISOString())
+        .order('start_time');
+      if (error) throw error;
+      return data as Infusion[];
+    },
+    staleTime: 60_000,
+  });
+}
+
 export type NewInfusion = {
   sauna_id: string;
   saunameister_id: string | null;

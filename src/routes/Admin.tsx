@@ -3,6 +3,7 @@ import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import { AvailabilityOverview } from '@/components/cp/AvailabilityOverview';
+import { OverviewExport } from '@/components/admin/OverviewExport';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
 import { SupportTasksAdminTab } from '@/components/admin/SupportTasksAdminTab';
 import { FeedModerationTab } from '@/components/admin/FeedModerationTab';
@@ -43,7 +44,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock, berlinYmd } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays';
+type Tab = 'saunas' | 'members' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'uebersichten' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:       { label: 'Saunen',       icon: '🔥' },
@@ -54,6 +55,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   availability: { label: 'Verfügbarkeit', icon: '🗓️' },
   stats:        { label: 'Statistik',    icon: '📊' },
   auswertungen: { label: 'Auswertungen', icon: '📈' },
+  uebersichten: { label: 'Übersichten',  icon: '📊' },
   activity:     { label: 'Aktivität',    icon: '📋' },
   branding:     { label: 'Branding',     icon: '🎨' },
   handbook:     { label: 'Handbuch',     icon: '📖' },
@@ -78,7 +80,7 @@ type Group = 'operations' | 'members' | 'reports' | 'modules' | 'setup';
 const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = {
   operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring', 'availability'] },
   members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'invitations', 'shared_email'] },
-  reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen', 'activity'] },
+  reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen', 'uebersichten', 'activity'] },
   modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'aroma', 'feed', 'polls', 'tasks', 'stage'] },
   setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'colors', 'oils', 'oil_weighing', 'wifi', 'holidays', 'handbook'] },
 };
@@ -235,6 +237,7 @@ export default function Admin() {
         {tab === 'tasks' && <SupportTasksAdminTab />}
         {tab === 'feed' && <FeedModerationTab />}
         {tab === 'auswertungen' && <AuswertungenTab />}
+        {tab === 'uebersichten' && <OverviewExport />}
         {tab === 'news' && <OrgNewsAdminTab />}
         {tab === 'aroma' && <AromaRecipesAdminTab />}
         {tab === 'activity' && <ActivityLogTab />}

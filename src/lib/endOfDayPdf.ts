@@ -15,6 +15,11 @@ export type EndOfDayPdfData = {
   topOils: { name: string; emoji: string; number: number; count: number }[];
   topAttrs: { label: string; emoji: string; count: number }[];
   orgName?: string;               // Default "Saunafreunde Schwarzwald e.V."
+  // Optionale Überschreibungen für Wochen-/Monats-Übersichten (sonst Tages-Default):
+  title?: string;                 // Default "Feierabend!"
+  subtitle?: string;              // Default "Gute Heimfahrt — bis bald in der Sauna"
+  periodWord?: string;            // Default "heute" → "Aufgüsse heute", "HEUTE AM AUFGUSS-EIMER"
+  footerNote?: string;            // Default "Genießt den Abend"
 };
 
 // Farb-Palette — leicht inspiriert vom Hell-Theme der Tafel
@@ -38,6 +43,12 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
+  const title = data.title ?? 'Feierabend!';
+  const subtitle = data.subtitle ?? 'Gute Heimfahrt — bis bald in der Sauna';
+  const periodWord = data.periodWord ?? 'heute';
+  const periodUpper = periodWord.toUpperCase();
+  const footerNote = data.footerNote ?? 'Genießt den Abend';
+
   // ─── Header ──────────────────────────────────────────────────────────
   doc.setFillColor(...COLORS.HEADER_BG);
   doc.rect(0, 0, W, 32, 'F');
@@ -45,11 +56,11 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
   doc.setTextColor(...COLORS.HEADER_TEXT);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(28);
-  doc.text('Feierabend!', W / 2, 14, { align: 'center' });
+  doc.text(title, W / 2, 14, { align: 'center' });
 
   doc.setFontSize(13);
   doc.setFont('helvetica', 'normal');
-  doc.text('Gute Heimfahrt — bis bald in der Sauna', W / 2, 22, { align: 'center' });
+  doc.text(subtitle, W / 2, 22, { align: 'center' });
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
@@ -67,7 +78,7 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
 
   doc.setFontSize(12);
   doc.setTextColor(...COLORS.TEXT_PRIMARY);
-  const label = data.totalAufguesse === 1 ? 'Aufguss heute' : 'Aufgüsse heute';
+  const label = `${data.totalAufguesse === 1 ? 'Aufguss' : 'Aufgüsse'} ${periodWord}`;
   doc.text(label, PAGE_MARGIN + leftCardW / 2, cardY + 38, { align: 'center' });
 
   doc.setFontSize(9);
@@ -84,13 +95,13 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(...COLORS.ACCENT_SLATE);
-  doc.text('HEUTE AM AUFGUSS-EIMER', rightCardX + rightCardW / 2, cardY + 7, { align: 'center' });
+  doc.text(`${periodUpper} AM AUFGUSS-EIMER`, rightCardX + rightCardW / 2, cardY + 7, { align: 'center' });
 
   if (data.meisters.length === 0) {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(11);
     doc.setTextColor(...COLORS.TEXT_MUTED);
-    doc.text('Keine Aufgießer heute', rightCardX + rightCardW / 2, cardY + 30, { align: 'center' });
+    doc.text(`Keine Aufgießer ${periodWord}`, rightCardX + rightCardW / 2, cardY + 30, { align: 'center' });
   } else {
     // Names + Counts als Mini-Pills nebeneinander gewickelt
     let cursorX = rightCardX + 6;
@@ -129,7 +140,7 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(120, 60, 0);
-  doc.text('HEUTE VERWENDETE ÖLE', PAGE_MARGIN + halfW / 2, oilsY + 6, { align: 'center' });
+  doc.text(`${periodUpper} VERWENDETE ÖLE`, PAGE_MARGIN + halfW / 2, oilsY + 6, { align: 'center' });
 
   // Items
   doc.setFontSize(12);
@@ -137,7 +148,7 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
   if (data.topOils.length === 0) {
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(...COLORS.TEXT_MUTED);
-    doc.text('Heute keine Öle gewählt', PAGE_MARGIN + halfW / 2, oilsY + 30, { align: 'center' });
+    doc.text(`Keine Öle ${periodWord}`, PAGE_MARGIN + halfW / 2, oilsY + 30, { align: 'center' });
   } else {
     let lineY = oilsY + 18;
     for (const o of data.topOils) {
@@ -166,14 +177,14 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(...COLORS.ACCENT_SLATE);
-  doc.text('HEUTE GEWÄHLTE BESONDERHEITEN', attrsX + halfW / 2, oilsY + 6, { align: 'center' });
+  doc.text(`${periodUpper} GEWÄHLTE BESONDERHEITEN`, attrsX + halfW / 2, oilsY + 6, { align: 'center' });
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
   if (data.topAttrs.length === 0) {
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(...COLORS.TEXT_MUTED);
-    doc.text('Heute keine Besonderheiten', attrsX + halfW / 2, oilsY + 30, { align: 'center' });
+    doc.text(`Keine Besonderheiten ${periodWord}`, attrsX + halfW / 2, oilsY + 30, { align: 'center' });
   } else {
     let lineY = oilsY + 18;
     for (const a of data.topAttrs) {
@@ -192,7 +203,7 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(9);
   doc.setTextColor(...COLORS.TEXT_MUTED);
-  doc.text(`${org} · Genießt den Abend`, W / 2, H - 6, { align: 'center' });
+  doc.text(`${org} · ${footerNote}`, W / 2, H - 6, { align: 'center' });
 
   // Blob für Download / Sharing
   return doc.output('blob');
