@@ -69,16 +69,6 @@ export function isPaidMembershipExpiringSoon(m?: Member | null): boolean {
   return days >= 0 && days <= 28;
 }
 
-/** WM-Admin: darf WM-Tipspiel verwalten (Spiele anlegen/scoren), ohne voll-Admin zu sein. */
-export function isWmAdmin(m?: Member | null): boolean {
-  return !!m?.is_wm_admin;
-}
-
-/** Darf das WM-Admin-Modul nutzen — Admin oder explizit als WM-Admin markiert. */
-export function canManageWm(m?: Member | null): boolean {
-  return isAdmin(m) || isWmAdmin(m);
-}
-
 /** Vereinsmitglied (Verein-zugehörig). false für Staff und Gast. */
 export function isVereinsMitglied(m?: Member | null): boolean {
   if (!m) return false;

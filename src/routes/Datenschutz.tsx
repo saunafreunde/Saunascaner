@@ -80,7 +80,7 @@ export default function Datenschutz() {
             <li>
               <strong className="text-forest-100">Community-Inhalte:</strong> Aufguss-Bewertungen,
               Feed-Beiträge mit Fotos, Kommentare, Reaktionen, Gästebuch-Einträge,
-              Favoriten/Follows, WM-Tipps, Spielstände und Direktnachrichten.
+              Favoriten/Follows, Spielstände und Direktnachrichten.
             </li>
             <li>
               <strong className="text-forest-100">Benachrichtigungen (optional):</strong> wenn du

@@ -21,7 +21,6 @@ const BENEFITS = [
   ['📝', 'Aufgüsse bewerten'],
   ['📸', 'Community-Feed'],
   ['🎮', 'Mini-Spiele'],
-  ['🏆', 'WM-Tipspiel'],
 ] as const;
 
 // Zwei Tannen-Reihen als ruhige Silhouette am unteren Rand (statisch,

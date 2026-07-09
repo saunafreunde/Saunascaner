@@ -8,7 +8,6 @@ import { PageBackground } from '@/components/PageBackground';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { MeisterRadarWidget } from '@/components/MeisterRadarWidget';
-import { WmStandMini } from '@/components/WmStandMini';
 import BadgeShowcase from '@/components/BadgeShowcase';
 import { MemberStatsCard } from '@/components/MemberStatsCard';
 import { MemberAchievementsGallery } from '@/components/MemberAchievementsGallery';
@@ -18,7 +17,7 @@ import { PushPermission } from '@/components/PushPermission';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
 import {
   useCurrentMember, useMember, useMemberStats,
-  useAttendanceStreak, useWmLeaderboard,
+  useAttendanceStreak,
   useFavoriteOils, useSignatureInfusion, useSetMotto,
   useSetMyAutoCheckin,
 } from '@/lib/api';
@@ -35,7 +34,6 @@ export default function Profile() {
   const memberQ = useMember(memberId);
   const statsQ = useMemberStats(memberId);
   const streakQ = useAttendanceStreak(memberId);
-  const lbQ = useWmLeaderboard();
 
   const m = memberQ.data;
   const isAdmin = me.data?.role === 'admin';
@@ -59,9 +57,6 @@ export default function Profile() {
       setEditingMotto(false);
     } catch (e) { setMottoError((e as Error).message); }
   }
-
-  const wmEntry = (lbQ.data ?? []).find((e) => e.member_id === memberId);
-  const wmRank = wmEntry ? (lbQ.data ?? []).findIndex((e) => e.member_id === memberId) + 1 : null;
 
   // Today birthday check
   const todayMD = formatInTimeZone(new Date(), 'Europe/Berlin', 'MM-dd');
@@ -299,26 +294,6 @@ export default function Profile() {
             </div>
           )}
 
-          {/* WM-Tipspiel-Stand */}
-          <div>
-            <WmStandMini memberId={m.id} />
-            {wmEntry && wmRank && (
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="rounded-lg bg-forest-950/40 ring-1 ring-amber-700/20 p-2">
-                  <div className="text-forest-400">Rang</div>
-                  <div className="text-amber-200 font-bold tabular-nums text-lg">{wmRank}</div>
-                </div>
-                <div className="rounded-lg bg-forest-950/40 ring-1 ring-amber-700/20 p-2">
-                  <div className="text-forest-400">Tipps</div>
-                  <div className="text-forest-200 font-bold tabular-nums text-lg">{wmEntry.tips_correct}/{wmEntry.tips_total}</div>
-                </div>
-                <div className="rounded-lg bg-forest-950/40 ring-1 ring-amber-700/20 p-2">
-                  <div className="text-forest-400">Streak-Bonus</div>
-                  <div className="text-amber-300 font-bold tabular-nums text-lg">+{wmEntry.streak_bonus}</div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Sauna-Tablet-PIN (nur eigenes Profil) */}

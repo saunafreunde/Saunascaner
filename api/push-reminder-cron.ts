@@ -1,11 +1,9 @@
 // api/push-reminder-cron.ts — Cron-Endpoint, alle 30 Min via Supabase pg_cron.
 //
-// Sendet zwei Reminder-Typen:
-//   1) WM-Tipp-Reminder für Mitglieder mit Push-Sub und Spielen in den nächsten 6h
-//   2) Bewertungs-Fenster-Reminder für anwesende Mitglieder mit offenen Bewertungen
+// Sendet Bewertungs-Fenster-Reminder für anwesende Mitglieder mit offenen Bewertungen.
 //
 // Idempotent durch tag-basiertes Dedupen im Browser (Notification-API merged
-// gleichen tag). Pro Member nur ein WM- und ein Rating-Reminder pro Run.
+// gleichen tag). Pro Member nur ein Rating-Reminder pro Run.
 //
 // Hinweis: war zwischenzeitlich in api/cron.ts konsolidiert (Vercel-Hobby-
 // 12-Function-Limit). Seit Wechsel auf Pro wieder eigener File.
@@ -13,16 +11,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
-
-interface WmReminder {
-  member_id: string;
-  member_name: string;
-  match_id: string;
-  match_no: number;
-  kickoff: string;
-  home_label: string;
-  away_label: string;
-}
 
 interface RatingReminder {
   member_id: string;
@@ -60,14 +48,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sb = createClient(supaUrl, serviceKey);
 
-  // WM-Tipp-Reminder (Spiele in den nächsten 6h die noch nicht getippt sind)
-  const { data: wmList = [] } = await sb.rpc('wm_pending_tip_reminders', { p_within_hours: 6 }) as { data: WmReminder[] | null };
-  const wmByMember = new Map<string, WmReminder>();
-  for (const r of (wmList ?? [])) {
-    const existing = wmByMember.get(r.member_id);
-    if (!existing || new Date(r.kickoff) < new Date(existing.kickoff)) wmByMember.set(r.member_id, r);
-  }
-
   // Bewertungs-Reminder (laufende 3h-Fenster)
   const { data: ratingList = [] } = await sb.rpc('rating_pending_reminders') as { data: RatingReminder[] | null };
   const ratingByMember = new Map<string, RatingReminder>();
@@ -76,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!existing || new Date(r.end_time) > new Date(existing.end_time)) ratingByMember.set(r.member_id, r);
   }
 
-  const allMemberIds = new Set<string>([...wmByMember.keys(), ...ratingByMember.keys()]);
+  const allMemberIds = new Set<string>(ratingByMember.keys());
   if (allMemberIds.size === 0) return res.status(200).json({ ok: true, sent: 0, note: 'nothing to send' });
 
   const { data: subsRaw, error: subsErr } = await sb
@@ -94,7 +74,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const stale: string[] = [];
-  let wmSent = 0;
   let ratingSent = 0;
 
   async function sendTo(memberId: string, title: string, body: string, url: string, tag: string) {
@@ -120,19 +99,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return sent;
   }
 
-  for (const [memberId, r] of wmByMember.entries()) {
-    const kickoffDate = new Date(r.kickoff);
-    const minsUntil = Math.round((kickoffDate.getTime() - Date.now()) / 60000);
-    const timeLabel = minsUntil < 60 ? `in ${minsUntil} Min` : `in ${Math.round(minsUntil / 60)}h`;
-    wmSent += await sendTo(
-      memberId,
-      `🏆 Tipp vergessen? ${r.home_label} vs ${r.away_label}`,
-      `Anpfiff ${timeLabel}. Gib jetzt deinen Tipp ab.`,
-      '/wm',
-      `wm-tip-${r.match_id}`
-    );
-  }
-
   for (const [memberId, r] of ratingByMember.entries()) {
     const endDate = new Date(r.end_time);
     const minsLeft = Math.round((endDate.getTime() + 3 * 60 * 60 * 1000 - Date.now()) / 60000);
@@ -150,9 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   return res.status(200).json({
     ok: true,
-    wm_pending: wmByMember.size,
     rating_pending: ratingByMember.size,
-    wm_sent: wmSent,
     rating_sent: ratingSent,
     stale_pruned: stale.length,
   });

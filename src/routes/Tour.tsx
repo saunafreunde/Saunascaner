@@ -231,18 +231,17 @@ export default function Tour() {
         <span className="tour-scroll-arrow" aria-hidden>⌄</span>
       </section>
 
-      {/* ── 5. BADGES & WM ── */}
+      {/* ── 5. BADGES ── */}
       <section className="tour-section">
         <div className="tour-glass max-w-md p-8 tour-fade-up">
           <div className="flex justify-center gap-2 mb-4 text-5xl">
             <span className="tour-float" style={{ animationDelay: '0s' }}>🏆</span>
             <span className="tour-float" style={{ animationDelay: '-1s' }}>🎖️</span>
-            <span className="tour-float" style={{ animationDelay: '-2s' }}>⚽</span>
+            <span className="tour-float" style={{ animationDelay: '-2s' }}>🥇</span>
           </div>
-          <h2 className="text-3xl font-bold mb-3 text-white">Badges & WM-Tipspiel</h2>
+          <h2 className="text-3xl font-bold mb-3 text-white">Badges & Auszeichnungen</h2>
           <p className="text-lg text-forest-200/85 leading-relaxed mb-4">
-            Über <strong className="text-amber-300">67 Auszeichnungen</strong> für deine Vereinsaktivität.<br />
-            Plus: Tipspiel zur WM 2026 — alle Spiele, Joker, Streak-Bonus.
+            Über <strong className="text-amber-300">Auszeichnungen</strong> für deine Vereinsaktivität — für Aufgüsse, Anwesenheit, Mithilfe und mehr.
           </p>
           <p className="text-sm text-forest-300/75">
             Spielerisch dabei sein, Mitspieler kennenlernen.

@@ -1,58 +1,27 @@
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { differenceInMinutes } from 'date-fns';
-import {
-  useCurrentMember, useInfusions, useSaunas, useMeisterDirectory,
-  useBrandSettings, brandAssetUrl,
-} from '@/lib/api';
+import { useCurrentMember, useBrandSettings, brandAssetUrl } from '@/lib/api';
+import { isAufgieser } from '@/lib/roles';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { LogoutButton } from '@/components/LogoutButton';
 import { PageBackground } from '@/components/PageBackground';
 import { MyPresenceToggle } from '@/components/MyPresenceToggle';
-import { PushPermission } from '@/components/PushPermission';
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { MiniDashboardTimeline } from '@/components/MiniDashboardTimeline';
-import { NotificationsInbox } from '@/components/staff/NotificationsInbox';
 import { AvailabilityCalendar } from '@/components/staff/AvailabilityCalendar';
-import { MyShiftsList } from '@/components/staff/MyShiftsList';
 import { WeeklyPlanDownload } from '@/components/staff/WeeklyPlanDownload';
-import { OpenCancellationsList } from '@/components/staff/OpenCancellationsList';
-import { SwapRequestsList } from '@/components/staff/SwapRequestsList';
-import { fmtClock } from '@/lib/time';
-import { lookupMemberName } from '@/lib/memberDisplay';
 
-// /mitarbeiter — Bereich für role='staff' Personal.
-// Anwesenheit nur per „Ich bin da" (MyPresenceToggle) — kein Check-in-PIN.
-// Evakuierungs-Alarm ist nur für Admin (Betriebsentscheidung).
-// Verfügbarkeit als Stunden-Slots (grün) → CP bestätigt (blau) → Wochenplan-PDF.
-//
-// Personal bewertet KEINE Aufgüsse — kein PendingRatingsBlock im Bereich.
+// /mitarbeiter — Personal-Bereich (role='staff').
+// Bewusst auf das Nötigste reduziert (User-Wunsch): NUR
+//   1. Heute auf der Tafel · 2. Anwesenheit („Ich bin da") · 3. Wochenplan-PDF · 4. Meine Verfügbarkeit
+// Kein Check-in-PIN (Anwesenheit nur per Button), keine Schicht-Tausch-/Notification-/Push-/Quick-Link-Module.
+// Doppelrolle: wer zusätzlich Aufgießer ist, kann oben in den Aufgießer-Bereich wechseln.
 export default function Mitarbeiter() {
   const me = useCurrentMember();
-  const infusions = useInfusions();
-  const saunas = useSaunas();
-  const meisterDir = useMeisterDirectory();
   const brand = useBrandSettings();
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
-
-  // Personal-Fallback-Slots heute + morgen (36h-Horizont)
-  const fallbackSlots = useMemo(() => {
-    const now = Date.now();
-    const upper = now + 36 * 3600 * 1000;
-    return (infusions.data ?? [])
-      .filter((i) => i.is_personal_fallback)
-      .filter((i) => {
-        const t = new Date(i.start_time).getTime();
-        return t > now && t < upper;
-      })
-      .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
-  }, [infusions.data]);
-
-  const meisterName = (id: string | null) =>
-    lookupMemberName(meisterDir.data, id, 'unbesetzt');
-  const saunaById = (id: string) => saunas.data?.find((s) => s.id === id);
+  const alsoAufgieser = isAufgieser(me.data);
 
   return (
     <PageBackground page="planner" variant="soft" className="min-h-screen">
@@ -70,118 +39,31 @@ export default function Mitarbeiter() {
       </header>
 
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">
-        {/* Notifications-Inbox (nur sichtbar bei pending Items) */}
-        <NotificationsInbox />
-
-        {/* 3. Offene Absagen — sofort sichtbar, damit andere übernehmen können */}
-        <OpenCancellationsList />
-
-        {/* 4. Mini-Tafel: kompakte Timeline statt TV-Tafel-Link */}
-        <MiniDashboardTimeline />
-
-        {/* Anwesenheit — „Ich bin da" ist die einzige Präsenz-Meldung fürs Personal */}
-        <MyPresenceToggle />
-
-        {/* Meine Schichten (eigene zukünftige + Cancel/Swap-Buttons) */}
-        <MyShiftsList />
-
-        {/* Wochenplan als PDF herunterladen */}
-        <WeeklyPlanDownload />
-
-        {/* Tausch-Anfragen (eingehende + ausgehende) */}
-        <SwapRequestsList />
-
-        {/* Meine Verfügbarkeit (Monatsansicht, Stunden-Slots) */}
-        <AvailabilityCalendar />
-
-        {/* 4. Personal-Fallback-Slots — Pflicht-Durchführung */}
-        <section className="rounded-3xl bg-forest-950/85 ring-1 ring-amber-500/30 p-5">
-          <div className="flex items-end justify-between mb-3 flex-wrap gap-2">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90">
-                🔥 Personal-Aufgüsse durchführen
-              </h2>
-              <p className="text-[11px] text-forest-400 mt-0.5">
-                Garantie-Slots der nächsten 36 Stunden, für die kein Aufgießer eingetragen ist — du führst sie durch.
-              </p>
+        {/* Doppelrolle: Umschalter in den Aufgießer-Bereich */}
+        {alsoAufgieser && (
+          <Link
+            to="/planner"
+            className="flex items-center justify-between gap-3 rounded-2xl bg-amber-500/15 ring-1 ring-amber-500/40 px-4 py-3 hover:bg-amber-500/25 transition"
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-amber-100">🧖 Zum Aufgießer-Bereich</div>
+              <div className="text-[11px] text-amber-200/70 truncate">Du bist auch Aufgießer — hier geht’s zu deinem eigenen Bereich.</div>
             </div>
-            <Link
-              to="/planner"
-              className="rounded-lg bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/40 px-3 py-1.5 text-xs font-semibold hover:bg-amber-500/30"
-            >
-              Im Planner ansehen →
-            </Link>
-          </div>
-
-          {fallbackSlots.length === 0 ? (
-            <p className="text-center text-sm text-forest-400 py-4">
-              Keine offenen Personal-Slots in den nächsten 36 Stunden. ✓
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {fallbackSlots.map((i) => {
-                const sauna = saunaById(i.sauna_id);
-                const minsTill = differenceInMinutes(new Date(i.start_time), new Date());
-                return (
-                  <li key={i.id}>
-                    <Link
-                      to="/planner"
-                      className="flex items-center gap-3 rounded-xl bg-forest-900/60 ring-1 ring-forest-800/40 px-4 py-3 hover:ring-amber-500/50 transition"
-                    >
-                      <div
-                        className="h-10 w-1.5 rounded-full flex-shrink-0"
-                        style={{ background: sauna?.accent_color ?? '#22c55e' }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-forest-100">
-                          {sauna?.name ?? 'Sauna'} · {fmtClock(i.start_time)}–{fmtClock(i.end_time)}
-                          {i.temperature_c && <span className="ml-2 text-amber-300">{i.temperature_c}°C</span>}
-                        </div>
-                        <div className="text-xs text-forest-400">
-                          {new Date(i.start_time).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                          {' · '}
-                          aktuell: {meisterName(i.saunameister_id)}
-                        </div>
-                      </div>
-                      <span className="rounded-full bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/40 px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap">
-                        in {minsTill < 60 ? `${minsTill}m` : minsTill < 1440 ? `${Math.round(minsTill/60)}h` : `${Math.round(minsTill/1440)}d`}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        {/* 5. Push-Aktivierung */}
-        {me.data && (
-          <section className="rounded-3xl bg-forest-950/85 ring-1 ring-forest-800/60 p-5">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
-              🔔 Benachrichtigungen
-            </h2>
-            <p className="text-xs text-forest-300/80 mb-4 leading-relaxed">
-              Bei neuen Personal-Slots + Notfall-Alarm sofort informiert werden.
-            </p>
-            <PushPermission memberId={me.data.id} />
-          </section>
+            <span className="text-amber-200 text-lg flex-shrink-0">→</span>
+          </Link>
         )}
 
-        {/* 6. Quick-Links — Tafel-Link entfernt (Mini-Tafel oben ersetzt ihn) */}
-        <section className="grid grid-cols-3 gap-3">
-          <Link to="/aufgieser" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">🌟</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">Aufgießer</div>
-          </Link>
-          <Link to="/wm" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">🏆</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">WM</div>
-          </Link>
-          <Link to="/hilfe" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">📖</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">Hilfe</div>
-          </Link>
-        </section>
+        {/* 1. Heute auf der Tafel */}
+        <MiniDashboardTimeline />
+
+        {/* 2. Anwesenheit — „Ich bin da" ist die einzige Präsenz-Meldung fürs Personal */}
+        <MyPresenceToggle />
+
+        {/* 3. Wochenplan als PDF */}
+        <WeeklyPlanDownload />
+
+        {/* 4. Meine Verfügbarkeit (Monatsansicht, Stunden-Slots) */}
+        <AvailabilityCalendar />
       </main>
     </PageBackground>
   );

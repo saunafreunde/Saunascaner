@@ -14,7 +14,6 @@ const DIRECT_ITEMS: NavItem[] = [
   { path: '/aufgieser', label: 'Aufgießer', icon: '🌟' },
   { path: '/feed',      label: 'Feed',      icon: '📸' },
   { path: '/members',   label: 'Galerie',   icon: '👥' },
-  { path: '/wm',        label: 'WM',        icon: '🏆' },
   { path: '/admin',     label: 'Admin',     icon: '⚙️' },
 ];
 
@@ -55,7 +54,7 @@ export function AdminQuickNav({ variant = 'pills' }: AdminQuickNavProps) {
   // Direkte Items: optional Postfach einfügen wenn Account
   const directItems: NavItem[] = [...DIRECT_ITEMS];
   if (emailAccount.data) {
-    directItems.splice(6, 0, { path: '/postfach', label: 'Postfach', icon: '📬' });
+    directItems.splice(5, 0, { path: '/postfach', label: 'Postfach', icon: '📬' });
   }
 
   // Vorschau-Items: eigenes Profil hinten anhängen

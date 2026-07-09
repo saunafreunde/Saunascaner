@@ -1,6 +1,6 @@
 import { useBrandSettings, publicAssetUrl } from '@/lib/api';
 
-type Page = 'dashboard' | 'guest' | 'planner' | 'wm' | 'login';
+type Page = 'dashboard' | 'guest' | 'planner' | 'login';
 
 const FALLBACK = 'bg-schwarzwald-soft';
 const STRONG_FALLBACK = 'bg-schwarzwald';

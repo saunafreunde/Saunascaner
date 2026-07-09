@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { WmAdminTab } from '@/components/admin/WmAdminTab';
 import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
 import { SupportTasksAdminTab } from '@/components/admin/SupportTasksAdminTab';
@@ -39,12 +38,11 @@ import {
 import { ALL_BADGES } from '@/lib/badges';
 import BadgeChip from '@/components/BadgeChip';
 import { useAuth } from '@/hooks/useAuth';
-import { isAdmin, isWmAdmin } from '@/lib/roles';
 import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock, berlinYmd } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'wm' | 'news' | 'aroma' | 'activity' | 'stage' | 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays';
+type Tab = 'saunas' | 'members' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:       { label: 'Saunen',       icon: '🔥' },
@@ -60,7 +58,6 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   polls:        { label: 'Abfragen',     icon: '📋' },
   tasks:        { label: 'Aufgaben',     icon: '🤝' },
   feed:         { label: 'Feed',         icon: '📸' },
-  wm:           { label: 'WM-Tipps',     icon: '🏆' },
   news:         { label: 'News',         icon: '📣' },
   aroma:        { label: 'Aroma',        icon: '🌿' },
   stage:        { label: 'Bühne',        icon: '🎭' },
@@ -80,54 +77,47 @@ const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = 
   operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring'] },
   members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'invitations', 'shared_email'] },
   reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen', 'activity'] },
-  modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'aroma', 'feed', 'polls', 'tasks', 'wm', 'stage'] },
+  modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'aroma', 'feed', 'polls', 'tasks', 'stage'] },
   setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'colors', 'oils', 'oil_weighing', 'wifi', 'holidays', 'handbook'] },
 };
 
 export default function Admin() {
   const { signOut } = useAuth();
-  const me = useCurrentMember();
-  const fullAdmin = isAdmin(me.data);
-  const wmOnly = !fullAdmin && isWmAdmin(me.data);
-
   // Zweistufige Navigation: Gruppe (oben) + Sub-Tab (darunter).
-  // WM-Only-Admin sieht ausschließlich die Module-Gruppe mit WM-Tipps als einzigem Sub-Tab.
   const visibleGroups = useMemo<Group[]>(
-    () => wmOnly ? ['modules'] : (Object.keys(GROUP_META) as Group[]),
-    [wmOnly]
+    () => Object.keys(GROUP_META) as Group[],
+    []
   );
 
   // Deep-Linking via URL-Hash: /admin#members springt direkt zum Mitglieder-Tab.
   // Wird vom Handbuch genutzt (Direkt-Sprung-Buttons).
   const initialTab = useMemo<Tab>(() => {
-    if (wmOnly) return 'wm';
     const hash = (typeof window !== 'undefined' ? window.location.hash.slice(1) : '') as Tab;
     return hash && hash in TAB_META ? hash : 'saunas';
-  }, [wmOnly]);
+  }, []);
   const initialGroup = useMemo<Group>(() => {
-    if (wmOnly) return 'modules';
     const groupFromTab = (Object.keys(GROUP_META) as Group[])
       .find((g) => GROUP_META[g].tabs.includes(initialTab));
     return groupFromTab ?? 'operations';
-  }, [wmOnly, initialTab]);
+  }, [initialTab]);
 
   const [group, setGroup] = useState<Group>(initialGroup);
   const [tab, setTab] = useState<Tab>(initialTab);
 
   // URL-Hash bei Tab-Wechsel mit-aktualisieren (Browser-Back funktioniert dadurch)
   useEffect(() => {
-    if (typeof window !== 'undefined' && !wmOnly) {
+    if (typeof window !== 'undefined') {
       const currentHash = window.location.hash.slice(1);
       if (currentHash !== tab) {
         window.history.replaceState(null, '', `${window.location.pathname}#${tab}`);
       }
     }
-  }, [tab, wmOnly]);
+  }, [tab]);
 
-  // Sub-Tab-Liste der aktuellen Gruppe (für WM-Only nur 'wm')
+  // Sub-Tab-Liste der aktuellen Gruppe
   const subTabs = useMemo<Tab[]>(
-    () => wmOnly ? ['wm'] : GROUP_META[group].tabs,
-    [group, wmOnly]
+    () => GROUP_META[group].tabs,
+    [group]
   );
 
   // Gruppen-Wechsel = automatisch ersten Sub-Tab der neuen Gruppe aktivieren.
@@ -242,7 +232,6 @@ export default function Admin() {
         {tab === 'tasks' && <SupportTasksAdminTab />}
         {tab === 'feed' && <FeedModerationTab />}
         {tab === 'auswertungen' && <AuswertungenTab />}
-        {tab === 'wm' && <WmAdminTab />}
         {tab === 'news' && <OrgNewsAdminTab />}
         {tab === 'aroma' && <AromaRecipesAdminTab />}
         {tab === 'activity' && <ActivityLogTab />}
@@ -526,7 +515,7 @@ function FanUpgradeRequestItem({
 
 type MembersFilter =
   | 'all' | 'gast' | 'fan' | 'member' | 'aufgieser' | 'guest_aufgieser'
-  | 'staff' | 'cp_planer' | 'admin' | 'wm_admin' | 'revoked';
+  | 'staff' | 'cp_planer' | 'admin' | 'revoked';
 
 const MEMBER_FILTER_META: Record<MembersFilter, { label: string; icon: string }> = {
   all:             { label: 'Alle',           icon: '👥' },
@@ -538,7 +527,6 @@ const MEMBER_FILTER_META: Record<MembersFilter, { label: string; icon: string }>
   staff:           { label: 'Personal',       icon: '👨‍🍳' },
   cp_planer:       { label: 'CP-V',           icon: '🛠️' },
   admin:           { label: 'Admins',         icon: '⚙️' },
-  wm_admin:        { label: 'WM-Admin',       icon: '🏆' },
   revoked:         { label: 'Gesperrt',       icon: '🚫' },
 };
 
@@ -556,8 +544,6 @@ function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
     // cp_planer: Modifier-Flag auf Personal-Rolle
     case 'cp_planer':       return m.role === 'staff' && m.is_personal_planer === true;
     case 'admin':           return m.role === 'admin';
-    // wm_admin: Modifier-Flag, kann auf jeder Rolle sitzen — daher rollen-unabhängig
-    case 'wm_admin':        return m.is_wm_admin === true;
     default: return true;
   }
 }
@@ -567,7 +553,7 @@ function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
 const STATS_ORDER: MembersFilter[] = [
   'gast', 'fan', 'member',
   'aufgieser', 'guest_aufgieser', 'staff',
-  'cp_planer', 'admin', 'wm_admin',
+  'cp_planer', 'admin',
   'revoked',
 ];
 
@@ -935,9 +921,6 @@ function MembersTab() {
                     {m.is_aufgieser && m.role === 'member' && (
                       <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">🧖 Aufgieser</span>
                     )}
-                    {m.is_wm_admin && (
-                      <span className="rounded-full bg-heat-500/20 px-2 text-[10px] font-bold text-heat-200">🏆 WM-Admin</span>
-                    )}
                     {m.role === 'staff' && m.is_personal_planer && (
                       <span className="rounded-full bg-amber-500/20 px-2 text-[10px] font-bold text-amber-200">🛠️ CP-V</span>
                     )}
@@ -982,7 +965,7 @@ function MembersTab() {
                     🎭 Rolle{roleEditId === m.id ? ' ▴' : ' ▾'}
                   </button>
                   {/* Aufgieser-Quick-Toggle — häufigste Einzel-Aktion, daher als Schnell-Button erhalten.
-                      Vollständiger Rollen-Wechsel (inkl. Admin/WM-Admin/CP-V) läuft über "🎭 Rolle ▾". */}
+                      Vollständiger Rollen-Wechsel (inkl. Admin/CP-V) läuft über "🎭 Rolle ▾". */}
                   <button
                     onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
                     title={m.is_aufgieser ? 'Aufgieser-Status entfernen' : 'Als Aufgieser markieren'}
@@ -1096,26 +1079,6 @@ function MembersTab() {
                       Zusatz-Rechte
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {/* WM-Admin: kann auf jeder Rolle sitzen */}
-                      <button
-                        onClick={() => update.mutate({ id: m.id, is_wm_admin: !m.is_wm_admin })}
-                        disabled={update.isPending}
-                        title="Darf WM-Spielplan, Ergebnisse und Tipps verwalten"
-                        className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 ${
-                          m.is_wm_admin
-                            ? 'bg-heat-500/20 text-heat-100 ring-heat-400/50'
-                            : 'bg-forest-800/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
-                        }`}
-                      >
-                        <span className="text-base leading-none mt-0.5">{m.is_wm_admin ? '☑' : '☐'}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold">🏆 WM-Admin</div>
-                          <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
-                            Darf WM-Spielplan, Ergebnisse und Tipps verwalten
-                          </div>
-                        </div>
-                      </button>
-
                       {/* CP-Verantwortlicher: nur bei staff sinnvoll */}
                       <button
                         onClick={() => update.mutate({ id: m.id, is_personal_planer: !m.is_personal_planer })}
@@ -1156,6 +1119,26 @@ function MembersTab() {
                           <div className="text-xs font-semibold">👨‍🍳 CP-Mitarbeiter</div>
                           <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
                             Mitglied arbeitet zusätzlich für den CP
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Aufgießer-Zusatz: Doppelrolle — z.B. Personal, das auch Aufgüsse macht */}
+                      <button
+                        onClick={() => update.mutate({ id: m.id, is_aufgieser: !m.is_aufgieser })}
+                        disabled={update.isPending}
+                        title="Doppelrolle: zusätzlicher Zugang zum Aufgießer-Bereich (Aufguss-Planung). Nützlich für Personal, das auch Aufgüsse macht."
+                        className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 ${
+                          m.is_aufgieser
+                            ? 'bg-amber-500/20 text-amber-100 ring-amber-400/50'
+                            : 'bg-forest-800/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
+                        }`}
+                      >
+                        <span className="text-base leading-none mt-0.5">{m.is_aufgieser ? '☑' : '☐'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">🧖 Aufgießer (Zusatz)</div>
+                          <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                            Doppelrolle: zusätzlich Zugang zum Aufgießer-Bereich
                           </div>
                         </div>
                       </button>

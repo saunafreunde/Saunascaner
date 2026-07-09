@@ -45,7 +45,6 @@ const Scanner         = lazy(() => import('@/routes/Scanner'));
 const Planner         = lazy(() => import('@/routes/Planner'));
 const Admin           = lazy(() => import('@/routes/Admin'));
 const OilRoom         = lazy(() => import('@/routes/OilRoom'));
-const Wm              = lazy(() => import('@/routes/Wm'));
 const Profile         = lazy(() => import('@/routes/Profile'));
 const Members         = lazy(() => import('@/routes/Members'));
 const Postfach        = lazy(() => import('@/routes/Postfach'));
@@ -103,7 +102,6 @@ export default function App() {
         <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
         <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
         <Route path="/oil-room"  element={<OilRoom />} />
-        <Route path="/wm"        element={<RequireAuth><Wm /></RequireAuth>} />
         <Route path="/profile/:memberId" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/members"           element={<RequireAuth><Members /></RequireAuth>} />
         <Route path="/postfach"          element={<RequireAuth><Postfach /></RequireAuth>} />
@@ -230,8 +228,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   ) {
     return <Navigate to="/unterstuetzer" replace />;
   }
-  // Staff (Mitarbeiter) gehört in /mitarbeiter, nicht in /planner
-  if (member.data?.role === 'staff' && loc.pathname === '/planner') {
+  // Staff (Mitarbeiter) gehört in /mitarbeiter, nicht in /planner —
+  // AUSSER Doppelrolle: Personal, das auch Aufgießer ist, darf den Aufgießer-Bereich nutzen.
+  if (member.data?.role === 'staff' && !member.data?.is_aufgieser && loc.pathname === '/planner') {
     return <Navigate to="/mitarbeiter" replace />;
   }
   // /cp-Bereich nur für CP-Verantwortliche (staff + is_personal_planer) + Admin (Preview)
@@ -294,8 +293,7 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
   if (!ready || member.isLoading) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   if (!member.data?.approved) return <PendingApproval />;
-  // Admin oder WM-Admin (eingeschränkter Zugang nur auf WM-Tab; Tab-Filter regelt Sichtbarkeit)
-  if (member.data?.role !== 'admin' && !member.data?.is_wm_admin) return <NoAccess />;
+  if (member.data?.role !== 'admin') return <NoAccess />;
   return <>{children}</>;
 }
 
@@ -345,7 +343,6 @@ function DevIndex() {
     ['/oil-room', 'Öl-Raum-Tablet (Aufgieser)'],
     ['/admin', 'Admin'],
     ['/scanner', 'Scanner (Eingang)'],
-    ['/wm', 'WM-Tipspiel'],
     ['/login', 'Login'],
   ] as const;
   return (

@@ -320,11 +320,6 @@ export default function Gast() {
               <div className="mt-1 text-xs font-semibold text-forest-100">Spiele</div>
               <div className="text-[10px] text-forest-400">14 Games</div>
             </Link>
-            <Link to="/wm" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-              <div className="text-2xl">🏆</div>
-              <div className="mt-1 text-xs font-semibold text-forest-100">WM-Tipspiel</div>
-              <div className="text-[10px] text-forest-400">mittippen</div>
-            </Link>
             <Link to="/dashboard" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
               <div className="text-2xl">📺</div>
               <div className="mt-1 text-xs font-semibold text-forest-100">Tafel</div>

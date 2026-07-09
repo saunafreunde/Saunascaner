@@ -96,10 +96,6 @@ export default function Cp() {
             <div className="text-2xl">👨‍🍳</div>
             <div className="mt-1 text-xs font-semibold text-forest-100">Mitarbeiter</div>
           </Link>
-          <Link to="/wm" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-            <div className="text-2xl">🏆</div>
-            <div className="mt-1 text-xs font-semibold text-forest-100">WM</div>
-          </Link>
           <Link to="/hilfe" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
             <div className="text-2xl">📖</div>
             <div className="mt-1 text-xs font-semibold text-forest-100">Hilfe</div>

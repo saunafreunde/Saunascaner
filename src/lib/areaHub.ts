@@ -1,5 +1,5 @@
 import type { Member } from '@/lib/api';
-import { isAdmin, isAufgieser, isFan, isGast, isPersonalPlaner, isStaff, isVereinsMitglied, isWmAdmin } from '@/lib/roles';
+import { isAdmin, isAufgieser, isFan, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
 
 // Sitemap-artiger Bereich-Hub am Ende jeder Mitglieder-Seite.
 // Zentraler Catalog aller Routen + Predicates pro Rolle.
@@ -70,10 +70,6 @@ const ITEM_MEMBERS: AreaItem = {
   path: '/members', emoji: '👥', title: 'Mitglieder',
   blurb: 'Galerie mit Avatar, Foto-Karussell und Filter',
 };
-const ITEM_WM: AreaItem = {
-  path: '/wm', emoji: '🏆', title: 'WM-Tipspiel',
-  blurb: '104 Spiele tippen, Joker und Final-Tipp setzen',
-};
 const ITEM_POSTFACH: AreaItem = {
   path: '/postfach', emoji: '📬', title: 'Postfach',
   blurb: 'Persönliches Webmail und Vereins-Tickets',
@@ -142,19 +138,11 @@ export function areaHubItemsForRole(
   const myId = member.id;
   const myProfile = profileItem(myId);
 
-  // Admin (oder WM-Admin als reduzierte Variante)
+  // Admin
   if (isAdmin(member)) {
     return [
       ITEM_PLANNER, ITEM_BEWERTEN, ITEM_AUFGIESER, ITEM_FEED,
-      ITEM_SPIELE, ITEM_DM, ITEM_MEMBERS, ITEM_WM,
-      ...(hasEmailAccount ? [ITEM_POSTFACH] : []),
-      ITEM_DASHBOARD, myProfile, ITEM_HILFE, ITEM_ADMIN,
-    ];
-  }
-  if (isWmAdmin(member)) {
-    return [
-      ITEM_WM, ITEM_FEED, ITEM_AUFGIESER, ITEM_SPIELE, ITEM_DM,
-      ITEM_BEWERTEN, ITEM_MEMBERS,
+      ITEM_SPIELE, ITEM_DM, ITEM_MEMBERS,
       ...(hasEmailAccount ? [ITEM_POSTFACH] : []),
       ITEM_DASHBOARD, myProfile, ITEM_HILFE, ITEM_ADMIN,
     ];
@@ -164,7 +152,7 @@ export function areaHubItemsForRole(
   if (isStaff(member) && isPersonalPlaner(member)) {
     return [
       ITEM_CP, ITEM_MITARBEITER, ITEM_AUFGIESER, ITEM_FEED,
-      ITEM_SPIELE, ITEM_DM, ITEM_BEWERTEN, ITEM_WM,
+      ITEM_SPIELE, ITEM_DM, ITEM_BEWERTEN,
       ...(hasEmailAccount ? [ITEM_POSTFACH] : []),
       ITEM_DASHBOARD, myProfile, ITEM_HILFE,
     ];
@@ -173,7 +161,7 @@ export function areaHubItemsForRole(
   if (isStaff(member)) {
     return [
       ITEM_MITARBEITER, ITEM_AUFGIESER, ITEM_FEED, ITEM_SPIELE,
-      ITEM_DM, ITEM_BEWERTEN, ITEM_WM,
+      ITEM_DM, ITEM_BEWERTEN,
       ...(hasEmailAccount ? [ITEM_POSTFACH] : []),
       ITEM_DASHBOARD, myProfile, ITEM_HILFE,
     ];
@@ -183,14 +171,14 @@ export function areaHubItemsForRole(
   if (isGast(member)) {
     return [
       ITEM_GAST, ITEM_AUFGIESER, ITEM_FEED, ITEM_SPIELE, ITEM_DM,
-      ITEM_WM, ITEM_DASHBOARD, ITEM_TOUR, myProfile, ITEM_HILFE,
+      ITEM_DASHBOARD, ITEM_TOUR, myProfile, ITEM_HILFE,
     ];
   }
   // Fan
   if (isFan(member)) {
     return [
       ITEM_FAN, ITEM_AUFGIESER, ITEM_FEED, ITEM_SPIELE, ITEM_DM,
-      ITEM_WM, ITEM_DASHBOARD, myProfile, ITEM_HILFE,
+      ITEM_DASHBOARD, myProfile, ITEM_HILFE,
     ];
   }
 
@@ -198,7 +186,7 @@ export function areaHubItemsForRole(
   if (isAufgieser(member)) {
     return [
       ITEM_PLANNER, ITEM_BEWERTEN, ITEM_AUFGIESER, ITEM_FEED,
-      ITEM_SPIELE, ITEM_DM, ITEM_MEMBERS, ITEM_WM,
+      ITEM_SPIELE, ITEM_DM, ITEM_MEMBERS,
       ...(hasEmailAccount ? [ITEM_POSTFACH] : []),
       ITEM_DASHBOARD, myProfile, ITEM_HILFE,
     ];
@@ -208,7 +196,7 @@ export function areaHubItemsForRole(
   if (isVereinsMitglied(member)) {
     return [
       ITEM_UNTERSTUETZER, ITEM_AUFGIESER, ITEM_FEED, ITEM_SPIELE,
-      ITEM_DM, ITEM_BEWERTEN, ITEM_MEMBERS, ITEM_WM,
+      ITEM_DM, ITEM_BEWERTEN, ITEM_MEMBERS,
       ...(hasEmailAccount ? [ITEM_POSTFACH] : []),
       ITEM_DASHBOARD, myProfile, ITEM_HILFE,
     ];

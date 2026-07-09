@@ -60,13 +60,6 @@ export default defineConfig({
             url: '/members',
             icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
           },
-          {
-            name: 'WM-Tipspiel',
-            short_name: 'WM 2026',
-            description: 'Tipps abgeben',
-            url: '/wm',
-            icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
-          },
         ],
       },
       workbox: {

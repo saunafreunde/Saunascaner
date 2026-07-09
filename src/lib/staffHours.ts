@@ -1,14 +1,14 @@
 // Betriebszeiten für die Personal-Verfügbarkeit (Dienstplan-Umbau, Migration 0117).
 // Liefert die klickbaren Start-Stunden pro Datum:
 //   Montag              → Ruhetag (keine Slots)
-//   Di / Mi / Do        → 13–21 Uhr  (Blöcke 13 … 20)
-//   Fr / Sa / So        → 10–21 Uhr  (Blöcke 10 … 20)
+//   Di / Mi / Do        → 13–21 Uhr  (Slots 13 … 21)
+//   Fr / Sa / So        → 10–21 Uhr  (Slots 10 … 21)
 //   Feiertag (überschreibt den Wochentag) → immer 10–21 Uhr
 //
 // Ein „Slot" ist eine Start-Stunde h und steht für den Block h:00–(h+1):00.
 // Feiertags-Erkennung über den vorhandenen useHolidaySet()/isHolidayDate()-Helper in api.ts.
 
-export type OperatingWindow = { open: number; close: number }; // close = letzte Block-Ende-Stunde (exklusiv)
+export type OperatingWindow = { open: number; close: number }; // close = letzte WÄHLBARE Start-Stunde (inklusiv)
 
 function windowForDate(date: Date, isHoliday: boolean): OperatingWindow | null {
   if (isHoliday) return { open: 10, close: 21 };
@@ -23,7 +23,7 @@ export function operatingHours(date: Date, isHoliday: boolean): number[] {
   const w = windowForDate(date, isHoliday);
   if (!w) return [];
   const out: number[] = [];
-  for (let h = w.open; h < w.close; h++) out.push(h);
+  for (let h = w.open; h <= w.close; h++) out.push(h); // inklusiv → 21:00 wählbar (Block 21:00–22:00)
   return out;
 }
 

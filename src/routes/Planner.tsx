@@ -25,7 +25,6 @@ import { TodayLiveBento } from '@/components/TodayLiveBento';
 import { AtelierTabs } from '@/components/AtelierTabs';
 import { IdentityCard } from '@/components/IdentityCard';
 import { TrophyWall } from '@/components/TrophyWall';
-import { WmStandMini } from '@/components/WmStandMini';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { ProfileIntegrations } from '@/components/ProfileIntegrations';
 import { fireBadgeUnlock, fireFirstInfusionOfDay } from '@/lib/confetti';
@@ -990,8 +989,19 @@ export default function Planner() {
       {/* Modern Layout */}
       <div className="mx-auto max-w-7xl p-3 sm:p-4 lg:p-6 space-y-4">
 
-        {/* ══ WM-TIPSPIEL Banner (sichtbar für ALLE) ═══════════════ */}
-        {m && <WmStandMini memberId={m.id} />}
+        {/* Doppelrolle: Personal (auch Aufgießer) → zurück zum Personal-Bereich */}
+        {m?.role === 'staff' && (
+          <Link
+            to="/mitarbeiter"
+            className="flex items-center justify-between gap-3 rounded-2xl bg-slate-500/15 ring-1 ring-slate-400/40 px-4 py-3 hover:bg-slate-500/25 transition"
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-100">👨‍🍳 Zum Personal-Bereich</div>
+              <div className="text-[11px] text-slate-300/70 truncate">Verfügbarkeit, Wochenplan &amp; Anwesenheit als Mitarbeiter.</div>
+            </div>
+            <span className="text-slate-200 text-lg flex-shrink-0">→</span>
+          </Link>
+        )}
 
         {/* ══ HERO-ROW: Anwesenheit + Notfall ═══════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

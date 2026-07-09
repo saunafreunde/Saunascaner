@@ -26,8 +26,6 @@ const ACTION_LABELS: Record<string, string> = {
   'member.role_change':         '🎭 Rolle gewechselt',
   'member.aufgieser_grant':     '🔥 Aufgießer-Status vergeben',
   'member.aufgieser_revoke':    '🔥 Aufgießer-Status entzogen',
-  'member.wm_admin_grant':      '🏆 WM-Admin vergeben',
-  'member.wm_admin_revoke':     '🏆 WM-Admin entzogen',
   'member.cp_grant':            '🛠️ CP-V vergeben',
   'member.cp_revoke':           '🛠️ CP-V entzogen',
   'member.lock':                '🚫 Mitglied gesperrt',

@@ -231,7 +231,7 @@ function BackgroundsSection({
 }: { backgrounds: BrandSettings['backgrounds']; onChange: (b: BrandSettings['backgrounds']) => void }) {
   const set = <K extends keyof BrandSettings['backgrounds']>(key: K, val: BrandSettings['backgrounds'][K]) =>
     onChange({ ...backgrounds, [key]: val });
-  const pages: Array<keyof BrandSettings['backgrounds']> = ['dashboard', 'planner', 'guest', 'wm', 'login'];
+  const pages: Array<keyof BrandSettings['backgrounds']> = ['dashboard', 'planner', 'guest', 'login'];
   return (
     <Section icon="🌲" title="Seiten-Hintergründe" hint="Pro Bereich ein eigener Hintergrund. Wird mit dunklem Overlay verwendet — kontrastreiche Bilder funktionieren am besten.">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -256,7 +256,6 @@ function BackgroundsSection({
               dashboard: backgrounds.dashboard,
               planner: backgrounds.dashboard,
               guest: backgrounds.dashboard,
-              wm: backgrounds.dashboard,
               login: backgrounds.dashboard,
             })}
             className="rounded-lg bg-amber-500/20 hover:bg-amber-500/30 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30 disabled:opacity-50"

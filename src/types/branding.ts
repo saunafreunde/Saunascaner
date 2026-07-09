@@ -22,7 +22,6 @@ export type PageBackgrounds = {
   dashboard: string | null;
   guest: string | null;
   planner: string | null;
-  wm: string | null;
   login: string | null;
 };
 
@@ -57,7 +56,7 @@ export function defaultBrandSettings(): BrandSettings {
       mail_footer: null,
     },
     logo: { icon: null, banner: null, favicon: null, dark: null },
-    backgrounds: { dashboard: null, guest: null, planner: null, wm: null, login: null },
+    backgrounds: { dashboard: null, guest: null, planner: null, login: null },
     tile_bgs: {},
     badge: { front_bg: null, back_bg: null },
     ads: [],
