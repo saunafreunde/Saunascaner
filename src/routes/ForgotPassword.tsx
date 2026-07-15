@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -12,10 +11,17 @@ export default function ForgotPassword() {
     e.preventDefault();
     setBusy(true); setInfo(null); setError(null);
     try {
-      if (!supabase) throw new Error('Supabase nicht konfiguriert');
-      const redirectTo = `${window.location.origin}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-      if (error) throw error;
+      // Versand über den eigenen Mailer (info@sauna-fds.de) — gleiche
+      // zuverlässige Zustellung wie früher der Login-Link. Antwortet generisch.
+      const r = await fetch('/api/email?action=reset-link', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, redirect_to: `${window.location.origin}/reset-password` }),
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({} as { error?: string }));
+        throw new Error(data.error ?? 'Anfrage fehlgeschlagen');
+      }
       setInfo('Falls die E-Mail im System ist, wurde ein Link an dich verschickt. Schau auch im Spam-Ordner.');
     } catch (e) {
       setError((e as Error).message);

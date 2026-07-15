@@ -192,6 +192,56 @@ export function renderMagicLinkEmail(vars: {
   return { html, text, subject: headline };
 }
 
+// ─── Passwort-setzen / Reset-Template ────────────────────────────────────
+export function renderSetPasswordEmail(vars: {
+  resetLink: string;
+  recipientName?: string;
+  isProactive: boolean; // true = Umstellungs-Onboarding (Admin-Broadcast), false = Self-Service „Passwort vergessen"
+  brand?: BrandData;
+}): { html: string; text: string; subject: string } {
+  const shortName = vars.brand?.org?.short_name ?? 'Saunafreunde';
+  const orgName = vars.brand?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
+  const greeting = vars.recipientName ? `Hallo ${escapeHtml(vars.recipientName)},` : 'Hallo,';
+  const headline = vars.isProactive
+    ? 'Bitte einmalig dein Passwort festlegen'
+    : 'Passwort zurücksetzen';
+  const lead = vars.isProactive
+    ? `bei <strong style="color:${COLORS.accent};">${escapeHtml(shortName)}</strong> meldest du dich ab sofort mit E-Mail und Passwort an — der bisherige Login-Link entfällt. Bitte lege jetzt einmalig dein persönliches Passwort fest:`
+    : 'du hast angefordert, dein Passwort zurückzusetzen. Klicke auf den Button, um ein neues Passwort zu vergeben:';
+
+  const body = `
+    <h2 style="margin:0 0 16px;font-size:24px;color:${COLORS.textPrimary};">${greeting}</h2>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${COLORS.textPrimary};">
+      ${lead}
+    </p>
+    ${button(vars.resetLink, '🔐 Passwort festlegen')}
+    <p style="margin:16px 0;font-size:12px;color:${COLORS.textSecondary};text-align:center;">
+      Falls der Button nicht funktioniert, kopiere diesen Link:<br/>
+      <a href="${vars.resetLink}" style="color:${COLORS.accent};word-break:break-all;text-decoration:underline;">${vars.resetLink}</a>
+    </p>
+    <div style="margin-top:32px;padding-top:24px;border-top:1px solid ${COLORS.accentDark}33;">
+      <p style="margin:0;font-size:11px;color:${COLORS.textSecondary};line-height:1.5;">
+        Der Link ist für 1 Stunde gültig und nur einmal verwendbar. Wenn du das nicht warst, ignoriere diese E-Mail einfach — dein Konto bleibt unverändert.
+      </p>
+    </div>
+  `;
+  const html = wrap(headline, body, vars.brand);
+  const text = [
+    vars.recipientName ? `Hallo ${vars.recipientName},` : 'Hallo,',
+    '',
+    vars.isProactive
+      ? `bei ${shortName} meldest du dich ab sofort mit E-Mail und Passwort an. Bitte lege einmalig dein Passwort fest:`
+      : 'du hast angefordert, dein Passwort zurückzusetzen. Neues Passwort vergeben:',
+    vars.resetLink,
+    '',
+    `Gültig 1 Stunde. — ${orgName}`,
+  ].join('\n');
+  const subject = vars.isProactive
+    ? `🔐 ${shortName}: Bitte Passwort festlegen`
+    : `🔐 ${shortName}: Passwort zurücksetzen`;
+  return { html, text, subject };
+}
+
 // ─── Welcome-Template ────────────────────────────────────────────────────
 export function renderWelcomeEmail(vars: {
   recipientName: string;

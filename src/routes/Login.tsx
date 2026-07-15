@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
-type Mode = 'magic' | 'signin' | 'signup' | 'bootstrap';
+type Mode = 'signin' | 'signup' | 'bootstrap';
 
 export default function Login() {
   const { user, ready, signIn, signUp } = useAuth();
@@ -28,7 +28,7 @@ export default function Login() {
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : defaultNext;
   const inviteCode = new URLSearchParams(loc.search).get('invite');
 
-  const [mode, setMode] = useState<Mode>(inviteCode ? 'signup' : 'magic');
+  const [mode, setMode] = useState<Mode>(inviteCode ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -50,22 +50,7 @@ export default function Login() {
     e.preventDefault();
     setBusy(true); setError(null); setInfo(null);
     try {
-      if (mode === 'magic') {
-        const r = await fetch('/api/email?action=magic-link', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            redirect_to: `${window.location.origin}${next}`,
-            invite_code: inviteCode ?? undefined,
-          }),
-        });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error ?? 'Magic-Link konnte nicht gesendet werden');
-        setInfo(data.is_signup
-          ? '✨ Wir haben dir einen Aktivierungs-Link geschickt. Bitte E-Mail prüfen.'
-          : '✨ Login-Link wurde an deine E-Mail geschickt. Bitte E-Mail prüfen.');
-      } else if (mode === 'signin') {
+      if (mode === 'signin') {
         const { error } = await signIn(email, password);
         if (error) throw error;
       } else if (mode === 'signup') {
@@ -130,15 +115,10 @@ export default function Login() {
             <h2 className="text-lg sm:text-xl font-bold text-forest-100">
               {showBootstrap
                 ? '🌲 Erste Einrichtung'
-                : mode === 'magic'
-                  ? '✨ Anmelden per E-Mail'
-                  : mode === 'signin'
-                    ? '🔑 Mit Passwort anmelden'
-                    : '🌲 Konto anlegen'}
+                : mode === 'signin'
+                  ? '🔑 Mit Passwort anmelden'
+                  : '🌲 Konto anlegen'}
             </h2>
-            {mode === 'magic' && !showBootstrap && (
-              <p className="mt-1 text-xs text-forest-300/80">Kein Passwort merken — Link aus der Mail klicken, fertig.</p>
-            )}
           </div>
 
           {showBootstrap ? (
@@ -176,31 +156,28 @@ export default function Login() {
                 required
               />
 
-              {mode !== 'magic' && (
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={setPassword}
-                  placeholder="Passwort"
-                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                  required
-                  minLength={8}
-                />
-              )}
+              <Input
+                type="password"
+                value={password}
+                onChange={setPassword}
+                placeholder="Passwort"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                required
+                minLength={8}
+              />
 
               <PrimaryButton busy={busy}>
-                {mode === 'magic'
-                  ? '✨ Login-Link schicken'
-                  : mode === 'signin'
-                    ? '🔑 Anmelden'
-                    : '🌲 Konto anlegen'}
+                {mode === 'signin' ? '🔑 Anmelden' : '🌲 Konto anlegen'}
               </PrimaryButton>
 
               {mode === 'signin' && (
-                <div className="text-center">
-                  <Link to="/forgot" className="text-xs text-forest-400/80 hover:text-forest-200 underline">
+                <div className="text-center space-y-1">
+                  <Link to="/forgot" className="block text-xs text-forest-400/80 hover:text-forest-200 underline">
                     Passwort vergessen?
                   </Link>
+                  <p className="text-[11px] text-forest-400/70">
+                    Zum ersten Mal hier? Setze dein Passwort über „Passwort vergessen".
+                  </p>
                 </div>
               )}
             </>
@@ -232,15 +209,14 @@ export default function Login() {
   );
 }
 
-// ─── Tabs (Magic / Passwort / Neu) ──────────────────────────────────────
+// ─── Tabs (Passwort / Neu) ──────────────────────────────────────────────
 function ModeTabs({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
   const tabs: { value: Mode; label: string; icon: string }[] = [
-    { value: 'magic',  label: 'Login-Link', icon: '✨' },
-    { value: 'signin', label: 'Passwort',   icon: '🔑' },
-    { value: 'signup', label: 'Neu',        icon: '🌲' },
+    { value: 'signin', label: 'Anmelden', icon: '🔑' },
+    { value: 'signup', label: 'Neu',      icon: '🌲' },
   ];
   return (
-    <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-forest-900/70 ring-1 ring-forest-800/50">
+    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-forest-900/70 ring-1 ring-forest-800/50">
       {tabs.map((t) => {
         const active = mode === t.value;
         return (

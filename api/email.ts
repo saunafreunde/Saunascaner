@@ -19,7 +19,7 @@ import {
   logEmailSend,
   getBrandSettings,
 } from './_email_helpers.js';
-import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail } from './_email_templates.js';
+import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail, renderSetPasswordEmail } from './_email_templates.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '');
@@ -29,10 +29,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'test-connection':   return await handleTestConnection(req, res);
       case 'send-welcome':      return await handleSendWelcome(req, res);
       case 'magic-link':        return await handleMagicLink(req, res);
+      case 'reset-link':        return await handleResetLink(req, res);
+      case 'send-set-password': return await handleSendSetPassword(req, res);
       case 'calendar':          return await handleCalendarFeed(req, res);
       case 'send-handbook':     return await handleSendHandbook(req, res);
       default:
-        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome', 'magic-link', 'calendar', 'send-handbook'] });
+        return res.status(400).json({ error: 'unknown action', actions: ['send-invite', 'test-connection', 'send-welcome', 'magic-link', 'reset-link', 'send-set-password', 'calendar', 'send-handbook'] });
     }
   } catch (e) {
     const msg = (e as Error).message;
@@ -290,6 +292,112 @@ function cryptoRandomPassword(): string {
   const bytes = new Uint8Array(24);
   globalThis.crypto.getRandomValues(bytes);
   return Array.from(bytes).map((n) => charset[n % charset.length]).join('');
+}
+
+// ─── reset-link (öffentlich, Self-Service „Passwort vergessen") ──────────
+// Generiert einen Recovery-Link via Admin-API und verschickt ihn über den
+// EIGENEN Mailer (info@sauna-fds.de) — gleiche zuverlässige Zustellung wie
+// beim Magic-Link. Antwortet IMMER generisch (kein User-Enumeration-Leak).
+async function handleResetLink(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  const { email, redirect_to } = req.body as { email?: string; redirect_to?: string };
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+
+  const svc = makeServiceClient();
+  const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+  const redirectTo = redirect_to ?? `${origin}/reset-password`;
+
+  try {
+    const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
+      type: 'recovery', email, options: { redirectTo },
+    });
+    if (linkErr || !linkData?.properties?.action_link) {
+      // Unbekannte E-Mail o.ä. → generisch OK antworten (kein Leak). Server-Log genügt.
+      console.warn('reset-link: generateLink failed for', email, linkErr?.message);
+      return res.status(200).json({ ok: true });
+    }
+    const brand = await getBrandSettings(svc);
+    const { html, text, subject } = renderSetPasswordEmail({
+      resetLink: linkData.properties.action_link,
+      isProactive: false,
+      brand,
+    });
+    await sendSystemMail({ to: email, subject, html, text });
+  } catch (e) {
+    // Fehler trotzdem generisch behandeln (kein Enumeration-Leak), aber loggen.
+    console.error('reset-link send failed:', (e as Error).message);
+  }
+  return res.status(200).json({ ok: true });
+}
+
+// ─── send-set-password (Admin-Broadcast: Umstellung Magic-Link → Passwort) ─
+// Schickt allen ausgewählten Mitgliedern einen „Passwort festlegen"-Link
+// (Recovery-Link via Admin-API) über den eigenen Mailer. Für die einmalige
+// Umstellung auf Passwort-Login.
+async function handleSendSetPassword(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  const auth = await authenticate(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+  if (auth.member.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+
+  const { recipients, audience } = req.body as {
+    recipients?: string[];
+    audience?: 'all' | 'aufgieser' | 'admins';
+  };
+
+  // Zielgruppe zusammenstellen (email + name)
+  let targets: { email: string; name: string | null }[] = [];
+  if (Array.isArray(recipients) && recipients.length > 0) {
+    const wanted = recipients.filter((e) => /\S+@\S+\.\S+/.test(e)).map((e) => e.toLowerCase());
+    const { data } = await auth.service.from('members').select('email, name').not('email', 'is', null);
+    const byEmail = new Map((data ?? []).map((m) => [String(m.email).toLowerCase(), (m.name as string | null) ?? null]));
+    targets = wanted.map((e) => ({ email: e, name: byEmail.get(e) ?? null }));
+  } else if (audience) {
+    let query = auth.service.from('members').select('email, name').not('email', 'is', null).eq('approved', true).is('revoked_at', null);
+    if (audience === 'aufgieser') query = query.or('is_aufgieser.eq.true,role.eq.guest_aufgieser');
+    if (audience === 'admins') query = query.eq('role', 'admin');
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    targets = (data ?? [])
+      .map((m) => ({ email: m.email as string, name: (m.name as string | null) ?? null }))
+      .filter((t) => t.email);
+  }
+  if (targets.length === 0) return res.status(400).json({ error: 'no recipients' });
+
+  const svc = makeServiceClient();
+  const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+  const redirectTo = `${origin}/reset-password`;
+  const brand = await getBrandSettings(svc);
+
+  const results = await Promise.allSettled(
+    targets.map(async (t) => {
+      const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
+        type: 'recovery', email: t.email, options: { redirectTo },
+      });
+      if (linkErr || !linkData?.properties?.action_link) throw new Error(linkErr?.message ?? 'link failed');
+      const { html, text, subject } = renderSetPasswordEmail({
+        resetLink: linkData.properties.action_link,
+        recipientName: t.name ?? undefined,
+        isProactive: true,
+        brand,
+      });
+      await sendSystemMail({ to: t.email, subject, html, text });
+    })
+  );
+  const sent = results.filter((r) => r.status === 'fulfilled').length;
+  const failed = results.length - sent;
+
+  await logEmailSend(auth.service, {
+    recipient: `${sent} Empfänger`,
+    subject: 'Passwort festlegen (Umstellung)',
+    templateName: 'set-password',
+    status: failed === 0 ? 'sent' : sent === 0 ? 'failed' : 'sent',
+    error: failed > 0 ? `${failed} failed` : undefined,
+    senderEmail: process.env.SAUNA_SMTP_USER,
+    senderMemberId: auth.member.id,
+  });
+
+  return res.status(200).json({ ok: true, sent, failed, recipient_count: targets.length });
 }
 
 // ─── send-invite ──────────────────────────────────────────────────────────
