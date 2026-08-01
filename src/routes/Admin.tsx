@@ -25,8 +25,9 @@ import { AdminAvatarManager } from '@/components/admin/AdminAvatarManager';
 import { HolidaysTab } from '@/components/admin/HolidaysTab';
 import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
+import { SAUNA_HEADER_IMAGES } from '@/lib/saunaHeaders';
 import {
-  useSaunas, useToggleSauna,
+  useSaunas, useToggleSauna, useUpdateSauna,
   useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
   usePendingMembers, useApproveMember, useCurrentMember,
   usePresentMembers,
@@ -259,31 +260,66 @@ export default function Admin() {
 function SaunasTab() {
   const saunasQ = useSaunas();
   const toggle = useToggleSauna();
+  const updateSauna = useUpdateSauna();
   return (
     <div className="space-y-4">
       <section className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
         <h2 className="text-base font-semibold text-forest-100">Saunen</h2>
         <p className="mt-1 text-xs text-forest-300/70">
           Aktive Saunen erscheinen auf der Tafel. Layout passt sich automatisch an die Anzahl an.
+          Standort-Hinweis und Bild stehen im Spalten-Kopf der Tafel — damit Gäste sehen, wo die Kabine steht.
         </p>
         <ul className="mt-3 space-y-2">
           {(saunasQ.data ?? []).map((s) => (
-            <li key={s.id} className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-3 ring-1 ring-forest-800/40"
+            <li key={s.id} className="rounded-lg bg-forest-900/60 px-3 py-3 ring-1 ring-forest-800/40"
                 style={{ borderLeft: `4px solid ${s.accent_color}` }}>
-              <div>
-                <div className="text-sm font-semibold">{s.name}</div>
-                <div className="text-xs text-forest-300/70">{s.temperature_label}</div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">{s.name}</div>
+                  <div className="text-xs text-forest-300/70">{s.temperature_label}</div>
+                </div>
+                <button
+                  onClick={() => toggle.mutate({ id: s.id, is_active: !s.is_active })}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold ring-1 ${
+                    s.is_active
+                      ? 'bg-emerald-500 text-emerald-950 ring-emerald-400'
+                      : 'bg-forest-900/80 text-forest-300 ring-forest-700/50'
+                  }`}
+                >
+                  {s.is_active ? 'Aktiv' : 'Inaktiv'}
+                </button>
               </div>
-              <button
-                onClick={() => toggle.mutate({ id: s.id, is_active: !s.is_active })}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold ring-1 ${
-                  s.is_active
-                    ? 'bg-emerald-500 text-emerald-950 ring-emerald-400'
-                    : 'bg-forest-900/80 text-forest-300 ring-forest-700/50'
-                }`}
-              >
-                {s.is_active ? 'Aktiv' : 'Inaktiv'}
-              </button>
+
+              {/* Tafel-Orientierung (Migration 0120) */}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-wider text-forest-400/80">Standort-Hinweis</span>
+                  <input
+                    defaultValue={s.location_hint ?? ''}
+                    placeholder="z.B. linke Sauna"
+                    onBlur={(e) => {
+                      const next = e.target.value.trim() || null;
+                      if (next !== (s.location_hint ?? null)) {
+                        updateSauna.mutate({ id: s.id, location_hint: next });
+                      }
+                    }}
+                    className="mt-1 w-full rounded-lg bg-forest-950/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-wider text-forest-400/80">Bild im Spalten-Kopf</span>
+                  <select
+                    value={s.header_image ?? ''}
+                    onChange={(e) => updateSauna.mutate({ id: s.id, header_image: e.target.value || null })}
+                    className="mt-1 w-full rounded-lg bg-forest-950/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                  >
+                    <option value="">— kein Bild (nur Farbe) —</option>
+                    {SAUNA_HEADER_IMAGES.map((img) => (
+                      <option key={img.path} value={img.path}>{img.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </li>
           ))}
         </ul>

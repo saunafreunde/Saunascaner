@@ -7,9 +7,9 @@ const tomorrow = (h: number) =>
   addDays(setMinutes(setHours(new Date(), h), 0), 1).toISOString();
 
 export const mockSaunas: Sauna[] = [
-  { id: 's80',  name: 'Kelo',             temperature_label: '80°C',  accent_color: '#fbbf24', sort_order: 1, is_active: true,  created_at: '', updated_at: '' },
-  { id: 's90',  name: 'Finnische Sauna',  temperature_label: '90°C',  accent_color: '#34d399', sort_order: 2, is_active: false, created_at: '', updated_at: '' },
-  { id: 's100', name: 'Blockhaus',        temperature_label: '100°C', accent_color: '#ef4444', sort_order: 3, is_active: true,  created_at: '', updated_at: '' },
+  { id: 's80',  name: 'Kelo',             temperature_label: '80°C',  accent_color: '#fbbf24', location_hint: 'linke Sauna',  header_image: '/saunen/kelo.webp',            sort_order: 1, is_active: true,  created_at: '', updated_at: '' },
+  { id: 's90',  name: 'Finnische Sauna',  temperature_label: '90°C',  accent_color: '#34d399', location_hint: 'Innen-Sauna',  header_image: '/saunen/finnische-sauna.webp', sort_order: 2, is_active: false, created_at: '', updated_at: '' },
+  { id: 's100', name: 'Blockhaus',        temperature_label: '100°C', accent_color: '#ef4444', location_hint: 'rechte Sauna', header_image: '/saunen/blockhaus.webp',       sort_order: 3, is_active: true,  created_at: '', updated_at: '' },
 ];
 
 const inf = (

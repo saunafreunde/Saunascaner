@@ -103,6 +103,20 @@ export function useToggleSauna() {
   });
 }
 
+/** Orientierungs-Felder für die TV-Tafel (Migration 0120): Standort-Hinweis
+ *  und Header-Bild. Direkter UPDATE wie useToggleSauna — die Policy
+ *  saunas_write_admin (is_admin()) deckt das ab. */
+export function useUpdateSauna() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string; location_hint?: string | null; header_image?: string | null }) => {
+      const { error } = await need().from('saunas').update(patch).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['saunas'] }),
+  });
+}
+
 // ─── Infusions ────────────────────────────────────────────────────────────
 export function useInfusions() {
   return useQuery({

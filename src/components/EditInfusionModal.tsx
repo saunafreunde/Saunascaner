@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
+import { SCHNAPS, SCHNAPS_BY_ID, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import {
   useUpdateInfusion,
@@ -27,16 +28,19 @@ export function EditInfusionModal({
   onClose: () => void;
   onSaved?: () => void;
 }) {
-  // Bestehende attributes aufteilen in Standard (slug, in ATTR_BY_ID) und
-  // Custom (UUID — eigene Buttons des Aufgießers).
+  // Bestehende attributes aufteilen in Schnaps (eigener Reiter), Standard
+  // (slug, in ATTR_BY_ID) und Custom (UUID — eigene Buttons des Aufgießers).
   const initialAttrs = useMemo(() => {
+    const schnapsHit = schnapsFromAttributes(infusion.attributes);
     const std: InfusionAttribute[] = [];
     const custom: string[] = [];
-    for (const a of (infusion.attributes ?? [])) {
+    // stripSchnapsAttrs entfernt sowohl 'schnaps:<slug>' als auch die alten
+    // Chips — der Schnaps lebt ab hier nur noch im eigenen State.
+    for (const a of stripSchnapsAttrs(infusion.attributes ?? [])) {
       if ((ATTR_BY_ID as Record<string, unknown>)[a]) std.push(a as InfusionAttribute);
       else custom.push(a); // alles andere (UUIDs) als Custom behandeln
     }
-    return { std, custom };
+    return { std, custom, schnaps: schnapsHit?.id ?? null };
   }, [infusion.attributes]);
 
   const [title, setTitle] = useState(infusion.title ?? '');
@@ -44,6 +48,8 @@ export function EditInfusionModal({
   const [attrs, setAttrs] = useState<InfusionAttribute[]>(initialAttrs.std);
   const [customAttrIds, setCustomAttrIds] = useState<string[]>(initialAttrs.custom);
   const [oils, setOils] = useState<(string | null)[]>(normalizeOilSlots(infusion.oils));
+  const [schnaps, setSchnaps] = useState<string | null>(initialAttrs.schnaps);
+  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps'>(initialAttrs.schnaps ? 'schnaps' : 'oils');
   const [teamInfusion, setTeamInfusion] = useState(infusion.team_infusion);
   const [duration, setDuration] = useState<number>(infusion.duration_minutes);
   const [showOilPicker, setShowOilPicker] = useState(false);
@@ -114,8 +120,9 @@ export function EditInfusionModal({
         id: infusion.id,
         title: title.trim() || undefined,
         description: description.trim() || null,
-        // Standard-attrs + Custom-Attr-UUIDs zusammen in ein Array
-        attributes: [...attrs, ...customAttrIds],
+        // Standard-attrs + Custom-Attr-UUIDs + Schnaps zusammen in ein Array
+        // (siehe lib/schnaps.ts warum der Schnaps hier mitreist)
+        attributes: [...attrs, ...customAttrIds, ...(schnaps ? [schnapsAttrId(schnaps)] : [])],
         oils,
         team_infusion: teamInfusion,
         duration_minutes: duration,
@@ -154,6 +161,7 @@ export function EditInfusionModal({
   }
 
   const oilCount = oils.filter(Boolean).length;
+  const selectedSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
 
   return (
     <Portal>
@@ -178,7 +186,7 @@ export function EditInfusionModal({
               <button
                 type="button"
                 onClick={() => setTitlePickerOpen(true)}
-                disabled={attrs.length === 0 && oils.every((o) => !o)}
+                disabled={attrs.length === 0 && oils.every((o) => !o) && !schnaps}
                 title="5 KI-Vorschläge in 5 Stilen (poetisch, kurz, mystisch, sinnlich, frech). Bei API-Outage Fallback auf regelbasiert."
                 className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
               >
@@ -250,7 +258,8 @@ export function EditInfusionModal({
           <div>
             <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Eigenschaften</label>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {ATTRIBUTES.map((a) => {
+              {/* hidden = Kirschwasser/Haferpflaume, laufen über den Schnaps-Reiter */}
+              {ATTRIBUTES.filter((a) => !a.hidden).map((a) => {
                 const active = attrs.includes(a.id);
                 return (
                   <button
@@ -301,18 +310,71 @@ export function EditInfusionModal({
             </div>
           )}
 
-          {/* Öle */}
+          {/* Öle / Schnaps — zwei Reiter wie im Planner. Beides darf
+              gleichzeitig gesetzt sein, der Reiter schaltet nur die Sicht. */}
           <div>
-            <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Öle (bis {MAX_OIL_SLOTS})</label>
-            <button
-              type="button"
-              onClick={() => setShowOilPicker(true)}
-              className="mt-1.5 block w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-3 text-sm text-forest-100 hover:bg-forest-900 text-left"
-            >
-              {oilCount === 0
-                ? '🌿 Öle auswählen…'
-                : `🌿 ${oilCount} Öl${oilCount === 1 ? '' : 'e'} gewählt — bearbeiten`}
-            </button>
+            <div className="flex gap-1.5 rounded-xl bg-forest-900/50 p-1 ring-1 ring-forest-800/50">
+              {([
+                { id: 'oils',    icon: '🌿', label: 'Ätherische Öle', filled: oilCount > 0 },
+                { id: 'schnaps', icon: '🥃', label: 'Schnaps',        filled: !!schnaps },
+              ] as const).map((t) => {
+                const active = aromaTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setAromaTab(t.id)}
+                    className={`relative flex-1 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                      active ? 'bg-amber-500 text-amber-950' : 'text-forest-300 hover:bg-forest-900/70'
+                    }`}
+                  >
+                    <span aria-hidden className="mr-1">{t.icon}</span>{t.label}
+                    {!active && t.filled && (
+                      <span aria-hidden className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {aromaTab === 'oils' ? (
+              <div className="mt-2">
+                <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Öle (bis {MAX_OIL_SLOTS})</label>
+                <button
+                  type="button"
+                  onClick={() => setShowOilPicker(true)}
+                  className="mt-1.5 block w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-3 text-sm text-forest-100 hover:bg-forest-900 text-left"
+                >
+                  {oilCount === 0
+                    ? '🌿 Öle auswählen…'
+                    : `🌿 ${oilCount} Öl${oilCount === 1 ? '' : 'e'} gewählt — bearbeiten`}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Schnaps-Sorte</label>
+                <select
+                  value={schnaps ?? ''}
+                  onChange={(e) => setSchnaps(e.target.value || null)}
+                  className="mt-1.5 w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-3 text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                >
+                  <option value="">— kein Schnaps —</option>
+                  {SCHNAPS.map((s) => (
+                    <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
+                  ))}
+                </select>
+                {selectedSchnaps && (
+                  <div className="mt-2">
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white"
+                      style={{ background: selectedSchnaps.color, boxShadow: `0 0 0 2px ${selectedSchnaps.color}55` }}
+                    >
+                      🥃 {selectedSchnaps.name}-Aufguss
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Team-Flag */}

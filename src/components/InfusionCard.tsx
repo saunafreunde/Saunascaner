@@ -5,6 +5,7 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
+import { schnapsFromAttributes } from '@/lib/schnaps';
 import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
@@ -107,6 +108,12 @@ export function InfusionCard({
   // anzeigen als aktuell erlaubt, sonst sieht's chaotisch aus.
   const oils = ((infusion.oils ?? []).filter(Boolean) as string[]).slice(0, MAX_OIL_SLOTS);
 
+  // Schnaps-Aufguss? Steckt als 'schnaps:<slug>' in den attributes (siehe
+  // lib/schnaps.ts), erkennt zusätzlich die alten Chips kirschwasser/
+  // haferpflaume. Färbt Karten-Hintergrund + eigene Pille, lässt die
+  // Sauna-Identität (Akzentstreifen, Sauna-Badge) bewusst unangetastet.
+  const schnaps = schnapsFromAttributes(infusion.attributes);
+
   // Countdown-Text bis Start (oder Status falls läuft/vorbei).
   // Wird sekündlich/minütlich aktualisiert via Parent-`now`-Prop (alle 5s im Dashboard).
   function countdownText(): string {
@@ -167,7 +174,28 @@ export function InfusionCard({
         // bei 3 als auch 4 Tiles, sowohl 1080p als auch 4K.
         containerType: 'size',
         ...(imminent ? { borderColor: sauna.accent_color } : {}),
-        ...(backgroundImage ? {
+        ...(schnaps ? {
+          // Schnaps-Karte: Fruchtbild als Plakat-Hintergrund. Bewusst ein
+          // HELLER Schleier statt des dunklen im Zweig darunter — die Karte
+          // ist Hell-Theme (Titel text-slate-900), auf einem abgedunkelten
+          // Fruchtfoto wäre davon nichts mehr zu lesen.
+          //
+          // Der Schleier ist bewusst NICHT gleichmäßig, sondern ein Band:
+          //   oben  (0–34 %)  ~0.92 → fast weiß, hier stehen Uhrzeit + Titel
+          //   Mitte (60–84 %) ~0.30 → das Fruchtbild kommt voll durch
+          //   unten (100 %)   ~0.70 → Sauna-Badge und Aufgießer bleiben lesbar
+          // Ein gleichmäßiger Schleier über die ganze Karte macht die dunklen
+          // Fotos milchig und die Frucht unkenntlich — dieses Band hält beides.
+          // background-position bottom, weil die Frucht in allen Motiven unten
+          // im Bild sitzt (siehe Prompt-Vorgabe in Desktop\sauna_gen.py).
+          backgroundImage: [
+            `linear-gradient(200deg, ${schnaps.color}00 0%, ${schnaps.color}00 45%, ${schnaps.color}30 100%)`,
+            'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.42) 60%, rgba(255,255,255,0.30) 84%, rgba(255,255,255,0.70) 100%)',
+            `url(${JSON.stringify(schnaps.image)})`,
+          ].join(', '),
+          backgroundSize: 'cover',
+          backgroundPosition: 'center bottom',
+        } : backgroundImage ? {
           backgroundImage: `linear-gradient(rgba(2,6,12,0.62), rgba(2,6,12,0.62)), url(${backgroundImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -196,7 +224,7 @@ export function InfusionCard({
           die Bühne). Liegt absolut über der Card aber unter dem Content
           (z-index 0, pointer-events: none). Nicht bei imminent oder
           backgroundImage anzeigen (würde dort doppelt/überflüssig wirken). */}
-      {!imminent && !backgroundImage && <WoodGrainOverlay />}
+      {!imminent && !backgroundImage && !schnaps && <WoodGrainOverlay />}
 
       {compact ? (
         /* relative z-10 — damit der Card-Content GARANTIERT über der
@@ -259,7 +287,13 @@ export function InfusionCard({
               className="relative flex-1 rounded-xl flex flex-col justify-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
                 padding: 'clamp(6px, 1.6cqh, 14px) clamp(11px, 2.7cqh, 22px)',
-                background: `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
+                // Auf Schnaps-Karten ist der Karten-Schleier oben fast weiß —
+                // die sonst dunkle Titel-Box säße dort als Fremdkörper und
+                // drückte den slate-900-Titel auf ~3,5:1. Helle Box statt
+                // dessen: ~13:1, und das Fruchtbild bleibt unten ungestört.
+                background: schnaps
+                  ? `linear-gradient(135deg, ${sauna.accent_color}26 0%, rgba(255,255,255,0.86) 55%)`
+                  : `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
@@ -310,6 +344,29 @@ export function InfusionCard({
               </h3>
             </div>
           </div>
+
+          {/* Schnaps-Auszeichnung — eigene Zeile direkt unter der Kopfzeile,
+              damit sie auch dann trägt wenn das Fruchtbild im Hintergrund
+              durch Branding-Einstellungen mal nicht durchkommt. Erscheint
+              ausschließlich auf Schnaps-Aufgüssen. */}
+          {schnaps && (
+            <div className="flex flex-shrink-0">
+              <span
+                className="inline-flex items-center rounded-full font-black uppercase tracking-wider text-white whitespace-nowrap"
+                style={{
+                  fontSize: 'clamp(10px, 2.6cqh, 15px)',
+                  padding:  'clamp(3px, 0.8cqh, 6px) clamp(8px, 2cqh, 14px)',
+                  gap:      'clamp(3px, 0.8cqh, 7px)',
+                  background: `linear-gradient(135deg, ${schnaps.color}, ${schnaps.color}cc)`,
+                  boxShadow: `0 2px 10px ${schnaps.color}88, inset 0 1px 0 rgba(255,255,255,0.3)`,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+                }}
+              >
+                <span aria-hidden>🥃</span>
+                <span>{schnaps.name}-Aufguss</span>
+              </span>
+            </div>
+          )}
 
           {/* Aufgießer-Strip wurde nach UNTEN MITTIG verschoben — siehe
               direkt nach dem PillsBlock, eigene zentrierte Zeile vor dem

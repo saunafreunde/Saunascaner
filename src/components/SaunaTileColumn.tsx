@@ -199,9 +199,48 @@ export function SaunaTileColumn({
         boxShadow: `0 0 36px ${sauna.accent_color}1a, inset 0 1px 0 rgba(255,255,255,0.6)`,
       }}
     >
-      {/* Sauna-Header entfernt (User-Wunsch) — mehr Platz für die Karten.
-          Die Sauna-Identität steht jetzt direkt auf jeder Aufguss-Karte
-          als Sauna-Badge unten links (sauna.name + Temperatur). */}
+      {/* Sauna-Header (Migration 0120). War zwischenzeitlich entfernt um Platz
+          für die Karten zu gewinnen — kommt zurück, weil Gäste sonst nicht
+          erkennen WELCHE Sauna eine Spalte zeigt und erst recht nicht wo die
+          Kabine steht. Bewusst schlank gehalten (~9,5 vh) und statisch, keine
+          Animation: die Tafel läuft 24/7.
+
+          containerType auf dem Header selbst, damit die Schriftgrößen per cqh
+          an der Header-Höhe hängen und von 1080p bis 4K mitskalieren — genau
+          wie auf den Aufguss-Karten. */}
+      <div
+        className="relative flex-shrink-0 flex flex-col justify-center rounded-t-2xl overflow-hidden"
+        style={{
+          height: 'clamp(54px, 9.5vh, 165px)',
+          containerType: 'size',
+          padding: '0 clamp(10px, 1.6vh, 26px)',
+          backgroundImage: sauna.header_image
+            ? `linear-gradient(90deg, ${sauna.accent_color}e6 0%, ${sauna.accent_color}99 45%, rgba(0,0,0,0.45) 100%), url(${JSON.stringify(sauna.header_image)})`
+            : `linear-gradient(120deg, ${sauna.accent_color} 0%, ${sauna.accent_color}bb 100%)`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div
+          className="font-black uppercase tracking-tight text-white leading-none truncate"
+          style={{ fontSize: 'clamp(16px, 34cqh, 56px)', textShadow: '0 2px 6px rgba(0,0,0,0.55)' }}
+        >
+          {sauna.name}
+        </div>
+        <div
+          className="flex items-center text-white/90 font-semibold leading-tight truncate"
+          style={{
+            fontSize: 'clamp(10px, 17cqh, 26px)',
+            gap: 'clamp(4px, 6cqh, 12px)',
+            marginTop: 'clamp(2px, 4cqh, 8px)',
+            textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+          }}
+        >
+          {sauna.temperature_label && <span className="tabular-nums">{sauna.temperature_label}</span>}
+          {sauna.temperature_label && sauna.location_hint && <span aria-hidden className="opacity-60">·</span>}
+          {sauna.location_hint && <span className="truncate">📍 {sauna.location_hint}</span>}
+        </div>
+      </div>
 
       {/* Fixes Grid: tilesPerColumn Reihen mit 1/N Höhe — auch wenn weniger
           Tiles gerendert werden bleiben die übrigen in ihrer ursprünglichen

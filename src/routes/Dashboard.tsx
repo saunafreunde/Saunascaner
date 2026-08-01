@@ -231,7 +231,11 @@ export default function Dashboard() {
           meisterMeta={meisterMeta}
           coNames={coNamesForInfusion}
           now={now}
-          tileBgs={brand.data?.tile_bgs?.[saunaId] ?? []}
+          /* tile_bgs stehen als Storage-PFADE in den Brand-Settings, nicht als
+             URLs. Ohne publicAssetUrl() landete "tile-bgs/<id>/<id>.jpg" roh
+             im CSS und wurde relativ zu /dashboard aufgelöst → 404, die
+             Admin-Tile-Hintergründe waren wirkungslos. */
+          tileBgs={(brand.data?.tile_bgs?.[saunaId] ?? []).map((p) => publicAssetUrl(p))}
           tilesPerColumn={tilesPerColumn}
           mondayOpen={mondayOpen}
           holidaySet={holidaySet}

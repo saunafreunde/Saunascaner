@@ -7,6 +7,12 @@ export type Sauna = {
   name: string;
   temperature_label: string;
   accent_color: string;          // hex, used as visual identity on TV + planner
+  /** Wegweiser für Gäste auf der Tafel, z.B. "hinten links, am Tauchbecken".
+   *  Migration 0120. */
+  location_hint: string | null;
+  /** Pfad eines ausgelieferten Header-Bilds (public/saunen/…), siehe
+   *  lib/saunaHeaders.ts. Migration 0120. */
+  header_image: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;

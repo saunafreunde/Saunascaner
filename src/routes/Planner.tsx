@@ -10,6 +10,7 @@ import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
+import { SCHNAPS, SCHNAPS_BY_ID, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { lookupMemberName } from '@/lib/memberDisplay';
 import { berlinYmd } from '@/lib/time';
@@ -396,12 +397,25 @@ export default function Planner() {
   const [attrs, setAttrs] = useState<InfusionAttribute[]>([]);
   const [oils, setOils] = useState<(string | null)[]>(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
   const [showOilPicker, setShowOilPicker] = useState(false);
+  // Schnaps-Aufguss: genau eine Sorte, wird als 'schnaps:<slug>' in die
+  // attributes geschrieben (siehe lib/schnaps.ts). Öle und Schnaps sind
+  // unabhängig — der Reiter schaltet nur die Sicht, nicht die Daten.
+  const [schnaps, setSchnaps] = useState<string | null>(null);
+  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps'>('oils');
   const [teamInfusion, setTeamInfusion] = useState(false);
   // Aufguss-Dauer (User-Wunsch: 20/30/45 wählbar, Default 20; 90 = Banja)
   const [duration, setDuration] = useState<number>(DEFAULT_DURATION_MIN);
   // Banja-Erkennung im Outer-Scope (für Button-Label + Disabled-State).
   // submit() hat eine eigene lokale Kopie, hier nur fürs Rendering.
   const isBanjaPlanned = (attrs as string[]).includes(BANJA_ATTR);
+  const selectedSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
+  // Attribute + Custom-Buttons + ggf. Schnaps — so wandert alles in EINEM
+  // text[] in die DB (siehe lib/schnaps.ts warum der Schnaps hier mitreist).
+  const attrsPayload = (): string[] => [
+    ...attrs,
+    ...customAttrIds,
+    ...(schnaps ? [schnapsAttrId(schnaps)] : []),
+  ];
   // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
   // Bei nicht-Admins wird m.id verwendet (Backend lehnt fremde IDs eh ab).
   const [adminSaunameisterId, setAdminSaunameisterId] = useState<string>('');
@@ -565,7 +579,13 @@ export default function Planner() {
 
   function applyTemplate(t: { title: string; description: string | null; duration_minutes: number; attributes: string[]; oils?: (string | null)[] | null }) {
     setTitle(t.title);
-    setAttrs(t.attributes as InfusionAttribute[]);
+    // Ein 'schnaps:<slug>' aus der Vorlage gehört in den Schnaps-Reiter, nicht
+    // in die Eigenschaften-Chips — sonst würde attrsPayload() ihn doppelt
+    // schreiben (siehe lib/schnaps.ts).
+    const tplSchnaps = schnapsFromAttributes(t.attributes);
+    setSchnaps(tplSchnaps?.id ?? null);
+    setAromaTab(tplSchnaps ? 'schnaps' : 'oils');
+    setAttrs(stripSchnapsAttrs(t.attributes) as InfusionAttribute[]);
     setOils(normalizeOilSlots(t.oils));
     // Template-Dauer übernehmen (falls 15 oder andere Alt-Daten → wird im
     // UI als Ad-hoc-Button gezeigt, siehe DURATION_OPTIONS-Block).
@@ -586,7 +606,7 @@ export default function Planner() {
         // Cast nötig weil customAttrIds string[] (UUIDs) sind, die
         // Mutation aber InfusionAttribute[] erwartet. DB-Spalte ist
         // text[] und nimmt beide Formen an.
-        attributes: [...attrs, ...customAttrIds] as InfusionAttribute[],
+        attributes: attrsPayload() as InfusionAttribute[],
         oils: oils.some(Boolean) ? oils : null,
       });
     } catch (e) { setFormError((e as Error).message); }
@@ -597,6 +617,8 @@ export default function Planner() {
     setAttrs([]);
     setCustomAttrIds([]);
     setOils(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
+    setSchnaps(null);
+    setAromaTab('oils');
     setTeamInfusion(false);
     setAdminSaunameisterId('');
     setDuration(DEFAULT_DURATION_MIN);
@@ -677,7 +699,7 @@ export default function Planner() {
           sauna_id: saunaId,
           date: selectedDate,
           title: title.trim(),
-          attributes: [...attrs, ...customAttrIds] as string[],
+          attributes: attrsPayload(),
           oils: oils.some(Boolean) ? oils : null,
           team_infusion: teamInfusion,
           saunameister_id: (isAdmin && adminSaunameisterId) ? adminSaunameisterId : null,
@@ -688,7 +710,7 @@ export default function Planner() {
           title: title.trim(),
           description: null,
           // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen (Cast: s.o.)
-          attributes: [...attrs, ...customAttrIds] as InfusionAttribute[],
+          attributes: attrsPayload() as InfusionAttribute[],
           oils: oils.some(Boolean) ? oils : null,
           team_infusion: teamInfusion,
         });
@@ -701,7 +723,7 @@ export default function Planner() {
         title: title.trim(),
         description: null,
         // Standard-attrs + Custom-Attr-UUIDs zusammen ablegen (Cast: s.o.)
-        attributes: [...attrs, ...customAttrIds] as InfusionAttribute[],
+        attributes: attrsPayload() as InfusionAttribute[],
         oils: oils.some(Boolean) ? oils : null,
         start_time: start.toISOString(),
         duration_minutes: duration,
@@ -1445,7 +1467,7 @@ export default function Planner() {
                     <button
                       type="button"
                       onClick={() => setTitlePickerOpen(true)}
-                      disabled={attrs.length === 0 && oils.every((o) => !o)}
+                      disabled={attrs.length === 0 && oils.every((o) => !o) && !schnaps}
                       title="Öffnet 5 KI-Vorschläge in unterschiedlichen Stilen (poetisch, kurz, mystisch, sinnlich, frech). Bei API-Outage Fallback auf regelbasiert."
                       className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
                     >
@@ -1468,7 +1490,9 @@ export default function Planner() {
                 <div>
                   <label className="text-xs text-forest-300">Eigenschaften</label>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {ATTRIBUTES.map((a) => {
+                    {/* hidden = Kirschwasser/Haferpflaume, laufen jetzt über den
+                        Schnaps-Reiter weiter unten (lib/attributes.ts). */}
+                    {ATTRIBUTES.filter((a) => !a.hidden).map((a) => {
                       const active = attrs.includes(a.id);
                       return (
                         <button key={a.id} type="button" onClick={() => toggleAttr(a.id)}
@@ -1503,36 +1527,94 @@ export default function Planner() {
                   </div>
                 )}
 
+                {/* Aroma-Bereich mit zwei Reitern: Öle ODER Schnaps-Aufguss.
+                    Die Reiter schalten nur die Sicht — beides darf gleichzeitig
+                    gesetzt sein, der Punkt auf dem inaktiven Reiter zeigt das an. */}
                 <div>
-                  <label className="text-xs text-forest-300">Ätherische Öle <span className="text-forest-400/60">— eines pro Runde (max. 3)</span></label>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    {oils.map((id, i) => {
-                      const o = id ? OIL_BY_ID[id] : null;
+                  <div className="flex gap-1.5 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/50">
+                    {([
+                      { id: 'oils',    icon: '🌿', label: 'Ätherische Öle', filled: oils.some(Boolean) },
+                      { id: 'schnaps', icon: '🥃', label: 'Schnaps',        filled: !!schnaps },
+                    ] as const).map((t) => {
+                      const active = aromaTab === t.id;
                       return (
                         <button
-                          key={i}
+                          key={t.id}
                           type="button"
-                          onClick={() => setShowOilPicker(true)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${
-                            o
-                              ? 'bg-amber-900/40 ring-amber-400/40 text-amber-100 hover:bg-amber-900/60'
-                              : 'bg-forest-900/60 ring-forest-800/50 text-forest-300 hover:bg-forest-900 border border-dashed border-forest-700/60'
+                          onClick={() => setAromaTab(t.id)}
+                          className={`relative flex-1 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                            active
+                              ? 'bg-forest-500 text-forest-950'
+                              : 'text-forest-300 hover:bg-forest-900/70'
                           }`}
                         >
-                          <span className="font-bold tabular-nums opacity-80">{i + 1}.</span>
-                          {o ? (
-                            <>
-                              <span className="rounded bg-amber-950/60 px-1 text-[10px] tabular-nums">#{o.number}</span>
-                              <span aria-hidden>{o.emoji}</span>
-                              <span>{o.name}</span>
-                            </>
-                          ) : (
-                            <span>+ Öl wählen</span>
+                          <span aria-hidden className="mr-1">{t.icon}</span>{t.label}
+                          {!active && t.filled && (
+                            <span aria-hidden className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-amber-400" />
                           )}
                         </button>
                       );
                     })}
                   </div>
+
+                  {aromaTab === 'oils' ? (
+                    <div className="mt-2">
+                      <label className="text-xs text-forest-300">Ätherische Öle <span className="text-forest-400/60">— eines pro Runde (max. 3)</span></label>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        {oils.map((id, i) => {
+                          const o = id ? OIL_BY_ID[id] : null;
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setShowOilPicker(true)}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${
+                                o
+                                  ? 'bg-amber-900/40 ring-amber-400/40 text-amber-100 hover:bg-amber-900/60'
+                                  : 'bg-forest-900/60 ring-forest-800/50 text-forest-300 hover:bg-forest-900 border border-dashed border-forest-700/60'
+                              }`}
+                            >
+                              <span className="font-bold tabular-nums opacity-80">{i + 1}.</span>
+                              {o ? (
+                                <>
+                                  <span className="rounded bg-amber-950/60 px-1 text-[10px] tabular-nums">#{o.number}</span>
+                                  <span aria-hidden>{o.emoji}</span>
+                                  <span>{o.name}</span>
+                                </>
+                              ) : (
+                                <span>+ Öl wählen</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <label className="text-xs text-forest-300">Schnaps-Sorte <span className="text-forest-400/60">— eine pro Aufguss</span></label>
+                      <select
+                        value={schnaps ?? ''}
+                        onChange={(e) => setSchnaps(e.target.value || null)}
+                        className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                      >
+                        <option value="">— kein Schnaps —</option>
+                        {SCHNAPS.map((s) => (
+                          <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
+                        ))}
+                      </select>
+                      {selectedSchnaps && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span
+                            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white"
+                            style={{ background: selectedSchnaps.color, boxShadow: `0 0 0 2px ${selectedSchnaps.color}55` }}
+                          >
+                            🥃 {selectedSchnaps.name}-Aufguss
+                          </span>
+                          <span className="text-[11px] text-forest-400/70">erscheint mit Fruchtbild auf der Tafel</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => setTeamInfusion((v) => !v)}>

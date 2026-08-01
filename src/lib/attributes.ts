@@ -33,7 +33,11 @@ export type InfusionAttribute =
   | 'silent_strict'   // psssst → sonst raus (strenge Stille-Regel)
   | 'three_x_three';  // 3×3 Runden (3 Runden à 3 Wedeleinheiten)
 
-export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string }[] = [
+// `hidden` = wird im Eintrage-Formular NICHT mehr als Chip angeboten, bleibt
+// aber in der Liste damit ATTR_BY_ID Alt-Daten weiter beschriften kann.
+// Betrifft aktuell nur Kirschwasser/Haferpflaume — die werden seit dem
+// Schnaps-Reiter über lib/schnaps.ts gepflegt (siehe dort).
+export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string; hidden?: true }[] = [
   // Aufguss-Stil
   { id: 'flame',          emoji: '🔥', label: 'Extra heiß' },
   { id: 'sud',            emoji: '💧', label: 'Intensiver Sud' },
@@ -41,8 +45,8 @@ export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string }
   { id: 'menthol',        emoji: '❄️', label: 'Menthol-Kristalle' },
   { id: 'raeuchern',      emoji: '💨', label: 'Räuchern' },
   { id: 'kaffee',         emoji: '☕', label: 'Kaffee' },
-  { id: 'kirschwasser',   emoji: '🍒', label: 'Kirschwasser' },
-  { id: 'haferpflaume',   emoji: '🟣', label: 'Haferpflaume' },
+  { id: 'kirschwasser',   emoji: '🍒', label: 'Kirschwasser', hidden: true },
+  { id: 'haferpflaume',   emoji: '🟣', label: 'Haferpflaume', hidden: true },
   { id: 'banja',          emoji: '🇷🇺', label: 'Banja' },
   { id: 'wenik',          emoji: '🍃', label: 'Wenikaufguss' },
   { id: 'vulkan',         emoji: '🌋', label: 'Vulkanaufguss' },
