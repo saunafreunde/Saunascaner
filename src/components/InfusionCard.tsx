@@ -5,7 +5,7 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
-import { schnapsFromAttributes } from '@/lib/schnaps';
+import { schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
 import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
@@ -113,6 +113,13 @@ export function InfusionCard({
   // haferpflaume. Färbt Karten-Hintergrund + eigene Pille, lässt die
   // Sauna-Identität (Akzentstreifen, Sauna-Badge) bewusst unangetastet.
   const schnaps = schnapsFromAttributes(infusion.attributes);
+  // Der Schnaps steht schon als eigene Auszeichnung auf der Karte — er darf
+  // nicht zusätzlich als Besonderheiten-Pille auftauchen. Betrifft vor allem
+  // Alt-Aufgüsse: 'kirschwasser'/'haferpflaume' sind weiter in ATTR_BY_ID
+  // (damit Alt-Daten beschriftbar bleiben) und würden sonst doppelt erscheinen.
+  const pillAttributes = schnaps
+    ? stripSchnapsAttrs(infusion.attributes ?? [])
+    : (infusion.attributes ?? []);
 
   // Countdown-Text bis Start (oder Status falls läuft/vorbei).
   // Wird sekündlich/minütlich aktualisiert via Parent-`now`-Prop (alle 5s im Dashboard).
@@ -389,7 +396,7 @@ export function InfusionCard({
               im Profil hinterlegt hat, zeigen wir die Default-Pills mit
               dezentem "🪶 Sein Stil"-Header an Stelle der leeren Sektion. */}
           <PillsBlock
-            attributes={infusion.attributes?.length ? infusion.attributes : (meisterDefaults?.default_mood_attributes ?? [])}
+            attributes={infusion.attributes?.length ? pillAttributes : (meisterDefaults?.default_mood_attributes ?? [])}
             oils={oils.length ? oils : (meisterDefaults?.default_mood_oils ?? []).slice(0, MAX_OIL_SLOTS)}
             attributesAreDefault={!infusion.attributes?.length && (meisterDefaults?.default_mood_attributes?.length ?? 0) > 0}
             oilsAreDefault={!oils.length && (meisterDefaults?.default_mood_oils?.length ?? 0) > 0}

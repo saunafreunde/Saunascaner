@@ -10,7 +10,7 @@ import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
-import { SCHNAPS, SCHNAPS_BY_ID, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
+import { SCHNAPS, SCHNAPS_BY_ID, parseSchnapsAttr, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { lookupMemberName } from '@/lib/memberDisplay';
 import { berlinYmd } from '@/lib/time';
@@ -2266,12 +2266,20 @@ function DailyOverview({
                   <div className="flex flex-wrap gap-1">
                     {attrs.map((a, i) => {
                       const std = ATTR_BY_ID[a as InfusionAttribute];
+                      // Schnaps steht als 'schnaps:<slug>' im selben Array und
+                      // wäre sonst ein nichtssagender ⚡-Chip.
+                      const sch = SCHNAPS_BY_ID[parseSchnapsAttr(a) ?? ''];
                       return (
                         <span
                           key={`a-${i}`}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-forest-900/60 text-forest-200 ring-1 ring-forest-800/40 whitespace-nowrap"
+                          className={`text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap ring-1 ${
+                            sch ? 'text-white ring-transparent' : 'bg-forest-900/60 text-forest-200 ring-forest-800/40'
+                          }`}
+                          style={sch
+                            ? { background: `${sch.color}55`, boxShadow: `inset 0 0 0 1px ${sch.color}` }
+                            : undefined}
                         >
-                          {std ? `${std.emoji} ${std.label}` : '⚡'}
+                          {sch ? `🥃 ${sch.name}` : std ? `${std.emoji} ${std.label}` : '⚡'}
                         </span>
                       );
                     })}
