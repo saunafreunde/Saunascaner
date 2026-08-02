@@ -48,7 +48,7 @@ export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
   // Hooks IMMER unbedingt aufrufen (Rules of Hooks) — erst danach entscheiden,
   // welche Karte dran ist. Öl und Foto wandern mit jedem Durchlauf weiter,
   // sonst zeigte eine Kachel immer dasselbe Öl.
-  const oil = useSlotOil(tick + offset * 7);
+  const oil = useSlotOil(tick + offset * 7, now);
   const photo = gallery.length > 0
     ? gallery[(((tick + offset) % gallery.length) + gallery.length) % gallery.length]
     : null;
@@ -73,7 +73,7 @@ export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
         transition={{ duration: 0.6, ease: 'easeInOut' }}
       >
         {card === 'reef' && <ReefScene direction={direction} />}
-        {card === 'oil' && oil && <OilCard oil={oil} />}
+        {card === 'oil' && oil && <OilCard oil={oil} now={now} />}
         {card === 'gallery' && photo && <GalleryCard photo={photo} />}
       </motion.div>
     </AnimatePresence>

@@ -322,7 +322,6 @@ export function SaunaTileColumn({
               <EmptyTile
                 key={`empty-${slotTime.toISOString()}`}
                 sauna={sauna}
-                slotTime={slotTime}
                 className="min-h-0 h-full overflow-hidden"
                 backgroundImage={tileBgs[slotIndex] ?? null}
                 otherSauna={otherSaunaInfo?.(slotTime) ?? null}

@@ -1,13 +1,11 @@
 import { motion } from 'framer-motion';
 import type { Sauna } from '@/types/database';
-import { fmtClock } from '@/lib/time';
 import { SlotCarousel } from '@/components/emptytile/SlotCarousel';
 
 interface EmptyTileProps {
   sauna: Sauna;
   className?: string;
   backgroundImage?: string | null;
-  slotTime?: Date | string | null;
   /** Info über die andere Sauna die zur gleichen Slot-Zeit aktiv ist.
    *  Wenn gesetzt → Fische schwimmen in entsprechende Richtung + Leit-Text.
    *  Wenn null → Fische schwimmen zufällig (atmosphärisches Riff). */
@@ -27,7 +25,6 @@ interface EmptyTileProps {
 export function EmptyTile({
   sauna,
   className = '',
-  slotTime = null,
   otherSauna = null,
   now,
   slotIndex = 0,
@@ -86,49 +83,12 @@ export function EmptyTile({
         style={{ backgroundColor: sauna.accent_color }}
       />
 
-      {/* Overlay: Uhrzeit oben + Sauna-Name unten links.
-          Beide mit Hintergrund-Pille für maximale Lesbarkeit auf dem
-          animierten Riff-Hintergrund. Position absolut damit das Riff
-          den ganzen Raum nutzen kann. */}
-      {slotTime && (
-        <span
-          aria-hidden
-          className="absolute z-20 inline-flex items-center font-bold tabular-nums whitespace-nowrap text-white"
-          style={{
-            top: 'clamp(6px, 1.5cqh, 12px)',
-            left: 'clamp(10px, 2.2cqh, 18px)',
-            fontSize: 'clamp(14px, 3.5cqh, 24px)',
-            padding: 'clamp(2px, 0.6cqh, 4px) clamp(7px, 1.6cqh, 12px)',
-            background: sauna.accent_color,
-            borderRadius: '999px',
-            boxShadow: `0 2px 6px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
-            textShadow: '0 1px 2px rgba(0,0,0,0.4)',
-          }}
-        >
-          {fmtClock(slotTime)}
-        </span>
-      )}
-
-      {/* Sauna-Name als zarter Pin unten links (außerhalb des Leit-Text-Bereichs).
-          Wird über dem Sandboden gerendert. */}
-      <span
-        aria-hidden
-        className="absolute z-20 inline-flex items-center font-bold whitespace-nowrap text-white"
-        style={{
-          bottom: 'clamp(6px, 1.5cqh, 12px)',
-          left: 'clamp(10px, 2.2cqh, 18px)',
-          fontSize: 'clamp(10px, 2.2cqh, 14px)',
-          padding: 'clamp(2px, 0.5cqh, 3px) clamp(6px, 1.4cqh, 10px)',
-          background: sauna.accent_color,
-          borderRadius: '999px',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          boxShadow: `0 1px 4px ${sauna.accent_color}99`,
-          textShadow: '0 1px 1px rgba(0,0,0,0.4)',
-        }}
-      >
-        {sauna.name}
-      </span>
+      {/* Uhrzeit-Pille und Sauna-Pin wurden entfernt (Aug 2026). Sie standen
+          oben und unten links auf JEDER Karte und haben verwirrt: die Sauna
+          steht seit dem Umbau ohnehin gross im Spalten-Kopf, und wohin der
+          naechste Aufguss faellt, sagt der Leit-Hinweis in der Mitte deutlich
+          besser. Auf den Inhalts-Karten (Oel, Foto) haben sie ausserdem
+          Flaeche weggenommen, die jetzt dem Inhalt gehoert. */}
 
     </motion.div>
   );
