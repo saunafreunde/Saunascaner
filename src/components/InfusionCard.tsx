@@ -836,20 +836,32 @@ function PillsBlock({
            "verklebt" mit der Öle-Card darunter). bg-white/70 statt
            zwei separater Inner-Backgrounds. */
         <div
-          className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden bg-white/65 backdrop-blur-sm shadow-sm ${
+          className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden shadow-sm ${
             attributesAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-slate-400/40'
           }`}
           style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
         >
           <div
-            className={`font-bold uppercase ${attributesAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-slate-500/25 text-slate-800'}`}
-            style={{ ...subHeaderStyle, padding: headerPadding }}
+            className={`font-bold uppercase ${attributesAreDefault ? 'text-violet-800' : 'text-slate-800'}`}
+            style={{
+              ...subHeaderStyle,
+              padding: headerPadding,
+              background: attributesAreDefault
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(237,233,254,0.72))'
+                : 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(226,232,240,0.72))',
+            }}
           >
             {attributesAreDefault ? '🪶 Sein Stil' : '⚡ Besonderheiten'}
           </div>
           <div
             className="flex flex-1 flex-wrap items-center content-center justify-center min-h-0"
-            style={{ fontSize: pillFontAttr, gap: '0.45em', padding: '0.5em 0.6em' }}
+            style={{
+              fontSize: pillFontAttr, gap: '0.45em', padding: '0.5em 0.6em',
+              // Nur hier, wo die Pillen stehen, liegt noch ein Hauch Weiß —
+              // 20 % statt der früheren 65 %. Genug, damit die Pillen sich
+              // absetzen, wenig genug, dass die Öl-Motive durchkommen.
+              background: 'rgba(255,255,255,0.20)',
+            }}
           >
             {shownAttrs.map((a) => {
               // 1) Standard-Attribut? → aus ATTR_BY_ID auflösen
@@ -917,20 +929,29 @@ function PillsBlock({
         /* Öle-Card analog mit eigenem Background + amber-Tönung. Steht je nach
            Kartenbreite unter oder neben der Besonderheiten-Card (.pills-both). */
         <div
-          className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden bg-amber-50/70 backdrop-blur-sm shadow-sm ${
+          className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden shadow-sm ${
             oilsAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-amber-500/45'
           }`}
           style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
         >
           <div
-            className={`font-bold uppercase ${oilsAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-amber-500/30 text-amber-900'}`}
-            style={{ ...subHeaderStyle, padding: headerPadding }}
+            className={`font-bold uppercase ${oilsAreDefault ? 'text-violet-800' : 'text-amber-900'}`}
+            style={{
+              ...subHeaderStyle,
+              padding: headerPadding,
+              background: oilsAreDefault
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(237,233,254,0.72))'
+                : 'linear-gradient(180deg, rgba(255,251,235,0.84), rgba(253,230,138,0.70))',
+            }}
           >
             {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : '🌿 Öle'}
           </div>
           <div
             className="flex flex-1 flex-wrap items-center content-center justify-center min-h-0"
-            style={{ fontSize: pillFontOil, gap: '0.45em', padding: '0.5em 0.6em' }}
+            style={{
+              fontSize: pillFontOil, gap: '0.45em', padding: '0.5em 0.6em',
+              background: 'rgba(255,251,235,0.20)',
+            }}
           >
             {oils.map((oilId, i) => {
               // Custom-Öl (Format: 'custom:<uuid>') → Lookup im All-Custom-Oils
