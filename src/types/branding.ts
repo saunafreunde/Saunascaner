@@ -45,6 +45,17 @@ export type GalleryPhoto = {
   caption: string | null;
 };
 
+/** Welche Deko-Karten im Karussell leerer Tafel-Kacheln mitlaufen.
+ *  Öl-Tafel und Vereins-Galerie sind IMMER dabei (die Galerie blendet sich
+ *  ohne Fotos ohnehin selbst aus) — schaltbar sind nur die beiden reinen
+ *  Deko-Szenen. Beide stehen per Default auf aus: sie passten nicht mehr zum
+ *  Rest der Tafel, sollten aber abrufbar bleiben statt gelöscht zu werden.
+ *  Liegt wie slot_gallery im jsonb-Blob, kostet daher keine Migration. */
+export type SlotCards = {
+  reef: boolean;
+  forest: boolean;
+};
+
 export type BrandSettings = {
   org: OrgInfo;
   logo: LogoSet;
@@ -53,6 +64,7 @@ export type BrandSettings = {
   badge: BadgeAssets;
   ads: AdSlot[];
   slot_gallery: GalleryPhoto[];
+  slot_cards: SlotCards;
 };
 
 export function defaultBrandSettings(): BrandSettings {
@@ -71,6 +83,7 @@ export function defaultBrandSettings(): BrandSettings {
     badge: { front_bg: null, back_bg: null },
     ads: [],
     slot_gallery: [],
+    slot_cards: { reef: false, forest: false },
   };
 }
 
@@ -96,5 +109,6 @@ export function mergeBrandDefaults(partial: Partial<BrandSettings> | null | unde
           .filter((g) => !!g?.image_path)
           .map((g) => ({ image_path: g.image_path, caption: g.caption ?? null }))
       : def.slot_gallery,
+    slot_cards: { ...def.slot_cards, ...(partial.slot_cards ?? {}) },
   };
 }

@@ -44,6 +44,7 @@ type Props = {
 export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
   const brand = useBrandSettings();
   const gallery = brand.data?.slot_gallery ?? [];
+  const cards = brand.data?.slot_cards;
 
   const tick = Math.floor(now.getTime() / CARD_MS);
   const offset = slotIndex + (sauna.sort_order ?? 0);
@@ -58,10 +59,17 @@ export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
 
   // Nur Karten in den Pool, die auch wirklich etwas anzeigen können:
   // ohne Fotos keine Galerie, ohne freigeschaltete Öle keine Öl-Karte.
-  // Das Riff ist der garantierte Fallback — der Pool ist nie leer.
-  const pool: SlotCardId[] = ['reef', 'forest'];
+  // Riff und Schwarzwald-Fenster sind reine Deko und stehen per Default AUS —
+  // sie passten nicht mehr zum Rest der Tafel. Im Admin unter „🎭 Bühne"
+  // lassen sie sich jederzeit wieder dazuschalten.
+  const pool: SlotCardId[] = [];
   if (oil) pool.push('oil');
   if (photo) pool.push('gallery');
+  if (cards?.reef) pool.push('reef');
+  if (cards?.forest) pool.push('forest');
+  // Sicherheitsnetz: wären alle Öle deaktiviert UND keine Fotos hinterlegt UND
+  // beide Deko-Karten aus, bliebe die Kachel schwarz. Dann lieber das Riff.
+  if (pool.length === 0) pool.push('reef');
 
   const card = pool[(((tick + offset) % pool.length) + pool.length) % pool.length];
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   useTvStageState, useSetStageManualScenes, useToggleStageScene, useTriggerStageEffect,
+  useBrandSettings, useUpdateBrandSettings,
 } from '@/lib/api';
 import { SCENE_REGISTRY } from '@/components/stage/scenes';
 import { EFFECT_REGISTRY, EFFECT_CATEGORIES } from '@/components/stage/effects';
@@ -127,6 +128,8 @@ export function StageAdminTab() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      <SlotCardsSection />
+
       {/* ── Status-Header ── */}
       <section className="rounded-2xl bg-forest-950/70 ring-1 ring-forest-800/50 p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -302,5 +305,74 @@ export function StageAdminTab() {
           erscheint über dem ganzen Admin-UI für die Dauer des Effekts. */}
       {localTest && <EffectPlayer key={localTest.nonce} effect={localTest} />}
     </div>
+  );
+}
+
+// ─── Karten in leeren Kacheln ────────────────────────────────────────────
+// Öl-Tafel und Vereins-Galerie laufen immer (die Galerie blendet sich ohne
+// Fotos selbst aus). Schaltbar sind nur die beiden reinen Deko-Szenen — sie
+// standen erst im Karussell, passten dann aber nicht mehr zum Rest der Tafel.
+// Statt sie zu löschen liegen sie hier auf Abruf.
+//
+// Gespeichert in brand_settings (jsonb in system_config, bereits anon lesbar) —
+// deshalb ohne Migration und ohne eigene Tabelle.
+function SlotCardsSection() {
+  const brandQ = useBrandSettings();
+  const update = useUpdateBrandSettings();
+  const cards = brandQ.data?.slot_cards;
+
+  async function toggle(key: 'reef' | 'forest', value: boolean) {
+    if (!brandQ.data) return;
+    try {
+      await update.mutateAsync({
+        ...brandQ.data,
+        slot_cards: { ...brandQ.data.slot_cards, [key]: value },
+      });
+    } catch (e) {
+      window.alert('Speichern fehlgeschlagen: ' + (e as Error).message);
+    }
+  }
+
+  const ZEILEN = [
+    { key: 'reef' as const, icon: '🐠', label: 'Riff-Szene',
+      hint: 'Fischschwarm, Quallen, Saunafass — die ursprüngliche Animation.' },
+    { key: 'forest' as const, icon: '🌲', label: 'Schwarzwald-Fenster',
+      hint: 'Blick nach draußen: Tannen, Nebel, Schnee, Mond.' },
+  ];
+
+  return (
+    <section className="rounded-2xl bg-forest-950/70 ring-1 ring-forest-800/50 p-5">
+      <h2 className="text-base font-bold text-forest-100">🪟 Karten in leeren Kacheln</h2>
+      <p className="mt-1 text-xs text-forest-300/70">
+        Hat eine Sauna zu einer Stunde keinen Aufguss, wandert die Kachel durch
+        ein kleines Karten-Karussell. Die Öl-Tafel und eure Fotos aus der
+        Tafel-Galerie (Branding-Tab) laufen immer mit — die beiden Deko-Szenen
+        hier sind optional.
+      </p>
+      <div className="mt-4 space-y-2">
+        {ZEILEN.map((z) => {
+          const an = !!cards?.[z.key];
+          return (
+            <label
+              key={z.key}
+              className="flex items-center gap-3 cursor-pointer select-none rounded-xl bg-forest-900/50 ring-1 ring-forest-800/40 px-3 py-3 hover:bg-forest-900/80 transition"
+            >
+              <input
+                type="checkbox"
+                checked={an}
+                disabled={update.isPending || !brandQ.data}
+                onChange={(e) => toggle(z.key, e.target.checked)}
+                className="h-4 w-4 accent-amber-500 flex-shrink-0"
+              />
+              <span className="text-lg flex-shrink-0" aria-hidden>{z.icon}</span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-forest-100">{z.label}</span>
+                <span className="block text-[11px] text-forest-300/70">{z.hint}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </section>
   );
 }
