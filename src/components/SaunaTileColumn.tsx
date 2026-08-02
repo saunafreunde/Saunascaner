@@ -209,51 +209,60 @@ export function SaunaTileColumn({
           an der Header-Höhe hängen und von 1080p bis 4K mitskalieren — genau
           wie auf den Aufguss-Karten. */}
       <div
-        className="relative flex-shrink-0 flex flex-col justify-center rounded-t-2xl overflow-hidden"
+        className="relative flex-shrink-0 flex items-center rounded-t-2xl overflow-hidden"
         style={{
           height: 'clamp(54px, 9.5vh, 165px)',
           containerType: 'size',
-          padding: '0 clamp(10px, 1.6vh, 26px)',
-          // Seit hier ECHTE Fotos der Kabinen hängen (statt generierter Motive)
-          // deckt der Schleier nur noch die linke Textzone ab — die Kabine
-          // selbst bleibt frei, denn genau die soll der Gast wiedererkennen.
-          // Reihenfolge: Lesbarkeits-Schwarz über Sauna-Farbe über Foto.
-          // Das Schwarz garantiert den Kontrast für die weiße Schrift auch
-          // dann, wenn ein Admin eine helle Akzentfarbe wählt.
-          backgroundImage: sauna.header_image
-            ? [
-                'linear-gradient(90deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.45) 22%, rgba(0,0,0,0.12) 42%, rgba(0,0,0,0) 56%)',
-                `linear-gradient(90deg, ${sauna.accent_color}cc 0%, ${sauna.accent_color}80 20%, ${sauna.accent_color}26 38%, transparent 55%)`,
-                `url(${JSON.stringify(sauna.header_image)})`,
-              ].join(', ')
-            : `linear-gradient(120deg, ${sauna.accent_color} 0%, ${sauna.accent_color}bb 100%)`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          // Die Sauna-Farbe darf nicht ganz aus dem Kopf verschwinden — sie ist
-          // der Schlüssel, mit dem der Gast Spalte und Karten zusammenbringt.
-          // Deshalb als kräftiges Band an der Unterkante statt als Farbwäsche.
+          paddingLeft: 'clamp(10px, 1.6vh, 26px)',
+          background: `linear-gradient(120deg, ${sauna.accent_color} 0%, ${sauna.accent_color}cc 100%)`,
+          // Die Sauna-Farbe ist der Schlüssel, mit dem der Gast Spalte und
+          // Karten zusammenbringt — deshalb zusätzlich als kräftiges Band an
+          // der Unterkante, das auch neben dem Foto noch trägt.
           borderBottom: `clamp(3px, 0.55vh, 7px) solid ${sauna.accent_color}`,
         }}
       >
-        <div
-          className="font-black uppercase tracking-tight text-white leading-none truncate"
-          style={{ fontSize: 'clamp(16px, 34cqh, 56px)', textShadow: '0 2px 6px rgba(0,0,0,0.55)' }}
-        >
-          {sauna.name}
+        <div className="min-w-0 flex-1">
+          <div
+            className="font-black uppercase tracking-tight text-white leading-none truncate"
+            style={{ fontSize: 'clamp(16px, 34cqh, 56px)', textShadow: '0 2px 6px rgba(0,0,0,0.45)' }}
+          >
+            {sauna.name}
+          </div>
+          <div
+            className="flex items-center text-white/90 font-semibold leading-tight truncate"
+            style={{
+              fontSize: 'clamp(10px, 17cqh, 26px)',
+              gap: 'clamp(4px, 6cqh, 12px)',
+              marginTop: 'clamp(2px, 4cqh, 8px)',
+              textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+            }}
+          >
+            {sauna.temperature_label && <span className="tabular-nums">{sauna.temperature_label}</span>}
+            {sauna.temperature_label && sauna.location_hint && <span aria-hidden className="opacity-60">·</span>}
+            {sauna.location_hint && <span className="truncate">📍 {sauna.location_hint}</span>}
+          </div>
         </div>
-        <div
-          className="flex items-center text-white/90 font-semibold leading-tight truncate"
-          style={{
-            fontSize: 'clamp(10px, 17cqh, 26px)',
-            gap: 'clamp(4px, 6cqh, 12px)',
-            marginTop: 'clamp(2px, 4cqh, 8px)',
-            textShadow: '0 1px 4px rgba(0,0,0,0.6)',
-          }}
-        >
-          {sauna.temperature_label && <span className="tabular-nums">{sauna.temperature_label}</span>}
-          {sauna.temperature_label && sauna.location_hint && <span aria-hidden className="opacity-60">·</span>}
-          {sauna.location_hint && <span className="truncate">📍 {sauna.location_hint}</span>}
-        </div>
+
+        {/* Das Foto der echten Kabine — bewusst als 2:1-Kachel am rechten Rand
+            und NICHT als Hintergrund über die volle Breite. Der Kopf ist bei
+            1080p rund 936×103 px, also 9:1; ein Foto als Vollbreiten-Hintergrund
+            würde davon nur einen waagerechten Streifen Wand zeigen. Zum
+            Wiedererkennen muss der Gast aber das ganze Häuschen sehen.
+            Die Maske links blendet die Kachel weich in die Sauna-Farbe. */}
+        {sauna.header_image && (
+          <div
+            aria-hidden
+            className="h-full flex-shrink-0"
+            style={{
+              aspectRatio: '2 / 1',
+              backgroundImage: `url(${JSON.stringify(sauna.header_image)})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 26%)',
+              maskImage: 'linear-gradient(90deg, transparent 0%, #000 26%)',
+            }}
+          />
+        )}
       </div>
 
       {/* Fixes Grid: tilesPerColumn Reihen mit 1/N Höhe — auch wenn weniger
