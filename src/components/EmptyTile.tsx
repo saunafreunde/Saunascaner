@@ -46,7 +46,7 @@ export function EmptyTile({
       animate={{ opacity: 1, y: 0, scale: 1, rotateX: 1.5 }}
       exit={{ opacity: 0, y: -20, scale: 0.96 }}
       transition={{ layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.35 } }}
-      className={`relative flex flex-col rounded-2xl ring-1 ring-cyan-700/40 ${className.replace('overflow-hidden', '')}`}
+      className={`slot-frei relative flex flex-col rounded-2xl ${className.replace('overflow-hidden', '')}`}
       style={{
         transformOrigin: '50% 100%',
         containerType: 'size',
@@ -73,6 +73,30 @@ export function EmptyTile({
           (src/index.css) — kein Inline-transform, der würde die Keyframes
           überschreiben. */}
       {hintText && <div className="reef-hint" aria-hidden>{hintText}</div>}
+
+      {/* „FREI" — die eigentliche Aussage dieser Kachel. Ein Gast soll nicht
+          erst raten müssen, ob die schöne Öl-Karte ein Aufguss ist: hier
+          findet keiner statt, der Slot ist offen. Bewusst unaufdringlich
+          oben rechts, damit es dem Karten-Inhalt nicht die Schau stiehlt. */}
+      <span
+        aria-hidden
+        className="absolute z-20 inline-flex items-center font-black uppercase whitespace-nowrap"
+        style={{
+          top: 'clamp(6px, 2cqh, 16px)',
+          right: 'clamp(8px, 2.4cqh, 20px)',
+          fontSize: 'clamp(8px, 2.4cqh, 16px)',
+          letterSpacing: '0.16em',
+          padding: 'clamp(1px, 0.6cqh, 5px) clamp(6px, 1.8cqh, 14px)',
+          borderRadius: '999px',
+          color: 'rgba(255,255,255,0.92)',
+          background: 'rgba(15,23,42,0.42)',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.35)',
+          backdropFilter: 'blur(3px)',
+          textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+        }}
+      >
+        frei
+      </span>
 
       {/* Akzent-Stripe links — bleibt für visuelle Konsistenz mit den
           Aufguss-Karten. Auf transparentem Cyan-BG mit etwas weniger

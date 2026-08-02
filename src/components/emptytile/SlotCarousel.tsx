@@ -4,6 +4,7 @@ import { useBrandSettings } from '@/lib/api';
 import { ReefScene } from '@/components/ReefScene';
 import { OilCard, useSlotOil } from '@/components/emptytile/OilCard';
 import { GalleryCard } from '@/components/emptytile/GalleryCard';
+import { ForestWindow } from '@/components/emptytile/ForestWindow';
 
 /** Karussell für leere Tafel-Kacheln.
  *
@@ -27,6 +28,8 @@ import { GalleryCard } from '@/components/emptytile/GalleryCard';
  *  beim Vorbeigehen auffällt. Bei drei Kacheln versetzt ändert sich dadurch
  *  etwa alle 7 s irgendwo auf der Tafel etwas. */
 const CARD_MS = 20_000;
+
+export type SlotCardId = 'reef' | 'forest' | 'oil' | 'gallery';
 
 type Props = {
   sauna: Sauna;
@@ -56,7 +59,7 @@ export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
   // Nur Karten in den Pool, die auch wirklich etwas anzeigen können:
   // ohne Fotos keine Galerie, ohne freigeschaltete Öle keine Öl-Karte.
   // Das Riff ist der garantierte Fallback — der Pool ist nie leer.
-  const pool: ('reef' | 'oil' | 'gallery')[] = ['reef'];
+  const pool: SlotCardId[] = ['reef', 'forest'];
   if (oil) pool.push('oil');
   if (photo) pool.push('gallery');
 
@@ -73,6 +76,7 @@ export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
         transition={{ duration: 0.6, ease: 'easeInOut' }}
       >
         {card === 'reef' && <ReefScene direction={direction} />}
+        {card === 'forest' && <ForestWindow />}
         {card === 'oil' && oil && <OilCard oil={oil} now={now} />}
         {card === 'gallery' && photo && <GalleryCard photo={photo} />}
       </motion.div>

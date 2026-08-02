@@ -771,3 +771,102 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
 @media (prefers-reduced-motion: reduce) {
   .slot-kenburns { animation: none; transform: scale(1.06); }
 }
+
+/* ─── Schwarzwald-Fenster (Karte im Slot-Karussell) ───────────────────────
+   Blick aus der warmen Sauna nach draußen. Bewusst sparsam: 18 Endlos-
+   Animationen pro Kachel (die alte Riff-Szene hatte ~94), ausschließlich
+   transform/opacity. Die Tafel läuft 24/7 auf einem Fernseher. */
+.fw { position: absolute; inset: 0; overflow: hidden; }
+
+.fw-sky {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 80% at 78% 12%, rgba(255,236,190,0.20) 0%, rgba(255,236,190,0) 55%),
+    linear-gradient(180deg, #10233a 0%, #1c3550 38%, #2d4a63 62%, #47637a 100%);
+}
+.fw-moon {
+  position: absolute; top: 12%; right: 16%;
+  width: 7%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #fffaf0 0%, #f4e6c8 60%, #e8d5ab 100%);
+  box-shadow: 0 0 22px 6px rgba(255,244,214,0.35);
+  will-change: opacity;
+  animation: fw-moon-breathe 12s ease-in-out infinite;
+}
+@keyframes fw-moon-breathe { 0%,100% { opacity: .88; } 50% { opacity: 1; } }
+
+.fw-fog {
+  position: absolute; left: -30%; width: 160%; height: 26%;
+  background: linear-gradient(90deg,
+    rgba(226,238,247,0) 0%, rgba(226,238,247,0.16) 35%,
+    rgba(226,238,247,0.22) 55%, rgba(226,238,247,0) 100%);
+  filter: blur(6px);
+  will-change: transform;
+}
+.fw-fog-1 { bottom: 30%; animation: fw-fog-r 46s linear infinite; }
+.fw-fog-2 { bottom: 16%; opacity: .7; animation: fw-fog-l 64s linear infinite; }
+@keyframes fw-fog-r { from { transform: translate3d(-12%,0,0); } to { transform: translate3d(12%,0,0); } }
+@keyframes fw-fog-l { from { transform: translate3d(10%,0,0); } to { transform: translate3d(-10%,0,0); } }
+
+.fw-trees {
+  position: absolute; left: -8%; bottom: 0; width: 116%; height: 62%;
+  will-change: transform;
+}
+/* hinten hell + langsam, vorne dunkel + schneller = Tiefe */
+.fw-trees-3 { height: 46%; animation: fw-drift 120s ease-in-out infinite alternate; }
+.fw-trees-3 path { fill: #2b4257; }
+.fw-trees-2 { height: 55%; animation: fw-drift 84s ease-in-out infinite alternate-reverse; }
+.fw-trees-2 path { fill: #1b2e40; }
+.fw-trees-1 { height: 64%; animation: fw-drift 58s ease-in-out infinite alternate; }
+.fw-trees-1 path { fill: #0d1a26; }
+@keyframes fw-drift { from { transform: translate3d(-2.5%,0,0); } to { transform: translate3d(2.5%,0,0); } }
+
+.fw-snow {
+  position: absolute; top: -4%;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.85);
+  will-change: transform, opacity;
+  animation-name: fw-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes fw-fall {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  8%   { opacity: .9; }
+  90%  { opacity: .7; }
+  100% { transform: translate3d(14px, 460px, 0); opacity: 0; }
+}
+
+/* Fensterkreuz + Rahmen — dunkles Holz, wir sitzen drinnen */
+.fw-mullion-v, .fw-mullion-h { position: absolute; background: linear-gradient(180deg, #3a2a1c, #241a11); }
+.fw-mullion-v { left: 50%; top: 0; bottom: 0; width: clamp(5px, 1.6cqh, 12px); transform: translateX(-50%); }
+.fw-mullion-h { top: 46%; left: 0; right: 0; height: clamp(5px, 1.6cqh, 12px); }
+.fw-frame {
+  position: absolute; inset: 0;
+  border: clamp(7px, 2.4cqh, 20px) solid #2c2016;
+  border-radius: 14px;
+  box-shadow: inset 0 0 26px rgba(0,0,0,0.55);
+}
+.fw-glow {
+  position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+  box-shadow: inset 0 0 60px 12px rgba(255,176,84,0.20);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fw-moon, .fw-fog, .fw-trees, .fw-snow { animation: none !important; }
+  .fw-snow { opacity: .7; }
+}
+
+/* Freie (aufgusslose) Kachel: gestrichelter Rahmen statt durchgezogenem Ring.
+   Zusammen mit dem flacheren Schatten und dem "frei"-Chip ist damit auf einen
+   Blick klar, welche Kachel ein Aufguss ist und welche nur Information zeigt —
+   die Öl-Karte sah sonst aus wie ein gebuchter Slot. */
+.slot-frei::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 2px dashed rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.18);
+  pointer-events: none;
+  z-index: 15;
+}

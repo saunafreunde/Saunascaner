@@ -134,6 +134,13 @@ export function InfusionCard({
 
   const isBanja = (infusion.attributes ?? []).includes('banja' as InfusionAttribute);
 
+  // Aufguss-Karten ohne eigene Art (kein Schnaps, kein Räuchern) sahen neben
+  // den neuen Bild-Karten der freien Kacheln blass aus. Sie bekommen jetzt
+  // das Motiv ihres ERSTEN Öls als Hintergrund — die 64 Bilder liegen seit
+  // dem Öl-Karussell ohnehin im Repo (public/oele/<slug>.webp).
+  // Custom-Öle ('custom:<uuid>') haben kein Bild und werden übersprungen.
+  const bgOil = theme ? null : (oils.map((o) => OIL_BY_ID[o]).find(Boolean) ?? null);
+
   // Was am Ende WIRKLICH als Pille erscheint — inkl. Default-Mood-Fallback
   // (Migration 0100) und ohne unbekannte IDs. Muss hier oben stehen, weil
   // daraus die Inhalts-Dichte abgeleitet wird: würde man mit den Roh-Arrays
@@ -232,6 +239,17 @@ export function InfusionCard({
           ].join(', '),
           backgroundSize: 'cover',
           backgroundPosition: 'center bottom',
+        } : bgOil ? {
+          // Gleiches Schleier-Band wie bei den Schnaps-/Räucher-Karten:
+          // oben fast weiß für Uhrzeit und Titel, in der Mitte offen fürs
+          // Motiv, unten wieder heller für Sauna-Badge und Aufgießer.
+          backgroundImage: [
+            `linear-gradient(200deg, ${colorForOil(bgOil.id)}00 0%, ${colorForOil(bgOil.id)}00 45%, ${colorForOil(bgOil.id)}2b 100%)`,
+            'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.46) 60%, rgba(255,255,255,0.34) 84%, rgba(255,255,255,0.72) 100%)',
+            `url(${JSON.stringify(`/oele/${bgOil.id}.webp`)})`,
+          ].join(', '),
+          backgroundSize: 'cover',
+          backgroundPosition: 'center bottom',
         } : backgroundImage ? {
           backgroundImage: `linear-gradient(rgba(2,6,12,0.62), rgba(2,6,12,0.62)), url(${backgroundImage})`,
           backgroundSize: 'cover',
@@ -261,7 +279,7 @@ export function InfusionCard({
           die Bühne). Liegt absolut über der Card aber unter dem Content
           (z-index 0, pointer-events: none). Nicht bei imminent oder
           backgroundImage anzeigen (würde dort doppelt/überflüssig wirken). */}
-      {!imminent && !backgroundImage && !theme && <WoodGrainOverlay />}
+      {!imminent && !backgroundImage && !theme && !bgOil && <WoodGrainOverlay />}
 
       {compact ? (
         /* relative z-10 — damit der Card-Content GARANTIERT über der
@@ -334,7 +352,7 @@ export function InfusionCard({
                 // fast weiß — die sonst dunkle Titel-Box säße dort als Fremdkörper
                 // und drückte den slate-900-Titel auf ~3,5:1. Helle Box statt
                 // dessen: ~13:1, und das Motiv bleibt unten ungestört.
-                background: theme
+                background: (theme || bgOil)
                   ? `linear-gradient(135deg, ${sauna.accent_color}26 0%, rgba(255,255,255,0.86) 55%)`
                   : `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,

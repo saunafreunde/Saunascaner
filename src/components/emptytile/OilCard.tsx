@@ -16,18 +16,14 @@ import { fmtClock, dayLabel } from '@/lib/time';
  *  aus useInfusions(), das die Tafel ohnehin schon lädt.
  */
 
-/** Ein Motiv PRO KATEGORIE statt pro Öl — 7 statt 64 Bilder.
- *  Erzeugt mit Desktop\\sauna_gen.py (fal.ai flux/dev), gleicher dunkel-edler
- *  Stil wie die Schnaps-Motive der Aufguss-Karten. */
-const CATEGORY_IMAGE: Record<string, string> = {
-  zitrus:   '/oele/zitrus.webp',
-  holz:     '/oele/holz.webp',
-  gewuerz:  '/oele/gewuerz.webp',
-  kraut:    '/oele/kraut.webp',
-  minze:    '/oele/minze.webp',
-  sonstige: '/oele/sonstige.webp',
-  saison:   '/oele/saison.webp',
-};
+/** Jedes Öl hat sein EIGENES Motiv: public/oele/<slug>.webp.
+ *  Vorher gab es nur sieben Kategorie-Bilder — bei 64 Ölen passte das oft
+ *  nicht (unter „Hölzer & Nadeln" lief für Zirbe, Wacholder und Cedernholz
+ *  dasselbe Fichtenbild). Erzeugt mit Desktop\\sauna_oelbilder.py
+ *  (fal-ai/nano-banana-2), pro Öl der tatsächliche Pflanzenteil. */
+function oilImage(slug: string): string {
+  return `/oele/${slug}.webp`;
+}
 
 /** Akzentfarbe je Kategorie — färbt Nummer-Kachel und Notenschild. */
 const CATEGORY_COLOR: Record<string, string> = {
@@ -83,7 +79,7 @@ function useNextUse(oilId: string, now: Date) {
 
 export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
   const color = CATEGORY_COLOR[oil.category] ?? '#4d7c0f';
-  const image = CATEGORY_IMAGE[oil.category];
+  const image = oilImage(oil.id);
   const info = OIL_INFO[oil.id];
   const next = useNextUse(oil.id, now);
 
@@ -105,10 +101,12 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
       }}
     >
       <div
-        className="absolute inset-0 flex flex-col justify-center"
+        className="absolute inset-0 flex flex-col justify-between"
         style={{
-          padding: 'clamp(8px, 3cqh, 22px) clamp(12px, 3cqh, 26px) clamp(8px, 3cqh, 22px) clamp(14px, 3.5cqh, 30px)',
-          gap: 'clamp(3px, 1cqh, 8px)',
+          // justify-between statt center: der Inhalt fuellt die Kachel jetzt
+          // von oben bis unten aus, statt als Block in der Mitte zu schweben.
+          padding: 'clamp(10px, 4cqh, 30px) clamp(14px, 4cqh, 34px) clamp(10px, 4cqh, 30px) clamp(16px, 4.5cqh, 38px)',
+          gap: 'clamp(4px, 1.6cqh, 14px)',
         }}
       >
         {/* Kopfzeile: Regalnummer + Name + Duftnote */}
@@ -116,20 +114,20 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
           <div
             className="flex-shrink-0 flex flex-col items-center justify-center rounded-xl"
             style={{
-              padding: 'clamp(2px, 0.8cqh, 7px) clamp(5px, 1.6cqh, 13px)',
+              padding: 'clamp(3px, 1.3cqh, 11px) clamp(7px, 2.4cqh, 20px)',
               background: 'rgba(255,255,255,0.92)',
               boxShadow: `inset 0 0 0 2px ${color}55, 0 2px 8px rgba(0,0,0,0.15)`,
             }}
           >
             <span
               className="font-bold uppercase leading-none"
-              style={{ fontSize: 'clamp(6px, 1.6cqh, 11px)', letterSpacing: '0.12em', color: '#64748b' }}
+              style={{ fontSize: 'clamp(7px, 2.2cqh, 15px)', letterSpacing: '0.12em', color: '#64748b' }}
             >
               Nr.
             </span>
             <span
               className="font-black tabular-nums leading-none"
-              style={{ fontSize: 'clamp(14px, 4.6cqh, 32px)', color, marginTop: '0.1em' }}
+              style={{ fontSize: 'clamp(20px, 7.4cqh, 52px)', color, marginTop: '0.06em' }}
             >
               {oil.number}
             </span>
@@ -138,13 +136,13 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
           <div className="min-w-0 flex-1">
             <div
               className="font-black text-slate-900 leading-tight truncate"
-              style={{ fontSize: 'clamp(15px, 4.8cqh, 33px)', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
+              style={{ fontSize: 'clamp(21px, 7.6cqh, 54px)', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
             >
               <span className="mr-1">{oil.emoji}</span>{oil.name}
             </div>
             <div
               className="flex items-center flex-wrap text-slate-700 font-semibold leading-tight"
-              style={{ fontSize: 'clamp(8px, 2.2cqh, 15px)', gap: 'clamp(3px, 1cqh, 8px)', marginTop: 'clamp(1px, 0.5cqh, 4px)' }}
+              style={{ fontSize: 'clamp(10px, 3.2cqh, 22px)', gap: 'clamp(4px, 1.4cqh, 12px)', marginTop: 'clamp(2px, 0.9cqh, 7px)' }}
             >
               <span className="truncate">{CATEGORY_LABELS[oil.category]}</span>
               {info?.herkunft && (
@@ -168,9 +166,12 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
         {/* Duftbeschreibung — das, was den Gast wirklich interessiert */}
         {info?.text && (
           <p
-            className="text-slate-800 font-medium leading-snug line-clamp-2"
+            className="text-slate-800 font-semibold leading-snug line-clamp-3 flex-1 flex items-center"
             style={{
-              fontSize: 'clamp(9px, 2.6cqh, 18px)',
+              // flex-1: die Beschreibung bekommt den Raum, der zwischen
+              // Kopfzeile und Einsatz-Hinweis uebrig bleibt — dadurch fuellt
+              // die Karte sich selbst aus, egal wie hoch die Kachel ist.
+              fontSize: 'clamp(13px, 4.4cqh, 31px)',
               textShadow: '0 1px 0 rgba(255,255,255,0.6)',
             }}
           >
@@ -186,8 +187,8 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
             <span
               className="inline-flex items-center rounded-full font-black text-white whitespace-nowrap min-w-0"
               style={{
-                fontSize: 'clamp(9px, 2.5cqh, 17px)',
-                padding: 'clamp(2px, 0.8cqh, 6px) clamp(7px, 2cqh, 15px)',
+                fontSize: 'clamp(11px, 3.4cqh, 24px)',
+                padding: 'clamp(3px, 1.1cqh, 9px) clamp(9px, 2.6cqh, 20px)',
                 gap: 'clamp(4px, 1.2cqh, 9px)',
                 background: `linear-gradient(135deg, ${next.accent}, ${next.accent}cc)`,
                 boxShadow: `0 2px 10px ${next.accent}77, inset 0 1px 0 rgba(255,255,255,0.3)`,
@@ -196,7 +197,7 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
             >
               <span
                 className="tafel-blink flex-shrink-0 rounded-full bg-white"
-                style={{ width: 'clamp(5px, 1.3cqh, 9px)', height: 'clamp(5px, 1.3cqh, 9px)' }}
+                style={{ width: 'clamp(6px, 1.8cqh, 13px)', height: 'clamp(6px, 1.8cqh, 13px)' }}
               />
               <span className="truncate">
                 Im Aufguss {next.when} · {next.sauna}{next.tempLabel ? ` ${next.tempLabel}` : ''}

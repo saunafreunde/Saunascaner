@@ -155,6 +155,30 @@ export function SaunaTileColumn({
     [now, tilesPerColumn, mondayOpen, globalSlotEnds, holidays],
   );
 
+  // Countdown für den Spalten-Kopf: läuft hier gerade einer, und wenn nicht,
+  // wie lange bis zum nächsten? Personal-Fallbacks zählen mit — sie sind für
+  // den Gast ein Aufguss wie jeder andere.
+  const nextHere = useMemo(() => {
+    const nowTs = now.getTime();
+    const mine = infusions
+      .filter((i) => i.sauna_id === sauna.id)
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    const laufend = mine.find(
+      (i) => new Date(i.start_time).getTime() <= nowTs && new Date(i.end_time).getTime() > nowTs);
+    if (laufend) {
+      const restMin = Math.max(0, Math.round((new Date(laufend.end_time).getTime() - nowTs) / 60_000));
+      return { running: true, soon: true, text: restMin > 0 ? `läuft · noch ${restMin} Min` : 'läuft' };
+    }
+    const kommend = mine.find((i) => new Date(i.start_time).getTime() > nowTs);
+    if (!kommend) return null;
+    const min = Math.round((new Date(kommend.start_time).getTime() - nowTs) / 60_000);
+    if (min > 240) return null;                    // weiter weg als 4 h ist kein Countdown mehr
+    const text = min < 60
+      ? `in ${min} Min`
+      : `in ${Math.floor(min / 60)}h ${min % 60 > 0 ? `${min % 60} Min` : ''}`.trim();
+    return { running: false, soon: min <= 10, text };
+  }, [infusions, sauna.id, now]);
+
   // Covering-Lookup: eine Infusion belegt diesen Slot wenn start_time <= slot
   // UND end_time > slot. Wichtig für Banja-Ritual (90 Min, covered 19+20:00).
   // `isContinuation` markiert ob dieser Slot NICHT der Start-Slot der Infusion
@@ -221,6 +245,42 @@ export function SaunaTileColumn({
           borderBottom: `clamp(3px, 0.55vh, 7px) solid ${sauna.accent_color}`,
         }}
       >
+        {/* Countdown mittig im Kopf: in wie vielen Minuten hier der nächste
+            Aufguss läuft. Genau die Frage, die ein Gast im Vorbeigehen hat —
+            und sie stand bisher nirgends, man musste sie sich aus den
+            Uhrzeiten der Karten selbst ausrechnen. Ab 10 Minuten Vorlauf
+            wechselt die Pille auf Weiß und blinkt, passend zum Lauflicht
+            auf den Aufguss-Karten. */}
+        {nextHere && (
+          <div
+            aria-hidden
+            className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center leading-none pointer-events-none"
+          >
+            <span
+              className="font-bold uppercase text-white/85"
+              style={{ fontSize: 'clamp(7px, 12cqh, 18px)', letterSpacing: '0.14em' }}
+            >
+              {nextHere.running ? 'Aufguss' : 'Nächster Aufguss'}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full font-black whitespace-nowrap ${nextHere.soon ? 'tafel-blink' : ''}`}
+              style={{
+                marginTop: 'clamp(2px, 5cqh, 9px)',
+                fontSize: 'clamp(12px, 26cqh, 42px)',
+                padding: 'clamp(1px, 3cqh, 6px) clamp(7px, 12cqh, 20px)',
+                background: nextHere.soon ? '#fff' : 'rgba(0,0,0,0.28)',
+                color: nextHere.soon ? sauna.accent_color : '#fff',
+                boxShadow: nextHere.soon
+                  ? '0 2px 14px rgba(255,255,255,0.55)'
+                  : 'inset 0 0 0 1px rgba(255,255,255,0.35)',
+                textShadow: nextHere.soon ? 'none' : '0 1px 4px rgba(0,0,0,0.5)',
+              }}
+            >
+              {nextHere.text}
+            </span>
+          </div>
+        )}
+
         <div className="min-w-0 flex-1">
           <div
             className="font-black uppercase tracking-tight text-white leading-none truncate"
