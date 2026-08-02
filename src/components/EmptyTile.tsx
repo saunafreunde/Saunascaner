@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import type { Sauna } from '@/types/database';
 import { fmtClock } from '@/lib/time';
-import { ReefScene } from '@/components/ReefScene';
+import { SlotCarousel } from '@/components/emptytile/SlotCarousel';
 
 interface EmptyTileProps {
   sauna: Sauna;
@@ -16,6 +16,12 @@ interface EmptyTileProps {
     tempLabel: string;
     direction: 'left' | 'right';
   } | null;
+  /** Aktuelle Uhrzeit vom Dashboard — treibt den Karten-Wechsel im
+   *  Karussell an, ohne dass hier ein eigener Timer nötig wäre. */
+  now: Date;
+  /** Position der Kachel in ihrer Spalte, damit Nachbarkacheln versetzt
+   *  durch den Karten-Pool laufen. */
+  slotIndex?: number;
 }
 
 export function EmptyTile({
@@ -23,6 +29,8 @@ export function EmptyTile({
   className = '',
   slotTime = null,
   otherSauna = null,
+  now,
+  slotIndex = 0,
 }: EmptyTileProps) {
   // backgroundImage-Prop bleibt im Interface (BC für Callers in
   // SaunaTileColumn), wird im Empty-Tile aber bewusst NICHT genutzt —
@@ -48,14 +56,26 @@ export function EmptyTile({
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 10px rgba(0,0,0,0.15), 0 12px 32px rgba(0,0,0,0.18)',
       }}
     >
-      {/* Riff-Szene füllt den gesamten Tile-Hintergrund.
-          Übersteuert das backgroundImage-Prop (Branding-BG) — Christophs
-          Wunsch: leere Tiles bekommen das animierte Riff, nicht das
-          Branding-Hintergrundbild. */}
-      <ReefScene
-        direction={otherSauna?.direction ?? null}
-        hintText={hintText}
-      />
+      {/* Karussell füllt den gesamten Tile-Hintergrund und wechselt alle 20 s
+          zwischen Riff, Öl-des-Slots und Vereinsfoto. Übersteuert das
+          backgroundImage-Prop (Branding-BG) — leere Tiles bekommen bewusst
+          nicht das Seiten-Hintergrundbild. */}
+      <div className="absolute inset-0 overflow-hidden rounded-2xl">
+        <SlotCarousel
+          sauna={sauna}
+          now={now}
+          slotIndex={slotIndex}
+          direction={otherSauna?.direction ?? null}
+        />
+      </div>
+
+      {/* Leit-Hinweis zur aktiven Nachbarsauna. Lag früher IN der Riff-Szene
+          und wäre mit ihr verschwunden — er ist aber Wegweiser-Information
+          und muss über jeder Karte stehen. */}
+      {/* Positionierung und Bob-Animation kommen komplett aus .reef-hint
+          (src/index.css) — kein Inline-transform, der würde die Keyframes
+          überschreiben. */}
+      {hintText && <div className="reef-hint" aria-hidden>{hintText}</div>}
 
       {/* Akzent-Stripe links — bleibt für visuelle Konsistenz mit den
           Aufguss-Karten. Auf transparentem Cyan-BG mit etwas weniger

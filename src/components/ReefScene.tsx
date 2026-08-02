@@ -18,7 +18,6 @@ type Direction = 'left' | 'right' | null;
 
 type Props = {
   direction: Direction;
-  hintText?: string;
 };
 
 // Hauptschwarm — 20 Fische in 4 Varianten (0=Gelb-Tropen, 1=Clown,
@@ -65,12 +64,9 @@ const OCTOPI = [
   { id: 2, y: 70, dur: 22, delay: 8.0,  color: '#60a5fa', accent: '#2563eb' }, // blau
 ];
 
-// Saunafass — Vereinsbezug! Treibt sehr gemächlich von einer Seite zur
-// anderen, mit aufsteigendem Dampf + 2 schwimmenden Holz-Kellen daneben.
-const BUCKET = { y: 12, dur: 32, delay: 8.0 };
-
-const SNAKE_CYCLE = 22;   // Schlange treibt langsam quer
-const DORY_CYCLE = DORY.dur;
+// Saunafass, Schlange und Dory: ihre Timings (y/dur/delay) stehen seit dem
+// Umzug der Szenen-CSS nach src/index.css dort fest verdrahtet — die Werte
+// waren vorher in den <style>-Block interpoliert.
 
 const BUBBLES = Array.from({ length: 22 }, (_, i) => ({
   id: i,
@@ -98,7 +94,7 @@ const CORALS = [
   { id: 4, x: 92, c1: '#f472b6', c2: '#db2777', s: 0.8 },
 ];
 
-export function ReefScene({ direction, hintText }: Props) {
+export function ReefScene({ direction }: Props) {
   // User-Wunsch 29.05.2026: ALLE Tiere schwimmen einheitlich Richtung des
   // Aufgusses (passend zum Pfeil im Hint-Text). Wenn beide Saunen leer sind
   // (direction=null), Default 'right' damit die Szene nicht chaotisch wirkt.
@@ -107,311 +103,6 @@ export function ReefScene({ direction, hintText }: Props) {
 
   return (
     <>
-      <style>{`
-        /* ─── Wasser-Hintergrund ─────────────────────────────────────── */
-        .reef-bg {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(180deg,
-            #67e8f9 0%,
-            #06b6d4 30%,
-            #0e7490 65%,
-            #155e75 100%);
-          overflow: hidden;
-          border-radius: inherit;
-        }
-        .reef-sunray {
-          position: absolute;
-          top: -10%;
-          width: 14%;
-          height: 80%;
-          background: linear-gradient(180deg, rgba(255,255,240,0.35), transparent 70%);
-          transform-origin: top center;
-          filter: blur(2px);
-          mix-blend-mode: screen;
-          pointer-events: none;
-        }
-        .reef-sunray-1 { left: 22%; transform: rotate(-12deg); }
-        .reef-sunray-2 { left: 52%; transform: rotate(4deg); }
-        .reef-sunray-3 { left: 78%; transform: rotate(-6deg); }
-
-        /* ─── Tier-Layer (overflow:visible, Fische ragen aus Tile raus) ─
-           z-index: 0 sodass Tiere UNTER den Nachbar-Aufguss-Cards durch-
-           schwimmen statt visuell darüber zu liegen. User-Wunsch 30.05.2026:
-           "nichts soll in die aufguss kachel laufen immer darunter weg". */
-        .reef-creatures {
-          position: absolute;
-          inset: 0;
-          overflow: visible;
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        /* ─── Fisch-Schwimm-Animation — verlängerter Pfad damit Fisch
-              aus der Tile rausragt ──────────────────────────────────── */
-        @keyframes reef-fish-swim-r {
-          0%   { transform: translate3d(-40%, 0, 0) scaleX(1); }
-          50%  { transform: translate3d(50%, var(--bob, 4px), 0) scaleX(1); }
-          100% { transform: translate3d(140%, 0, 0) scaleX(1); }
-        }
-        @keyframes reef-fish-swim-l {
-          0%   { transform: translate3d(140%, 0, 0) scaleX(-1); }
-          50%  { transform: translate3d(50%, var(--bob, 4px), 0) scaleX(-1); }
-          100% { transform: translate3d(-40%, 0, 0) scaleX(-1); }
-        }
-        @keyframes reef-fish-tail {
-          0%, 100% { transform: rotate(-12deg); }
-          50%      { transform: rotate(12deg); }
-        }
-        .reef-fish {
-          position: absolute;
-          left: 0;
-          width: 100%;
-          will-change: transform;
-          pointer-events: none;
-        }
-        .reef-fish.swim-r {
-          animation: reef-fish-swim-r var(--du, 13s) linear infinite;
-          animation-delay: var(--d, 0s);
-        }
-        .reef-fish.swim-l {
-          animation: reef-fish-swim-l var(--du, 13s) linear infinite;
-          animation-delay: var(--d, 0s);
-        }
-        .reef-fish-tail {
-          transform-origin: 0% 50%;
-          animation: reef-fish-tail 0.35s ease-in-out infinite;
-        }
-
-        /* ─── DORY (eigener langsamer Lauf, größer als Schwarm) ────── */
-        .reef-dory {
-          position: absolute;
-          left: 0;
-          width: 100%;
-          top: ${DORY.y}%;
-          will-change: transform;
-        }
-        .reef-dory.swim-r { animation: reef-fish-swim-r ${DORY_CYCLE}s linear infinite; animation-delay: ${DORY.delay}s; }
-        .reef-dory.swim-l { animation: reef-fish-swim-l ${DORY_CYCLE}s linear infinite; animation-delay: ${DORY.delay}s; }
-
-        /* ─── QUALLE — vertikales schweben + Bell-Pulse ─────────────── */
-        @keyframes reef-jelly-float {
-          0%   { transform: translate3d(0, 110%, 0); opacity: 0; }
-          10%  { opacity: 0.85; }
-          50%  { transform: translate3d(var(--drift, 10px), 30%, 0); }
-          90%  { opacity: 0.7; }
-          100% { transform: translate3d(0, -30%, 0); opacity: 0; }
-        }
-        @keyframes reef-jelly-pulse {
-          0%, 100% { transform: scaleY(1)   scaleX(1); }
-          50%      { transform: scaleY(0.85) scaleX(1.08); }
-        }
-        @keyframes reef-jelly-tentacle {
-          0%, 100% { transform: translateY(0); }
-          50%      { transform: translateY(3px); }
-        }
-        .reef-jelly {
-          position: absolute;
-          width: 56px; height: 80px;
-          will-change: transform, opacity;
-          animation: reef-jelly-float var(--du, 18s) linear infinite;
-          animation-delay: var(--d, 0s);
-        }
-        .reef-jelly-bell {
-          transform-origin: 50% 30%;
-          animation: reef-jelly-pulse 2.4s ease-in-out infinite;
-        }
-        .reef-jelly-tentacles {
-          animation: reef-jelly-tentacle 2.4s ease-in-out infinite;
-        }
-
-        /* ─── TINTENFISCHE (3 Stück) — Jet-Style, Tentakeln wabern ──── */
-        @keyframes reef-octo-swim-r {
-          0%   { transform: translate3d(-35%, 0, 0); }
-          50%  { transform: translate3d(50%, -8px, 0); }
-          100% { transform: translate3d(135%, 0, 0); }
-        }
-        @keyframes reef-octo-swim-l {
-          0%   { transform: translate3d(135%, 0, 0) scaleX(-1); }
-          50%  { transform: translate3d(50%, -8px, 0) scaleX(-1); }
-          100% { transform: translate3d(-35%, 0, 0) scaleX(-1); }
-        }
-        @keyframes reef-octo-arms {
-          0%, 100% { transform: rotate(-3deg); }
-          50%      { transform: rotate(3deg); }
-        }
-        /* Parametrisiert: jeder Octopus bekommt --du + --d + top als inline-style.
-           Dadurch können beliebig viele Tintenfische parallel laufen ohne CSS-Spam. */
-        .reef-octo {
-          position: absolute;
-          left: 0;
-          width: 100%;
-          will-change: transform;
-          animation-name: reef-octo-swim-r;
-          animation-timing-function: ease-in-out;
-          animation-iteration-count: infinite;
-          animation-duration: var(--du, 24s);
-          animation-delay: var(--d, 0s);
-        }
-        .reef-octo.swim-l { animation-name: reef-octo-swim-l; }
-        .reef-octo-arms {
-          transform-origin: 50% 30%;
-          animation: reef-octo-arms 1.6s ease-in-out infinite;
-        }
-
-        /* ─── SAUNAFASS — treibt gemächlich, mit Dampf ─────────────── */
-        @keyframes reef-bucket-drift-r {
-          0%   { transform: translate3d(-30%, 0, 0) rotate(-3deg); }
-          50%  { transform: translate3d(50%, 5px, 0) rotate(2deg); }
-          100% { transform: translate3d(130%, 0, 0) rotate(-3deg); }
-        }
-        @keyframes reef-bucket-drift-l {
-          0%   { transform: translate3d(130%, 0, 0) rotate(3deg); }
-          50%  { transform: translate3d(50%, 5px, 0) rotate(-2deg); }
-          100% { transform: translate3d(-30%, 0, 0) rotate(3deg); }
-        }
-        .reef-bucket {
-          position: absolute;
-          left: 0;
-          width: 100%;
-          top: ${BUCKET.y}%;
-          will-change: transform;
-        }
-        .reef-bucket.swim-r { animation: reef-bucket-drift-r ${BUCKET.dur}s linear infinite; animation-delay: ${BUCKET.delay}s; }
-        .reef-bucket.swim-l { animation: reef-bucket-drift-l ${BUCKET.dur}s linear infinite; animation-delay: ${BUCKET.delay}s; }
-        @keyframes reef-steam-rise {
-          0%   { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
-          30%  { opacity: 0.65; }
-          100% { transform: translate3d(4px, -28px, 0) scale(1.4); opacity: 0; }
-        }
-        .reef-steam {
-          will-change: transform, opacity;
-          animation: reef-steam-rise 3s ease-out infinite;
-          animation-delay: var(--d, 0s);
-          transform-origin: 50% 100%;
-        }
-
-        /* Sponge-Charakter raus (User-Wunsch 30.05.2026) */
-
-        /* ─── Unterwasserschlange ─────────────────────────────────────
-           Schlängelt sich quer durch — pseudo-Aal/Sea-Snake.
-           Mehrere Segmente in CSS-Wellen-Bewegung. */
-        @keyframes reef-snake-swim-r {
-          0%   { transform: translate3d(-50%, 0, 0) scaleX(1); }
-          100% { transform: translate3d(150%, 0, 0) scaleX(1); }
-        }
-        @keyframes reef-snake-swim-l {
-          0%   { transform: translate3d(150%, 0, 0) scaleX(-1); }
-          100% { transform: translate3d(-50%, 0, 0) scaleX(-1); }
-        }
-        .reef-snake {
-          position: absolute;
-          left: 0;
-          width: 100%;
-          top: 65%;
-          will-change: transform;
-        }
-        .reef-snake.swim-r { animation: reef-snake-swim-r ${SNAKE_CYCLE}s linear infinite; }
-        .reef-snake.swim-l { animation: reef-snake-swim-l ${SNAKE_CYCLE}s linear infinite; }
-
-        @keyframes reef-snake-undulate {
-          0%, 100% { transform: skewY(-3deg); }
-          50%      { transform: skewY(3deg); }
-        }
-        .reef-snake-body {
-          animation: reef-snake-undulate 0.7s ease-in-out infinite;
-          transform-origin: 50% 50%;
-        }
-
-        /* ─── Blasen ────────────────────────────────────────────────── */
-        @keyframes reef-bubble-rise {
-          0%   { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
-          15%  { opacity: 0.85; transform: translate3d(0, -10%, 0) scale(1); }
-          80%  { opacity: 0.7; }
-          100% { transform: translate3d(var(--drift, 0px), -110%, 0) scale(1.1); opacity: 0; }
-        }
-        .reef-bubble {
-          position: absolute;
-          bottom: 0;
-          width: var(--size, 8px); height: var(--size, 8px);
-          border-radius: 50%;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95) 0%, rgba(186,230,253,0.6) 60%, transparent 100%);
-          will-change: transform, opacity;
-          animation: reef-bubble-rise var(--du, 6s) linear infinite;
-          animation-delay: var(--d, 0s);
-          box-shadow: 0 0 4px rgba(255,255,255,0.4);
-        }
-
-        /* ─── Algen + Korallen + Sandboden ─────────────────────────── */
-        @keyframes reef-algae-sway {
-          0%, 100% { transform: skewX(-4deg); }
-          50%      { transform: skewX(4deg); }
-        }
-        .reef-algae {
-          position: absolute;
-          bottom: 0;
-          width: var(--w, 14px);
-          height: var(--h, 60%);
-          transform-origin: bottom center;
-          will-change: transform;
-          animation: reef-algae-sway 3.5s ease-in-out infinite;
-          animation-delay: var(--d, 0s);
-        }
-        @keyframes reef-coral-sway {
-          0%, 100% { transform: rotate(-1.5deg); }
-          50%      { transform: rotate(1.5deg); }
-        }
-        .reef-coral {
-          position: absolute;
-          bottom: 0;
-          transform-origin: bottom center;
-          will-change: transform;
-          animation: reef-coral-sway 5s ease-in-out infinite;
-          animation-delay: var(--d, 0s);
-        }
-        .reef-floor {
-          position: absolute;
-          bottom: 0; left: 0; right: 0;
-          height: 12%;
-          background: linear-gradient(180deg, transparent, rgba(254, 243, 199, 0.35) 60%, rgba(217, 119, 6, 0.5) 100%);
-          pointer-events: none;
-          border-radius: 50% 50% 0 0 / 30% 30% 0 0;
-        }
-
-        /* ─── Hint-Text ───────────────────────────────────────────── */
-        @keyframes reef-hint-bob {
-          0%, 100% { transform: translateX(-50%) translateY(0); }
-          50%      { transform: translateX(-50%) translateY(-3px); }
-        }
-        .reef-hint {
-          position: absolute;
-          bottom: 8%;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 4px 12px;
-          background: rgba(255, 255, 255, 0.92);
-          border-radius: 999px;
-          color: #0c4a6e;
-          font-weight: 800;
-          font-size: clamp(10px, 2.2cqh, 16px);
-          letter-spacing: 0.02em;
-          text-shadow: 0 1px 0 rgba(255,255,255,0.5);
-          box-shadow: 0 2px 8px rgba(8, 47, 73, 0.4);
-          white-space: nowrap;
-          will-change: transform;
-          animation: reef-hint-bob 1.6s ease-in-out infinite;
-          z-index: 5;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .reef-fish, .reef-bubble, .reef-algae, .reef-coral, .reef-hint,
-          .reef-snake, .reef-dory, .reef-jelly, .reef-jelly-bell,
-          .reef-jelly-tentacles, .reef-octo, .reef-octo-arms,
-          .reef-bucket, .reef-steam {
-            animation: none !important;
-          }
-        }
-      `}</style>
 
       {/* ─── LAYER 1: Wasser, Korallen, Algen, Blasen ─────────────── */}
       <div className="reef-bg" aria-hidden>
@@ -479,8 +170,6 @@ export function ReefScene({ direction, hintText }: Props) {
             } as React.CSSProperties}
           />
         ))}
-
-        {hintText && <div className="reef-hint">{hintText}</div>}
       </div>
 
       {/* ─── LAYER 2: Tiere — Schwarm, Dory, Quallen, Octo, Bucket, Sponge, Snake ── */}

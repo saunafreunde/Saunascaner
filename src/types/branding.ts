@@ -36,6 +36,15 @@ export type AdSlot = {
   alt: string | null;
 };
 
+/** Vereins-Foto für die leeren Kacheln der TV-Tafel (Slot-Karussell).
+ *  Liegt bewusst hier statt in einer eigenen Tabelle: brand_settings ist ein
+ *  jsonb-Blob in system_config und über die Policy config_read_public bereits
+ *  anon lesbar — ein neues Feld kostet damit keine Migration. */
+export type GalleryPhoto = {
+  image_path: string;
+  caption: string | null;
+};
+
 export type BrandSettings = {
   org: OrgInfo;
   logo: LogoSet;
@@ -43,6 +52,7 @@ export type BrandSettings = {
   tile_bgs: { [saunaId: string]: (string | null)[] };
   badge: BadgeAssets;
   ads: AdSlot[];
+  slot_gallery: GalleryPhoto[];
 };
 
 export function defaultBrandSettings(): BrandSettings {
@@ -60,6 +70,7 @@ export function defaultBrandSettings(): BrandSettings {
     tile_bgs: {},
     badge: { front_bg: null, back_bg: null },
     ads: [],
+    slot_gallery: [],
   };
 }
 
@@ -80,5 +91,10 @@ export function mergeBrandDefaults(partial: Partial<BrandSettings> | null | unde
           alt: a.alt ?? null,
         }))
       : def.ads,
+    slot_gallery: Array.isArray(partial.slot_gallery)
+      ? partial.slot_gallery
+          .filter((g) => !!g?.image_path)
+          .map((g) => ({ image_path: g.image_path, caption: g.caption ?? null }))
+      : def.slot_gallery,
   };
 }

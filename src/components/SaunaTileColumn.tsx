@@ -326,6 +326,10 @@ export function SaunaTileColumn({
                 className="min-h-0 h-full overflow-hidden"
                 backgroundImage={tileBgs[slotIndex] ?? null}
                 otherSauna={otherSaunaInfo?.(slotTime) ?? null}
+                now={now}
+                /* slotIndex versetzt das Karten-Karussell, damit nebeneinander-
+                   liegende leere Kacheln nie dasselbe Motiv zeigen. */
+                slotIndex={slotIndex}
               />
             );
           })}

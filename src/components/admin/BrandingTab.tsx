@@ -17,6 +17,7 @@ const SLOT_SIZE_HINTS = {
   badge_front: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
   badge_back: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
   ad: '16:9 — Werbe-Banner in der TV-Sidebar',
+  gallery: 'Querformat, gern 3:1 — füllt eine leere Kachel der TV-Tafel',
 };
 
 export function BrandingTab() {
@@ -106,6 +107,11 @@ export function BrandingTab() {
       />
 
       <BadgeSection badge={brand.badge} onChange={(b) => patchAndSave('badge', b)} />
+
+      <GallerySection
+        photos={brand.slot_gallery}
+        onChange={(g) => patchAndSave('slot_gallery', g)}
+      />
 
       <AdsSection ads={brand.ads} onChange={(a) => patchAndSave('ads', a)} />
     </div>
@@ -336,6 +342,67 @@ function BadgeSection({ badge, onChange }: { badge: BrandSettings['badge']; onCh
           value={badge.back_bg}
           onChange={(v) => onChange({ ...badge, back_bg: v })}
         />
+      </div>
+    </Section>
+  );
+}
+
+// ─── Tafel-Galerie (leere Kacheln) ───────────────────────────────────────
+// Die Fotos wandern ins Slot-Karussell leerer Kacheln auf der TV-Tafel
+// (src/components/emptytile/GalleryCard.tsx). Gespeichert wird nur der
+// Storage-Pfad in brand_settings.slot_gallery — kein eigener Tabellen-Eintrag,
+// deshalb ohne Migration.
+const GALLERY_SLOTS = 8;
+
+function GallerySection({
+  photos, onChange,
+}: {
+  photos: BrandSettings['slot_gallery'];
+  onChange: (g: BrandSettings['slot_gallery']) => void;
+}) {
+  const padded: (BrandSettings['slot_gallery'][number] | null)[] =
+    Array.from({ length: GALLERY_SLOTS }, (_, i) => photos[i] ?? null);
+
+  const setSlot = (idx: number, val: BrandSettings['slot_gallery'][number] | null) => {
+    const next = [...padded];
+    next[idx] = val;
+    onChange(next.filter((g): g is BrandSettings['slot_gallery'][number] => g !== null));
+  };
+
+  return (
+    <Section
+      icon="🖼️"
+      title="Tafel-Galerie"
+      hint="Eure Vereinsfotos für leere Kacheln der TV-Tafel. Sie wechseln sich dort mit dem Öl-des-Slots und der Riff-Szene ab. Ohne Fotos zeigt die Tafel nur die beiden anderen Karten."
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {padded.map((photo, idx) => (
+          <div key={idx} className="rounded-2xl bg-forest-900/40 ring-1 ring-forest-800/40 p-3 space-y-2">
+            <p className="text-[11px] uppercase tracking-wider text-forest-300 font-semibold">Foto {idx + 1}</p>
+            <AssetSlot
+              label=""
+              sizeHint={SLOT_SIZE_HINTS.gallery}
+              aspect="aspect-video"
+              folder="slot-gallery"
+              value={photo?.image_path ?? null}
+              onChange={(v) => {
+                if (v === null) setSlot(idx, null);
+                else setSlot(idx, { image_path: v, caption: photo?.caption ?? null });
+              }}
+            />
+            {photo?.image_path && (
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-forest-300 font-semibold">Bildunterschrift</label>
+                <input
+                  value={photo.caption ?? ''}
+                  onChange={(e) => setSlot(idx, { ...photo, caption: e.target.value || null })}
+                  placeholder={'z.B. „Sommerfest 2026"'}
+                  className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-xs text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </Section>
   );
