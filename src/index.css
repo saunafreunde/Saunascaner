@@ -810,7 +810,12 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   0%   { transform: translate3d(0, 0, 0); opacity: 0; }
   8%   { opacity: .9; }
   90%  { opacity: .7; }
-  100% { transform: translate3d(14px, 460px, 0); opacity: 0; }
+  /* 108cqh statt fester Pixel: die Flocke faellt genau eine Kachelhoehe
+     weit, egal ob die Kachel 145 oder 300 px hoch ist. Mit 460 px war
+     der Fall auf flachen Kacheln laengst aus dem Bild, bevor die
+     Animation zu Ende war — es waren dadurch weniger Flocken zugleich
+     sichtbar als gedacht. */
+  100% { transform: translate3d(14px, 108cqh, 0); opacity: 0; }
 }
 
 /* Fensterkreuz + Rahmen — dunkles Holz, wir sitzen drinnen */
