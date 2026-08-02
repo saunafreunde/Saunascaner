@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import type { Sauna } from '@/types/database';
 import { SlotCarousel } from '@/components/emptytile/SlotCarousel';
@@ -20,6 +21,10 @@ interface EmptyTileProps {
   /** Position der Kachel in ihrer Spalte, damit Nachbarkacheln versetzt
    *  durch den Karten-Pool laufen. */
   slotIndex?: number;
+  /** Zusätzliches inline-style — die Spalte reicht darüber die feste
+   *  Grid-Zeile durch (siehe SaunaTileColumn). Ohne die kann diese Kachel
+   *  in eine implizite 0-px-Zeile rutschen. */
+  style?: CSSProperties;
 }
 
 export function EmptyTile({
@@ -28,6 +33,7 @@ export function EmptyTile({
   otherSauna = null,
   now,
   slotIndex = 0,
+  style: extraStyle,
 }: EmptyTileProps) {
   // backgroundImage-Prop bleibt im Interface (BC für Callers in
   // SaunaTileColumn), wird im Empty-Tile aber bewusst NICHT genutzt —
@@ -44,6 +50,7 @@ export function EmptyTile({
         transformOrigin: '50% 100%',
         containerType: 'size',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 10px rgba(0,0,0,0.15), 0 12px 32px rgba(0,0,0,0.18)',
+        ...(extraStyle ?? {}),
       }}
     >
       {/* Karussell füllt den gesamten Tile-Hintergrund und wechselt alle 20 s

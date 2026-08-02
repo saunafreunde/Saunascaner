@@ -187,8 +187,28 @@ export function SaunaTileColumn({
   // 30.05.2026: "karte muss uber 2 sauna karten gehen also so gross wie sonst 2 aufgüsse").
   //
   // `slotsSpanned`: wie viele 1-Stunden-Slots die Infusion belegt (1 normal, 2 Banja).
-  const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date; isContinuation: boolean; slotsSpanned: number })[]>(() => {
+  //
+  // `row`/`span`: EXPLIZITE Grid-Platzierung statt Auto-Placement. Grund ist
+  // ein handfester Layout-Defekt, gemessen am 02.08.2026 auf der Live-Tafel:
+  // steht auch nur EIN zusätzliches Kind im Grid (eine Kachel, deren
+  // AnimatePresence-Exit nicht abgeschlossen wurde), legt CSS-Grid dafür eine
+  // implizite Zeile an. Aus repeat(3, 1fr) wurden dann 5 Tracks und die drei
+  // echten Kacheln schrumpften von 184 px auf 130 px — 29 % Höhe weg.
+  //
+  // Mit fester Zeile kann ein solches Kind seine alte Zeile nur noch
+  // ÜBERLAGERN, nie eine neue aufmachen. Live gegengeprüft: mit denselben drei
+  // Störkindern im DOM liefert das Grid wieder exakt "187px 187px 187px".
+  //
+  // Der Zähler läuft bewusst über die TATSÄCHLICH gerenderten Kacheln und
+  // nicht über den Slot-Index: Continuation-Slots geben null zurück und
+  // dürfen deshalb auch keine Zeile verbrauchen. Sonst bliebe Zeile 1 leer,
+  // sobald ein Banja-Continuation am Anfang der Liste steht (passiert ab
+  // 20:00 bei einem 19:00-Banja, weil nextSlotStarts den 19:00-Slot dann per
+  // `h < startHour` verwirft). So ist die Platzierung beweisbar identisch zum
+  // bisherigen Auto-Placement — nur eben unverrückbar.
+  const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date; isContinuation: boolean; row: number; span: number })[]>(() => {
     const HOUR_MS = 60 * 60_000;
+    let nextRow = 1;
     return slots.map((slotStart) => {
       const slotTs = slotStart.getTime();
       const found = infusions.find(
@@ -202,9 +222,19 @@ export function SaunaTileColumn({
       const slotsSpanned = found
         ? Math.max(1, Math.ceil((new Date(found.end_time).getTime() - new Date(found.start_time).getTime()) / HOUR_MS))
         : 1;
-      return { infusion: found, slotTime: slotStart, isContinuation, slotsSpanned };
+      // Continuation-Kacheln rendern nichts → keine Zeile verbrauchen.
+      if (found && isContinuation) {
+        return { infusion: found, slotTime: slotStart, isContinuation, row: 0, span: 1 };
+      }
+      const row = nextRow;
+      // Über die letzte Zeile hinaus darf kein Span reichen — sonst entstünde
+      // genau die implizite Zeile wieder, die wir hier verhindern wollen.
+      // Betrifft den Banja, wenn er auf der untersten Zeile der Spalte landet.
+      const span = Math.max(1, Math.min(slotsSpanned, tilesPerColumn - row + 1));
+      nextRow += span;
+      return { infusion: found, slotTime: slotStart, isContinuation, row, span };
     });
-  }, [slots, infusions, sauna.id]);
+  }, [slots, infusions, sauna.id, tilesPerColumn]);
 
   return (
     // HELL-THEME: weißlicher Glaspanel statt forest-Dunkel.
@@ -330,25 +360,49 @@ export function SaunaTileColumn({
           Größe. Nicht-gefüllte Reihen bleiben leer, das Branding-Hintergrund-
           bild scheint dort durch (Tafel „läuft leer"). */}
       <div
-        className="flex-1 min-h-0 p-2 grid gap-2"
+        className="flex-1 min-h-0 p-2 grid"
         style={{
           perspective: '1400px',
           perspectiveOrigin: '50% 40%',
           gridTemplateRows: `repeat(${tilesPerColumn}, minmax(0, 1fr))`,
+          // Das Raster ist ab hier ABGESCHLOSSEN: genau eine Spalte, genau
+          // tilesPerColumn Zeilen. Implizite Tracks bekommen 0 px, damit ein
+          // unerwartetes Kind (siehe Kommentar an `tiles`) den drei echten
+          // Kacheln weder Höhe noch Breite wegnehmen kann. Ohne die Spalten-
+          // Angabe würde eine Zeilen-Kollision lautlos in eine zweite Spalte
+          // ausweichen — die Karten wären dann halb so breit statt zu kurz.
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          gridAutoRows: '0px',
+          gridAutoColumns: '0px',
+          // Abstand NUR zwischen den Zeilen (vorher `gap-2`, also beides).
+          // Entsteht durch eine Kollision doch einmal die 0-px-Zweitspalte,
+          // koestete ein Spalten-Gap die echten Karten sonst 8 px Breite.
+          // Live gegengeprueft: mit columnGap 0 bleiben sie bei voller Breite.
+          rowGap: '0.5rem',
+          columnGap: 0,
         }}
       >
-        <AnimatePresence initial={false} mode="popLayout">
-          {tiles.map(({ infusion: inf, slotTime, isContinuation, slotsSpanned }, slotIndex) => {
+        {/* mode="popLayout" stand hier bis 02.08.2026 — wirkungslos. framer-motion
+            hängt dafür in PopChild per cloneElement(child, { ref }) einen ref an,
+            aber InfusionCard/EmptyTile/PersonalTile sind Funktionskomponenten ohne
+            forwardRef. Der ref bleibt null, PopChild misst 0×0 und steigt vor dem
+            Injizieren seiner position:absolute-Regel wieder aus. Live nachgemessen:
+            null Elemente mit data-motion-pop-id, null injizierte Regeln. Es hat also
+            nie ein Kind aus dem Fluss genommen — der Schutz vor genau dem Problem
+            oben war nur scheinbar da. Ohne den Modus verhält sich die Tafel identisch,
+            spart aber pro Kachel einen Wrapper samt cloneElement. */}
+        <AnimatePresence initial={false}>
+          {tiles.map(({ infusion: inf, slotTime, isContinuation, row, span }, slotIndex) => {
             // Continuation-Tile SKIPPEN: die Start-Tile spannt per gridRow:span N
             // schon über die mehreren Slots. Ein zweites Render wäre Doppelung.
             // User-Wunsch 30.05.2026.
             if (inf && isContinuation) return null;
 
-            // Span-Style nur wenn Mehrstunden-Aufguss (Banja: span 2). Sonst
-            // automatic grid placement (1 row).
-            const spanStyle: React.CSSProperties | undefined = slotsSpanned > 1
-              ? { gridRow: `span ${slotsSpanned}` }
-              : undefined;
+            // Feste Zeile für JEDE Kachel (siehe Kommentar an `tiles`). Ein Kind
+            // ohne diesen Style landet per Auto-Placement in der ersten freien
+            // Zeile — ist die Spalte voll, in einer der 0-px-Zeilen und damit
+            // unsichtbar. Neue Kachel-Arten hier also immer mitversorgen.
+            const rowStyle: React.CSSProperties = { gridRow: `${row} / span ${span}` };
 
             if (inf) {
               if (inf.is_personal_fallback) {
@@ -359,6 +413,7 @@ export function SaunaTileColumn({
                     sauna={sauna}
                     className="min-h-0 h-full overflow-hidden"
                     backgroundImage={tileBgs[slotIndex] ?? null}
+                    style={rowStyle}
                   />
                 );
               }
@@ -374,7 +429,7 @@ export function SaunaTileColumn({
                   compact
                   className="min-h-0 h-full overflow-hidden"
                   backgroundImage={tileBgs[slotIndex] ?? null}
-                  style={spanStyle}
+                  style={rowStyle}
                 />
               );
             }
@@ -386,6 +441,7 @@ export function SaunaTileColumn({
                 backgroundImage={tileBgs[slotIndex] ?? null}
                 otherSauna={otherSaunaInfo?.(slotTime) ?? null}
                 now={now}
+                style={rowStyle}
                 /* slotIndex versetzt das Karten-Karussell, damit nebeneinander-
                    liegende leere Kacheln nie dasselbe Motiv zeigen. */
                 slotIndex={slotIndex}

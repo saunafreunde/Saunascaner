@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock } from '@/lib/time';
@@ -8,6 +9,10 @@ interface PersonalTileProps {
   sauna: Sauna;
   className?: string;
   backgroundImage?: string | null;
+  /** Zusätzliches inline-style — die Spalte reicht darüber die feste
+   *  Grid-Zeile durch (siehe SaunaTileColumn). Ohne die kann diese Kachel
+   *  in eine implizite 0-px-Zeile rutschen. */
+  style?: CSSProperties;
 }
 
 /**
@@ -21,7 +26,7 @@ interface PersonalTileProps {
  *   - kompakteres Layout, kleinere Hero-Schrift, kein Trennstrich, kein Glow
  *   - Hausaufguss als Pill (nicht full-width-Banner) — Uhrzeit-Box dominiert
  */
-export function PersonalTile({ infusion, sauna, className = '', backgroundImage = null }: PersonalTileProps) {
+export function PersonalTile({ infusion, sauna, className = '', backgroundImage = null, style: extraStyle }: PersonalTileProps) {
   const brand = useBrandSync();
   const orgShortName = brand.org.short_name ?? 'Saunafreunde';
 
@@ -48,6 +53,7 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
         backgroundPosition: backgroundImage ? 'center' : undefined,
         boxShadow:
           'inset 0 1px 0 rgba(255,255,255,0.5), 0 4px 10px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.08)',
+        ...(extraStyle ?? {}),
       }}
     >
       {/* Sauna-Akzent-Streifen links — wie InfusionCard, aber dünner */}
