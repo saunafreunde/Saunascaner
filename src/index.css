@@ -852,3 +852,31 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   pointer-events: none;
   z-index: 15;
 }
+
+/* Kartenwechsel im Slot-Karussell (alle 20 s).
+   Vorher lief das über framer-motions AnimatePresence mit mode="wait": die alte
+   Karte musste ihre Exit-Animation ERST abschließen, bevor die neue überhaupt
+   gemountet wurde. Zwischen beiden lag deshalb im Normalfall eine sichtbare
+   Lücke — und wenn die Exit-Animation gar nicht durchlief, blieb die Kachel
+   dauerhaft inhaltsleer: nur Rahmen, "frei"-Pille, sonst nichts.
+
+   Jetzt hängt die Sichtbarkeit an nichts mehr, was scheitern könnte. Die neue
+   Karte ist ab dem ersten Frame im DOM, und die Animation macht nur noch das
+   Ankommen weich.
+
+   Der Startwert ist bewusst 0.4 statt 0: `both` hält bei stehenden Animationen
+   den from-Zustand fest. Bei 0 wäre die Kachel dann wieder leer — bei 0.4 ist
+   sie im schlimmsten Fall etwas blass, aber vollständig lesbar. Nur opacity
+   und transform, damit es wie alles auf der Tafel GPU-seitig läuft. */
+@keyframes slot-karte-ein {
+  from { opacity: 0.4; transform: scale(1.012); }
+  to   { opacity: 1;   transform: scale(1); }
+}
+.slot-karte {
+  animation: slot-karte-ein 600ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Kein Ein-Schleichen — aber garantiert voll sichtbar, nicht bei 0.4 stehen. */
+  .slot-karte { animation: none; opacity: 1; transform: none; }
+}

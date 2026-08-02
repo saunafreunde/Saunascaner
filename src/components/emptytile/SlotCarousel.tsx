@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import type { Sauna } from '@/types/database';
 import { useBrandSettings } from '@/lib/api';
 import { ReefScene } from '@/components/ReefScene';
@@ -73,21 +72,25 @@ export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
 
   const card = pool[(((tick + offset) % pool.length) + pool.length) % pool.length];
 
+  // Bewusst OHNE AnimatePresence. Der vorherige Stand nutzte mode="wait": die
+  // alte Karte musste ihre Exit-Animation abschliessen, bevor die neue gemountet
+  // wurde. Solange framer-motion diese Animation nicht zu Ende meldet — und das
+  // tut es u. a. dann nicht, wenn der Frameloop steht (Tab im Hintergrund) —
+  // wird die neue Karte NIE gemountet: die Kachel bleibt dauerhaft inhaltsleer,
+  // man sieht nur noch den gestrichelten Rahmen und die "frei"-Pille.
+  //
+  // Jetzt haengt die Sichtbarkeit an nichts mehr, was scheitern kann: die
+  // aktuelle Karte wird direkt gerendert und ist ab dem ersten Frame da. Das
+  // `key` setzt beim Kartenwechsel die CSS-Animation `.slot-karte` neu auf,
+  // die das Ankommen weich macht — Pure-CSS, nur opacity/transform, und mit
+  // einem Startwert von 0.4 statt 0, damit selbst eine nie laufende Animation
+  // die Karte nur blasser macht statt unsichtbar (siehe index.css).
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={card}
-        className="absolute inset-0"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.6, ease: 'easeInOut' }}
-      >
-        {card === 'reef' && <ReefScene direction={direction} />}
-        {card === 'forest' && <ForestWindow />}
-        {card === 'oil' && oil && <OilCard oil={oil} now={now} />}
-        {card === 'gallery' && photo && <GalleryCard photo={photo} />}
-      </motion.div>
-    </AnimatePresence>
+    <div key={card} className="slot-karte absolute inset-0">
+      {card === 'reef' && <ReefScene direction={direction} />}
+      {card === 'forest' && <ForestWindow />}
+      {card === 'oil' && oil && <OilCard oil={oil} now={now} />}
+      {card === 'gallery' && photo && <GalleryCard photo={photo} />}
+    </div>
   );
 }
