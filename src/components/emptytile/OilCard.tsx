@@ -3,13 +3,16 @@ import { OIL_INFO } from '@/lib/oilInfo';
 import { useDisabledOils, useInfusions, useSaunas } from '@/lib/api';
 import { fmtClock, dayLabel } from '@/lib/time';
 
-/** Öl des Slots — eine Karte im Slot-Karussell leerer Tafel-Kacheln.
+/** „Ätherische Öle bei uns im Regal" — eine Karte im Slot-Karussell leerer
+ *  Tafel-Kacheln.
  *
- *  Zeigt eines der 64 Regal-Öle: Nummer, Name, Duftbeschreibung, Herkunft,
- *  Kategorie und Duftnote. Und — das ist der eigentliche Mehrwert für den
- *  Gast — einen blinkenden Hinweis, WANN und WO dieses Öl demnächst
- *  tatsächlich aufgegossen wird. Aus „schönes Bild" wird damit
- *  „da geh ich hin".
+ *  Bewusst als ZENTRIERTE Regal-Tafel gebaut und nicht als weitere Zeile im
+ *  Kartenstapel: die vorherige Fassung (Nummer links, Titel daneben, Text
+ *  darunter) reihte sich optisch nahtlos in die Aufguss-Karten ein und war
+ *  auf den ersten Blick nicht davon zu unterscheiden. Diese hier hat eine
+ *  eigene Handschrift — Überschrift, Medaillon, Name als Held, Duft als Zitat,
+ *  alles um die Mitte gebaut. Zusammen mit dem gestrichelten Rahmen und dem
+ *  „frei"-Chip der Kachel ist klar: hier findet kein Aufguss statt.
  *
  *  Datenquellen sind alle bereits anonym lesbar: der Öl-Katalog liegt rein
  *  clientseitig (lib/oils.ts + lib/oilInfo.ts), die geplanten Aufgüsse kommen
@@ -17,17 +20,15 @@ import { fmtClock, dayLabel } from '@/lib/time';
  */
 
 /** Jedes Öl hat sein EIGENES Motiv: public/oele/<slug>.webp.
- *  Vorher gab es nur sieben Kategorie-Bilder — bei 64 Ölen passte das oft
- *  nicht (unter „Hölzer & Nadeln" lief für Zirbe, Wacholder und Cedernholz
- *  dasselbe Fichtenbild). Erzeugt mit Desktop\\sauna_oelbilder.py
- *  (fal-ai/nano-banana-2), pro Öl der tatsächliche Pflanzenteil. */
+ *  Erzeugt mit Desktop\\sauna_oelbilder.py (fal-ai/nano-banana-2), pro Öl der
+ *  tatsächliche Pflanzenteil aus dem das Öl gewonnen wird. */
 function oilImage(slug: string): string {
   return `/oele/${slug}.webp`;
 }
 
-/** Akzentfarbe je Kategorie — färbt Nummer-Kachel und Notenschild. */
+/** Akzentfarbe je Kategorie — färbt Medaillon, Zierlinien und Notenschild. */
 const CATEGORY_COLOR: Record<string, string> = {
-  zitrus:   '#d97706',
+  zitrus:   '#b45309',
   holz:     '#3f6212',
   gewuerz:  '#9a3412',
   kraut:    '#4d7c0f',
@@ -36,9 +37,30 @@ const CATEGORY_COLOR: Record<string, string> = {
   saison:   '#b91c1c',
 };
 
+/** Basis-Maßeinheit der Karte.
+ *
+ *  Das ist der Kern der Auto-Anpassung: `min()` nimmt den KLEINEREN der beiden
+ *  Werte, also bremst immer die Kante, die zuerst erreicht wird. Ist die Kachel
+ *  flach, begrenzt die Höhe; ist sie schmal — etwa bei vier aktiven Saunen —
+ *  begrenzt die Breite, und dann wächst der Rest eben nicht weiter.
+ *
+ *  Die Koeffizienten sind so gewählt, dass die Komposition rund 90 % der
+ *  Kachel füllt: die Summe aller Bausteine ist ~52 Einheiten hoch, bei
+ *  1080p und drei Kacheln ergibt 1.58cqh eine Einheit von ~4,8 px
+ *  → ~247 px von 273 px verfügbarer Höhe. Der Breiten-Koeffizient (0.70cqw)
+ *  ist am längsten Öl-Namen ausgerichtet („Eukalyptus citriadora"), damit
+ *  auch der nicht abgeschnitten wird.
+ *
+ *  Alle Größen der Karte sind Vielfache davon — dadurch skaliert die
+ *  Komposition als Ganzes statt in Einzelteilen auseinanderzulaufen. */
+const U = 'min(1.58cqh, 0.70cqw)';
+const u = (n: number) => `calc(${n} * ${U})`;
+
 export function useSlotOil(seed: number, now: Date): Oil | null {
   const disabled = useDisabledOils();
   const infusions = useInfusions();
+  // Öle, die der Admin aus dem Bestand genommen hat, tauchen gar nicht erst
+  // auf — es wäre ärgerlich, ein Öl zu bewerben das nicht mehr im Regal steht.
   const pool = OILS.filter((o) => !disabled.data?.[o.id]);
   if (pool.length === 0) return null;
 
@@ -79,7 +101,6 @@ function useNextUse(oilId: string, now: Date) {
 
 export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
   const color = CATEGORY_COLOR[oil.category] ?? '#4d7c0f';
-  const image = oilImage(oil.id);
   const info = OIL_INFO[oil.id];
   const next = useNextUse(oil.id, now);
 
@@ -88,122 +109,127 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
       className="absolute inset-0"
       aria-hidden
       style={{
-        // Schleier-Rezept wie auf den Schnaps-Karten: oben fast weiß, damit
-        // der Text trägt, in der Mitte offen fürs Motiv, unten wieder heller.
-        // Ein gleichmäßiger Schleier macht die dunklen Motive milchig.
+        // Radialer statt waagerechter Schleier: hell in der Mitte, wo die
+        // Schrift steht, offen zu den Rändern, wo das Motiv atmen darf. Das
+        // rahmt die zentrierte Komposition und sieht schon aus zehn Metern
+        // anders aus als das Band der Aufguss-Karten.
         backgroundImage: [
-          `linear-gradient(200deg, ${color}00 0%, ${color}00 45%, ${color}2e 100%)`,
-          'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.52) 62%, rgba(255,255,255,0.38) 84%, rgba(255,255,255,0.72) 100%)',
-          `url(${JSON.stringify(image)})`,
+          `radial-gradient(115% 105% at 50% 50%, rgba(255,255,255,0.93) 0%, rgba(255,255,255,0.86) 38%, rgba(255,255,255,0.50) 68%, rgba(255,255,255,0.24) 100%)`,
+          `linear-gradient(180deg, ${color}14 0%, ${color}00 40%, ${color}22 100%)`,
+          `url(${JSON.stringify(oilImage(oil.id))})`,
         ].join(', '),
         backgroundSize: 'cover',
-        backgroundPosition: 'center bottom',
+        backgroundPosition: 'center',
       }}
     >
+      {/* inset 5 % = die Komposition darf sich bis auf 90 % der Kachel
+          aufziehen, danach ist Schluss. */}
       <div
-        className="absolute inset-0 flex flex-col justify-between"
-        style={{
-          // justify-between statt center: der Inhalt fuellt die Kachel jetzt
-          // von oben bis unten aus, statt als Block in der Mitte zu schweben.
-          padding: 'clamp(10px, 4cqh, 30px) clamp(14px, 4cqh, 34px) clamp(10px, 4cqh, 30px) clamp(16px, 4.5cqh, 38px)',
-          gap: 'clamp(4px, 1.6cqh, 14px)',
-        }}
+        className="absolute flex flex-col items-center justify-center text-center"
+        style={{ inset: '5%', gap: u(1.1) }}
       >
-        {/* Kopfzeile: Regalnummer + Name + Duftnote */}
-        <div className="flex items-center min-w-0" style={{ gap: 'clamp(7px, 2cqh, 16px)' }}>
-          <div
-            className="flex-shrink-0 flex flex-col items-center justify-center rounded-xl"
-            style={{
-              padding: 'clamp(3px, 1.3cqh, 11px) clamp(7px, 2.4cqh, 20px)',
-              background: 'rgba(255,255,255,0.92)',
-              boxShadow: `inset 0 0 0 2px ${color}55, 0 2px 8px rgba(0,0,0,0.15)`,
-            }}
+        {/* Überschrift mit Zierlinien — sagt sofort, worum es auf dieser
+            Kachel geht, und trennt sie vom Aufguss-Programm. */}
+        <div className="flex items-center w-full" style={{ gap: u(1.6) }}>
+          <span className="flex-1" style={{ height: 1, background: `${color}55` }} />
+          <span
+            className="font-bold uppercase whitespace-nowrap"
+            style={{ fontSize: u(2.6), letterSpacing: '0.2em', color }}
           >
-            <span
-              className="font-bold uppercase leading-none"
-              style={{ fontSize: 'clamp(7px, 2.2cqh, 15px)', letterSpacing: '0.12em', color: '#64748b' }}
-            >
-              Nr.
-            </span>
-            <span
-              className="font-black tabular-nums leading-none"
-              style={{ fontSize: 'clamp(20px, 7.4cqh, 52px)', color, marginTop: '0.06em' }}
-            >
-              {oil.number}
-            </span>
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div
-              className="font-black text-slate-900 leading-tight truncate"
-              style={{ fontSize: 'clamp(21px, 7.6cqh, 54px)', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
-            >
-              <span className="mr-1">{oil.emoji}</span>{oil.name}
-            </div>
-            <div
-              className="flex items-center flex-wrap text-slate-700 font-semibold leading-tight"
-              style={{ fontSize: 'clamp(10px, 3.2cqh, 22px)', gap: 'clamp(4px, 1.4cqh, 12px)', marginTop: 'clamp(2px, 0.9cqh, 7px)' }}
-            >
-              <span className="truncate">{CATEGORY_LABELS[oil.category]}</span>
-              {info?.herkunft && (
-                <>
-                  <span className="opacity-50">·</span>
-                  <span className="truncate">📍 {info.herkunft}</span>
-                </>
-              )}
-              {oil.note && (
-                <span
-                  className="rounded-full font-bold text-white whitespace-nowrap"
-                  style={{ background: color, padding: '0.1em 0.6em' }}
-                >
-                  {oil.note}note
-                </span>
-              )}
-            </div>
-          </div>
+            Ätherische Öle bei uns im Regal
+          </span>
+          <span className="flex-1" style={{ height: 1, background: `${color}55` }} />
         </div>
 
-        {/* Duftbeschreibung — das, was den Gast wirklich interessiert */}
+        {/* Medaillon mit der Regalnummer — die praktischste Information,
+            und optisch das Gegenstück zur Uhrzeit-Box der Aufguss-Karten. */}
+        <div
+          className="flex-shrink-0 flex flex-col items-center justify-center rounded-full"
+          style={{
+            width: u(11.5),
+            height: u(11.5),
+            background: 'rgba(255,255,255,0.94)',
+            boxShadow: `inset 0 0 0 ${u(0.35)} ${color}, 0 ${u(0.5)} ${u(1.6)} rgba(0,0,0,0.18)`,
+          }}
+        >
+          <span
+            className="font-bold uppercase leading-none"
+            style={{ fontSize: u(2), letterSpacing: '0.14em', color: '#64748b' }}
+          >
+            Nr.
+          </span>
+          <span
+            className="font-black tabular-nums leading-none"
+            style={{ fontSize: u(5.6), color, marginTop: u(0.3) }}
+          >
+            {oil.number}
+          </span>
+        </div>
+
+        {/* Der Name als Held */}
+        <div
+          className="font-black text-slate-900 leading-none max-w-full truncate"
+          style={{ fontSize: u(9.5), textShadow: '0 1px 0 rgba(255,255,255,0.8)' }}
+        >
+          <span className="mr-2">{oil.emoji}</span>{oil.name}
+        </div>
+
+        {/* Kategorie · Herkunft · Duftnote */}
+        <div
+          className="flex items-center justify-center flex-wrap text-slate-700 font-semibold leading-none max-w-full"
+          style={{ fontSize: u(2.9), gap: u(1.1) }}
+        >
+          <span className="truncate">{CATEGORY_LABELS[oil.category]}</span>
+          {info?.herkunft && (
+            <>
+              <span style={{ color: `${color}99` }}>◆</span>
+              <span className="truncate">{info.herkunft}</span>
+            </>
+          )}
+          {oil.note && (
+            <span
+              className="rounded-full font-bold text-white whitespace-nowrap"
+              style={{ background: color, padding: `${u(0.5)} ${u(1.4)}` }}
+            >
+              {oil.note}note
+            </span>
+          )}
+        </div>
+
+        {/* Der Duft als Zitat — bewusst anderer Duktus als die nüchternen
+            Pillen der Aufguss-Karten. */}
         {info?.text && (
           <p
-            className="text-slate-800 font-semibold leading-snug line-clamp-3 flex-1 flex items-center"
-            style={{
-              // flex-1: die Beschreibung bekommt den Raum, der zwischen
-              // Kopfzeile und Einsatz-Hinweis uebrig bleibt — dadurch fuellt
-              // die Karte sich selbst aus, egal wie hoch die Kachel ist.
-              fontSize: 'clamp(13px, 4.4cqh, 31px)',
-              textShadow: '0 1px 0 rgba(255,255,255,0.6)',
-            }}
+            className="italic text-slate-800 leading-snug line-clamp-2 max-w-full"
+            style={{ fontSize: u(4.8), textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
           >
-            {info.text}
+            „{info.text.replace(/\.$/, '')}"
           </p>
         )}
 
-        {/* Der Mehrwert: dieses Öl ist tatsächlich eingeplant. Blinkt dezent,
-            damit es im Vorbeigehen auffällt — Pure-CSS (.tafel-blink), wie
-            der LIVE-Punkt auf den Aufguss-Karten. */}
+        {/* Und wenn das Öl heute wirklich auf die Steine kommt: der Hinweis,
+            der aus „schönes Bild" ein „da geh ich hin" macht. */}
         {next && (
-          <div className="flex items-center min-w-0" style={{ marginTop: 'clamp(1px, 0.8cqh, 6px)' }}>
+          <span
+            className="inline-flex items-center rounded-full font-black text-white whitespace-nowrap max-w-full"
+            style={{
+              fontSize: u(3.1),
+              padding: `${u(0.9)} ${u(2.4)}`,
+              gap: u(1.1),
+              marginTop: u(0.4),
+              background: `linear-gradient(135deg, ${next.accent}, ${next.accent}cc)`,
+              boxShadow: `0 ${u(0.6)} ${u(3)} ${next.accent}66, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+            }}
+          >
             <span
-              className="inline-flex items-center rounded-full font-black text-white whitespace-nowrap min-w-0"
-              style={{
-                fontSize: 'clamp(11px, 3.4cqh, 24px)',
-                padding: 'clamp(3px, 1.1cqh, 9px) clamp(9px, 2.6cqh, 20px)',
-                gap: 'clamp(4px, 1.2cqh, 9px)',
-                background: `linear-gradient(135deg, ${next.accent}, ${next.accent}cc)`,
-                boxShadow: `0 2px 10px ${next.accent}77, inset 0 1px 0 rgba(255,255,255,0.3)`,
-                textShadow: '0 1px 2px rgba(0,0,0,0.4)',
-              }}
-            >
-              <span
-                className="tafel-blink flex-shrink-0 rounded-full bg-white"
-                style={{ width: 'clamp(6px, 1.8cqh, 13px)', height: 'clamp(6px, 1.8cqh, 13px)' }}
-              />
-              <span className="truncate">
-                Im Aufguss {next.when} · {next.sauna}{next.tempLabel ? ` ${next.tempLabel}` : ''}
-              </span>
+              className="tafel-blink flex-shrink-0 rounded-full bg-white"
+              style={{ width: u(1.5), height: u(1.5) }}
+            />
+            <span className="truncate">
+              Im Aufguss {next.when} · {next.sauna}{next.tempLabel ? ` ${next.tempLabel}` : ''}
             </span>
-          </div>
+          </span>
         )}
       </div>
     </div>
