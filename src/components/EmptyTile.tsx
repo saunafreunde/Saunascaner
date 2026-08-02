@@ -6,9 +6,9 @@ interface EmptyTileProps {
   sauna: Sauna;
   className?: string;
   backgroundImage?: string | null;
-  /** Info über die andere Sauna die zur gleichen Slot-Zeit aktiv ist.
-   *  Wenn gesetzt → Fische schwimmen in entsprechende Richtung + Leit-Text.
-   *  Wenn null → Fische schwimmen zufällig (atmosphärisches Riff). */
+  /** Info über die andere Sauna, die zur gleichen Slot-Zeit aktiv ist.
+   *  Steuert nur noch die Schwimmrichtung der Riff-Tiere — der pulsierende
+   *  Leit-Hinweis („→ Jetzt bei Blockhaus 100°C") ist entfallen, siehe unten. */
   otherSauna?: {
     saunaName: string;
     tempLabel: string;
@@ -31,14 +31,7 @@ export function EmptyTile({
 }: EmptyTileProps) {
   // backgroundImage-Prop bleibt im Interface (BC für Callers in
   // SaunaTileColumn), wird im Empty-Tile aber bewusst NICHT genutzt —
-  // das Riff IST der Hintergrund.
-  // Pfeil-Richtung im Hint-Text MUSS zur Schwimm-Richtung passen — sonst
-  // wirkt es konfus (User-Feedback: "geht in die falsche Richtung")
-  const arrowChar = otherSauna?.direction === 'left' ? '←' : '→';
-  const hintText = otherSauna
-    ? `${arrowChar} Jetzt bei ${otherSauna.saunaName} ${otherSauna.tempLabel}`
-    : undefined;
-
+  // das Karussell IST der Hintergrund.
   return (
     <motion.div
       // kein layout-Prop: verhindert Layout-Projektions-Drift beim Stundenwechsel (Tafel-only).
@@ -66,13 +59,11 @@ export function EmptyTile({
         />
       </div>
 
-      {/* Leit-Hinweis zur aktiven Nachbarsauna. Lag früher IN der Riff-Szene
-          und wäre mit ihr verschwunden — er ist aber Wegweiser-Information
-          und muss über jeder Karte stehen. */}
-      {/* Positionierung und Bob-Animation kommen komplett aus .reef-hint
-          (src/index.css) — kein Inline-transform, der würde die Keyframes
-          überschreiben. */}
-      {hintText && <div className="reef-hint" aria-hidden>{hintText}</div>}
+      {/* Der pulsierende Leit-Hinweis („→ Jetzt bei Blockhaus 100°C") ist
+          entfallen (Aug 2026). Er stammte aus der Zeit, als die leere Kachel
+          nur ein Riff zeigte und sonst nichts zu sagen hatte. Seit im Kopf der
+          Spalte ein Countdown steht und die Kacheln eigenen Inhalt tragen,
+          war er nur noch Unruhe über einer ohnehin fertigen Karte. */}
 
       {/* „FREI" — die eigentliche Aussage dieser Kachel. Ein Gast soll nicht
           erst raten müssen, ob die schöne Öl-Karte ein Aufguss ist: hier
