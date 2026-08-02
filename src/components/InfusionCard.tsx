@@ -139,7 +139,14 @@ export function InfusionCard({
   // das Motiv ihres ERSTEN Öls als Hintergrund — die 64 Bilder liegen seit
   // dem Öl-Karussell ohnehin im Repo (public/oele/<slug>.webp).
   // Custom-Öle ('custom:<uuid>') haben kein Bild und werden übersprungen.
-  const bgOil = theme ? null : (oils.map((o) => OIL_BY_ID[o]).find(Boolean) ?? null);
+  // Bis zu DREI Öl-Motive als Hintergrund — nebeneinander, jedes ein Drittel
+  // der Karte. Ein Aufguss mit Zitrone, Eukalyptus und Fichte zeigt damit
+  // buchstäblich seine Mischung. Custom-Öle ('custom:<uuid>') haben kein
+  // Motiv und fallen raus.
+  const bgOils = theme
+    ? []
+    : (oils.map((o) => OIL_BY_ID[o]).filter(Boolean).slice(0, 3) as NonNullable<typeof OIL_BY_ID[string]>[]);
+  const bgOil = bgOils[0] ?? null;
 
   // Was am Ende WIRKLICH als Pille erscheint — inkl. Default-Mood-Fallback
   // (Migration 0100) und ohne unbekannte IDs. Muss hier oben stehen, weil
@@ -240,16 +247,12 @@ export function InfusionCard({
           backgroundSize: 'cover',
           backgroundPosition: 'center bottom',
         } : bgOil ? {
-          // Gleiches Schleier-Band wie bei den Schnaps-/Räucher-Karten:
-          // oben fast weiß für Uhrzeit und Titel, in der Mitte offen fürs
-          // Motiv, unten wieder heller für Sauna-Badge und Aufgießer.
-          backgroundImage: [
-            `linear-gradient(200deg, ${colorForOil(bgOil.id)}00 0%, ${colorForOil(bgOil.id)}00 45%, ${colorForOil(bgOil.id)}2b 100%)`,
-            'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.46) 60%, rgba(255,255,255,0.34) 84%, rgba(255,255,255,0.72) 100%)',
-            `url(${JSON.stringify(`/oele/${bgOil.id}.webp`)})`,
-          ].join(', '),
-          backgroundSize: 'cover',
-          backgroundPosition: 'center bottom',
+          // Die Motive selbst liegen als eigene Ebene darunter (siehe
+          // OilStripes weiter unten) — mehrere Bilder nebeneinander gehen mit
+          // background-image nicht sauber, weil sich jede Lage nur skalieren,
+          // aber nicht auf ihr Drittel zuschneiden ließe. Hier bleibt nur die
+          // Grundfarbe, damit die Karte auch beim Laden nicht weiß aufblitzt.
+          background: `linear-gradient(135deg, ${colorForOil(bgOil.id)}18, rgba(254,247,237,0.9))`,
         } : backgroundImage ? {
           backgroundImage: `linear-gradient(rgba(2,6,12,0.62), rgba(2,6,12,0.62)), url(${backgroundImage})`,
           backgroundSize: 'cover',
@@ -279,6 +282,45 @@ export function InfusionCard({
           die Bühne). Liegt absolut über der Card aber unter dem Content
           (z-index 0, pointer-events: none). Nicht bei imminent oder
           backgroundImage anzeigen (würde dort doppelt/überflüssig wirken). */}
+      {/* Öl-Motive als Streifen: bei drei Ölen bekommt jedes ein Drittel der
+          Karte, von links nach rechts in der Reihenfolge der Runden. Darüber
+          derselbe Schleier wie auf den Schnaps-Karten (oben fast weiß für
+          Uhrzeit und Titel, in der Mitte offen fürs Motiv, unten wieder
+          heller für Sauna-Badge und Aufgießer). */}
+      {bgOils.length > 0 && (
+        <>
+          <div aria-hidden className="absolute inset-0 flex" style={{ zIndex: 0 }}>
+            {bgOils.map((o, i) => (
+              <div
+                key={`${o.id}-${i}`}
+                className="flex-1 min-w-0"
+                style={{
+                  backgroundImage: `url(${JSON.stringify(`/oele/${o.id}.webp`)})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center bottom',
+                  // Feine helle Trennlinie zwischen den Dritteln. Eine weiche
+                  // Ausblendung ginge nicht: die Streifen liegen nebeneinander
+                  // und ueberlappen sich nicht, jede Maske haette an der Naht
+                  // ein Loch hinterlassen. Die Linie liest sich als Triptychon.
+                  boxShadow: i === 0 ? undefined : 'inset 1px 0 0 rgba(255,255,255,0.55)',
+                }}
+              />
+            ))}
+          </div>
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{
+              zIndex: 0,
+              backgroundImage: [
+                `linear-gradient(200deg, ${colorForOil(bgOils[0].id)}00 0%, ${colorForOil(bgOils[0].id)}00 45%, ${colorForOil(bgOils[0].id)}2b 100%)`,
+                'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.46) 60%, rgba(255,255,255,0.34) 84%, rgba(255,255,255,0.72) 100%)',
+              ].join(', '),
+            }}
+          />
+        </>
+      )}
+
       {!imminent && !backgroundImage && !theme && !bgOil && <WoodGrainOverlay />}
 
       {compact ? (
@@ -733,7 +775,6 @@ function PillsBlock({
   // Der cqh-Mittelterm und die Maxima bleiben unangetastet — auf 4K ändert sich
   // dadurch nichts, geschrumpft wird nur dort, wo bisher der starre Pixel-Boden
   // band und der Inhalt deshalb überlief.
-  const gap = onlyOne ? 'clamp(calc(5px * var(--d)), 1.2cqh, 12px)' : 'clamp(calc(3px * var(--d)), 0.8cqh, 8px)';
   const subHeaderStyle: CSSProperties = {
     fontSize: onlyOne ? 'clamp(calc(12px * var(--d)), 3cqh, 17px)' : 'clamp(calc(8px * var(--d)), 2cqh, 11px)',
     letterSpacing: '0.12em',
@@ -741,19 +782,39 @@ function PillsBlock({
   const headerPadding = onlyOne
     ? 'clamp(calc(3px * var(--d)), 0.9cqh, 6px) clamp(calc(9px * var(--d)), 2.2cqh, 18px)'
     : 'clamp(calc(2px * var(--d)), 0.6cqh, 4px) clamp(calc(6px * var(--d)), 1.5cqh, 12px)';
-  const pillsPadding = onlyOne
-    ? 'clamp(calc(6px * var(--d)), 1.5cqh, 12px) clamp(calc(9px * var(--d)), 2.2cqh, 18px)'
-    : 'clamp(calc(4px * var(--d)), 1cqh, 8px) clamp(calc(6px * var(--d)), 1.5cqh, 12px)';
-  const pillFontSize = onlyOne ? 'clamp(calc(15px * var(--d)), 4.2cqh, 24px)' : 'clamp(calc(10px * var(--d)), 2.8cqh, 16px)';
-  const pillPadding = onlyOne
-    ? 'clamp(calc(3px * var(--d)), 0.9cqh, 7px) clamp(calc(8px * var(--d)), 1.8cqh, 15px)'
-    : 'clamp(calc(2px * var(--d)), 0.6cqh, 5px) clamp(calc(5px * var(--d)), 1.2cqh, 10px)';
-  const pillGap = onlyOne ? 'clamp(calc(3px * var(--d)), 0.8cqh, 8px)' : 'clamp(calc(2px * var(--d)), 0.5cqh, 5px)';
+
+  /** Pillengröße aus der tatsächlichen Belegung.
+   *
+   *  Vorher stand hier clamp(10px, 2.8cqh, 16px). Der cqh-Term liefert auf
+   *  einer 291-px-Kachel nur 8,1 px, also band immer der 10-px-Boden — die
+   *  Pillen waren winzig und klebten oben links in der Ecke, egal wie viel
+   *  Platz daneben frei war.
+   *
+   *  Jetzt wird gerechnet: wie viele Pillen passen nebeneinander, wie viele
+   *  Zeilen ergibt das, und wie groß darf eine Pille dann sein, damit die
+   *  Zeilen in die Sektion passen. Zwei Bremsen über min(): die Höhe
+   *  (Zeilenzahl) und die Breite (Pillen pro Zeile) — es bremst die, die
+   *  zuerst greift. Eine einzelne Pille wird dadurch groß, sechs bleiben
+   *  lesbar. */
+  function pillSizing(count: number) {
+    const proZeile = onlyOne
+      ? Math.min(count, count <= 3 ? count : 3)
+      : Math.min(count, count <= 2 ? count : 2);
+    const zeilen = Math.max(1, Math.ceil(count / Math.max(1, proZeile)));
+    // Höhenbudget des Pillen-Bereichs ≈ 20 cqh, Breitenbudget ≈ 10 cqw
+    // (volle Kartenbreite) bzw. 5 cqw (zwei Sektionen nebeneinander).
+    const hoehe = (18 / zeilen).toFixed(2);
+    const breite = ((onlyOne ? 8.8 : 4.4) / Math.max(1, proZeile)).toFixed(2);
+    return `clamp(11px, min(${hoehe}cqh, ${breite}cqw), 34px)`;
+  }
 
   // Besonderheiten deckeln — was übrig bleibt, kommt als "+N"-Chip dazu,
   // damit nichts stillschweigend verschwindet.
   const shownAttrs = attributes.slice(0, MAX_ATTR_PILLS);
   const hiddenAttrCount = attributes.length - shownAttrs.length;
+
+  const pillFontAttr = pillSizing(shownAttrs.length + (hiddenAttrCount > 0 ? 1 : 0));
+  const pillFontOil = pillSizing(oils.length);
 
   return (
     /* Der entscheidende Hebel gegen den Überlauf: sind BEIDE Sektionen gefüllt
@@ -767,7 +828,7 @@ function PillsBlock({
        der Karte, damit der Fuß garantiert stehen bleibt. */
     <div
       className={`pills-block flex flex-col w-full ${hasAttrs && hasOils ? 'pills-both' : ''}`}
-      style={{ flex: '0 1 auto', minHeight: 0, overflow: 'hidden', gap: 'clamp(calc(8px * var(--d)), 2cqh, 18px)' }}
+      style={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden', gap: 'clamp(calc(8px * var(--d)), 2cqh, 18px)' }}
     >
       {attributes.length > 0 && (
         /* "übereinander" → Card mit eigenem Background + stärkerem Ring,
@@ -778,7 +839,7 @@ function PillsBlock({
           className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden bg-white/65 backdrop-blur-sm shadow-sm ${
             attributesAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-slate-400/40'
           }`}
-          style={{ flex: '0 1 auto', minHeight: 0 }}
+          style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
         >
           <div
             className={`font-bold uppercase ${attributesAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-slate-500/25 text-slate-800'}`}
@@ -786,7 +847,10 @@ function PillsBlock({
           >
             {attributesAreDefault ? '🪶 Sein Stil' : '⚡ Besonderheiten'}
           </div>
-          <div className="flex flex-wrap items-start content-start" style={{ gap, padding: pillsPadding }}>
+          <div
+            className="flex flex-1 flex-wrap items-center content-center justify-center min-h-0"
+            style={{ fontSize: pillFontAttr, gap: '0.45em', padding: '0.5em 0.6em' }}
+          >
             {shownAttrs.map((a) => {
               // 1) Standard-Attribut? → aus ATTR_BY_ID auflösen
               const standardMeta = ATTR_BY_ID[a as InfusionAttribute];
@@ -798,9 +862,8 @@ function PillsBlock({
                     title={standardMeta.label}
                     className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
                     style={{
-                      fontSize: pillFontSize,
-                      padding: pillPadding,
-                      gap: pillGap,
+                      padding: '0.34em 0.85em',
+                      gap: '0.4em',
                       background: tintBg(c),
                       boxShadow: tintRing(c),
                     }}
@@ -820,9 +883,8 @@ function PillsBlock({
                     title={customMeta.label}
                     className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
                     style={{
-                      fontSize: pillFontSize,
-                      padding: pillPadding,
-                      gap: pillGap,
+                      padding: '0.34em 0.85em',
+                      gap: '0.4em',
                       background: tintBg(c),
                       boxShadow: tintRing(c),
                     }}
@@ -840,8 +902,7 @@ function PillsBlock({
                 title={`${hiddenAttrCount} weitere Besonderheiten`}
                 className="inline-flex items-center rounded-full backdrop-blur font-bold text-slate-700 whitespace-nowrap"
                 style={{
-                  fontSize: pillFontSize,
-                  padding: pillPadding,
+                  padding: '0.34em 0.85em',
                   background: tintBg('#64748b'),
                   boxShadow: tintRing('#64748b'),
                 }}
@@ -859,7 +920,7 @@ function PillsBlock({
           className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden bg-amber-50/70 backdrop-blur-sm shadow-sm ${
             oilsAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-amber-500/45'
           }`}
-          style={{ flex: '0 1 auto', minHeight: 0 }}
+          style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
         >
           <div
             className={`font-bold uppercase ${oilsAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-amber-500/30 text-amber-900'}`}
@@ -867,7 +928,10 @@ function PillsBlock({
           >
             {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : '🌿 Öle'}
           </div>
-          <div className="flex flex-wrap items-start content-start" style={{ gap, padding: pillsPadding }}>
+          <div
+            className="flex flex-1 flex-wrap items-center content-center justify-center min-h-0"
+            style={{ fontSize: pillFontOil, gap: '0.45em', padding: '0.5em 0.6em' }}
+          >
             {oils.map((oilId, i) => {
               // Custom-Öl (Format: 'custom:<uuid>') → Lookup im All-Custom-Oils
               const customUuid = parseCustomOilId(oilId);
@@ -887,9 +951,8 @@ function PillsBlock({
                   title={display.name}
                   className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
                   style={{
-                    fontSize: pillFontSize,
-                    padding: pillPadding,
-                    gap: pillGap,
+                    padding: '0.34em 0.85em',
+                    gap: '0.4em',
                     background: tintBg(c),
                     boxShadow: tintRing(c),
                   }}
