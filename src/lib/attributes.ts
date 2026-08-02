@@ -35,15 +35,15 @@ export type InfusionAttribute =
 
 // `hidden` = wird im Eintrage-Formular NICHT mehr als Chip angeboten, bleibt
 // aber in der Liste damit ATTR_BY_ID Alt-Daten weiter beschriften kann.
-// Betrifft aktuell nur Kirschwasser/Haferpflaume — die werden seit dem
-// Schnaps-Reiter über lib/schnaps.ts gepflegt (siehe dort).
+// Betrifft Kirschwasser/Haferpflaume (jetzt im Schnaps-Reiter, lib/schnaps.ts)
+// und Räuchern (jetzt im Räucher-Reiter, lib/aufgussTheme.ts).
 export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string; hidden?: true }[] = [
   // Aufguss-Stil
   { id: 'flame',          emoji: '🔥', label: 'Extra heiß' },
   { id: 'sud',            emoji: '💧', label: 'Intensiver Sud' },
   { id: 'nature',         emoji: '🌿', label: 'Natur / Kräuter' },
   { id: 'menthol',        emoji: '❄️', label: 'Menthol-Kristalle' },
-  { id: 'raeuchern',      emoji: '💨', label: 'Räuchern' },
+  { id: 'raeuchern',      emoji: '💨', label: 'Räuchern', hidden: true },
   { id: 'kaffee',         emoji: '☕', label: 'Kaffee' },
   { id: 'kirschwasser',   emoji: '🍒', label: 'Kirschwasser', hidden: true },
   { id: 'haferpflaume',   emoji: '🟣', label: 'Haferpflaume', hidden: true },

@@ -11,6 +11,7 @@ import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID, parseSchnapsAttr, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
+import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { lookupMemberName } from '@/lib/memberDisplay';
 import { berlinYmd } from '@/lib/time';
@@ -401,7 +402,7 @@ export default function Planner() {
   // attributes geschrieben (siehe lib/schnaps.ts). Öle und Schnaps sind
   // unabhängig — der Reiter schaltet nur die Sicht, nicht die Daten.
   const [schnaps, setSchnaps] = useState<string | null>(null);
-  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps'>('oils');
+  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps' | 'raeuchern'>('oils');
   const [teamInfusion, setTeamInfusion] = useState(false);
   // Aufguss-Dauer (User-Wunsch: 20/30/45 wählbar, Default 20; 90 = Banja)
   const [duration, setDuration] = useState<number>(DEFAULT_DURATION_MIN);
@@ -409,6 +410,7 @@ export default function Planner() {
   // submit() hat eine eigene lokale Kopie, hier nur fürs Rendering.
   const isBanjaPlanned = (attrs as string[]).includes(BANJA_ATTR);
   const selectedSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
+  const raeuchernOn = (attrs as string[]).includes(RAEUCHER_ATTR);
   // Attribute + Custom-Buttons + ggf. Schnaps — so wandert alles in EINEM
   // text[] in die DB (siehe lib/schnaps.ts warum der Schnaps hier mitreist).
   const attrsPayload = (): string[] => [
@@ -1527,14 +1529,15 @@ export default function Planner() {
                   </div>
                 )}
 
-                {/* Aroma-Bereich mit zwei Reitern: Öle ODER Schnaps-Aufguss.
-                    Die Reiter schalten nur die Sicht — beides darf gleichzeitig
+                {/* Aroma-Bereich mit drei Reitern: Öle · Schnaps · Räuchern.
+                    Die Reiter schalten nur die Sicht — mehreres darf gleichzeitig
                     gesetzt sein, der Punkt auf dem inaktiven Reiter zeigt das an. */}
                 <div>
                   <div className="flex gap-1.5 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/50">
                     {([
-                      { id: 'oils',    icon: '🌿', label: 'Ätherische Öle', filled: oils.some(Boolean) },
-                      { id: 'schnaps', icon: '🥃', label: 'Schnaps',        filled: !!schnaps },
+                      { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oils.some(Boolean) },
+                      { id: 'schnaps',   icon: '🥃', label: 'Schnaps',  filled: !!schnaps },
+                      { id: 'raeuchern', icon: '💨', label: 'Räuchern', filled: raeuchernOn },
                     ] as const).map((t) => {
                       const active = aromaTab === t.id;
                       return (
@@ -1542,7 +1545,7 @@ export default function Planner() {
                           key={t.id}
                           type="button"
                           onClick={() => setAromaTab(t.id)}
-                          className={`relative flex-1 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                          className={`relative flex-1 rounded-lg px-2 py-2 text-xs font-medium transition ${
                             active
                               ? 'bg-forest-500 text-forest-950'
                               : 'text-forest-300 hover:bg-forest-900/70'
@@ -1589,7 +1592,7 @@ export default function Planner() {
                         })}
                       </div>
                     </div>
-                  ) : (
+                  ) : aromaTab === 'schnaps' ? (
                     <div className="mt-2">
                       <label className="text-xs text-forest-300">Schnaps-Sorte <span className="text-forest-400/60">— eine pro Aufguss</span></label>
                       <select
@@ -1613,6 +1616,31 @@ export default function Planner() {
                           <span className="text-[11px] text-forest-400/70">erscheint mit Fruchtbild auf der Tafel</span>
                         </div>
                       )}
+                    </div>
+                  ) : (
+                    /* Räuchern hat keine Sorten — nur an/aus. Gespeichert wird das
+                       seit jeher vorhandene Attribut 'raeuchern' (lib/aufgussTheme.ts),
+                       deshalb kein eigener State. */
+                    <div className="mt-2">
+                      <label className="text-xs text-forest-300">Räucheraufguss</label>
+                      <button
+                        type="button"
+                        onClick={() => toggleAttr(RAEUCHER_ATTR as InfusionAttribute)}
+                        className="mt-1.5 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left ring-1 transition"
+                        style={raeuchernOn
+                          ? { background: `${RAEUCHER_THEME.color}55`, boxShadow: `inset 0 0 0 2px ${RAEUCHER_THEME.color}` }
+                          : { background: 'rgba(20,83,45,0.35)', boxShadow: 'inset 0 0 0 1px rgba(20,83,45,0.7)' }}
+                      >
+                        <span className={`relative h-6 w-10 flex-shrink-0 rounded-full transition ${raeuchernOn ? 'bg-slate-200' : 'bg-forest-800'}`}>
+                          <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${raeuchernOn ? 'translate-x-4' : ''}`} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-forest-100">💨 Räucheraufguss</span>
+                          <span className="block text-[11px] text-forest-300/70">
+                            {raeuchernOn ? 'erscheint mit Räucher-Bild auf der Tafel' : 'Kräuterbündel & Harz auf den Steinen'}
+                          </span>
+                        </span>
+                      </button>
                     </div>
                   )}
                 </div>

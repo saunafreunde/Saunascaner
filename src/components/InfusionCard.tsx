@@ -5,7 +5,7 @@ import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
-import { schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
+import { themeFromAttributes, stripThemeAttrs } from '@/lib/aufgussTheme';
 import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
@@ -37,6 +37,17 @@ function imminentStage(minsToStart: number): 0 | 2 | 5 | 10 | null {
   if (minsToStart > 0) return 2;
   return 0;
 }
+
+/** Einheitliche Polsterung der Kopf-Badges (LIVE, Banja, Aufguss-Art).
+ *  Als Konstante, damit die drei nicht auseinanderlaufen. */
+const BADGE_PAD = 'clamp(calc(2px * var(--d)), 0.6cqh, 5px) clamp(calc(6px * var(--d)), 1.6cqh, 12px)';
+
+/** Obergrenze der Besonderheiten-Pillen auf einer Kachel. Bewusst großzügig —
+ *  reale Aufgüsse haben 2–5. Sie ist nur die harte Schranke nach oben: die
+ *  Attributliste ist im Formular unbegrenzt (Standard-Chips + eigene Buttons),
+ *  ohne Deckel könnte eine einzelne Karte die Spalte sprengen. Was wegfällt,
+ *  wird als "+N" angezeigt — nichts verschwindet stillschweigend. */
+const MAX_ATTR_PILLS = 8;
 
 const STAGE_COLOR: Record<0 | 2 | 5 | 10, string> = {
   10: '#22c55e', // grün
@@ -108,18 +119,37 @@ export function InfusionCard({
   // anzeigen als aktuell erlaubt, sonst sieht's chaotisch aus.
   const oils = ((infusion.oils ?? []).filter(Boolean) as string[]).slice(0, MAX_OIL_SLOTS);
 
-  // Schnaps-Aufguss? Steckt als 'schnaps:<slug>' in den attributes (siehe
-  // lib/schnaps.ts), erkennt zusätzlich die alten Chips kirschwasser/
-  // haferpflaume. Färbt Karten-Hintergrund + eigene Pille, lässt die
-  // Sauna-Identität (Akzentstreifen, Sauna-Badge) bewusst unangetastet.
-  const schnaps = schnapsFromAttributes(infusion.attributes);
-  // Der Schnaps steht schon als eigene Auszeichnung auf der Karte — er darf
-  // nicht zusätzlich als Besonderheiten-Pille auftauchen. Betrifft vor allem
-  // Alt-Aufgüsse: 'kirschwasser'/'haferpflaume' sind weiter in ATTR_BY_ID
-  // (damit Alt-Daten beschriftbar bleiben) und würden sonst doppelt erscheinen.
-  const pillAttributes = schnaps
-    ? stripSchnapsAttrs(infusion.attributes ?? [])
+  // Hat dieser Aufguss einen eigenen Look? Schnaps (als 'schnaps:<slug>' bzw.
+  // Alt-Chip kirschwasser/haferpflaume) oder Räuchern (Attribut 'raeuchern')
+  // — siehe lib/aufgussTheme.ts. Färbt Karten-Hintergrund + eigene Pille und
+  // lässt die Sauna-Identität (Akzentstreifen, Sauna-Badge) unangetastet.
+  const theme = themeFromAttributes(infusion.attributes);
+  // Was schon als Auszeichnung oben steht, darf unten nicht nochmal als
+  // Besonderheiten-Pille erscheinen. Betrifft vor allem Alt-Aufgüsse:
+  // 'kirschwasser'/'raeuchern' sind weiter in ATTR_BY_ID (damit Alt-Daten
+  // beschriftbar bleiben) und würden sonst doppelt auftauchen.
+  const pillAttributes = theme
+    ? stripThemeAttrs(infusion.attributes ?? [])
     : (infusion.attributes ?? []);
+
+  const isBanja = (infusion.attributes ?? []).includes('banja' as InfusionAttribute);
+
+  // Was am Ende WIRKLICH als Pille erscheint — inkl. Default-Mood-Fallback
+  // (Migration 0100) und ohne unbekannte IDs. Muss hier oben stehen, weil
+  // daraus die Inhalts-Dichte abgeleitet wird: würde man mit den Roh-Arrays
+  // rechnen, bekäme ein Aufguss mit lauter veralteten Custom-UUIDs die dichte
+  // Stufe, obwohl gar nichts gerendert wird.
+  const knownAttr = (a: string) =>
+    !!(ATTR_BY_ID as Record<string, unknown>)[a] || (customAttrsAll.data ?? []).some((ca) => ca.id === a);
+  const pillAttrs = (infusion.attributes?.length ? pillAttributes : (meisterDefaults?.default_mood_attributes ?? []))
+    .filter(knownAttr);
+  const pillOils = oils.length ? oils : (meisterDefaults?.default_mood_oils ?? []).slice(0, MAX_OIL_SLOTS);
+
+  // Inhalts-Achse des Dichte-Faktors: sind BEIDE Sektionen gefüllt (der vom
+  // User genannte Normalfall), wird es eng → 1. Sonst darf alles 25 % größer
+  // werden — das ist die bisherige onlyOne-Regel aus PillsBlock, nur als Zahl
+  // und damit auch für Kopf und Fuß nutzbar.
+  const dContent = pillAttrs.length > 0 && pillOils.length > 0 ? 1 : 1.25;
 
   // Countdown-Text bis Start (oder Status falls läuft/vorbei).
   // Wird sekündlich/minütlich aktualisiert via Parent-`now`-Prop (alle 5s im Dashboard).
@@ -181,7 +211,7 @@ export function InfusionCard({
         // bei 3 als auch 4 Tiles, sowohl 1080p als auch 4K.
         containerType: 'size',
         ...(imminent ? { borderColor: sauna.accent_color } : {}),
-        ...(schnaps ? {
+        ...(theme ? {
           // Schnaps-Karte: Fruchtbild als Plakat-Hintergrund. Bewusst ein
           // HELLER Schleier statt des dunklen im Zweig darunter — die Karte
           // ist Hell-Theme (Titel text-slate-900), auf einem abgedunkelten
@@ -196,9 +226,9 @@ export function InfusionCard({
           // background-position bottom, weil die Frucht in allen Motiven unten
           // im Bild sitzt (siehe Prompt-Vorgabe in Desktop\sauna_gen.py).
           backgroundImage: [
-            `linear-gradient(200deg, ${schnaps.color}00 0%, ${schnaps.color}00 45%, ${schnaps.color}30 100%)`,
+            `linear-gradient(200deg, ${theme.color}00 0%, ${theme.color}00 45%, ${theme.color}30 100%)`,
             'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.42) 60%, rgba(255,255,255,0.30) 84%, rgba(255,255,255,0.70) 100%)',
-            `url(${JSON.stringify(schnaps.image)})`,
+            `url(${JSON.stringify(theme.image)})`,
           ].join(', '),
           backgroundSize: 'cover',
           backgroundPosition: 'center bottom',
@@ -231,20 +261,25 @@ export function InfusionCard({
           die Bühne). Liegt absolut über der Card aber unter dem Content
           (z-index 0, pointer-events: none). Nicht bei imminent oder
           backgroundImage anzeigen (würde dort doppelt/überflüssig wirken). */}
-      {!imminent && !backgroundImage && !schnaps && <WoodGrainOverlay />}
+      {!imminent && !backgroundImage && !theme && <WoodGrainOverlay />}
 
       {compact ? (
         /* relative z-10 — damit der Card-Content GARANTIERT über der
            Holz-Maserung (WoodGrainOverlay, z-index 1) liegt und nicht
            davon überdeckt wird */
-        <div className="relative z-10 flex flex-col flex-1 min-h-0 pl-3" style={{ gap: 'clamp(4px, 1.5cqh, 12px)' }}>
-          {/* Header: Uhrzeit + Titel. Beide Schriftgrößen skalieren via cqh
-              proportional zur Tile-Höhe — auf kleinen Tiles automatisch kleiner. */}
-          <div className="flex items-stretch flex-shrink-0" style={{ gap: 'clamp(6px, 1.5cqh, 12px)' }}>
+        <div
+          className="tile-body relative z-10 flex flex-col flex-1 min-h-0 pl-3"
+          style={{ '--d-c': dContent, gap: 'clamp(calc(4px * var(--d)), 1.5cqh, 12px)' } as CSSProperties}
+        >
+          {/* Header: Uhrzeit + Titel + Auszeichnungen. Schriftgrößen skalieren
+              via cqh proportional zur Tile-Höhe; die clamp-MINIMA zusätzlich
+              über --d (siehe index.css .tile-body) — sonst greift auf kleinen
+              Kacheln nur noch der starre Pixel-Boden und der Inhalt läuft über. */}
+          <div className="flex items-stretch flex-shrink-0" style={{ gap: 'clamp(calc(6px * var(--d)), 1.5cqh, 12px)' }}>
             <div
               className="relative rounded-xl flex items-center justify-center backdrop-blur-md flex-shrink-0"
               style={{
-                padding: 'clamp(4px, 1.2cqh, 10px) clamp(8px, 2cqh, 16px)',
+                padding: 'clamp(calc(4px * var(--d)), 1.2cqh, 10px) clamp(calc(8px * var(--d)), 2cqh, 16px)',
                 background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
               }}
@@ -284,107 +319,103 @@ export function InfusionCard({
                 className="relative font-bold tabular-nums leading-none whitespace-nowrap"
                 style={{
                   color: sauna.accent_color,
-                  fontSize: 'clamp(16px, 5cqh, 30px)',
+                  fontSize: 'clamp(calc(16px * var(--dh)), 5cqh, 30px)',
                 }}
               >
                 {fmtClock(infusion.start_time)}
               </span>
             </div>
             <div
-              className="relative flex-1 rounded-xl flex flex-col justify-center backdrop-blur-md min-w-0 overflow-hidden"
+              className="relative flex-1 rounded-xl flex flex-row items-center backdrop-blur-md min-w-0 overflow-hidden"
               style={{
-                padding: 'clamp(6px, 1.6cqh, 14px) clamp(11px, 2.7cqh, 22px)',
-                // Auf Schnaps-Karten ist der Karten-Schleier oben fast weiß —
-                // die sonst dunkle Titel-Box säße dort als Fremdkörper und
-                // drückte den slate-900-Titel auf ~3,5:1. Helle Box statt
-                // dessen: ~13:1, und das Fruchtbild bleibt unten ungestört.
-                background: schnaps
+                padding: 'clamp(calc(6px * var(--d)), 1.6cqh, 14px) clamp(calc(11px * var(--d)), 2.7cqh, 22px)',
+                gap: 'clamp(calc(5px * var(--d)), 1.2cqh, 10px)',
+                // Auf Bild-Karten (Schnaps/Räuchern) ist der Karten-Schleier oben
+                // fast weiß — die sonst dunkle Titel-Box säße dort als Fremdkörper
+                // und drückte den slate-900-Titel auf ~3,5:1. Helle Box statt
+                // dessen: ~13:1, und das Motiv bleibt unten ungestört.
+                background: theme
                   ? `linear-gradient(135deg, ${sauna.accent_color}26 0%, rgba(255,255,255,0.86) 55%)`
                   : `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
-              {/* Live-Badge bleibt oben rechts in der Titel-Box. Sauna-Badge
-                  wandert nach unten links — siehe weiter unten unterhalb der
-                  motion.div-Schließung. */}
-              {running && (
-                <div
-                  className="absolute top-1 right-1 flex items-center flex-shrink-0"
-                  style={{ fontSize: 'clamp(8px, 1.9cqh, 11px)' }}
-                >
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 font-black tracking-wider text-white whitespace-nowrap"
-                    style={{ boxShadow: '0 0 10px rgba(34,197,94,0.7)' }}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-white tafel-blink" />
-                    LIVE
-                  </span>
-                </div>
-              )}
-
-              {/* Banja-Ritual-Badge: oben LINKS in der Titel-Box, prominent rose,
-                  damit sofort erkennbar dass es sich um den 90-Min-Spezial-Aufguss
-                  handelt der 2 Slots (19+20:00) gemerged belegt. */}
-              {(infusion.attributes ?? []).includes('banja' as InfusionAttribute) && (
-                <div
-                  className="absolute top-1 left-1 flex items-center flex-shrink-0"
-                  style={{ fontSize: 'clamp(8px, 1.9cqh, 11px)' }}
-                >
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-600 to-rose-500 px-2 py-0.5 font-black tracking-wider text-white whitespace-nowrap"
-                    style={{ boxShadow: '0 0 10px rgba(244,63,94,0.6)' }}
-                  >
-                    🇷🇺 BANJA · 90 MIN
-                  </span>
-                </div>
-              )}
-
               <h3
-                className="font-black text-slate-900 leading-tight w-full tracking-tight pr-1"
+                className="font-black text-slate-900 leading-tight tracking-tight flex-1 min-w-0 line-clamp-2"
                 style={{
-                  fontSize: 'clamp(21px, 5.9cqh, 36px)',
+                  fontSize: 'clamp(calc(21px * var(--dh)), 5.9cqh, 36px)',
                   textShadow: `0 1px 0 ${sauna.accent_color}25`,
                 }}
               >
                 {infusion.title}
                 {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
               </h3>
+
+              {/* Auszeichnungen (Aufguss-Art, Banja, LIVE) — im FLUSS rechts neben
+                  dem Titel, nicht mehr absolut positioniert. Zwei Gründe: die
+                  beiden alten absolute-Badges lagen über der ersten Titelzeile und
+                  kollidierten bei Banja+LIVE miteinander; und die Aufguss-Art
+                  brauchte vorher eine eigene Zeile unter der Kopfzeile — die hat
+                  bei 4 Kacheln auf 1080p rund 25 px gekostet und war der
+                  Hauptgrund für den Überlauf. Hier kostet sie nichts, solange die
+                  Badge-Höhe unter der Titelzeile bleibt (per Konstruktion). */}
+              {(theme || running || isBanja) && (
+                <div
+                  className="flex flex-col items-end flex-shrink-0 max-w-[45%]"
+                  style={{
+                    gap: 'clamp(calc(3px * var(--d)), 0.8cqh, 7px)',
+                    fontSize: 'clamp(calc(9px * var(--d)), 2.2cqh, 14px)',
+                  }}
+                >
+                  {running && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-500 font-black tracking-wider text-white whitespace-nowrap"
+                      style={{ padding: BADGE_PAD, boxShadow: '0 0 10px rgba(34,197,94,0.7)' }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-white tafel-blink" />
+                      LIVE
+                    </span>
+                  )}
+                  {isBanja && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-600 to-rose-500 font-black tracking-wider text-white whitespace-nowrap"
+                      style={{ padding: BADGE_PAD, boxShadow: '0 0 10px rgba(244,63,94,0.6)' }}
+                    >
+                      🇷🇺 BANJA · 90 MIN
+                    </span>
+                  )}
+                  {theme && (
+                    <span
+                      className="inline-flex items-center rounded-full font-black uppercase tracking-wider text-white whitespace-nowrap max-w-full overflow-hidden text-ellipsis"
+                      style={{
+                        padding: BADGE_PAD,
+                        background: `linear-gradient(135deg, ${theme.color}, ${theme.color}cc)`,
+                        boxShadow: `0 2px 10px ${theme.color}88, inset 0 1px 0 rgba(255,255,255,0.3)`,
+                        textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+                      }}
+                    >
+                      {/* theme.badge bringt sein Emoji selbst mit (🥃 bzw. 💨) —
+                          ein zusätzliches hier führte zu "🥃 💨 Räucheraufguss". */}
+                      {theme.badge}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Schnaps-Auszeichnung — eigene Zeile direkt unter der Kopfzeile,
-              damit sie auch dann trägt wenn das Fruchtbild im Hintergrund
-              durch Branding-Einstellungen mal nicht durchkommt. Erscheint
-              ausschließlich auf Schnaps-Aufgüssen. */}
-          {schnaps && (
-            <div className="flex flex-shrink-0">
-              <span
-                className="inline-flex items-center rounded-full font-black uppercase tracking-wider text-white whitespace-nowrap"
-                style={{
-                  fontSize: 'clamp(10px, 2.6cqh, 15px)',
-                  padding:  'clamp(3px, 0.8cqh, 6px) clamp(8px, 2cqh, 14px)',
-                  gap:      'clamp(3px, 0.8cqh, 7px)',
-                  background: `linear-gradient(135deg, ${schnaps.color}, ${schnaps.color}cc)`,
-                  boxShadow: `0 2px 10px ${schnaps.color}88, inset 0 1px 0 rgba(255,255,255,0.3)`,
-                  textShadow: '0 1px 2px rgba(0,0,0,0.45)',
-                }}
-              >
-                <span aria-hidden>🥃</span>
-                <span>{schnaps.name}-Aufguss</span>
-              </span>
-            </div>
-          )}
 
           {/* Aufgießer-Strip wurde nach UNTEN MITTIG verschoben — siehe
               direkt nach dem PillsBlock, eigene zentrierte Zeile vor dem
               Footer. So bleibt oben mehr Platz für Titel + Pills, und der
               Aufgießer wird als zentrales Plakat-Element prominent gezeigt. */}
 
-          {/* Description (kursiv, max 1 Zeile) — nur wenn vorhanden */}
+          {/* Description (kursiv, max 1 Zeile) — nur wenn vorhanden.
+              tile-desc: wird erst auf sehr kleinen Kacheln (<175px) ausgeblendet,
+              siehe index.css — dort ist sie das erste, was verzichtbar ist. */}
           {infusion.description && (
             <p
-              className="text-slate-600 italic line-clamp-1 flex-shrink-0"
-              style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
+              className="tile-desc text-slate-600 italic line-clamp-1 flex-shrink-0"
+              style={{ fontSize: 'clamp(calc(10px * var(--d)), 2.5cqh, 14px)' }}
             >
               {infusion.description}
             </p>
@@ -394,10 +425,13 @@ export function InfusionCard({
               Default-Mood-Fallback (Migration 0100): wenn der Aufguss leere
               attrs oder oils hat und der Aufgießer einen "Standard-Stil"
               im Profil hinterlegt hat, zeigen wir die Default-Pills mit
-              dezentem "🪶 Sein Stil"-Header an Stelle der leeren Sektion. */}
+              dezentem "🪶 Sein Stil"-Header an Stelle der leeren Sektion.
+              flex 0 1 auto + min-h-0: der PillsBlock ist als EINZIGES Kind
+              nachgiebig — damit ist der Fuß (Sauna-Badge, Aufgießer, Countdown)
+              rechnerisch garantiert sichtbar, egal wie viel oben steht. */}
           <PillsBlock
-            attributes={infusion.attributes?.length ? pillAttributes : (meisterDefaults?.default_mood_attributes ?? [])}
-            oils={oils.length ? oils : (meisterDefaults?.default_mood_oils ?? []).slice(0, MAX_OIL_SLOTS)}
+            attributes={pillAttrs}
+            oils={pillOils}
             attributesAreDefault={!infusion.attributes?.length && (meisterDefaults?.default_mood_attributes?.length ?? 0) > 0}
             oilsAreDefault={!oils.length && (meisterDefaults?.default_mood_oils?.length ?? 0) > 0}
             colorForAttr={colorForAttr}
@@ -420,8 +454,8 @@ export function InfusionCard({
             <span
               className="inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white flex-shrink-0"
               style={{
-                fontSize: 'clamp(13px, 3.1cqh, 18px)',
-                padding:  'clamp(4px, 1cqh, 7px) clamp(9px, 2.4cqh, 16px)',
+                fontSize: 'clamp(calc(13px * var(--dh)), 3.1cqh, 18px)',
+                padding:  'clamp(calc(4px * var(--d)), 1cqh, 7px) clamp(calc(9px * var(--d)), 2.4cqh, 16px)',
                 background: sauna.accent_color,
                 boxShadow: `0 2px 10px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
                 textShadow: '0 1px 2px rgba(0,0,0,0.45)',
@@ -451,8 +485,8 @@ export function InfusionCard({
                       aria-hidden
                       className="flex-shrink-0 rounded-full overflow-hidden"
                       style={{
-                        width:  'clamp(32px, 8cqh, 54px)',
-                        height: 'clamp(32px, 8cqh, 54px)',
+                        width:  'clamp(calc(28px * var(--d)), 8cqh, 54px)',
+                        height: 'clamp(calc(28px * var(--d)), 8cqh, 54px)',
                         boxShadow: accent
                           ? `0 0 0 2px ${accent}, 0 0 14px ${accent}66`
                           : '0 0 0 2px rgba(148,163,184,0.4)',
@@ -473,7 +507,7 @@ export function InfusionCard({
                   <div
                     className="font-bold truncate"
                     style={{
-                      fontSize: 'clamp(13px, 3.4cqh, 20px)',
+                      fontSize: 'clamp(calc(13px * var(--dh)), 3.4cqh, 20px)',
                       color: meisterDefaults.star_accent_color ?? '#1e293b',
                     }}
                   >
@@ -488,7 +522,7 @@ export function InfusionCard({
                   {meisterDefaults.motto && (
                     <div
                       className="italic text-slate-500 truncate"
-                      style={{ fontSize: 'clamp(10px, 2.5cqh, 14px)' }}
+                      style={{ fontSize: 'clamp(calc(10px * var(--d)), 2.5cqh, 14px)' }}
                     >
                       „{meisterDefaults.motto}"
                     </div>
@@ -505,15 +539,15 @@ export function InfusionCard({
             <div className="flex flex-col items-end gap-1 leading-none whitespace-nowrap flex-shrink-0">
               <span
                 className="tabular-nums font-bold text-black"
-                style={{ fontSize: 'clamp(16px, 4.3cqh, 26px)' }}
+                style={{ fontSize: 'clamp(calc(16px * var(--dh)), 4.3cqh, 26px)' }}
               >
                 {fmtClock(now)}
               </span>
               <span
                 className={`inline-flex items-center tabular-nums font-black text-white rounded-full ${imminent ? 'tafel-blink' : ''}`}
                 style={{
-                  fontSize: 'clamp(11px, 2.8cqh, 17px)',
-                  padding: 'clamp(2px, 0.7cqh, 5px) clamp(7px, 1.8cqh, 12px)',
+                  fontSize: 'clamp(calc(11px * var(--d)), 2.8cqh, 17px)',
+                  padding: 'clamp(calc(2px * var(--d)), 0.7cqh, 5px) clamp(calc(7px * var(--d)), 1.8cqh, 12px)',
                   background: running ? '#16a34a' : '#dc2626',
                   boxShadow: running
                     ? '0 1px 4px rgba(34,197,94,0.5), inset 0 1px 0 rgba(255,255,255,0.25)'
@@ -677,37 +711,56 @@ function PillsBlock({
   const hasOils  = oils.length > 0;
   const onlyOne  = hasAttrs !== hasOils; // XOR
 
-  const gap = onlyOne ? 'clamp(5px, 1.2cqh, 12px)' : 'clamp(3px, 0.8cqh, 8px)';
+  // Alle Minima zusätzlich über --d (Raum × Inhalt, siehe index.css .tile-body).
+  // Der cqh-Mittelterm und die Maxima bleiben unangetastet — auf 4K ändert sich
+  // dadurch nichts, geschrumpft wird nur dort, wo bisher der starre Pixel-Boden
+  // band und der Inhalt deshalb überlief.
+  const gap = onlyOne ? 'clamp(calc(5px * var(--d)), 1.2cqh, 12px)' : 'clamp(calc(3px * var(--d)), 0.8cqh, 8px)';
   const subHeaderStyle: CSSProperties = {
-    fontSize: onlyOne ? 'clamp(12px, 3cqh, 17px)' : 'clamp(8px, 2cqh, 11px)',
+    fontSize: onlyOne ? 'clamp(calc(12px * var(--d)), 3cqh, 17px)' : 'clamp(calc(8px * var(--d)), 2cqh, 11px)',
     letterSpacing: '0.12em',
   };
   const headerPadding = onlyOne
-    ? 'clamp(3px, 0.9cqh, 6px) clamp(9px, 2.2cqh, 18px)'
-    : 'clamp(2px, 0.6cqh, 4px) clamp(6px, 1.5cqh, 12px)';
+    ? 'clamp(calc(3px * var(--d)), 0.9cqh, 6px) clamp(calc(9px * var(--d)), 2.2cqh, 18px)'
+    : 'clamp(calc(2px * var(--d)), 0.6cqh, 4px) clamp(calc(6px * var(--d)), 1.5cqh, 12px)';
   const pillsPadding = onlyOne
-    ? 'clamp(6px, 1.5cqh, 12px) clamp(9px, 2.2cqh, 18px)'
-    : 'clamp(4px, 1cqh, 8px) clamp(6px, 1.5cqh, 12px)';
-  const pillFontSize = onlyOne ? 'clamp(15px, 4.2cqh, 24px)' : 'clamp(10px, 2.8cqh, 16px)';
+    ? 'clamp(calc(6px * var(--d)), 1.5cqh, 12px) clamp(calc(9px * var(--d)), 2.2cqh, 18px)'
+    : 'clamp(calc(4px * var(--d)), 1cqh, 8px) clamp(calc(6px * var(--d)), 1.5cqh, 12px)';
+  const pillFontSize = onlyOne ? 'clamp(calc(15px * var(--d)), 4.2cqh, 24px)' : 'clamp(calc(10px * var(--d)), 2.8cqh, 16px)';
   const pillPadding = onlyOne
-    ? 'clamp(3px, 0.9cqh, 7px) clamp(8px, 1.8cqh, 15px)'
-    : 'clamp(2px, 0.6cqh, 5px) clamp(5px, 1.2cqh, 10px)';
-  const pillGap = onlyOne ? 'clamp(3px, 0.8cqh, 8px)' : 'clamp(2px, 0.5cqh, 5px)';
+    ? 'clamp(calc(3px * var(--d)), 0.9cqh, 7px) clamp(calc(8px * var(--d)), 1.8cqh, 15px)'
+    : 'clamp(calc(2px * var(--d)), 0.6cqh, 5px) clamp(calc(5px * var(--d)), 1.2cqh, 10px)';
+  const pillGap = onlyOne ? 'clamp(calc(3px * var(--d)), 0.8cqh, 8px)' : 'clamp(calc(2px * var(--d)), 0.5cqh, 5px)';
+
+  // Besonderheiten deckeln — was übrig bleibt, kommt als "+N"-Chip dazu,
+  // damit nichts stillschweigend verschwindet.
+  const shownAttrs = attributes.slice(0, MAX_ATTR_PILLS);
+  const hiddenAttrCount = attributes.length - shownAttrs.length;
 
   return (
-    /* "alles zu gepresst" → größerer Gap zwischen den beiden Cards
-       (Besonderheiten + Öle), damit sie klar als zwei getrennte Blöcke
-       übereinander wirken. War clamp(4, 1cqh, 10) → jetzt clamp(8, 2cqh, 18). */
-    <div className="flex flex-col flex-shrink-0 w-full" style={{ gap: 'clamp(8px, 2cqh, 18px)' }}>
+    /* Der entscheidende Hebel gegen den Überlauf: sind BEIDE Sektionen gefüllt
+       (Besonderheiten UND Öle — laut User der Normalfall), standen sie bisher
+       untereinander und kosteten die doppelte Höhe. Ab einer Kartenbreite von
+       420px stehen sie per @container-Regel (.pills-both in index.css) NEBEN-
+       einander; die Höhe ist dann max(a,b) statt a+b+gap. Auf schmalen Karten
+       bleibt es beim Untereinander.
+
+       flex 0 1 auto + min-h-0: der Block ist das einzige nachgiebige Element
+       der Karte, damit der Fuß garantiert stehen bleibt. */
+    <div
+      className={`pills-block flex flex-col w-full ${hasAttrs && hasOils ? 'pills-both' : ''}`}
+      style={{ flex: '0 1 auto', minHeight: 0, overflow: 'hidden', gap: 'clamp(calc(8px * var(--d)), 2cqh, 18px)' }}
+    >
       {attributes.length > 0 && (
         /* "übereinander" → Card mit eigenem Background + stärkerem Ring,
            damit sie als ein klar abgegrenzter Block wirkt (nicht mehr
            "verklebt" mit der Öle-Card darunter). bg-white/70 statt
            zwei separater Inner-Backgrounds. */
         <div
-          className={`rounded-xl ring-2 overflow-hidden bg-white/65 backdrop-blur-sm shadow-sm ${
+          className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden bg-white/65 backdrop-blur-sm shadow-sm ${
             attributesAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-slate-400/40'
           }`}
+          style={{ flex: '0 1 auto', minHeight: 0 }}
         >
           <div
             className={`font-bold uppercase ${attributesAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-slate-500/25 text-slate-800'}`}
@@ -715,8 +768,8 @@ function PillsBlock({
           >
             {attributesAreDefault ? '🪶 Sein Stil' : '⚡ Besonderheiten'}
           </div>
-          <div className="flex flex-wrap items-start" style={{ gap, padding: pillsPadding }}>
-            {attributes.map((a) => {
+          <div className="flex flex-wrap items-start content-start" style={{ gap, padding: pillsPadding }}>
+            {shownAttrs.map((a) => {
               // 1) Standard-Attribut? → aus ATTR_BY_ID auflösen
               const standardMeta = ATTR_BY_ID[a as InfusionAttribute];
               if (standardMeta) {
@@ -764,17 +817,31 @@ function PillsBlock({
               // 3) Unbekannte ID → skip (kein crash bei DB-Inkonsistenz)
               return null;
             })}
+            {hiddenAttrCount > 0 && (
+              <span
+                title={`${hiddenAttrCount} weitere Besonderheiten`}
+                className="inline-flex items-center rounded-full backdrop-blur font-bold text-slate-700 whitespace-nowrap"
+                style={{
+                  fontSize: pillFontSize,
+                  padding: pillPadding,
+                  background: tintBg('#64748b'),
+                  boxShadow: tintRing('#64748b'),
+                }}
+              >
+                +{hiddenAttrCount}
+              </span>
+            )}
           </div>
         </div>
       )}
       {oils.length > 0 && (
-        /* Öle-Card analog mit eigenem Background + amber-Tönung damit sie
-           visuell als zweiter klarer Block UNTER der Besonderheiten-Card
-           steht — nicht "irgendwie nebeneinander". */
+        /* Öle-Card analog mit eigenem Background + amber-Tönung. Steht je nach
+           Kartenbreite unter oder neben der Besonderheiten-Card (.pills-both). */
         <div
-          className={`rounded-xl ring-2 overflow-hidden bg-amber-50/70 backdrop-blur-sm shadow-sm ${
+          className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden bg-amber-50/70 backdrop-blur-sm shadow-sm ${
             oilsAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-amber-500/45'
           }`}
+          style={{ flex: '0 1 auto', minHeight: 0 }}
         >
           <div
             className={`font-bold uppercase ${oilsAreDefault ? 'bg-violet-500/20 text-violet-800' : 'bg-amber-500/30 text-amber-900'}`}
@@ -782,7 +849,7 @@ function PillsBlock({
           >
             {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : '🌿 Öle'}
           </div>
-          <div className="flex flex-wrap items-start" style={{ gap, padding: pillsPadding }}>
+          <div className="flex flex-wrap items-start content-start" style={{ gap, padding: pillsPadding }}>
             {oils.map((oilId, i) => {
               // Custom-Öl (Format: 'custom:<uuid>') → Lookup im All-Custom-Oils
               const customUuid = parseCustomOilId(oilId);

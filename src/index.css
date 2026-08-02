@@ -395,3 +395,48 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
   50%      { box-shadow: 0 0 28px 6px rgba(34, 197, 94, 0.5); }
 }
+
+/* ─── Aufguss-Kachel: Dichte-System ────────────────────────────────────────
+   Die Karten der TV-Tafel haben eine feste Höhe (Spalte / tilesPerColumn).
+   Alle Größen darin sind clamp(min, N cqh, max) — der cqh-Term skaliert schön
+   mit der Kachelhöhe, aber auf kleinen Kacheln bindet nur noch das feste
+   Pixel-MINIMUM, und dann läuft der Inhalt unten heraus (User: „die Buttons
+   sind leicht abgeschnitten").
+
+   Deshalb bekommen die Minima einen Faktor --d = Raum × Inhalt:
+     --d-s  Raum   — hier gesetzt, nach tatsächlicher Kachelhöhe
+     --d-c  Inhalt — von InfusionCard inline gesetzt (1 = beide Sektionen
+                     gefüllt, 1.25 = nur eine; das ist die alte onlyOne-Regel)
+     --dh          — halbe Wirkung, für Titel und Uhrzeit; die sollen zuletzt
+                     schrumpfen, sie trägt der Gast aus fünf Metern.
+   Maxima und cqh-Term bleiben unangetastet: auf 4K ändert sich nichts.
+
+   Container ist die Karten-Root (container-type: size in InfusionCard). */
+.tile-body {
+  --d-s: 1;
+  --d: calc(var(--d-s) * var(--d-c, 1));
+  --dh: calc((1 + var(--d)) / 2);
+}
+
+/* Reihenfolge absteigend — gleiche Spezifität, die letzte passende gewinnt.
+   Schwellen: 1080p/3 Kacheln ≈ 303px, 1080p/4 ≈ 225px, 720p/4 ≈ 144px. */
+@container (max-height: 260px) {
+  .tile-body { --d-s: 0.88; }
+}
+@container (max-height: 175px) {
+  .tile-body { --d-s: 0.76; }
+  /* Erst hier wird etwas weggelassen, und zwar das Entbehrlichste: die
+     optionale Beschreibung. Pillen, Sektions-Überschriften und der
+     Default-Stil-Hinweis bleiben in JEDER Stufe sichtbar. */
+  .tile-body .tile-desc { display: none; }
+}
+
+/* Sind Besonderheiten UND Öle gesetzt, standen die beiden Blöcke bisher
+   immer untereinander und kosteten die doppelte Höhe — das war der größte
+   Posten im Überlauf. Ab 420px Kartenbreite stehen sie nebeneinander, die
+   Höhe ist dann max(a,b) statt a+b+gap. Darunter (sehr schmale Spalten bei
+   vier aktiven Saunen) bleibt es beim Untereinander, weil zwei Spalten dort
+   zu stark umbrechen würden. */
+@container (min-width: 420px) {
+  .pills-both { flex-direction: row; align-items: flex-start; }
+}

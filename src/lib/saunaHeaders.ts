@@ -8,7 +8,8 @@
 // wird im Admin unter Saunen gesetzt.
 
 export const SAUNA_HEADER_IMAGES: { path: string; label: string }[] = [
-  { path: '/saunen/kelo.webp',            label: 'Kelo — silbergraues Kelo-Holz' },
-  { path: '/saunen/finnische-sauna.webp', label: 'Finnisch — helle Fichte' },
-  { path: '/saunen/blockhaus.webp',       label: 'Blockhaus — dunkle Rundbalken' },
+  { path: '/saunen/kelo.webp',            label: 'Kelo — Foto der Kabine' },
+  { path: '/saunen/blockhaus.webp',       label: 'Blockhaus — Foto der Kabine' },
+  // Von der Innen-Sauna liegt kein Foto vor — bis dahin ein generiertes Motiv.
+  { path: '/saunen/finnische-sauna.webp', label: 'Innen-Sauna — generiert (kein Foto vorhanden)' },
 ];

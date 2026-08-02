@@ -214,11 +214,25 @@ export function SaunaTileColumn({
           height: 'clamp(54px, 9.5vh, 165px)',
           containerType: 'size',
           padding: '0 clamp(10px, 1.6vh, 26px)',
+          // Seit hier ECHTE Fotos der Kabinen hängen (statt generierter Motive)
+          // deckt der Schleier nur noch die linke Textzone ab — die Kabine
+          // selbst bleibt frei, denn genau die soll der Gast wiedererkennen.
+          // Reihenfolge: Lesbarkeits-Schwarz über Sauna-Farbe über Foto.
+          // Das Schwarz garantiert den Kontrast für die weiße Schrift auch
+          // dann, wenn ein Admin eine helle Akzentfarbe wählt.
           backgroundImage: sauna.header_image
-            ? `linear-gradient(90deg, ${sauna.accent_color}e6 0%, ${sauna.accent_color}99 45%, rgba(0,0,0,0.45) 100%), url(${JSON.stringify(sauna.header_image)})`
+            ? [
+                'linear-gradient(90deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.45) 22%, rgba(0,0,0,0.12) 42%, rgba(0,0,0,0) 56%)',
+                `linear-gradient(90deg, ${sauna.accent_color}cc 0%, ${sauna.accent_color}80 20%, ${sauna.accent_color}26 38%, transparent 55%)`,
+                `url(${JSON.stringify(sauna.header_image)})`,
+              ].join(', ')
             : `linear-gradient(120deg, ${sauna.accent_color} 0%, ${sauna.accent_color}bb 100%)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
+          // Die Sauna-Farbe darf nicht ganz aus dem Kopf verschwinden — sie ist
+          // der Schlüssel, mit dem der Gast Spalte und Karten zusammenbringt.
+          // Deshalb als kräftiges Band an der Unterkante statt als Farbwäsche.
+          borderBottom: `clamp(3px, 0.55vh, 7px) solid ${sauna.accent_color}`,
         }}
       >
         <div

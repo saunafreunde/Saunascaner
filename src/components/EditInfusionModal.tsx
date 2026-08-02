@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
+import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import {
   useUpdateInfusion,
@@ -49,7 +50,7 @@ export function EditInfusionModal({
   const [customAttrIds, setCustomAttrIds] = useState<string[]>(initialAttrs.custom);
   const [oils, setOils] = useState<(string | null)[]>(normalizeOilSlots(infusion.oils));
   const [schnaps, setSchnaps] = useState<string | null>(initialAttrs.schnaps);
-  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps'>(initialAttrs.schnaps ? 'schnaps' : 'oils');
+  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps' | 'raeuchern'>(initialAttrs.schnaps ? 'schnaps' : 'oils');
   const [teamInfusion, setTeamInfusion] = useState(infusion.team_infusion);
   const [duration, setDuration] = useState<number>(infusion.duration_minutes);
   const [showOilPicker, setShowOilPicker] = useState(false);
@@ -162,6 +163,7 @@ export function EditInfusionModal({
 
   const oilCount = oils.filter(Boolean).length;
   const selectedSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
+  const raeuchernOn = (attrs as string[]).includes(RAEUCHER_ATTR);
 
   return (
     <Portal>
@@ -310,13 +312,14 @@ export function EditInfusionModal({
             </div>
           )}
 
-          {/* Öle / Schnaps — zwei Reiter wie im Planner. Beides darf
-              gleichzeitig gesetzt sein, der Reiter schaltet nur die Sicht. */}
+          {/* Öle / Schnaps / Räuchern — drei Reiter wie im Planner. Mehreres
+              darf gleichzeitig gesetzt sein, der Reiter schaltet nur die Sicht. */}
           <div>
             <div className="flex gap-1.5 rounded-xl bg-forest-900/50 p-1 ring-1 ring-forest-800/50">
               {([
-                { id: 'oils',    icon: '🌿', label: 'Ätherische Öle', filled: oilCount > 0 },
-                { id: 'schnaps', icon: '🥃', label: 'Schnaps',        filled: !!schnaps },
+                { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oilCount > 0 },
+                { id: 'schnaps',   icon: '🥃', label: 'Schnaps',  filled: !!schnaps },
+                { id: 'raeuchern', icon: '💨', label: 'Räuchern', filled: raeuchernOn },
               ] as const).map((t) => {
                 const active = aromaTab === t.id;
                 return (
@@ -324,7 +327,7 @@ export function EditInfusionModal({
                     key={t.id}
                     type="button"
                     onClick={() => setAromaTab(t.id)}
-                    className={`relative flex-1 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                    className={`relative flex-1 rounded-lg px-2 py-2 text-xs font-medium transition ${
                       active ? 'bg-amber-500 text-amber-950' : 'text-forest-300 hover:bg-forest-900/70'
                     }`}
                   >
@@ -350,7 +353,7 @@ export function EditInfusionModal({
                     : `🌿 ${oilCount} Öl${oilCount === 1 ? '' : 'e'} gewählt — bearbeiten`}
                 </button>
               </div>
-            ) : (
+            ) : aromaTab === 'schnaps' ? (
               <div className="mt-2">
                 <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Schnaps-Sorte</label>
                 <select
@@ -373,6 +376,30 @@ export function EditInfusionModal({
                     </span>
                   </div>
                 )}
+              </div>
+            ) : (
+              /* Räuchern kennt keine Sorten — nur an/aus, gespeichert als
+                 Attribut 'raeuchern' (lib/aufgussTheme.ts). */
+              <div className="mt-2">
+                <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Räucheraufguss</label>
+                <button
+                  type="button"
+                  onClick={() => toggleAttr(RAEUCHER_ATTR as InfusionAttribute)}
+                  className="mt-1.5 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left ring-1 transition"
+                  style={raeuchernOn
+                    ? { background: `${RAEUCHER_THEME.color}55`, boxShadow: `inset 0 0 0 2px ${RAEUCHER_THEME.color}` }
+                    : { background: 'rgba(20,83,45,0.35)', boxShadow: 'inset 0 0 0 1px rgba(20,83,45,0.7)' }}
+                >
+                  <span className={`relative h-6 w-10 flex-shrink-0 rounded-full transition ${raeuchernOn ? 'bg-slate-200' : 'bg-forest-800'}`}>
+                    <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${raeuchernOn ? 'translate-x-4' : ''}`} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-forest-100">💨 Räucheraufguss</span>
+                    <span className="block text-[11px] text-forest-300/70">
+                      {raeuchernOn ? 'erscheint mit Räucher-Bild auf der Tafel' : 'Kräuterbündel & Harz auf den Steinen'}
+                    </span>
+                  </span>
+                </button>
               </div>
             )}
           </div>
