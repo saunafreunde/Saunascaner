@@ -37,24 +37,45 @@ const CATEGORY_COLOR: Record<string, string> = {
   saison:   '#b91c1c',
 };
 
-/** Basis-Maßeinheit der Karte.
- *
- *  Das ist der Kern der Auto-Anpassung: `min()` nimmt den KLEINEREN der beiden
- *  Werte, also bremst immer die Kante, die zuerst erreicht wird. Ist die Kachel
- *  flach, begrenzt die Höhe; ist sie schmal — etwa bei vier aktiven Saunen —
- *  begrenzt die Breite, und dann wächst der Rest eben nicht weiter.
- *
- *  Die Koeffizienten sind so gewählt, dass die Komposition rund 90 % der
- *  Kachel füllt: die Summe aller Bausteine ist ~52 Einheiten hoch, bei
- *  1080p und drei Kacheln ergibt 1.58cqh eine Einheit von ~4,8 px
- *  → ~247 px von 273 px verfügbarer Höhe. Der Breiten-Koeffizient (0.70cqw)
- *  ist am längsten Öl-Namen ausgerichtet („Eukalyptus citriadora"), damit
- *  auch der nicht abgeschnitten wird.
- *
- *  Alle Größen der Karte sind Vielfache davon — dadurch skaliert die
- *  Komposition als Ganzes statt in Einzelteilen auseinanderzulaufen. */
-const U = 'min(1.58cqh, 0.70cqw)';
-const u = (n: number) => `calc(${n} * ${U})`;
+// ── Auto-Anpassung auf 90 % der Kachel ───────────────────────────────────
+// Alle Größen der Karte sind Vielfache EINER Basiseinheit — dadurch skaliert
+// die Komposition als Ganzes statt in Einzelteilen auseinanderzulaufen.
+//
+// Die Einheit hat zwei Bremsen, verbunden über min(): die Höhe der Kachel und
+// ihre Breite. Es bremst immer die Kante, die zuerst erreicht wird — flache
+// Kachel → Höhe begrenzt, schmale Kachel (vier aktive Saunen) → Breite
+// begrenzt, und dann wächst der Rest eben nicht weiter.
+//
+// Die HÖHEN-Bremse hängt am Inhalt: eine Karte ohne Einsatz-Hinweis und mit
+// einzeiligem Zitat ist rund 38 Einheiten hoch, eine volle rund 52. Mit einem
+// festen Faktor füllt deshalb mal 63 %, mal 90 % — deswegen wird der Faktor
+// aus der tatsächlichen Bausteinhöhe zurückgerechnet: 90 / Einheiten = cqh.
+
+/** Höhe der einzelnen Bausteine in Einheiten (inkl. Zeilenhöhe). */
+const H_EYEBROW = 3.1;
+const H_MEDAL = 11.5;
+const H_NAME = 9.5;
+const H_META = 3.5;
+const H_QUOTE_LINE = 6.5;
+const H_PILL = 5.5;
+const H_GAP = 1.1;
+
+/** Ab dieser Länge bricht das Zitat erfahrungsgemäß auf zwei Zeilen um. */
+const QUOTE_WRAP_CHARS = 52;
+
+function unitFor(hasQuote: boolean, quoteLen: number, hasPill: boolean): string {
+  const bloecke = 4 + (hasQuote ? 1 : 0) + (hasPill ? 1 : 0);
+  const zeilen = hasQuote ? (quoteLen > QUOTE_WRAP_CHARS ? 2 : 1) : 0;
+  const einheiten =
+    H_EYEBROW + H_MEDAL + H_NAME + H_META
+    + zeilen * H_QUOTE_LINE
+    + (hasPill ? H_PILL : 0)
+    + (bloecke - 1) * H_GAP;
+  // 90 % der Kachelhöhe auf die Bausteine verteilt. Der Breiten-Koeffizient
+  // ist am längsten Öl-Namen ausgerichtet („Eukalyptus citriadora"), damit
+  // auch der auf schmalen Kacheln nicht abgeschnitten wird.
+  return `min(${(90 / einheiten).toFixed(2)}cqh, 0.70cqw)`;
+}
 
 export function useSlotOil(seed: number, now: Date): Oil | null {
   const disabled = useDisabledOils();
@@ -103,6 +124,9 @@ export function OilCard({ oil, now }: { oil: Oil; now: Date }) {
   const color = CATEGORY_COLOR[oil.category] ?? '#4d7c0f';
   const info = OIL_INFO[oil.id];
   const next = useNextUse(oil.id, now);
+
+  const U = unitFor(!!info?.text, info?.text?.length ?? 0, !!next);
+  const u = (n: number) => `calc(${n} * ${U})`;
 
   return (
     <div
