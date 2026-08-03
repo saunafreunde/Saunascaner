@@ -24,6 +24,14 @@ function tintRing(hex: string): string {
 
 const IMMINENT_MIN = 10;
 
+/** Referenz-Pillengröße der Tafel: die Karte mit drei Ölen NEBEN drei
+ *  Eigenschaften (13:00 Blockhaus im Screenshot vom 03.08.2026) — die hat der
+ *  User als genau richtig benannt. Größer wird auf der Tafel keine Pille mehr,
+ *  egal wie wenige es sind. Die Werte sind exakt das, was die Formel für
+ *  diesen Fall ausrechnet (zwei Pillen pro Zeile, zwei Zeilen). */
+const REF_HOEHE_CQH = 9;
+const REF_BREITE_CQW = 2.2;
+
 /** Vier Dringlichkeits-Stufen für Lauflicht + Progress-Ring (Migration 0100-Plan).
  *  null = mehr als 10 Min Vorlauf, keine Animation
  *  10   = 6–10 Min  → grün, ruhig
@@ -825,8 +833,17 @@ function PillsBlock({
     const zeilen = Math.max(1, Math.ceil(count / Math.max(1, proZeile)));
     // Höhenbudget des Pillen-Bereichs ≈ 20 cqh, Breitenbudget ≈ 10 cqw
     // (volle Kartenbreite) bzw. 5 cqw (zwei Sektionen nebeneinander).
-    const hoehe = (18 / zeilen).toFixed(2);
-    const breite = ((onlyOne ? 8.8 : 4.4) / Math.max(1, proZeile)).toFixed(2);
+    //
+    // OBERGRENZE (User-Wunsch 03.08.2026, mit Screenshot): keine Pille darf
+    // größer werden als in der Referenz-Karte — drei Öle NEBEN drei
+    // Eigenschaften (13:00 Blockhaus). Ohne diesen Deckel blies die Formel
+    // eine einzelne Pille auf das Maximum: „Musik" allein stand mit 34 px
+    // neben „Orange bitter · Elemi" mit 26 px, auf derselben Tafel daneben
+    // die Referenz mit 20 px. Genau dieses Ungleichgewicht war gemeint.
+    // Nach unten bleibt alles wie bisher — volle Sektionen dürfen weiter
+    // kleiner werden, damit sie hineinpassen.
+    const hoehe = Math.min(REF_HOEHE_CQH, 18 / zeilen).toFixed(2);
+    const breite = Math.min(REF_BREITE_CQW, (onlyOne ? 8.8 : 4.4) / Math.max(1, proZeile)).toFixed(2);
     return `clamp(11px, min(${hoehe}cqh, ${breite}cqw), 34px)`;
   }
 
@@ -835,8 +852,18 @@ function PillsBlock({
   const shownAttrs = attributes.slice(0, MAX_ATTR_PILLS);
   const hiddenAttrCount = attributes.length - shownAttrs.length;
 
-  const pillFontAttr = pillSizing(shownAttrs.length + (hiddenAttrCount > 0 ? 1 : 0));
-  const pillFontOil = pillSizing(oils.length);
+  // EINE Größe für ALLE Pillen einer Karte. Vorher rechnete jede Sektion für
+  // sich — und weil die Größe mit der Anzahl fällt, standen auf derselben
+  // Karte eine einzelne große Öl-Pille neben drei kleinen Eigenschaften
+  // (15:00 Kelo im Screenshot: „Zirbelkiefer" riesig, „Ohne Musik /
+  // Salzpeeling / Versucherle" klein). Maßgeblich ist jetzt die VOLLERE
+  // Sektion: was dort hineinpasst, gilt für beide. Damit sind die zwei
+  // Blöcke einer Karte immer auf gleicher Höhe — genau die gewünschte
+  // saubere Ausrichtung zueinander.
+  const pillAnzahlAttr = shownAttrs.length + (hiddenAttrCount > 0 ? 1 : 0);
+  const pillFont = pillSizing(Math.max(pillAnzahlAttr, oils.length));
+  const pillFontAttr = pillFont;
+  const pillFontOil = pillFont;
 
   return (
     /* Der entscheidende Hebel gegen den Überlauf: sind BEIDE Sektionen gefüllt
