@@ -21,6 +21,9 @@ interface EmptyTileProps {
   /** Position der Kachel in ihrer Spalte, damit Nachbarkacheln versetzt
    *  durch den Karten-Pool laufen. */
   slotIndex?: number;
+  /** Kacheln pro Spalte — daraus bildet das Karussell eine tafelweit
+   *  eindeutige Kachel-Nummer, damit nie zwei Kacheln dasselbe Öl zeigen. */
+  tilesPerColumn?: number;
   /** Zusätzliches inline-style — die Spalte reicht darüber die feste
    *  Grid-Zeile durch (siehe SaunaTileColumn). Ohne die kann diese Kachel
    *  in eine implizite 0-px-Zeile rutschen. */
@@ -33,6 +36,7 @@ export function EmptyTile({
   otherSauna = null,
   now,
   slotIndex = 0,
+  tilesPerColumn = 3,
   style: extraStyle,
 }: EmptyTileProps) {
   // backgroundImage-Prop bleibt im Interface (BC für Callers in
@@ -62,6 +66,7 @@ export function EmptyTile({
           sauna={sauna}
           now={now}
           slotIndex={slotIndex}
+          tilesPerColumn={tilesPerColumn}
           direction={otherSauna?.direction ?? null}
         />
       </div>

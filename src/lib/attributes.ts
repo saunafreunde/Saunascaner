@@ -11,6 +11,7 @@ export type InfusionAttribute =
   | 'banja'           // russische Banja
   | 'wenik'           // Wenikaufguss (Birkenzweig)
   | 'vulkan'          // Vulkanaufguss
+  | 'versucherle'     // es gibt etwas zum Probieren
   // ─── Sud-Zutaten ───────────────────────────────────────────────────────
   | 'kraeuter_sud'    // Kräuter-Sud
   | 'stein_klee'      // Stein-Klee
@@ -50,6 +51,7 @@ export const ATTRIBUTES: { id: InfusionAttribute; emoji: string; label: string; 
   { id: 'banja',          emoji: '🇷🇺', label: 'Banja' },
   { id: 'wenik',          emoji: '🍃', label: 'Wenikaufguss' },
   { id: 'vulkan',         emoji: '🌋', label: 'Vulkanaufguss' },
+  { id: 'versucherle',    emoji: '🥃', label: 'Versucherle' },
   // Sud-Zutaten
   { id: 'kraeuter_sud',   emoji: '🧪', label: 'Kräuter-Sud' },
   { id: 'stein_klee',     emoji: '🪨', label: 'Stein-Klee' },

@@ -445,18 +445,40 @@ export function InfusionCard({
                     </span>
                   )}
                   {theme && (
+                    /* Zweizeilig statt einzeilig: vorher stand hier nur
+                       "🥃 Kirschwasser" — das Wort Schnaps kam auf der ganzen
+                       Karte nicht vor. Wer die Sorte nicht kennt, konnte also
+                       nicht erkennen, dass hier überhaupt mit Schnaps
+                       gearbeitet wird. Jetzt trägt die ART die Zeile darüber,
+                       die Sorte steht darunter und ist die größere Schrift.
+                       Deutlich mehr Fläche als LIVE/BANJA — das ist die
+                       Aussage, auf die es hier ankommt. */
                     <span
-                      className="inline-flex items-center rounded-full font-black uppercase tracking-wider text-white whitespace-nowrap max-w-full overflow-hidden text-ellipsis"
+                      className="inline-flex flex-col items-center font-black uppercase text-white max-w-full overflow-hidden"
                       style={{
-                        padding: BADGE_PAD,
+                        borderRadius: '0.7em',
+                        padding: '0.32em 0.72em 0.38em',
+                        lineHeight: 1.06,
                         background: `linear-gradient(135deg, ${theme.color}, ${theme.color}cc)`,
-                        boxShadow: `0 2px 10px ${theme.color}88, inset 0 1px 0 rgba(255,255,255,0.3)`,
-                        textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+                        boxShadow: `0 2px 14px ${theme.color}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
+                        textShadow: '0 1px 2px rgba(0,0,0,0.5)',
                       }}
                     >
-                      {/* theme.badge bringt sein Emoji selbst mit (🥃 bzw. 💨) —
-                          ein zusätzliches hier führte zu "🥃 💨 Räucheraufguss". */}
-                      {theme.badge}
+                      <span
+                        className="whitespace-nowrap"
+                        style={{ fontSize: '0.78em', letterSpacing: '0.15em', opacity: 0.95 }}
+                      >
+                        {theme.kategorie}
+                      </span>
+                      {/* theme.badge bringt sein Emoji selbst mit (Sorten-Frucht
+                          bzw. 💨) — ein zusätzliches hier führte früher zu
+                          "🥃 💨 Räucheraufguss". */}
+                      <span
+                        className="whitespace-nowrap max-w-full overflow-hidden text-ellipsis"
+                        style={{ fontSize: '1.22em', letterSpacing: '0.01em' }}
+                      >
+                        {theme.badge}
+                      </span>
                     </span>
                   )}
                 </div>

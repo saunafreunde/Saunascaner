@@ -272,7 +272,10 @@ export default function Planner() {
   }, [toastIndex, newBadges.length]);
 
   function toggleCustomAttr(id: string) {
-    setCustomAttrIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    // Wie toggleAttr: abwählen immer, dazuwählen nur mit freiem Kontingent.
+    setCustomAttrIds((prev) => (prev.includes(id)
+      ? prev.filter((x) => x !== id)
+      : (auswahlVoll ? prev : [...prev, id])));
   }
 
   const saunas = saunasQ.data ?? [];
@@ -411,6 +414,20 @@ export default function Planner() {
   const isBanjaPlanned = (attrs as string[]).includes(BANJA_ATTR);
   const selectedSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
   const raeuchernOn = (attrs as string[]).includes(RAEUCHER_ATTR);
+  // 3–6-Regel (User-Wunsch 03.08.2026): mindestens DREI, höchstens SECHS
+  // Dinge pro Aufguss — Öle und Besonderheiten frei gemischt. Die Öle
+  // bleiben dabei bei ihren MAX_OIL_SLOTS (3) Plätzen, die Besonderheiten
+  // füllen den Rest.
+  //
+  // Die Schnaps-Sorte zählt bewusst NICHT mit: sie beschreibt die ART des
+  // Aufgusses (eigener Reiter, eigener Karten-Look), sie ist keine Zutat aus
+  // dem Kontingent. Räuchern zählt dagegen mit — es ist und bleibt ein
+  // normales Attribut.
+  const MIN_AUSWAHL = 3;
+  const MAX_AUSWAHL = 6;
+  const oilCount = oils.filter(Boolean).length;
+  const auswahlAnzahl = attrs.length + customAttrIds.length + oilCount;
+  const auswahlVoll = auswahlAnzahl >= MAX_AUSWAHL;
   // Attribute + Custom-Buttons + ggf. Schnaps — so wandert alles in EINEM
   // text[] in die DB (siehe lib/schnaps.ts warum der Schnaps hier mitreist).
   const attrsPayload = (): string[] => [
@@ -576,7 +593,10 @@ export default function Planner() {
     garantieSlotsOpenToday.some((g) => g.hour === selectedSlotHour);
 
   function toggleAttr(a: InfusionAttribute) {
-    setAttrs((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
+    // Abwählen geht immer, Dazuwählen nur solange das 3–6-Kontingent Platz hat.
+    setAttrs((prev) => (prev.includes(a)
+      ? prev.filter((x) => x !== a)
+      : (auswahlVoll ? prev : [...prev, a])));
   }
 
   function applyTemplate(t: { title: string; description: string | null; duration_minutes: number; attributes: string[]; oils?: (string | null)[] | null }) {
@@ -632,6 +652,19 @@ export default function Planner() {
     if (!m) return setFormError('Bitte zuerst anmelden.');
     if (!saunaId) return setFormError('Bitte eine Sauna wählen.');
     if (!title.trim()) return setFormError('Titel fehlt.');
+    // 3-6-Regel: Oele und Besonderheiten zusammen. Die Chips sperren oben
+    // schon bei 6, das hier ist die Sperre gegen Vorlagen und Alt-Zustaende.
+    //
+    // Das Banja-Ritual ist davon beim MINIMUM ausgenommen: sein Schnellbuchungs-
+    // Knopf setzt genau zwei Eigenschaften (banja + wenik), und das Ritual hat
+    // einen festen Charakter, dem man nicht kuenstlich eine dritte Zutat
+    // anhaengen sollte. Die Obergrenze gilt auch fuer Banja.
+    if (auswahlAnzahl < MIN_AUSWAHL && !(attrs as string[]).includes(BANJA_ATTR)) {
+      return setFormError(`Bitte mindestens ${MIN_AUSWAHL} Dinge waehlen - Oele und Eigenschaften zusammen (aktuell ${auswahlAnzahl}).`);
+    }
+    if (auswahlAnzahl > MAX_AUSWAHL) {
+      return setFormError(`Hoechstens ${MAX_AUSWAHL} Dinge - Oele und Eigenschaften zusammen (aktuell ${auswahlAnzahl}).`);
+    }
     if (isMondaySelected) return setFormError('Montag keine Aufgüsse.');
     // Defense in depth zum Slot-Clamp-Effect: nie außerhalb der Öffnungs-
     // Stunden des Tages eintragen (Server prüft Öffnungszeiten NICHT).
@@ -1490,17 +1523,36 @@ export default function Planner() {
                 )}
 
                 <div>
-                  <label className="text-xs text-forest-300">Eigenschaften</label>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <label className="text-xs text-forest-300">Eigenschaften</label>
+                    {/* Laufender Zähler statt Fehlermeldung erst beim Absenden —
+                        die 3–6-Regel ist sonst unsichtbar, bis es zu spät ist. */}
+                    <span className={`text-[11px] tabular-nums ${
+                      auswahlAnzahl < MIN_AUSWAHL ? 'text-amber-300'
+                        : auswahlVoll ? 'text-forest-400/70' : 'text-forest-300/70'
+                    }`}>
+                      {auswahlAnzahl}/{MAX_AUSWAHL} gewählt
+                      {auswahlAnzahl < MIN_AUSWAHL
+                        ? ` — noch ${MIN_AUSWAHL - auswahlAnzahl} nötig`
+                        : auswahlVoll ? ' — voll' : ''}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-forest-400/60">
+                    Öle und Eigenschaften zusammen: mindestens {MIN_AUSWAHL}, höchstens {MAX_AUSWAHL} — beliebig gemischt.
+                  </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {/* hidden = Kirschwasser/Haferpflaume, laufen jetzt über den
                         Schnaps-Reiter weiter unten (lib/attributes.ts). */}
                     {ATTRIBUTES.filter((a) => !a.hidden).map((a) => {
                       const active = attrs.includes(a.id);
+                      const gesperrt = !active && auswahlVoll;
                       return (
                         <button key={a.id} type="button" onClick={() => toggleAttr(a.id)}
+                          disabled={gesperrt}
+                          title={gesperrt ? `Höchstens ${MAX_AUSWAHL} Dinge — erst etwas abwählen.` : undefined}
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${
                             active ? 'bg-forest-500 text-forest-950 ring-forest-400' : 'bg-forest-900/60 text-forest-200 ring-forest-800/50 hover:bg-forest-900'
-                          }`}>
+                          } ${gesperrt ? 'opacity-30 cursor-not-allowed hover:bg-forest-900/60' : ''}`}>
                           <span aria-hidden>{a.emoji}</span><span>{a.label}</span>
                         </button>
                       );
@@ -1515,9 +1567,11 @@ export default function Planner() {
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {customAttrs.map((a) => {
                         const active = customAttrIds.includes(a.id);
+                        const gesperrt = !active && auswahlVoll;
                         return (
                           <button key={a.id} type="button" onClick={() => toggleCustomAttr(a.id)}
-                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs ring-1 transition"
+                            disabled={gesperrt}
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs ring-1 transition${gesperrt ? ' opacity-30 cursor-not-allowed' : ''}`}
                             style={active
                               ? { background: a.color, color: '#0b1f10', boxShadow: `0 0 0 2px ${a.color}66` }
                               : { background: 'rgba(20, 83, 45, 0.55)', color: '#d1fae5' }}>
@@ -1562,7 +1616,7 @@ export default function Planner() {
 
                   {aromaTab === 'oils' ? (
                     <div className="mt-2">
-                      <label className="text-xs text-forest-300">Ätherische Öle <span className="text-forest-400/60">— eines pro Runde (max. 3)</span></label>
+                      <label className="text-xs text-forest-300">Ätherische Öle <span className="text-forest-400/60">— eines pro Runde (max. 3, zählt aufs Kontingent)</span></label>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         {oils.map((id, i) => {
                           const o = id ? OIL_BY_ID[id] : null;
@@ -1571,7 +1625,9 @@ export default function Planner() {
                               key={i}
                               type="button"
                               onClick={() => setShowOilPicker(true)}
-                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${
+                              disabled={!o && auswahlVoll}
+                              title={!o && auswahlVoll ? `Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.` : undefined}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${!o && auswahlVoll ? 'opacity-30 cursor-not-allowed ' : ''}${
                                 o
                                   ? 'bg-amber-900/40 ring-amber-400/40 text-amber-100 hover:bg-amber-900/60'
                                   : 'bg-forest-900/60 ring-forest-800/50 text-forest-300 hover:bg-forest-900 border border-dashed border-forest-700/60'

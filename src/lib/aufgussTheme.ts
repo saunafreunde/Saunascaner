@@ -23,6 +23,10 @@ export interface AufgussTheme {
   color: string;   // Akzent für Badge + Karten-Tönung
   image: string;   // Karten-Hintergrund, liegt in public/
   badge: string;   // fertige Beschriftung für die Karte
+  /** Die ART, groß über der Sorte. Ohne die stand auf der Karte nur
+   *  „🥃 Kirschwasser" — ein Gast, der die Sorte nicht kennt, hat daran nicht
+   *  erkannt, dass hier überhaupt mit Schnaps gearbeitet wird. */
+  kategorie: string;
 }
 
 /** Das Attribut, das einen Räucheraufguss markiert — seit 0001 im Bestand. */
@@ -39,6 +43,7 @@ export const RAEUCHER_THEME: AufgussTheme = {
   // Kurz halten: das Badge sitzt in der Kopfzeile neben dem Titel und nimmt
   // ihm Breite weg. Das Motiv im Hintergrund sagt ohnehin schon "Aufguss".
   badge: '💨 Räuchern',
+  kategorie: 'Räucheraufguss',
 };
 
 function schnapsTheme(s: Schnaps): AufgussTheme {
@@ -48,7 +53,10 @@ function schnapsTheme(s: Schnaps): AufgussTheme {
     emoji: s.emoji,
     color: s.color,
     image: s.image,
-    badge: `🥃 ${s.name}`,
+    // Das Sorten-Emoji statt eines generischen Glases — die Frucht trägt die
+    // Sorte, „Schnaps-Aufguss" steht groß darüber in `kategorie`.
+    badge: `${s.emoji} ${s.name}`,
+    kategorie: 'Schnaps-Aufguss',
   };
 }
 

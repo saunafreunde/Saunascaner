@@ -36,24 +36,31 @@ type Props = {
   /** Position der Kachel in ihrer Spalte — sorgt zusammen mit sort_order
    *  dafür, dass Nachbarkacheln versetzt laufen. */
   slotIndex: number;
+  /** Kacheln pro Spalte (Admin-Setting). Wird gebraucht, um aus Sauna und
+   *  Slot eine über die ganze Tafel EINDEUTIGE Kachel-Nummer zu bilden. */
+  tilesPerColumn: number;
   /** Schwimmrichtung der Riff-Tiere (zeigt zur aktiven Nachbarsauna). */
   direction: 'left' | 'right' | null;
 };
 
-export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
+export function SlotCarousel({ sauna, now, slotIndex, tilesPerColumn, direction }: Props) {
   const brand = useBrandSettings();
   const gallery = brand.data?.slot_gallery ?? [];
   const cards = brand.data?.slot_cards;
 
   const tick = Math.floor(now.getTime() / CARD_MS);
-  const offset = slotIndex + (sauna.sort_order ?? 0);
+  // EINDEUTIG über die ganze Tafel. Vorher stand hier `slotIndex + sort_order`
+  // — damit kollidierten (Sauna 0 / Slot 1) und (Sauna 1 / Slot 0) auf
+  // demselben Wert, und beide Kacheln zeigten dasselbe. Mit der Spaltenhöhe
+  // als Schrittweite kann das nicht mehr passieren.
+  const kachelNr = slotIndex + (sauna.sort_order ?? 0) * Math.max(1, tilesPerColumn);
 
   // Hooks IMMER unbedingt aufrufen (Rules of Hooks) — erst danach entscheiden,
   // welche Karte dran ist. Öl und Foto wandern mit jedem Durchlauf weiter,
   // sonst zeigte eine Kachel immer dasselbe Öl.
-  const oil = useSlotOil(tick + offset * 7, now);
+  const oil = useSlotOil(kachelNr, tick, now);
   const photo = gallery.length > 0
-    ? gallery[(((tick + offset) % gallery.length) + gallery.length) % gallery.length]
+    ? gallery[(((tick + kachelNr) % gallery.length) + gallery.length) % gallery.length]
     : null;
 
   // Nur Karten in den Pool, die auch wirklich etwas anzeigen können:
@@ -70,7 +77,7 @@ export function SlotCarousel({ sauna, now, slotIndex, direction }: Props) {
   // beide Deko-Karten aus, bliebe die Kachel schwarz. Dann lieber das Riff.
   if (pool.length === 0) pool.push('reef');
 
-  const card = pool[(((tick + offset) % pool.length) + pool.length) % pool.length];
+  const card = pool[(((tick + kachelNr) % pool.length) + pool.length) % pool.length];
 
   // Bewusst OHNE AnimatePresence. Der vorherige Stand nutzte mode="wait": die
   // alte Karte musste ihre Exit-Animation abschliessen, bevor die neue gemountet

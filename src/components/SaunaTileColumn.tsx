@@ -445,6 +445,7 @@ export function SaunaTileColumn({
                 /* slotIndex versetzt das Karten-Karussell, damit nebeneinander-
                    liegende leere Kacheln nie dasselbe Motiv zeigen. */
                 slotIndex={slotIndex}
+                tilesPerColumn={tilesPerColumn}
               />
             );
           })}

@@ -77,7 +77,33 @@ function unitFor(hasQuote: boolean, quoteLen: number, hasPill: boolean): string 
   return `min(${(90 / einheiten).toFixed(2)}cqh, 0.70cqw)`;
 }
 
-export function useSlotOil(seed: number, now: Date): Oil | null {
+/** Rotiert eine Liste um k Stellen — deterministisch, damit alle Fernseher
+ *  zur selben Zeit dasselbe zeigen. */
+function dreh<T>(arr: T[], k: number): T[] {
+  if (arr.length === 0) return arr;
+  const i = ((k % arr.length) + arr.length) % arr.length;
+  return arr.slice(i).concat(arr.slice(0, i));
+}
+
+/** Welches Öl zeigt diese Kachel?
+ *
+ *  `kachelNr` muss über die GANZE Tafel eindeutig sein (nicht nur je Spalte) —
+ *  sonst zeigen zwei Kacheln dasselbe Öl. Genau das ist vorher passiert: der
+ *  Aufrufer bildete den Versatz als `slotIndex + sauna.sort_order`, und damit
+ *  bekamen z. B. (Sauna 0 / Slot 1) und (Sauna 1 / Slot 0) denselben Wert.
+ *  Zusätzlich wählte jede Kachel unabhängig aus einer nur zweielementigen
+ *  Liste — Dopplungen waren dadurch eher die Regel als die Ausnahme.
+ *
+ *  Jetzt wird EINE gemeinsame Reihenfolge gebildet und daraus ausgeteilt:
+ *  Kachel n nimmt Platz n. Verschiedene Kacheln haben verschiedene Plätze,
+ *  also verschiedene Öle — solange überhaupt genug freigeschaltete Öle da
+ *  sind (bei weniger Ölen als Kacheln lässt sich eine Dopplung nicht
+ *  vermeiden, dann wiederholt sich die Liste).
+ *
+ *  Die geplanten Öle stehen dabei GANZ VORNE. Da die Tafel nur eine Handvoll
+ *  Kacheln hat, landen sie damit fast immer auf dem Schirm — vorher war es
+ *  nur jede zweite Karte, und die traf oft auch noch dasselbe Öl. */
+export function useSlotOil(kachelNr: number, tick: number, now: Date): Oil | null {
   const disabled = useDisabledOils();
   const infusions = useInfusions();
   // Öle, die der Admin aus dem Bestand genommen hat, tauchen gar nicht erst
@@ -85,20 +111,21 @@ export function useSlotOil(seed: number, now: Date): Oil | null {
   const pool = OILS.filter((o) => !disabled.data?.[o.id]);
   if (pool.length === 0) return null;
 
-  // Öle, die heute noch tatsächlich aufgegossen werden. Bei 64 Ölen im Regal
-  // und einer Handvoll geplanter würde der "Im Aufguss"-Hinweis sonst fast
-  // nie erscheinen — genau der ist aber der Mehrwert für den Gast. Deshalb
-  // zeigt JEDE ZWEITE Öl-Karte gezielt ein eingeplantes Öl, die andere ein
-  // beliebiges aus dem Regal.
-  const geplant = pool.filter((o) =>
-    (infusions.data ?? []).some((i) =>
-      !i.is_personal_fallback
-      && new Date(i.start_time).getTime() > now.getTime()
-      && (i.oils ?? []).includes(o.id)));
+  // Öle, die heute noch tatsächlich aufgegossen werden. Der "Im Aufguss"-
+  // Hinweis darauf ist der eigentliche Mehrwert für den Gast.
+  const geplantIds = new Set<string>();
+  for (const i of infusions.data ?? []) {
+    if (i.is_personal_fallback) continue;
+    if (new Date(i.start_time).getTime() <= now.getTime()) continue;
+    for (const oilId of i.oils ?? []) if (oilId) geplantIds.add(oilId);
+  }
+  const geplant = pool.filter((o) => geplantIds.has(o.id));
+  const rest = pool.filter((o) => !geplantIds.has(o.id));
 
-  const src = (seed % 2 === 0 && geplant.length > 0) ? geplant : pool;
-  // Deterministisch: alle Fernseher zeigen zur selben Zeit dasselbe Öl.
-  return src[((seed % src.length) + src.length) % src.length];
+  // Beide Blöcke rotieren mit dem Tick, damit über den Abend jedes Öl mal
+  // drankommt — die geplanten bleiben aber immer vorne.
+  const liste = [...dreh(geplant, tick), ...dreh(rest, tick)];
+  return liste[((kachelNr % liste.length) + liste.length) % liste.length];
 }
 
 /** Nächster geplanter Aufguss, in dem genau dieses Öl vorkommt. */
