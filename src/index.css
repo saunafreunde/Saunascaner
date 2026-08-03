@@ -880,3 +880,680 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   /* Kein Ein-Schleichen — aber garantiert voll sichtbar, nicht bei 0.4 stehen. */
   .slot-karte { animation: none; opacity: 1; transform: none; }
 }
+
+
+/* ═══ Namensschild: animierte Jahreszeiten-Grafiken (siehe components/NameplateDeko.tsx) ═══
+   Entworfen 03.08.2026. Pure-CSS, nur transform/opacity, jede mit
+   prefers-reduced-motion-Abschaltung. Praefix np-<motiv>-. */
+
+/* ── Weihnachtsmann — Ein kleiner Weihnachtsmann sitzt auf der oberen Schildkante, baumelt mit den Beinen und lä ── */
+/* ─── Namensschild-Zierde „Weihnachten" ───────────────────────────────────
+   Weihnachtsmann sitzt auf der OBEREN Kante des Schildes und laesst Pakete
+   ueber das Schild regnen. Genau 6 bewegte Teile (1 Figur + 5 Fallbahnen),
+   ausschliesslich transform/opacity in den @keyframes — die Tafel laeuft
+   24/7 auf einem 85-Zoell er, jeder Repaint waere dauerhaft.
+
+   Lesbarkeit: die Mitte (38–66 % Breite) bleibt frei, die Pakete laufen mit
+   maximal 0.5 Deckkraft an den Raendern. Geometrie in em (skaliert mit der
+   Schrift) bzw. % (skaliert mit der Schildhoehe) — kein festes px. */
+
+.np-weihnachten-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;   /* Zierde darf ueber die Schildkanten hinaus */
+  z-index: 1;
+}
+
+/* ── Figur ────────────────────────────────────────────────────────────── */
+
+.np-weihnachten-mann {
+  position: absolute;
+  right: 5%;
+  bottom: 100%;             /* Unterkante der Figur = Oberkante des Schildes */
+  margin-bottom: -0.5em;    /* Beine haengen ueber die Kante ins Schild */
+  width: 2.7em;
+  transform-origin: 50% 84%;   /* Drehpunkt = Sitzflaeche auf der Kante */
+  will-change: transform;
+  animation: np-weihnachten-wippen 4.2s ease-in-out infinite;
+}
+.np-weihnachten-mann-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+@keyframes np-weihnachten-wippen {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-2.6deg); }
+  50%      { transform: translate3d(0, -0.06em, 0) rotate(2.6deg); }
+}
+
+/* ── Geschenkeregen ───────────────────────────────────────────────────────
+   Jede Bahn ist so hoch wie das Schild (height:100%), deshalb ist der
+   Fallweg in % der Bahnhoehe formuliert und passt sich der Schildhoehe an.
+   Das Paket sitzt am Bahnkopf, bewegt wird immer nur die Bahn. */
+
+.np-weihnachten-bahn {
+  position: absolute;
+  top: 0;
+  display: block;
+  width: 0.5em;
+  height: 100%;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+.np-weihnachten-paket {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@keyframes np-weihnachten-fall-a {
+  0%   { transform: translate3d(0.22em, -48%, 0) rotate(-14deg); opacity: 0; }
+  12%  { opacity: var(--np-weihnachten-a, 0.45); }
+  80%  { opacity: var(--np-weihnachten-a, 0.45); }
+  100% { transform: translate3d(-0.3em, 118%, 0) rotate(20deg); opacity: 0; }
+}
+@keyframes np-weihnachten-fall-b {
+  0%   { transform: translate3d(-0.18em, -48%, 0) rotate(12deg); opacity: 0; }
+  12%  { opacity: var(--np-weihnachten-a, 0.45); }
+  80%  { opacity: var(--np-weihnachten-a, 0.45); }
+  100% { transform: translate3d(0.34em, 118%, 0) rotate(-18deg); opacity: 0; }
+}
+
+/* Negative Delays: das Feld ist schon beim ersten Frame gefuellt, es faellt
+   nicht sichtbar „an". Alle Dauern deutlich ueber 0.4 s. */
+.np-weihnachten-b1 { left: 5%;  color: #c62828; --np-weihnachten-a: 0.50; animation-name: np-weihnachten-fall-a; animation-duration: 6.4s; animation-delay: -0.4s; }
+.np-weihnachten-b2 { left: 19%; color: #1b7a4b; --np-weihnachten-a: 0.38; width: 0.44em; animation-name: np-weihnachten-fall-b; animation-duration: 7.6s; animation-delay: -3.1s; }
+.np-weihnachten-b3 { left: 33%; color: #d99a2b; --np-weihnachten-a: 0.28; width: 0.4em;  animation-name: np-weihnachten-fall-a; animation-duration: 8.4s; animation-delay: -5.5s; }
+.np-weihnachten-b4 { left: 69%; color: #1b7a4b; --np-weihnachten-a: 0.42; animation-name: np-weihnachten-fall-b; animation-duration: 6.9s; animation-delay: -1.8s; }
+.np-weihnachten-b5 { left: 85%; color: #c62828; --np-weihnachten-a: 0.50; width: 0.46em; animation-name: np-weihnachten-fall-a; animation-duration: 5.9s; animation-delay: -4.2s; }
+
+/* ── Bewegung aus: Figur bleibt, Pakete stehen still verteilt ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  .np-weihnachten-mann,
+  .np-weihnachten-bahn { animation: none !important; }
+  .np-weihnachten-mann { transform: rotate(-1.5deg); }
+  .np-weihnachten-bahn { opacity: 0.36; }
+  .np-weihnachten-b1 { transform: translate3d(0, 18%, 0) rotate(-10deg); }
+  .np-weihnachten-b2 { transform: translate3d(0, 54%, 0) rotate(8deg); }
+  .np-weihnachten-b3 { transform: translate3d(0, 32%, 0) rotate(-6deg); }
+  .np-weihnachten-b4 { transform: translate3d(0, 68%, 0) rotate(12deg); }
+  .np-weihnachten-b5 { transform: translate3d(0, 26%, 0) rotate(-14deg); }
+}
+
+/* ── Winter — Schneefall — Auf der Oberkante des Schildes liegt eine feine, leicht ueberhaengende Schneekante mit ein ── */
+/* ============================================================
+   Namensschild-Zierde "Winter — Schneefall"   Prefix: np-schnee-
+   ------------------------------------------------------------
+   Regeln der TV-Tafel (85", 24/7):
+   - Endlos-Animationen ausschliesslich @keyframes mit transform
+     und opacity. Kein background-position, kein filter, kein
+     box-shadow in Keyframes -> alles laeuft auf dem Compositor,
+     null Repaints.
+   - 7 bewegte Elemente insgesamt (5 Flockenbahnen + 2 Funkeln).
+   - Alle Geometrie in em/% -> skaliert von 1080p bis 4K mit der
+     Schriftgroesse des Schildes mit, keine festen px.
+   - Textmitte (ca. 28%-66% der Breite) bleibt komplett frei; die
+     Schneekante sitzt ueberwiegend OBERHALB der Oberkante.
+   ============================================================ */
+
+.np-schnee-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;      /* Kante und Flocken duerfen ueberragen */
+}
+
+/* ---------- Schneekante auf der Oberkante (statisch) ---------- */
+.np-schnee-kante {
+  position: absolute;
+  left: -2%;
+  width: 104%;
+  top: -0.62em;           /* Kante liegt AUF dem Schild, nicht darin */
+  height: 1.05em;
+  display: block;
+}
+/* leichter blaeulicher Absatz unter dem Schnee = Tiefe statt Schlagschatten */
+.np-schnee-kante-schatten { fill: rgba(122, 160, 192, 0.34); }
+.np-schnee-kante-weiss    { fill: rgba(255, 255, 255, 0.92); }
+
+/* ---------- zwei Eisfunkeln auf der Kante ---------- */
+.np-schnee-funke {
+  position: absolute;
+  width: 0.13em;
+  height: 0.13em;
+  border-radius: 50%;
+  background: #ffffff;
+  opacity: 0.12;
+  will-change: opacity, transform;
+  animation-name: np-schnee-funkeln;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.np-schnee-funke--1 { left: 13%; top: -0.20em; animation-duration: 9s;  animation-delay: -2s; }
+.np-schnee-funke--2 { left: 74%; top: -0.07em; animation-duration: 11s; animation-delay: -7s; }
+
+/* Auf- und Abblenden dauern je ~0.7 s (>= 0.4 s Vorgabe). */
+@keyframes np-schnee-funkeln {
+  0%, 78%   { opacity: 0.12; transform: scale(0.8); }
+  86%       { opacity: 0.95; transform: scale(1.25); }
+  94%, 100% { opacity: 0.12; transform: scale(0.8); }
+}
+
+/* ---------- fallende Flocken ----------
+   Trick: bewegt wird nicht die Flocke, sondern eine unsichtbare
+   Bahn (Breite 0) von der Hoehe "Schild + Ueberhang". translateY
+   von 0 auf 100% ist damit exakt eine Schildhoehe — unabhaengig
+   davon, ob das Schild zwei oder drei Zeilen hoch ist. Kein
+   px-Wert, der bei anderer Schildhoehe daneben liegt.          */
+.np-schnee-bahn {
+  position: absolute;
+  top: -1.4em;
+  height: calc(100% + 1.4em);
+  width: 0;
+  will-change: transform, opacity;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+/* Positionen bewusst nur am linken/rechten Rand */
+.np-schnee-bahn--1 { left:  7%; animation-name: np-schnee-fall-a; animation-duration: 14s; animation-delay:  -1s; }
+.np-schnee-bahn--2 { left: 18%; animation-name: np-schnee-fall-c; animation-duration: 19s; animation-delay: -11s; }
+.np-schnee-bahn--3 { left: 70%; animation-name: np-schnee-fall-b; animation-duration: 16s; animation-delay:  -6s; }
+.np-schnee-bahn--4 { left: 84%; animation-name: np-schnee-fall-a; animation-duration: 22s; animation-delay: -15s; }
+.np-schnee-bahn--5 { left: 94%; animation-name: np-schnee-fall-b; animation-duration: 17s; animation-delay:  -4s; }
+
+.np-schnee-flocke {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);   /* statisch, mittig auf der Bahn */
+}
+.np-schnee-kristall {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+/* drei Groessen = drei Tiefenebenen */
+.np-schnee-flocke--k1 { width: 0.40em; height: 0.40em; opacity: 0.75; }
+.np-schnee-flocke--k2 { width: 0.30em; height: 0.30em; opacity: 0.58; }
+.np-schnee-flocke--k3 { width: 0.24em; height: 0.24em; opacity: 0.45; }
+/* weit entfernte Flocken = nur noch Punkte */
+.np-schnee-flocke--punkt1 { width: 0.15em; height: 0.15em; border-radius: 50%; background: #fff; opacity: 0.50; }
+.np-schnee-flocke--punkt2 { width: 0.11em; height: 0.11em; border-radius: 50%; background: #fff; opacity: 0.38; }
+
+/* y in %, x in em: das Seitwaerts-Segeln bleibt zart, egal wie
+   hoch das Schild ist. Ein-/Ausblenden verhindert Pop-in. */
+@keyframes np-schnee-fall-a {
+  0%   { transform: translate3d(0, 0, 0);            opacity: 0; }
+  14%  {                                             opacity: 1; }
+  50%  { transform: translate3d(-0.30em, 50%, 0); }
+  86%  {                                             opacity: 1; }
+  100% { transform: translate3d(0.22em, 100%, 0);    opacity: 0; }
+}
+@keyframes np-schnee-fall-b {
+  0%   { transform: translate3d(0, 0, 0);            opacity: 0; }
+  14%  {                                             opacity: 1; }
+  50%  { transform: translate3d(0.26em, 50%, 0); }
+  86%  {                                             opacity: 1; }
+  100% { transform: translate3d(-0.18em, 100%, 0);   opacity: 0; }
+}
+@keyframes np-schnee-fall-c {
+  0%   { transform: translate3d(0, 0, 0);            opacity: 0; }
+  16%  {                                             opacity: 1; }
+  84%  {                                             opacity: 1; }
+  100% { transform: translate3d(0.12em, 100%, 0);    opacity: 0; }
+}
+
+/* ---------- Abschaltung ----------
+   Kein Standbild bei opacity 0: die Bahnen werden auf feste,
+   gestaffelte Positionen eingefroren, die Kante bleibt wie sie ist. */
+@media (prefers-reduced-motion: reduce) {
+  .np-schnee-bahn,
+  .np-schnee-funke { animation: none !important; }
+
+  .np-schnee-bahn--1 { transform: translate3d(0, 22%, 0); opacity: 1; }
+  .np-schnee-bahn--2 { transform: translate3d(0, 58%, 0); opacity: 1; }
+  .np-schnee-bahn--3 { transform: translate3d(0, 35%, 0); opacity: 1; }
+  .np-schnee-bahn--4 { transform: translate3d(0, 72%, 0); opacity: 1; }
+  .np-schnee-bahn--5 { transform: translate3d(0, 46%, 0); opacity: 1; }
+
+  .np-schnee-funke { opacity: 0.45; transform: none; }
+}
+
+/* ── Herbstlaub — Vier kleine Ahorn- und Eichenblaetter in warmen Rost- und Bernsteintoenen trudeln links un ── */
+/* ==========================================================================
+   Namensschild-Zierde "Herbst" — TV-Tafel, laeuft 24/7.
+   Nur transform + opacity in den @keyframes (GPU-Compositing, keine Repaints).
+   Alle Groessen in em/% -> skaliert von 1080p bis 4K mit der Schriftgroesse.
+   6 bewegte Teile: 4 fallende Blaetter + 2 wippende Eckblaetter.
+   ========================================================================== */
+
+.np-herbst-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
+/* Statischer Warmton an den Raendern — kein Keyframe, wird einmal gemalt. */
+.np-herbst-wash {
+  position: absolute;
+  inset: -0.3em -0.45em;
+  border-radius: 0.7em;
+  background:
+    radial-gradient(120% 90% at 4% 0%, rgba(194, 65, 12, 0.14), rgba(194, 65, 12, 0) 55%),
+    radial-gradient(115% 90% at 97% 100%, rgba(180, 83, 9, 0.13), rgba(180, 83, 9, 0) 58%);
+}
+
+/* ── fallende Blaetter ─────────────────────────────────────────────────── */
+.np-herbst-blatt {
+  position: absolute;
+  top: 0;
+  width: 1.05em;
+  height: 1.05em;
+  opacity: 0;
+  transform: translate3d(0, -1.7em, 0);
+  transform-origin: 50% 45%;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.np-herbst-blatt svg,
+.np-herbst-ruhe svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.np-herbst-b1 {
+  left: 4%;
+  color: #c2410c;
+  animation: np-herbst-fall-a 15s linear infinite;
+  animation-delay: -2.5s;
+}
+
+.np-herbst-b2 {
+  left: 18%;
+  width: 0.82em;
+  height: 0.82em;
+  color: #d97706;
+  animation: np-herbst-fall-b 21s linear infinite;
+  animation-delay: -11s;
+}
+
+.np-herbst-b3 {
+  left: 77%;
+  width: 0.92em;
+  height: 0.92em;
+  color: #b45309;
+  animation: np-herbst-fall-b 17s linear infinite;
+  animation-delay: -6s;
+}
+
+.np-herbst-b4 {
+  left: 92%;
+  color: #ea8c1a;
+  animation: np-herbst-fall-a 24s linear infinite;
+  animation-delay: -16s;
+}
+
+/* ── liegengebliebene Eckblaetter ──────────────────────────────────────── */
+.np-herbst-ruhe {
+  position: absolute;
+  width: 0.95em;
+  height: 0.95em;
+  opacity: 0.5;
+  transform-origin: 50% 88%;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.np-herbst-r1 {
+  left: -0.38em;
+  bottom: -0.42em;
+  color: #9a3412;
+  animation: np-herbst-wiegen-a 9s ease-in-out infinite alternate;
+}
+
+.np-herbst-r2 {
+  right: -0.32em;
+  top: -0.48em;
+  width: 0.8em;
+  height: 0.8em;
+  color: #b45309;
+  animation: np-herbst-wiegen-b 11s ease-in-out infinite alternate;
+}
+
+/* ── Keyframes: ausschliesslich transform + opacity ────────────────────── */
+@keyframes np-herbst-fall-a {
+  0% {
+    transform: translate3d(0, -1.7em, 0) rotate(-10deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.5;
+  }
+  25% {
+    transform: translate3d(0.34em, 0.5em, 0) rotate(24deg);
+  }
+  50% {
+    transform: translate3d(-0.26em, 2.1em, 0) rotate(-18deg);
+  }
+  75% {
+    transform: translate3d(0.3em, 3.7em, 0) rotate(28deg);
+  }
+  90% {
+    opacity: 0.44;
+  }
+  100% {
+    transform: translate3d(-0.12em, 5.5em, 0) rotate(-4deg);
+    opacity: 0;
+  }
+}
+
+@keyframes np-herbst-fall-b {
+  0% {
+    transform: translate3d(0, -1.7em, 0) rotate(16deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.46;
+  }
+  30% {
+    transform: translate3d(-0.3em, 0.9em, 0) rotate(-22deg);
+  }
+  55% {
+    transform: translate3d(0.28em, 2.6em, 0) rotate(20deg);
+  }
+  80% {
+    transform: translate3d(-0.22em, 4.2em, 0) rotate(-26deg);
+  }
+  92% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate3d(0.08em, 5.5em, 0) rotate(6deg);
+    opacity: 0;
+  }
+}
+
+@keyframes np-herbst-wiegen-a {
+  0% {
+    transform: rotate(-9deg) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: rotate(6deg) translate3d(0.05em, -0.04em, 0);
+  }
+}
+
+@keyframes np-herbst-wiegen-b {
+  0% {
+    transform: rotate(8deg) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: rotate(-7deg) translate3d(-0.05em, 0.04em, 0);
+  }
+}
+
+/* ── Abschaltung ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .np-herbst-blatt,
+  .np-herbst-ruhe {
+    animation: none !important;
+  }
+  .np-herbst-blatt {
+    opacity: 0.42;
+  }
+  .np-herbst-b1 {
+    transform: translate3d(0.1em, 0.35em, 0) rotate(-14deg);
+  }
+  .np-herbst-b2 {
+    transform: translate3d(-0.1em, 1.9em, 0) rotate(9deg);
+  }
+  .np-herbst-b3 {
+    transform: translate3d(0.15em, 0.9em, 0) rotate(-6deg);
+  }
+  .np-herbst-b4 {
+    transform: translate3d(0, 2.4em, 0) rotate(17deg);
+  }
+  .np-herbst-r1 {
+    transform: rotate(-6deg);
+  }
+  .np-herbst-r2 {
+    transform: rotate(5deg);
+  }
+}
+
+/* ── Frühling – Blütenblätter &amp; Knospenzweig — Ein zarter Knospenzweig legt sich von der oberen linken Ecke über die Schildkante und wieg ── */
+/* ============================================================
+   Namensschild-Zierde: Frühling (Blütenblätter + Knospenzweig)
+   Prefix: np-fruehling-
+   Nur transform/opacity in @keyframes, alle Maße in em/%.
+   ============================================================ */
+
+.np-fruehling-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
+}
+
+/* --- Zweig über der oberen linken Ecke --- */
+.np-fruehling-zweig {
+  position: absolute;
+  top: -0.8em;
+  left: -0.9em;
+  width: 6.4em;
+  max-width: 62%;
+  transform: rotate(-5deg);
+  transform-origin: 0 0;
+  opacity: 0.8;
+}
+
+.np-fruehling-zweig-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  transform-origin: 3% 8%;
+  animation: np-fruehling-wiegen 8s ease-in-out infinite alternate;
+}
+
+@keyframes np-fruehling-wiegen {
+  from { transform: rotate(-1.5deg); }
+  to   { transform: rotate(1.5deg); }
+}
+
+/* --- Knospen atmen leicht --- */
+.np-fruehling-knospe {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.np-fruehling-knospe--a {
+  animation: np-fruehling-knospen 5.6s ease-in-out infinite;
+}
+
+.np-fruehling-knospe--b {
+  animation: np-fruehling-knospen 6.8s ease-in-out infinite;
+  animation-delay: -2.4s;
+}
+
+@keyframes np-fruehling-knospen {
+  0%, 100% { transform: scale(1);    opacity: 0.75; }
+  50%      { transform: scale(1.13); opacity: 1; }
+}
+
+/* --- Herabsegelnde Blütenblätter (nur an den Rändern) --- */
+.np-fruehling-blatt {
+  position: absolute;
+  top: -1em;
+  width: 0.5em;
+  height: 0.38em;
+  border-radius: 60% 40% 55% 45% / 65% 60% 40% 35%;
+  background-image: linear-gradient(140deg, #fff0f5 0%, #f9c8dc 55%, #eeaac6 100%);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.np-fruehling-blatt--p1 {
+  left: 5%;
+  animation: np-fruehling-segeln-a 12s linear infinite;
+  animation-delay: -1.5s;
+}
+
+.np-fruehling-blatt--p2 {
+  left: 16%;
+  width: 0.42em;
+  height: 0.32em;
+  animation: np-fruehling-segeln-b 14.5s linear infinite;
+  animation-delay: -7s;
+}
+
+.np-fruehling-blatt--p3 {
+  left: 84%;
+  animation: np-fruehling-segeln-b 11s linear infinite;
+  animation-delay: -4s;
+}
+
+.np-fruehling-blatt--p4 {
+  left: 94%;
+  width: 0.44em;
+  height: 0.34em;
+  animation: np-fruehling-segeln-a 16s linear infinite;
+  animation-delay: -10.5s;
+}
+
+@keyframes np-fruehling-segeln-a {
+  0%   { transform: translate3d(0, -0.4em, 0) rotate(0deg);        opacity: 0; }
+  12%  { opacity: 0.5; }
+  50%  { transform: translate3d(0.5em, 2.6em, 0) rotate(140deg);   opacity: 0.45; }
+  85%  { opacity: 0.3; }
+  100% { transform: translate3d(-0.15em, 5.4em, 0) rotate(280deg); opacity: 0; }
+}
+
+@keyframes np-fruehling-segeln-b {
+  0%   { transform: translate3d(0, -0.4em, 0) rotate(20deg);        opacity: 0; }
+  15%  { opacity: 0.45; }
+  55%  { transform: translate3d(-0.55em, 2.9em, 0) rotate(-110deg); opacity: 0.4; }
+  85%  { opacity: 0.25; }
+  100% { transform: translate3d(0.2em, 5.6em, 0) rotate(-250deg);   opacity: 0; }
+}
+
+/* --- Bewegung aus: ruhiges Standbild --- */
+@media (prefers-reduced-motion: reduce) {
+  .np-fruehling-zweig-svg,
+  .np-fruehling-knospe,
+  .np-fruehling-blatt {
+    animation: none !important;
+  }
+
+  .np-fruehling-zweig-svg { transform: none; }
+
+  .np-fruehling-knospe {
+    transform: none;
+    opacity: 0.9;
+  }
+
+  .np-fruehling-blatt { opacity: 0.35; }
+  .np-fruehling-blatt--p1 { transform: translate3d(0.2em, 1.4em, 0) rotate(28deg); }
+  .np-fruehling-blatt--p2 { transform: translate3d(-0.2em, 2.6em, 0) rotate(-40deg); }
+  .np-fruehling-blatt--p3 { transform: translate3d(-0.3em, 1.9em, 0) rotate(-15deg); }
+  .np-fruehling-blatt--p4 { transform: translate3d(0.1em, 3.1em, 0) rotate(52deg); }
+}
+
+/* ── Sommer — Sonnenrad — Eine kleine warme Sonne sitzt auf der oberen rechten Ecke des Schildes, dreht ihre Strahle ── */
+/* ============================================================
+   Namensschild-Zierde "Sommer — Sonnenrad"  (Prefix np-sommer-)
+   Endlos-Animationen: nur transform + opacity, Pure CSS.
+   ============================================================ */
+
+.np-sommer-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
+/* --- Sonne auf der oberen rechten Ecke -------------------- */
+.np-sommer-sonne {
+  position: absolute;
+  top: -1.15em;
+  right: -1.05em;
+  width: 3.2em;
+  height: 3.2em;
+  overflow: visible;
+}
+
+.np-sommer-strahlen {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  animation: np-sommer-dreh 84s linear infinite;
+}
+
+.np-sommer-kern {
+  opacity: 0.62;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  animation: np-sommer-atmen 9s ease-in-out infinite alternate;
+}
+
+/* --- Wärmeflimmern unter der Sonne, am rechten Rand ------- */
+.np-sommer-flimmer {
+  position: absolute;
+  bottom: 0.15em;
+  width: 0.13em;
+  height: 1.15em;
+  border-radius: 50%;
+  background: linear-gradient(to top, rgba(255, 196, 110, 0), rgba(255, 208, 138, 0.85), rgba(255, 208, 138, 0));
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: np-sommer-steigen 9s ease-in-out infinite;
+}
+
+.np-sommer-flimmer--a { right: 0.55em; animation-duration: 9s;    animation-delay: 0s; }
+.np-sommer-flimmer--b { right: 1.15em; animation-duration: 11s;   animation-delay: 2.6s; }
+.np-sommer-flimmer--c { right: 0.15em; animation-duration: 12.5s; animation-delay: 5.4s; }
+
+/* --- Keyframes: ausschliesslich transform + opacity ------- */
+@keyframes np-sommer-dreh {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes np-sommer-atmen {
+  from { transform: scale(1);     opacity: 0.55; }
+  to   { transform: scale(1.075); opacity: 0.78; }
+}
+
+@keyframes np-sommer-steigen {
+  0%   { transform: translate3d(0, 0.2em, 0) scaleY(0.55) scaleX(1);    opacity: 0; }
+  18%  { opacity: 0.18; }
+  55%  { transform: translate3d(0.09em, -0.9em, 0) scaleY(1) scaleX(0.85); opacity: 0.16; }
+  100% { transform: translate3d(-0.05em, -2em, 0) scaleY(1.25) scaleX(0.7); opacity: 0; }
+}
+
+/* --- Barrierefreiheit / Ruhemodus ------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .np-sommer-strahlen,
+  .np-sommer-kern,
+  .np-sommer-flimmer {
+    animation: none !important;
+  }
+  .np-sommer-kern { opacity: 0.66; }
+  .np-sommer-flimmer { opacity: 0.1; transform: translate3d(0, -0.6em, 0); }
+}

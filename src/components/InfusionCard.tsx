@@ -9,7 +9,8 @@ import { themeFromAttributes, stripThemeAttrs } from '@/lib/aufgussTheme';
 import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
-import { nameplateFor } from '@/lib/nameplates';
+import { nameplateAus, rgba, FORM_BY_ID } from '@/lib/nameplates';
+import { NameplateDeko } from '@/components/NameplateDeko';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
@@ -119,10 +120,12 @@ export function InfusionCard({
   // im Profil hinterlegten "Standard-Stil" des Aufgießers (Migration 0100).
   const meisterDir = useMeisterDirectory();
   const meisterDefaults = (meisterDir.data ?? []).find((x) => x.id === infusion.saunameister_id);
-  // Namensschild des Aufgießers (Migration 0121). Fällt für Alt-Daten und
-  // unbekannte Stile still auf „Klarglas" zurück — die Tafel darf nie ohne
-  // Schild dastehen.
-  const schild = nameplateFor(meisterDefaults?.nameplate);
+  // Namensschild des Aufgießers (Migration 0122). Jeder Einzelwert wird beim
+  // Einlesen geprüft und notfalls durch die Vorgabe ersetzt — Alt-Daten und
+  // halb gespeicherte Objekte dürfen die Tafel nicht kippen.
+  const schild = nameplateAus(meisterDefaults?.nameplate_config);
+  const schildForm = FORM_BY_ID[schild.form];
+  const geclippt = !!schildForm?.clipPath;
 
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
@@ -468,7 +471,7 @@ export function InfusionCard({
           {infusion.description && (
             <p
               className="tile-desc text-slate-600 italic line-clamp-1 flex-shrink-0"
-              style={{ fontSize: 'clamp(calc(12px * var(--d)), 3cqh, 17px)', color: schild.textMotto }}
+              style={{ fontSize: 'clamp(calc(12px * var(--d)), 3cqh, 17px)', color: schild.textSlogan }}
             >
               {infusion.description}
             </p>
@@ -502,11 +505,25 @@ export function InfusionCard({
               alle drei Elemente bündig auf gleicher unterer Kante.
               flex-wrap fängt sehr enge Karten ab — bei zu wenig Platz
               wickeln die Spalten ohne Crash. */}
-          <div className="mt-auto pt-2 flex items-end justify-between gap-2 flex-shrink-0 flex-wrap">
+          {/* Alle VIER Spalten exakt gleich hoch (User-Wunsch 03.08.2026).
+              Statt `items-end` (jede Spalte so hoch wie ihr Inhalt) gibt es
+              jetzt EIN gemeinsames Hoehenmass --fussH, an dem sich alle
+              ausrichten. Das ist bewusst eine feste Variable und kein
+              `items-stretch` mit Prozentwerten: Prozent-Hoehen gegen einen
+              gestretchten Flex-Container sind je nach Browser zirkulaer, und
+              der Avatar braucht unten einen VERLAESSLICHEN Bezug, um genau
+              5 % groesser zu sein.
+              overflow bleibt sichtbar — die Jahreszeiten-Grafik am Schild
+              darf ueber die Zeile hinausragen. */}
+          <div
+            className="mt-auto pt-2 flex items-center justify-between gap-2 flex-shrink-0 flex-wrap"
+            style={{ ['--fussH' as string]: 'clamp(calc(46px * var(--d)), 13cqh, 88px)' }}
+          >
             {/* SPALTE 1 — Sauna-Badge */}
             <span
               className="inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white flex-shrink-0"
               style={{
+                height: 'var(--fussH)',
                 fontSize: 'clamp(calc(16px * var(--dh)), 3.7cqh, 22px)',
                 padding:  'clamp(calc(5px * var(--d)), 1.2cqh, 8px) clamp(calc(11px * var(--d)), 2.9cqh, 19px)',
                 background: sauna.accent_color,
@@ -528,7 +545,7 @@ export function InfusionCard({
 
             {/* SPALTE 2 — Aufgießer-Block mittig */}
             {meisterDefaults && (meisterName || meisterDefaults.motto) ? (
-              <div className="flex items-center gap-2 min-w-0 flex-shrink">
+              <div className="flex items-center gap-2 min-w-0 flex-shrink" style={{ height: 'var(--fussH)' }}>
                 {(() => {
                   const avatarUrl = resolveAvatarUrl(meisterDefaults.avatar_path, 128)
                     ?? dicebearUrl('fun-emoji', meisterDefaults.id, 128);
@@ -538,8 +555,13 @@ export function InfusionCard({
                       aria-hidden
                       className="flex-shrink-0 rounded-full overflow-hidden"
                       style={{
-                        width:  'clamp(calc(34px * var(--d)), 9.6cqh, 65px)',
-                        height: 'clamp(calc(34px * var(--d)), 9.6cqh, 65px)',
+                        /* 5 % groesser als die anderen drei Spalten, und zwar
+                           je 2,5 % nach oben und nach unten darueber hinaus —
+                           deshalb der negative Rand auf beiden Seiten. */
+                        width:  'calc(var(--fussH) * 1.05)',
+                        height: 'calc(var(--fussH) * 1.05)',
+                        marginTop:    'calc(var(--fussH) * -0.025)',
+                        marginBottom: 'calc(var(--fussH) * -0.025)',
                         boxShadow: accent
                           ? `0 0 0 2px ${accent}, 0 0 14px ${accent}66`
                           : '0 0 0 2px rgba(148,163,184,0.4)',
@@ -568,20 +590,38 @@ export function InfusionCard({
                     weiterhin schwer zu lesen. Farbe, Transparenz und Form
                     waehlt der Aufgiesser selbst in seinem Profil; unbekannte
                     oder leere Werte fallen auf „Klarglas" zurueck. */}
+                <div className="relative min-w-0" style={{ overflow: 'visible' }}>
+                  {/* Der farbige Rahmen bei geclippten Formen: ein statischer
+                      Vier-Richtungs-drop-shadow am ELTERN-Element. Ein
+                      box-shadow würde vom clip-path mitgeschnitten, und eine
+                      untergelegte Randplatte schimmert durch, sobald der
+                      Nutzer Transparenz wählt — und Transparenz ist hier der
+                      Punkt. Der Filter ist statisch, rastert also einmal; die
+                      animierte Deko liegt bewusst AUSSERHALB davon. */}
+                  <div
+                    style={geclippt ? {
+                      filter: [
+                        `drop-shadow(0.06em 0 0 ${schild.rahmen})`,
+                        `drop-shadow(-0.06em 0 0 ${schild.rahmen})`,
+                        `drop-shadow(0 0.06em 0 ${schild.rahmen})`,
+                        `drop-shadow(0 -0.06em 0 ${schild.rahmen})`,
+                      ].join(' '),
+                    } : undefined}
+                  >
                 <div
-                  className="min-w-0 leading-tight"
+                  className="min-w-0 leading-tight text-center"
                   style={{
-                    background: schild.bg,
-                    borderRadius: schild.radius,
-                    boxShadow: schild.ring,
-                    padding: 'clamp(calc(3px * var(--d)), 0.9cqh, 7px) clamp(calc(9px * var(--d)), 2.4cqh, 16px)',
+                    background: rgba(schild.bg, schild.bgAlpha),
+                    borderRadius: schildForm?.borderRadius ?? '999em',
+                    ...(geclippt ? { clipPath: schildForm!.clipPath } : { boxShadow: `inset 0 0 0 0.09em ${schild.rahmen}` }),
+                    padding: schildForm?.padding ?? '0.5em 1.15em',
                   }}
                 >
                   <div
                     className="font-bold truncate"
                     style={{
                       fontSize: 'clamp(calc(16px * var(--dh)), 4.1cqh, 24px)',
-                      color: schild.text,
+                      color: schild.textName,
                     }}
                   >
                     {meisterName ?? meisterDefaults.name}
@@ -604,6 +644,12 @@ export function InfusionCard({
                     </div>
                   )}
                 </div>
+                  </div>
+                  {/* Jahreszeiten-Grafik: liegt ÜBER dem Schild, darf über
+                      dessen Kanten hinaus (User-Wunsch) und steht bewusst
+                      ausserhalb des gefilterten Wrappers. */}
+                  <NameplateDeko deko={schild.deko} />
+                </div>
               </div>
             ) : (
               /* Personal-Aufguss: Mittel-Spalte leer aber als Spacer, damit
@@ -617,8 +663,9 @@ export function InfusionCard({
                 Art · Uhrzeit. Nur gerendert wenn es etwas zu melden gibt. */}
             {(theme || isBanja) && (
               <span
-                className="inline-flex flex-col items-center font-black uppercase text-white whitespace-nowrap flex-shrink-0"
+                className="inline-flex flex-col items-center justify-center font-black uppercase text-white whitespace-nowrap flex-shrink-0"
                 style={{
+                  height: 'var(--fussH)',
                   fontSize: 'clamp(calc(11px * var(--d)), 2.7cqh, 17px)',
                   lineHeight: 1.06,
                   borderRadius: '0.7em',
@@ -642,7 +689,10 @@ export function InfusionCard({
             )}
 
             {/* SPALTE 4 — Aktuelle Uhrzeit + Countdown-Pille rechts */}
-            <div className="flex flex-col items-end gap-1 leading-none whitespace-nowrap flex-shrink-0">
+            <div
+              className="flex flex-col items-end justify-center gap-1 leading-none whitespace-nowrap flex-shrink-0"
+              style={{ height: 'var(--fussH)' }}
+            >
               <span
                 className="tabular-nums font-bold text-black"
                 style={{ fontSize: 'clamp(calc(19px * var(--dh)), 5.2cqh, 31px)' }}

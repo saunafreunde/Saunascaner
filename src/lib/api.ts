@@ -652,8 +652,8 @@ export type Member = {
   revoked_at: string | null;
   birthday: string | null;
   motto: string | null;
-  /** Gewaehltes Namensschild auf der TV-Tafel (Migration 0121). */
-  nameplate: string | null;
+  /** Schild-Konfiguration auf der TV-Tafel (Migration 0122). */
+  nameplate_config: unknown;
   avatar_path: string | null;
   home_group: string | null;
   calendar_feed_token: string | null;
@@ -953,10 +953,10 @@ export function useSetMotto() {
 export function useSetMyNameplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (style: string) => {
-      const { data, error } = await need().rpc('set_my_nameplate', { p_style: style });
+    mutationFn: async (config: unknown) => {
+      const { data, error } = await need().rpc('set_my_nameplate_config', { p_config: config });
       if (error) throw error;
-      if (data === 'too_long') throw new Error('Ungueltiges Namensschild.');
+      if (data === 'invalid' || data === 'too_long') throw new Error('Ungueltige Schild-Einstellung.');
       if (data === 'not_authorized') throw new Error('Nicht berechtigt.');
       return data as string;
     },
@@ -1563,9 +1563,9 @@ export type MeisterDirectoryEntry = {
   default_mood_oils: string[];
   motto: string;
   star_accent_color: string | null;
-  /** Gewaehltes Namensschild (Migration 0121). Null = noch nie gewaehlt →
-   *  Frontend faellt auf „Klarglas" zurueck (nameplateFor). */
-  nameplate: string | null;
+  /** Schild-Konfiguration (Migration 0122). Null = noch nie eingestellt →
+   *  Frontend faellt auf die Vorgabe zurueck (nameplateAus). */
+  nameplate_config: unknown;
 };
 export function useMeisterDirectory() {
   return useQuery({

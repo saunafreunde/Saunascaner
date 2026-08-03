@@ -22,7 +22,9 @@ import {
   useSetMyAutoCheckin,
 } from '@/lib/api';
 import { OIL_BY_ID } from '@/lib/oils';
-import { NAMEPLATES, NAMEPLATE_GRUPPEN, NAMEPLATE_DEFAULT } from '@/lib/nameplates';
+import { FORMEN, FORM_BY_ID, DEKOS, FARBEN, nameplateAus, rgba, kontrastWert, istLesbar,
+         KONTRAST_SCHWELLE, type NameplateConfig } from '@/lib/nameplates';
+import { NameplateDeko } from '@/components/NameplateDeko';
 import { Avatar } from '@/components/Avatar';
 import AvatarPicker from '@/components/AvatarPicker';
 import { FollowButton } from '@/components/FollowButton';
@@ -42,11 +44,6 @@ export default function Profile() {
   const favOilsQ = useFavoriteOils(memberId);
   const sigInfQ = useSignatureInfusion(memberId);
   const setMotto = useSetMotto();
-  // Namensschild auf der TV-Tafel (Migration 0121) — Farbe, Transparenz und
-  // Form. Steht hier bei Motto und Avatar, weil es dasselbe betrifft: wie der
-  // Aufgiesser auf der Tafel erscheint.
-  const setNameplate = useSetMyNameplate();
-  const [nameplateError, setNameplateError] = useState<string | null>(null);
   const [editingMotto, setEditingMotto] = useState(false);
   const [mottoDraft, setMottoDraft] = useState('');
   const [mottoError, setMottoError] = useState<string | null>(null);
@@ -222,50 +219,7 @@ export default function Profile() {
           {/* Namensschild auf der TV-Tafel — nur fuer einen selbst, und nur
               wenn man ueberhaupt aufgiesst (sonst erscheint man dort nie). */}
           {isMyself && (m.is_aufgieser || m.role === 'admin' || m.role === 'guest_aufgieser') && (
-            <div className="mt-4 border-t border-forest-800/40 pt-4">
-              <label className="text-[10px] uppercase tracking-wider text-forest-400/80">
-                Mein Namensschild auf der Tafel
-              </label>
-              <p className="mt-1 text-xs text-forest-400/70">
-                Name und Spruch stehen auf den Aufguss-Karten direkt auf dem Foto. Such dir aus,
-                worauf sie liegen sollen.
-              </p>
-              {NAMEPLATE_GRUPPEN.map((gruppe) => (
-                <div key={gruppe.id} className="mt-3">
-                  <div className="text-[10px] uppercase tracking-wider text-forest-500">{gruppe.label}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-2">
-                    {NAMEPLATES.filter((n) => n.gruppe === gruppe.id).map((n) => {
-                      const aktiv = (me.data?.nameplate ?? NAMEPLATE_DEFAULT.id) === n.id;
-                      return (
-                        <button
-                          key={n.id}
-                          type="button"
-                          disabled={setNameplate.isPending}
-                          onClick={async () => {
-                            setNameplateError(null);
-                            try { await setNameplate.mutateAsync(n.id); }
-                            catch (e) { setNameplateError((e as Error).message); }
-                          }}
-                          title={n.label}
-                          className={`inline-flex flex-col items-start transition disabled:opacity-60 ${
-                            aktiv ? 'ring-2 ring-forest-300' : 'ring-1 ring-forest-700/50 hover:ring-forest-500'
-                          }`}
-                          style={{ borderRadius: n.radius, background: n.bg, boxShadow: n.ring, padding: '6px 12px' }}
-                        >
-                          <span className="text-sm font-bold leading-tight" style={{ color: n.text }}>
-                            {n.emoji} {m.name}
-                          </span>
-                          <span className="text-[11px] italic leading-tight" style={{ color: n.textMotto }}>
-                            {m.motto ? `„${m.motto.slice(0, 26)}"` : n.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-              {nameplateError && <p className="mt-2 text-xs text-rose-300">{nameplateError}</p>}
-            </div>
+            <NamensschildEditor name={m.name} motto={m.motto} />
           )}
         </div>
 
@@ -462,6 +416,204 @@ function StatTile({ label, value, icon, highlight = false }: { label: string; va
         <span className="truncate">{label}</span>
       </div>
       <div className={`mt-2 text-3xl font-black tabular-nums ${highlight ? 'text-amber-300' : 'text-forest-100'}`}>{value}</div>
+    </div>
+  );
+}
+
+
+// ─── Namensschild-Editor (Migration 0122) ────────────────────────────────
+// Name und Spruch stehen auf den Aufguss-Karten direkt auf dem Karten-Foto.
+// Hier stellt sich jeder sein Schild zusammen: Form, Hintergrundfarbe samt
+// Transparenz, Rahmenfarbe, beide Schriftfarben und optional eine animierte
+// Jahreszeiten-Grafik.
+//
+// Gespeichert wird bei JEDER Änderung sofort — ein „Speichern"-Knopf wäre
+// hier nur eine Falle: man probiert Farben aus, sieht die Vorschau und will
+// nicht auch noch bestätigen.
+function NamensschildEditor({ name, motto }: { name: string; motto: string | null }) {
+  const me = useCurrentMember();
+  const speichern = useSetMyNameplate();
+  const [cfg, setCfg] = useState<NameplateConfig>(() => nameplateAus(me.data?.nameplate_config));
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  useEffect(() => { setCfg(nameplateAus(me.data?.nameplate_config)); }, [me.data?.nameplate_config]);
+
+  async function aendern(teil: Partial<NameplateConfig>) {
+    const next = { ...cfg, ...teil };
+    setCfg(next);
+    setFehler(null);
+    try { await speichern.mutateAsync(next); }
+    catch (e) { setFehler((e as Error).message); }
+  }
+
+  const form = FORM_BY_ID[cfg.form] ?? FORMEN[0];
+  const geclippt = !!form.clipPath;
+  const randFilter = [
+    'drop-shadow(0.06em 0 0 ' + cfg.rahmen + ')',
+    'drop-shadow(-0.06em 0 0 ' + cfg.rahmen + ')',
+    'drop-shadow(0 0.06em 0 ' + cfg.rahmen + ')',
+    'drop-shadow(0 -0.06em 0 ' + cfg.rahmen + ')',
+  ].join(' ');
+
+  const farbZeilen = [
+    { key: 'bg' as const, titel: 'Hintergrund', lesbar: true },
+    { key: 'rahmen' as const, titel: 'Rahmen', lesbar: true },
+    { key: 'textName' as const, titel: 'Schrift Name', lesbar: istLesbar(cfg.textName, cfg.bg, cfg.bgAlpha) },
+    { key: 'textSlogan' as const, titel: 'Schrift Spruch', lesbar: istLesbar(cfg.textSlogan, cfg.bg, cfg.bgAlpha) },
+  ];
+
+  return (
+    <div className="mt-4 border-t border-forest-800/40 pt-4">
+      <label className="text-[10px] uppercase tracking-wider text-forest-400/80">
+        Mein Namensschild auf der Tafel
+      </label>
+
+      {/* Vorschau — echter Name, echter Spruch, echtes Schild. Der Untergrund
+          ist absichtlich unruhig: so sieht man sofort, ob die gewählte
+          Transparenz auf einem Karten-Foto noch trägt. */}
+      <div className="mt-2 rounded-xl bg-gradient-to-br from-amber-800/50 via-forest-800/50 to-slate-900/70 p-7 flex justify-center overflow-hidden">
+        <div className="relative">
+          <div style={geclippt ? { filter: randFilter } : undefined}>
+            <div
+              className="leading-tight text-center"
+              style={{
+                fontSize: 15,
+                background: rgba(cfg.bg, cfg.bgAlpha),
+                borderRadius: form.borderRadius,
+                ...(geclippt
+                  ? { clipPath: form.clipPath }
+                  : { boxShadow: 'inset 0 0 0 0.09em ' + cfg.rahmen }),
+                padding: form.padding,
+              }}
+            >
+              <div className="font-bold" style={{ color: cfg.textName }}>{name}</div>
+              {motto && (
+                <div className="italic text-[0.8em]" style={{ color: cfg.textSlogan }}>
+                  {'„' + motto + '“'}
+                </div>
+              )}
+            </div>
+          </div>
+          <NameplateDeko deko={cfg.deko} />
+        </div>
+      </div>
+
+      {/* Form */}
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-wider text-forest-500">Form</div>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {FORMEN.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => aendern({ form: f.id })}
+              title={f.beschreibung}
+              className={
+                'rounded-lg px-2.5 py-1.5 text-xs transition ' +
+                (cfg.form === f.id
+                  ? 'bg-forest-500 text-forest-950 font-semibold'
+                  : 'bg-forest-900/60 text-forest-200 ring-1 ring-forest-800/50 hover:bg-forest-900')
+              }
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Farben — Hintergrund, Rahmen, beide Schriften */}
+      {farbZeilen.map((zeile) => (
+        <div key={zeile.key} className="mt-3">
+          <div className="text-[10px] uppercase tracking-wider text-forest-500">
+            {zeile.titel}
+            {!zeile.lesbar && (
+              <span className="ml-2 normal-case tracking-normal text-amber-300">
+                ⚠ schwer lesbar (Kontrast {kontrastWert(cfg[zeile.key], cfg.bg, cfg.bgAlpha).toFixed(1)}:1,
+                nötig {KONTRAST_SCHWELLE}:1)
+              </span>
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {FARBEN.map((farbe) => {
+              const aktiv = cfg[zeile.key] === farbe.hex;
+              const schwach =
+                zeile.key.startsWith('text') && !istLesbar(farbe.hex, cfg.bg, cfg.bgAlpha);
+              return (
+                <button
+                  key={farbe.hex}
+                  type="button"
+                  onClick={() => aendern({ [zeile.key]: farbe.hex })}
+                  title={schwach ? farbe.label + ' — auf diesem Hintergrund schwer lesbar' : farbe.label}
+                  className={
+                    'h-7 w-7 rounded-full transition ' +
+                    (aktiv ? 'ring-2 ring-forest-300' : 'ring-1 ring-forest-700/60 hover:ring-forest-500') +
+                    (schwach ? ' opacity-40' : '')
+                  }
+                  style={{ background: farbe.hex }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* Transparenz */}
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-wider text-forest-500">
+          Transparenz des Hintergrunds —{' '}
+          <span className="tabular-nums normal-case">{Math.round(cfg.bgAlpha * 100)} % deckend</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={Math.round(cfg.bgAlpha * 100)}
+          onChange={(e) => aendern({ bgAlpha: Number(e.target.value) / 100 })}
+          className="mt-1.5 w-full accent-forest-400"
+        />
+        <p className="text-[11px] text-forest-400/70">
+          Je durchsichtiger, desto mehr Karten-Foto scheint durch — dafür wird die Schrift schwerer
+          lesbar. Die Warnung oben rechnet bewusst mit dem ungünstigsten Motiv, hell wie dunkel.
+        </p>
+      </div>
+
+      {/* Jahreszeiten-Grafik */}
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-wider text-forest-500">Jahreszeiten-Grafik</div>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => aendern({ deko: null })}
+            className={
+              'rounded-lg px-2.5 py-1.5 text-xs transition ' +
+              (cfg.deko === null
+                ? 'bg-forest-500 text-forest-950 font-semibold'
+                : 'bg-forest-900/60 text-forest-200 ring-1 ring-forest-800/50 hover:bg-forest-900')
+            }
+          >
+            ohne
+          </button>
+          {DEKOS.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => aendern({ deko: d.id })}
+              title={d.beschreibung}
+              className={
+                'rounded-lg px-2.5 py-1.5 text-xs transition ' +
+                (cfg.deko === d.id
+                  ? 'bg-forest-500 text-forest-950 font-semibold'
+                  : 'bg-forest-900/60 text-forest-200 ring-1 ring-forest-800/50 hover:bg-forest-900')
+              }
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {fehler && <p className="mt-2 text-xs text-rose-300">{fehler}</p>}
     </div>
   );
 }
