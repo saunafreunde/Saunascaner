@@ -18,10 +18,11 @@ import { PWAInstallButton } from '@/components/PWAInstallButton';
 import {
   useCurrentMember, useMember, useMemberStats,
   useAttendanceStreak,
-  useFavoriteOils, useSignatureInfusion, useSetMotto,
+  useFavoriteOils, useSignatureInfusion, useSetMotto, useSetMyNameplate,
   useSetMyAutoCheckin,
 } from '@/lib/api';
 import { OIL_BY_ID } from '@/lib/oils';
+import { NAMEPLATES, NAMEPLATE_GRUPPEN, NAMEPLATE_DEFAULT } from '@/lib/nameplates';
 import { Avatar } from '@/components/Avatar';
 import AvatarPicker from '@/components/AvatarPicker';
 import { FollowButton } from '@/components/FollowButton';
@@ -41,6 +42,11 @@ export default function Profile() {
   const favOilsQ = useFavoriteOils(memberId);
   const sigInfQ = useSignatureInfusion(memberId);
   const setMotto = useSetMotto();
+  // Namensschild auf der TV-Tafel (Migration 0121) — Farbe, Transparenz und
+  // Form. Steht hier bei Motto und Avatar, weil es dasselbe betrifft: wie der
+  // Aufgiesser auf der Tafel erscheint.
+  const setNameplate = useSetMyNameplate();
+  const [nameplateError, setNameplateError] = useState<string | null>(null);
   const [editingMotto, setEditingMotto] = useState(false);
   const [mottoDraft, setMottoDraft] = useState('');
   const [mottoError, setMottoError] = useState<string | null>(null);
@@ -212,6 +218,55 @@ export default function Profile() {
               </button>
             )}
           </div>
+
+          {/* Namensschild auf der TV-Tafel — nur fuer einen selbst, und nur
+              wenn man ueberhaupt aufgiesst (sonst erscheint man dort nie). */}
+          {isMyself && (m.is_aufgieser || m.role === 'admin' || m.role === 'guest_aufgieser') && (
+            <div className="mt-4 border-t border-forest-800/40 pt-4">
+              <label className="text-[10px] uppercase tracking-wider text-forest-400/80">
+                Mein Namensschild auf der Tafel
+              </label>
+              <p className="mt-1 text-xs text-forest-400/70">
+                Name und Spruch stehen auf den Aufguss-Karten direkt auf dem Foto. Such dir aus,
+                worauf sie liegen sollen.
+              </p>
+              {NAMEPLATE_GRUPPEN.map((gruppe) => (
+                <div key={gruppe.id} className="mt-3">
+                  <div className="text-[10px] uppercase tracking-wider text-forest-500">{gruppe.label}</div>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {NAMEPLATES.filter((n) => n.gruppe === gruppe.id).map((n) => {
+                      const aktiv = (me.data?.nameplate ?? NAMEPLATE_DEFAULT.id) === n.id;
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          disabled={setNameplate.isPending}
+                          onClick={async () => {
+                            setNameplateError(null);
+                            try { await setNameplate.mutateAsync(n.id); }
+                            catch (e) { setNameplateError((e as Error).message); }
+                          }}
+                          title={n.label}
+                          className={`inline-flex flex-col items-start transition disabled:opacity-60 ${
+                            aktiv ? 'ring-2 ring-forest-300' : 'ring-1 ring-forest-700/50 hover:ring-forest-500'
+                          }`}
+                          style={{ borderRadius: n.radius, background: n.bg, boxShadow: n.ring, padding: '6px 12px' }}
+                        >
+                          <span className="text-sm font-bold leading-tight" style={{ color: n.text }}>
+                            {n.emoji} {m.name}
+                          </span>
+                          <span className="text-[11px] italic leading-tight" style={{ color: n.textMotto }}>
+                            {m.motto ? `„${m.motto.slice(0, 26)}"` : n.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {nameplateError && <p className="mt-2 text-xs text-rose-300">{nameplateError}</p>}
+            </div>
+          )}
         </div>
 
         {/* Stats Bento — für Personal (role='staff') ausgeblendet: gemachte Aufgüsse sind kein Personal-Thema */}

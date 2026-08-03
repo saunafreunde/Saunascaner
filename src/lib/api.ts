@@ -652,6 +652,8 @@ export type Member = {
   revoked_at: string | null;
   birthday: string | null;
   motto: string | null;
+  /** Gewaehltes Namensschild auf der TV-Tafel (Migration 0121). */
+  nameplate: string | null;
   avatar_path: string | null;
   home_group: string | null;
   calendar_feed_token: string | null;
@@ -940,6 +942,28 @@ export function useSetMotto() {
       qc.invalidateQueries({ queryKey: ['current-member'] });
       qc.invalidateQueries({ queryKey: ['member'] });
       qc.invalidateQueries({ queryKey: ['members-directory'] });
+    },
+  });
+}
+
+// ─── Namensschild (Migration 0121) ──────────────────────────────────────
+// Aufgiesser waehlt Farbe/Transparenz/Form seines Namensschilds auf der
+// TV-Tafel. Nur die ID wandert in die DB, das Aussehen liegt im Frontend
+// (src/lib/nameplates.ts) — so laesst sich ein Stil ohne Migration aendern.
+export function useSetMyNameplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (style: string) => {
+      const { data, error } = await need().rpc('set_my_nameplate', { p_style: style });
+      if (error) throw error;
+      if (data === 'too_long') throw new Error('Ungueltiges Namensschild.');
+      if (data === 'not_authorized') throw new Error('Nicht berechtigt.');
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['current-member'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
+      qc.invalidateQueries({ queryKey: ['meister-directory'] });
     },
   });
 }
@@ -1539,6 +1563,9 @@ export type MeisterDirectoryEntry = {
   default_mood_oils: string[];
   motto: string;
   star_accent_color: string | null;
+  /** Gewaehltes Namensschild (Migration 0121). Null = noch nie gewaehlt →
+   *  Frontend faellt auf „Klarglas" zurueck (nameplateFor). */
+  nameplate: string | null;
 };
 export function useMeisterDirectory() {
   return useQuery({

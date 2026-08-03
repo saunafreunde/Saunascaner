@@ -9,6 +9,7 @@ import { themeFromAttributes, stripThemeAttrs } from '@/lib/aufgussTheme';
 import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
+import { nameplateFor } from '@/lib/nameplates';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
@@ -118,6 +119,10 @@ export function InfusionCard({
   // im Profil hinterlegten "Standard-Stil" des Aufgießers (Migration 0100).
   const meisterDir = useMeisterDirectory();
   const meisterDefaults = (meisterDir.data ?? []).find((x) => x.id === infusion.saunameister_id);
+  // Namensschild des Aufgießers (Migration 0121). Fällt für Alt-Daten und
+  // unbekannte Stile still auf „Klarglas" zurück — die Tafel darf nie ohne
+  // Schild dastehen.
+  const schild = nameplateFor(meisterDefaults?.nameplate);
 
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
@@ -427,7 +432,12 @@ export function InfusionCard({
                   bei 4 Kacheln auf 1080p rund 25 px gekostet und war der
                   Hauptgrund für den Überlauf. Hier kostet sie nichts, solange die
                   Badge-Höhe unter der Titelzeile bleibt (per Konstruktion). */}
-              {(theme || running || isBanja) && (
+              {/* Nur noch LIVE. Schnaps, Raeuchern und Banja standen bis
+                  03.08.2026 ebenfalls hier oben rechts und gingen dort neben
+                  dem Titel unter (User). Sie sitzen jetzt gross in der
+                  Fusszeile, wo Platz ist — LIVE bleibt am Titel, weil es den
+                  ZUSTAND meldet und im Vorbeigehen sofort auffallen soll. */}
+              {running && (
                 <div
                   className="flex flex-col items-end flex-shrink-0 max-w-[45%]"
                   style={{
@@ -435,60 +445,13 @@ export function InfusionCard({
                     fontSize: 'clamp(calc(9px * var(--d)), 2.2cqh, 14px)',
                   }}
                 >
-                  {running && (
-                    <span
-                      className="inline-flex items-center gap-1 rounded-full bg-emerald-500 font-black tracking-wider text-white whitespace-nowrap"
-                      style={{ padding: BADGE_PAD, boxShadow: '0 0 10px rgba(34,197,94,0.7)' }}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-white tafel-blink" />
-                      LIVE
-                    </span>
-                  )}
-                  {isBanja && (
-                    <span
-                      className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-600 to-rose-500 font-black tracking-wider text-white whitespace-nowrap"
-                      style={{ padding: BADGE_PAD, boxShadow: '0 0 10px rgba(244,63,94,0.6)' }}
-                    >
-                      🇷🇺 BANJA · 90 MIN
-                    </span>
-                  )}
-                  {theme && (
-                    /* Zweizeilig statt einzeilig: vorher stand hier nur
-                       "🥃 Kirschwasser" — das Wort Schnaps kam auf der ganzen
-                       Karte nicht vor. Wer die Sorte nicht kennt, konnte also
-                       nicht erkennen, dass hier überhaupt mit Schnaps
-                       gearbeitet wird. Jetzt trägt die ART die Zeile darüber,
-                       die Sorte steht darunter und ist die größere Schrift.
-                       Deutlich mehr Fläche als LIVE/BANJA — das ist die
-                       Aussage, auf die es hier ankommt. */
-                    <span
-                      className="inline-flex flex-col items-center font-black uppercase text-white max-w-full overflow-hidden"
-                      style={{
-                        borderRadius: '0.7em',
-                        padding: '0.32em 0.72em 0.38em',
-                        lineHeight: 1.06,
-                        background: `linear-gradient(135deg, ${theme.color}, ${theme.color}cc)`,
-                        boxShadow: `0 2px 14px ${theme.color}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
-                        textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                      }}
-                    >
-                      <span
-                        className="whitespace-nowrap"
-                        style={{ fontSize: '0.78em', letterSpacing: '0.15em', opacity: 0.95 }}
-                      >
-                        {theme.kategorie}
-                      </span>
-                      {/* theme.badge bringt sein Emoji selbst mit (Sorten-Frucht
-                          bzw. 💨) — ein zusätzliches hier führte früher zu
-                          "🥃 💨 Räucheraufguss". */}
-                      <span
-                        className="whitespace-nowrap max-w-full overflow-hidden text-ellipsis"
-                        style={{ fontSize: '1.22em', letterSpacing: '0.01em' }}
-                      >
-                        {theme.badge}
-                      </span>
-                    </span>
-                  )}
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500 font-black tracking-wider text-white whitespace-nowrap"
+                    style={{ padding: BADGE_PAD, boxShadow: '0 0 10px rgba(34,197,94,0.7)' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-white tafel-blink" />
+                    LIVE
+                  </span>
                 </div>
               )}
             </div>
@@ -505,7 +468,7 @@ export function InfusionCard({
           {infusion.description && (
             <p
               className="tile-desc text-slate-600 italic line-clamp-1 flex-shrink-0"
-              style={{ fontSize: 'clamp(calc(10px * var(--d)), 2.5cqh, 14px)' }}
+              style={{ fontSize: 'clamp(calc(12px * var(--d)), 3cqh, 17px)', color: schild.textMotto }}
             >
               {infusion.description}
             </p>
@@ -544,8 +507,8 @@ export function InfusionCard({
             <span
               className="inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap text-white flex-shrink-0"
               style={{
-                fontSize: 'clamp(calc(13px * var(--dh)), 3.1cqh, 18px)',
-                padding:  'clamp(calc(4px * var(--d)), 1cqh, 7px) clamp(calc(9px * var(--d)), 2.4cqh, 16px)',
+                fontSize: 'clamp(calc(16px * var(--dh)), 3.7cqh, 22px)',
+                padding:  'clamp(calc(5px * var(--d)), 1.2cqh, 8px) clamp(calc(11px * var(--d)), 2.9cqh, 19px)',
                 background: sauna.accent_color,
                 boxShadow: `0 2px 10px ${sauna.accent_color}99, inset 0 1px 0 rgba(255,255,255,0.3)`,
                 textShadow: '0 1px 2px rgba(0,0,0,0.45)',
@@ -575,8 +538,8 @@ export function InfusionCard({
                       aria-hidden
                       className="flex-shrink-0 rounded-full overflow-hidden"
                       style={{
-                        width:  'clamp(calc(28px * var(--d)), 8cqh, 54px)',
-                        height: 'clamp(calc(28px * var(--d)), 8cqh, 54px)',
+                        width:  'clamp(calc(34px * var(--d)), 9.6cqh, 65px)',
+                        height: 'clamp(calc(34px * var(--d)), 9.6cqh, 65px)',
                         boxShadow: accent
                           ? `0 0 0 2px ${accent}, 0 0 14px ${accent}66`
                           : '0 0 0 2px rgba(148,163,184,0.4)',
@@ -600,15 +563,25 @@ export function InfusionCard({
                     praktisch im Untergrund. Der weiße Schein hebt die dunkle
                     Schrift ab, ohne die Optik zu verändern — nur Schrift, keine
                     zusätzliche Fläche. */}
+                {/* Namensschild (Migration 0121). Der blosse Textschatten
+                    reichte auf Holz- und Frucht-Motiven nicht — der Name war
+                    weiterhin schwer zu lesen. Farbe, Transparenz und Form
+                    waehlt der Aufgiesser selbst in seinem Profil; unbekannte
+                    oder leere Werte fallen auf „Klarglas" zurueck. */}
                 <div
                   className="min-w-0 leading-tight"
-                  style={{ textShadow: '0 1px 2px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.65)' }}
+                  style={{
+                    background: schild.bg,
+                    borderRadius: schild.radius,
+                    boxShadow: schild.ring,
+                    padding: 'clamp(calc(3px * var(--d)), 0.9cqh, 7px) clamp(calc(9px * var(--d)), 2.4cqh, 16px)',
+                  }}
                 >
                   <div
                     className="font-bold truncate"
                     style={{
-                      fontSize: 'clamp(calc(13px * var(--dh)), 3.4cqh, 20px)',
-                      color: meisterDefaults.star_accent_color ?? '#1e293b',
+                      fontSize: 'clamp(calc(16px * var(--dh)), 4.1cqh, 24px)',
+                      color: schild.text,
                     }}
                   >
                     {meisterName ?? meisterDefaults.name}
@@ -624,7 +597,7 @@ export function InfusionCard({
                       /* slate-600 statt -500: eine Stufe dunkler bringt spürbar
                          Kontrast auf den Foto-Karten und bleibt trotzdem klar
                          zurückhaltender als der Name darüber. */
-                      className="italic text-slate-600 truncate"
+                      className="italic truncate"
                       style={{ fontSize: 'clamp(calc(10px * var(--d)), 2.5cqh, 14px)' }}
                     >
                       „{meisterDefaults.motto}"
@@ -638,19 +611,49 @@ export function InfusionCard({
               <div className="flex-1" />
             )}
 
-            {/* SPALTE 3 — Aktuelle Uhrzeit + Countdown-Pille rechts */}
+            {/* SPALTE 3 — Art des Aufgusses. Stand bis 03.08.2026 oben rechts
+                neben dem Titel und ging dort unter; hier unten ist Platz, und
+                die Zeile liest sich jetzt als Vierer: Sauna · Aufgiesser ·
+                Art · Uhrzeit. Nur gerendert wenn es etwas zu melden gibt. */}
+            {(theme || isBanja) && (
+              <span
+                className="inline-flex flex-col items-center font-black uppercase text-white whitespace-nowrap flex-shrink-0"
+                style={{
+                  fontSize: 'clamp(calc(11px * var(--d)), 2.7cqh, 17px)',
+                  lineHeight: 1.06,
+                  borderRadius: '0.7em',
+                  padding: 'clamp(calc(3px * var(--d)), 0.9cqh, 7px) clamp(calc(9px * var(--d)), 2.4cqh, 16px)',
+                  background: theme
+                    ? `linear-gradient(135deg, ${theme.color}, ${theme.color}cc)`
+                    : 'linear-gradient(135deg, #e11d48, #f43f5e)',
+                  boxShadow: theme
+                    ? `0 2px 14px ${theme.color}99, inset 0 1px 0 rgba(255,255,255,0.35)`
+                    : '0 2px 14px rgba(244,63,94,0.6), inset 0 1px 0 rgba(255,255,255,0.35)',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                }}
+              >
+                <span style={{ fontSize: '0.78em', letterSpacing: '0.15em', opacity: 0.95 }}>
+                  {theme ? theme.kategorie : 'Banja-Ritual'}
+                </span>
+                <span style={{ fontSize: '1.22em', letterSpacing: '0.01em' }}>
+                  {theme ? theme.badge : '🇷🇺 90 Min'}
+                </span>
+              </span>
+            )}
+
+            {/* SPALTE 4 — Aktuelle Uhrzeit + Countdown-Pille rechts */}
             <div className="flex flex-col items-end gap-1 leading-none whitespace-nowrap flex-shrink-0">
               <span
                 className="tabular-nums font-bold text-black"
-                style={{ fontSize: 'clamp(calc(16px * var(--dh)), 4.3cqh, 26px)' }}
+                style={{ fontSize: 'clamp(calc(19px * var(--dh)), 5.2cqh, 31px)' }}
               >
                 {fmtClock(now)}
               </span>
               <span
                 className={`inline-flex items-center tabular-nums font-black text-white rounded-full ${imminent ? 'tafel-blink' : ''}`}
                 style={{
-                  fontSize: 'clamp(calc(11px * var(--d)), 2.8cqh, 17px)',
-                  padding: 'clamp(calc(2px * var(--d)), 0.7cqh, 5px) clamp(calc(7px * var(--d)), 1.8cqh, 12px)',
+                  fontSize: 'clamp(calc(13px * var(--d)), 3.4cqh, 20px)',
+                  padding: 'clamp(calc(2px * var(--d)), 0.85cqh, 6px) clamp(calc(8px * var(--d)), 2.2cqh, 14px)',
                   background: running ? '#16a34a' : '#dc2626',
                   boxShadow: running
                     ? '0 1px 4px rgba(34,197,94,0.5), inset 0 1px 0 rgba(255,255,255,0.25)'
