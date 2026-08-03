@@ -516,7 +516,7 @@ export function InfusionCard({
               overflow bleibt sichtbar — die Jahreszeiten-Grafik am Schild
               darf ueber die Zeile hinausragen. */}
           <div
-            className="mt-auto pt-2 flex items-center justify-between gap-2 flex-shrink-0 flex-wrap"
+            className="mt-auto pt-2 flex items-center justify-between gap-2 flex-shrink-0 min-w-0"
             style={{ ['--fussH' as string]: 'clamp(calc(46px * var(--d)), 13cqh, 88px)' }}
           >
             {/* SPALTE 1 — Sauna-Badge */}
@@ -611,6 +611,15 @@ export function InfusionCard({
                 <div
                   className="min-w-0 leading-tight text-center"
                   style={{
+                    /* EIGENE Schriftgröße als Bezug für die em-Maße der Form.
+                       Ohne die erbt das Schild die Kartenschrift, und
+                       `padding: 0.5em 1.15em` wurde dadurch so breit, dass die
+                       vier Fußspalten nicht mehr nebeneinander passten und
+                       umbrachen — die Fußzeile fraß 71 % der Karte. Der Wert
+                       liegt bewusst unter der Namensschrift: Innenabstand und
+                       Rundung sollen sich am Schild orientieren, nicht an der
+                       größten Schrift darin. */
+                    fontSize: 'clamp(calc(10px * var(--d)), 2.4cqh, 15px)',
                     background: rgba(schild.bg, schild.bgAlpha),
                     borderRadius: schildForm?.borderRadius ?? '999em',
                     ...(geclippt ? { clipPath: schildForm!.clipPath } : { boxShadow: `inset 0 0 0 0.09em ${schild.rahmen}` }),
