@@ -593,7 +593,17 @@ export function InfusionCard({
                     </span>
                   );
                 })()}
-                <div className="min-w-0 leading-tight">
+                {/* Heller Textschatten auf Name UND Motto: die Zeile steht ohne
+                    eigenen Untergrund direkt auf dem Karten-Foto. Auf hellen
+                    Motiven ging das gut, auf dem Holzbild der Blockhaus-Karten
+                    verschwand vor allem das Motto (Schiefergrau, kein Schatten)
+                    praktisch im Untergrund. Der weiße Schein hebt die dunkle
+                    Schrift ab, ohne die Optik zu verändern — nur Schrift, keine
+                    zusätzliche Fläche. */}
+                <div
+                  className="min-w-0 leading-tight"
+                  style={{ textShadow: '0 1px 2px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.65)' }}
+                >
                   <div
                     className="font-bold truncate"
                     style={{
@@ -611,7 +621,10 @@ export function InfusionCard({
                   </div>
                   {meisterDefaults.motto && (
                     <div
-                      className="italic text-slate-500 truncate"
+                      /* slate-600 statt -500: eine Stufe dunkler bringt spürbar
+                         Kontrast auf den Foto-Karten und bleibt trotzdem klar
+                         zurückhaltender als der Name darüber. */
+                      className="italic text-slate-600 truncate"
                       style={{ fontSize: 'clamp(calc(10px * var(--d)), 2.5cqh, 14px)' }}
                     >
                       „{meisterDefaults.motto}"
@@ -874,10 +887,19 @@ function PillsBlock({
        bleibt es beim Untereinander.
 
        flex 0 1 auto + min-h-0: der Block ist das einzige nachgiebige Element
-       der Karte, damit der Fuß garantiert stehen bleibt. */
+       der Karte, damit der Fuß garantiert stehen bleibt.
+
+       Und er nimmt sich NUR, was er braucht. Zwischenzeitlich stand hier
+       `1 1 auto` — damals wuchsen die Pillen mit, der Kasten war also immer
+       gefüllt. Seit die Pillengröße gedeckelt ist (siehe pillSizing), stimmte
+       das nicht mehr: zwei Pillen schwammen in einem Kasten mit 24 % Füllgrad,
+       die Karte wirkte leer. Jetzt umschließt der Block seinen Inhalt, und die
+       übrige Höhe sammelt sich als normaler Abstand über dem Fuß statt als
+       Loch innerhalb eines gerahmten Kastens. Schrumpfen darf er weiterhin
+       (`0 1 auto`), damit der Fuß auf engen Kacheln nicht verdrängt wird. */
     <div
       className={`pills-block flex flex-col w-full ${hasAttrs && hasOils ? 'pills-both' : ''}`}
-      style={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden', gap: 'clamp(calc(8px * var(--d)), 2cqh, 18px)' }}
+      style={{ flex: '0 1 auto', minHeight: 0, overflow: 'hidden', gap: 'clamp(calc(8px * var(--d)), 2cqh, 18px)' }}
     >
       {attributes.length > 0 && (
         /* "übereinander" → Card mit eigenem Background + stärkerem Ring,
