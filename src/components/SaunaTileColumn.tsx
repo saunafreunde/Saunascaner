@@ -18,6 +18,10 @@ interface SaunaTileColumnProps {
   tileBgs?: (string | null)[];
   /** Anzahl angezeigter Aufguss-Tiles pro Spalte (Admin-Setting, 3 oder 4). */
   tilesPerColumn?: 3 | 4;
+  /** 0-basierte Position dieser Spalte unter den ANGEZEIGTEN Saunen.
+   *  Zusammen mit tilesPerColumn ergibt das eine tafelweit eindeutige und
+   *  lueckenlose Kachel-Nummer fuer die Oel-Verteilung. */
+  columnIndex?: number;
   /** Wenn true: Mo wird als Slot-Tag einbezogen (Admin-Setting). */
   mondayOpen?: boolean;
   /** Set<YYYY-MM-DD> aller Feiertage. An diesen Tagen Aufguss ab 11:00
@@ -118,6 +122,7 @@ export function SaunaTileColumn({
   now,
   tileBgs = [],
   tilesPerColumn = TILES_PER_COLUMN_DEFAULT,
+  columnIndex = 0,
   mondayOpen = false,
   holidaySet,
   otherSaunaInfo,
@@ -446,6 +451,7 @@ export function SaunaTileColumn({
                    liegende leere Kacheln nie dasselbe Motiv zeigen. */
                 slotIndex={slotIndex}
                 tilesPerColumn={tilesPerColumn}
+                columnIndex={columnIndex}
               />
             );
           })}

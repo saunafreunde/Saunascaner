@@ -1,4 +1,3 @@
-import type { Sauna } from '@/types/database';
 import { useBrandSettings } from '@/lib/api';
 import { ReefScene } from '@/components/ReefScene';
 import { OilCard, useSlotOil } from '@/components/emptytile/OilCard';
@@ -31,29 +30,38 @@ const CARD_MS = 20_000;
 export type SlotCardId = 'reef' | 'forest' | 'oil' | 'gallery';
 
 type Props = {
-  sauna: Sauna;
   now: Date;
-  /** Position der Kachel in ihrer Spalte — sorgt zusammen mit sort_order
-   *  dafür, dass Nachbarkacheln versetzt laufen. */
+  /** Position der Kachel in ihrer Spalte — sorgt zusammen mit dem
+   *  Spaltenindex dafür, dass Nachbarkacheln versetzt laufen. */
   slotIndex: number;
   /** Kacheln pro Spalte (Admin-Setting). Wird gebraucht, um aus Sauna und
    *  Slot eine über die ganze Tafel EINDEUTIGE Kachel-Nummer zu bilden. */
   tilesPerColumn: number;
+  /** 0-basierte Position dieser Spalte unter den ANGEZEIGTEN Saunen. */
+  columnIndex: number;
   /** Schwimmrichtung der Riff-Tiere (zeigt zur aktiven Nachbarsauna). */
   direction: 'left' | 'right' | null;
 };
 
-export function SlotCarousel({ sauna, now, slotIndex, tilesPerColumn, direction }: Props) {
+export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, direction }: Props) {
   const brand = useBrandSettings();
   const gallery = brand.data?.slot_gallery ?? [];
   const cards = brand.data?.slot_cards;
 
   const tick = Math.floor(now.getTime() / CARD_MS);
-  // EINDEUTIG über die ganze Tafel. Vorher stand hier `slotIndex + sort_order`
-  // — damit kollidierten (Sauna 0 / Slot 1) und (Sauna 1 / Slot 0) auf
-  // demselben Wert, und beide Kacheln zeigten dasselbe. Mit der Spaltenhöhe
-  // als Schrittweite kann das nicht mehr passieren.
-  const kachelNr = slotIndex + (sauna.sort_order ?? 0) * Math.max(1, tilesPerColumn);
+  // EINDEUTIG UND LÜCKENLOS über die ganze Tafel: 0,1,2 | 3,4,5 | …
+  //
+  // Zwei Fallen stecken hier drin, beide sind real aufgetreten:
+  //   1. `slotIndex + sort_order` kollidiert — (Sauna 0 / Slot 1) und
+  //      (Sauna 1 / Slot 0) ergaben denselben Wert, beide Kacheln zeigten
+  //      dasselbe Öl. Das war der ursprüngliche Fehler.
+  //   2. `sort_order` als Faktor ist ebenfalls falsch: die Werte sind 1/2/3
+  //      und haben Lücken, sobald eine Sauna inaktiv ist (real: Kelo 1,
+  //      Finnische 2 = aus, Blockhaus 3). Die Kachel-Nummern fingen dann bei
+  //      3 an und sprangen auf 9 — die vorderen Listenplätze, auf denen
+  //      genau die GEPLANTEN Öle liegen, hätte nie eine Kachel gelesen.
+  // Deshalb der dichte 0-basierte Spaltenindex vom Dashboard.
+  const kachelNr = slotIndex + columnIndex * Math.max(1, tilesPerColumn);
 
   // Hooks IMMER unbedingt aufrufen (Rules of Hooks) — erst danach entscheiden,
   // welche Karte dran ist. Öl und Foto wandern mit jedem Durchlauf weiter,

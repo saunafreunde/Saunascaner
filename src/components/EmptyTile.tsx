@@ -24,6 +24,9 @@ interface EmptyTileProps {
   /** Kacheln pro Spalte — daraus bildet das Karussell eine tafelweit
    *  eindeutige Kachel-Nummer, damit nie zwei Kacheln dasselbe Öl zeigen. */
   tilesPerColumn?: number;
+  /** 0-basierte Position dieser Spalte unter den ANGEZEIGTEN Saunen
+   *  (siehe SaunaTileColumn) — nicht sauna.sort_order. */
+  columnIndex?: number;
   /** Zusätzliches inline-style — die Spalte reicht darüber die feste
    *  Grid-Zeile durch (siehe SaunaTileColumn). Ohne die kann diese Kachel
    *  in eine implizite 0-px-Zeile rutschen. */
@@ -37,6 +40,7 @@ export function EmptyTile({
   now,
   slotIndex = 0,
   tilesPerColumn = 3,
+  columnIndex = 0,
   style: extraStyle,
 }: EmptyTileProps) {
   // backgroundImage-Prop bleibt im Interface (BC für Callers in
@@ -63,10 +67,10 @@ export function EmptyTile({
           nicht das Seiten-Hintergrundbild. */}
       <div className="absolute inset-0 overflow-hidden rounded-2xl">
         <SlotCarousel
-          sauna={sauna}
           now={now}
           slotIndex={slotIndex}
           tilesPerColumn={tilesPerColumn}
+          columnIndex={columnIndex}
           direction={otherSauna?.direction ?? null}
         />
       </div>

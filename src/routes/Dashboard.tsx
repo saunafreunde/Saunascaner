@@ -237,6 +237,13 @@ export default function Dashboard() {
              Admin-Tile-Hintergründe waren wirkungslos. */
           tileBgs={(brand.data?.tile_bgs?.[saunaId] ?? []).map((p) => publicAssetUrl(p))}
           tilesPerColumn={tilesPerColumn}
+          /* DICHTER, 0-basierter Spaltenindex. Bewusst NICHT sauna.sort_order:
+             das ist 1/2/3 und hat Luecken, sobald eine Sauna inaktiv ist
+             (Kelo 1, Finnische 2 = aus, Blockhaus 3). Daraus abgeleitete
+             Kachel-Nummern faengen bei 3 an und ueberspringen Bereiche --
+             die vorderen Listenplaetze, auf denen die geplanten Oele liegen,
+             wuerden dann nie gelesen. */
+          columnIndex={idx}
           mondayOpen={mondayOpen}
           holidaySet={holidaySet}
           /* Für die Riff-Animation im EmptyTile: pro leerem Slot wird

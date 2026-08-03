@@ -607,7 +607,19 @@ export default function Planner() {
     const tplSchnaps = schnapsFromAttributes(t.attributes);
     setSchnaps(tplSchnaps?.id ?? null);
     setAromaTab(tplSchnaps ? 'schnaps' : 'oils');
-    setAttrs(stripSchnapsAttrs(t.attributes) as InfusionAttribute[]);
+    // Vorlagen legen Standard-Attribute UND die UUIDs eigener Buttons in
+    // EINEM Feld ab (siehe saveAsTemplate). Beim Anwenden muessen sie wieder
+    // auseinander — sonst landen UUIDs in `attrs`, wo es keinen Chip dafuer
+    // gibt: unsichtbar, aber im 3-6-Zaehler mitgezaehlt und dadurch nicht
+    // mehr abwaehlbar. `customAttrIds` wird dabei bewusst NEU gesetzt statt
+    // stehen gelassen, sonst zaehlt eine Alt-Auswahl doppelt.
+    const tplOhneSchnaps = stripSchnapsAttrs(t.attributes);
+    const bekannteAttrs = new Set<string>(ATTRIBUTES.map((a) => a.id));
+    const eigeneIds = new Set<string>(customAttrs.map((a) => a.id));
+    setAttrs(tplOhneSchnaps.filter((a) => bekannteAttrs.has(a)) as InfusionAttribute[]);
+    // Nur eigene Buttons, die es noch gibt — geloeschte werden verworfen,
+    // sonst haengt eine nicht abwaehlbare Auswahl im Kontingent.
+    setCustomAttrIds(tplOhneSchnaps.filter((a) => eigeneIds.has(a)));
     setOils(normalizeOilSlots(t.oils));
     // Template-Dauer übernehmen (falls 15 oder andere Alt-Daten → wird im
     // UI als Ad-hoc-Button gezeigt, siehe DURATION_OPTIONS-Block).
@@ -902,7 +914,14 @@ export default function Planner() {
       )}
 
       {showOilPicker && (
-        <OilPicker selected={oils} onChange={setOils} onClose={() => setShowOilPicker(false)} />
+        <OilPicker selected={oils} onChange={(next) => {
+            // Der Picker kennt das 3-6-Kontingent nicht und kann alle drei
+            // Runden fuellen. Deshalb hier gegenpruefen: was ueber die
+            // Obergrenze ginge, wird nicht uebernommen.
+            const frei = MAX_AUSWAHL - attrs.length - customAttrIds.length;
+            const gefiltert = next.filter(Boolean).slice(0, Math.max(0, frei));
+            setOils(normalizeOilSlots(gefiltert));
+          }} onClose={() => setShowOilPicker(false)} />
       )}
 
       {newBadges.length > 0 && (
@@ -1682,6 +1701,9 @@ export default function Planner() {
                       <button
                         type="button"
                         onClick={() => toggleAttr(RAEUCHER_ATTR as InfusionAttribute)}
+                        disabled={!raeuchernOn && auswahlVoll}
+                        title={!raeuchernOn && auswahlVoll
+                          ? `Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.` : undefined}
                         className="mt-1.5 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left ring-1 transition"
                         style={raeuchernOn
                           ? { background: `${RAEUCHER_THEME.color}55`, boxShadow: `inset 0 0 0 2px ${RAEUCHER_THEME.color}` }
