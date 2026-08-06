@@ -118,6 +118,10 @@ export type NameplateConfig = {
   /** Transparenz des Hintergrunds, 0 = ganz durchsichtig, 1 = deckend. */
   bgAlpha: number;
   rahmen: string;
+  /** Rahmenstaerke in em. 0 = kein Rahmen. */
+  rahmenStaerke: number;
+  /** Zweite Hintergrundfarbe → Verlauf. null = einfarbig. */
+  bg2: string | null;
   textName: string;
   textSlogan: string;
   deko: DekoId | null;
@@ -130,6 +134,8 @@ export const NAMEPLATE_VORGABE: NameplateConfig = {
   bg: '#ffffff',
   bgAlpha: 0.62,
   rahmen: '#ffffff',
+  rahmenStaerke: 0.09,
+  bg2: null,
   textName: '#0f172a',
   textSlogan: '#475569',
   deko: null,
@@ -150,11 +156,15 @@ export function nameplateAus(raw: unknown): NameplateConfig {
   const form = typeof o.form === 'string' && FORM_BY_ID[o.form] ? o.form : v.form;
   const deko = typeof o.deko === 'string' && DEKOS.some((d) => d.id === o.deko)
     ? (o.deko as DekoId) : null;
+  const staerke = typeof o.rahmenStaerke === 'number' && o.rahmenStaerke >= 0 && o.rahmenStaerke <= 0.4
+    ? o.rahmenStaerke : v.rahmenStaerke;
   return {
     form,
     bg: hex(o.bg, v.bg),
     bgAlpha: alpha,
+    bg2: typeof o.bg2 === 'string' && HEX.test(o.bg2) ? o.bg2 : null,
     rahmen: hex(o.rahmen, v.rahmen),
+    rahmenStaerke: staerke,
     textName: hex(o.textName, v.textName),
     textSlogan: hex(o.textSlogan, v.textSlogan),
     deko,
@@ -170,59 +180,11 @@ export function rgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// ── Lesbarkeit ───────────────────────────────────────────────────────────
-// Der User darf die Schriftfarben frei wählen — „ausser sie wären nicht
-// lesbar". Genau das prüft das hier, nach dem WCAG-Kontrastverhältnis.
-//
-// Die Krux: das Schild ist halbtransparent und liegt auf einem BELIEBIGEN
-// Karten-Foto. Was am Ende hinter der Schrift steht, ist also nicht
-// vorhersagbar. Deshalb wird gegen den ungünstigsten Fall gerechnet: der
-// Hintergrund wird einmal über Weiss und einmal über Schwarz gemischt, und
-// es zählt der SCHLECHTERE der beiden Kontraste. Eine Farbe gilt nur dann
-// als lesbar, wenn sie auf hellen UND auf dunklen Motiven trägt.
-
-function kanal(c: number): number {
-  const s = c / 255;
-  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-}
-function leuchtdichte(r: number, g: number, b: number): number {
-  return 0.2126 * kanal(r) + 0.7152 * kanal(g) + 0.0722 * kanal(b);
-}
-function zerlege(hex: string): [number, number, number] {
-  const h = HEX.test(hex) ? hex : '#000000';
-  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-}
-function mische(vorn: string, alpha: number, hinten: number): [number, number, number] {
-  const [r, g, b] = zerlege(vorn);
-  return [
-    r * alpha + hinten * (1 - alpha),
-    g * alpha + hinten * (1 - alpha),
-    b * alpha + hinten * (1 - alpha),
-  ];
-}
-function verhaeltnis(a: [number, number, number], b: [number, number, number]): number {
-  const la = leuchtdichte(a[0], a[1], a[2]);
-  const lb = leuchtdichte(b[0], b[1], b[2]);
-  const [hell, dunkel] = la > lb ? [la, lb] : [lb, la];
-  return (hell + 0.05) / (dunkel + 0.05);
-}
-
-/** Schlechtester Kontrast der Schriftfarbe gegen das Schild — einmal über
- *  weissem, einmal über schwarzem Untergrund gerechnet. */
-export function kontrastWert(text: string, bg: string, bgAlpha: number): number {
-  const t = zerlege(text) as [number, number, number];
-  const ueberWeiss = mische(bg, bgAlpha, 255);
-  const ueberSchwarz = mische(bg, bgAlpha, 0);
-  return Math.min(verhaeltnis(t, ueberWeiss), verhaeltnis(t, ueberSchwarz));
-}
-
-/** 4.5:1 ist die WCAG-Schwelle für normalen Text. Auf einem Fernseher, den
- *  man aus mehreren Metern liest, ist das eher die Untergrenze als ein Ziel. */
-export const KONTRAST_SCHWELLE = 4.5;
-
-export function istLesbar(text: string, bg: string, bgAlpha: number): boolean {
-  return kontrastWert(text, bg, bgAlpha) >= KONTRAST_SCHWELLE;
-}
+// Die Lesbarkeits-Pruefung (WCAG-Kontrast gegen den unguenstigsten Untergrund)
+// stand hier bis 03.08.2026 und blendete zu schwache Schriftfarben ab. Auf
+// Wunsch entfernt: der Aufgiesser gestaltet sein Schild selbst und sieht in
+// der Vorschau, was dabei herauskommt. Eine Warnung, die man ohnehin
+// wegklickt, ist nur im Weg.
 
 /** Farbvorschläge für die Auswahl — bewusst eine überschaubare Palette
  *  statt eines freien Farbrads: auf einer Tafel, die 24/7 vor Gästen hängt,
@@ -239,3 +201,11 @@ export const FARBEN: { hex: string; label: string }[] = [
   { hex: '#1e3a8a', label: 'Tiefblau' },
   { hex: '#7e22ce', label: 'Beere' },
 ];
+
+/** Hintergrund des Schildes — einfarbig oder als Verlauf, jeweils mit der
+ *  eingestellten Transparenz. */
+export function schildHintergrund(c: NameplateConfig): string {
+  const a = rgba(c.bg, c.bgAlpha);
+  if (!c.bg2) return a;
+  return `linear-gradient(135deg, ${a}, ${rgba(c.bg2, c.bgAlpha)})`;
+}

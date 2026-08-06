@@ -22,9 +22,8 @@ import {
   useSetMyAutoCheckin,
 } from '@/lib/api';
 import { OIL_BY_ID } from '@/lib/oils';
-import { FORMEN, FORM_BY_ID, DEKOS, FARBEN, nameplateAus, rgba, kontrastWert, istLesbar,
-         KONTRAST_SCHWELLE, type NameplateConfig } from '@/lib/nameplates';
-import { NameplateDeko } from '@/components/NameplateDeko';
+import { FORMEN, DEKOS, FARBEN, nameplateAus, type NameplateConfig } from '@/lib/nameplates';
+import { Nameplate } from '@/components/Nameplate';
 import { useUpdateMyStarProfile } from '@/lib/api';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
 import { Avatar } from '@/components/Avatar';
@@ -460,20 +459,13 @@ function NamensschildEditor({ name, motto }: { name: string; motto: string | nul
     catch (e) { setFehler((e as Error).message); }
   }
 
-  const form = FORM_BY_ID[cfg.form] ?? FORMEN[0];
-  const geclippt = !!form.clipPath;
-  const randFilter = [
-    'drop-shadow(0.06em 0 0 ' + cfg.rahmen + ')',
-    'drop-shadow(-0.06em 0 0 ' + cfg.rahmen + ')',
-    'drop-shadow(0 0.06em 0 ' + cfg.rahmen + ')',
-    'drop-shadow(0 -0.06em 0 ' + cfg.rahmen + ')',
-  ].join(' ');
 
   const farbZeilen = [
-    { key: 'bg' as const, titel: 'Hintergrund', lesbar: true },
-    { key: 'rahmen' as const, titel: 'Rahmen', lesbar: true },
-    { key: 'textName' as const, titel: 'Schrift Name', lesbar: istLesbar(cfg.textName, cfg.bg, cfg.bgAlpha) },
-    { key: 'textSlogan' as const, titel: 'Schrift Spruch', lesbar: istLesbar(cfg.textSlogan, cfg.bg, cfg.bgAlpha) },
+    { key: 'bg' as const, titel: 'Hintergrund' },
+    { key: 'bg2' as const, titel: 'Zweite Farbe (Verlauf)' },
+    { key: 'rahmen' as const, titel: 'Rahmen' },
+    { key: 'textName' as const, titel: 'Schrift Name' },
+    { key: 'textSlogan' as const, titel: 'Schrift Spruch' },
   ];
 
   return (
@@ -482,34 +474,20 @@ function NamensschildEditor({ name, motto }: { name: string; motto: string | nul
         Mein Namensschild auf der Tafel
       </label>
 
-      {/* Vorschau — echter Name, echter Spruch, echtes Schild. Der Untergrund
-          ist absichtlich unruhig: so sieht man sofort, ob die gewählte
-          Transparenz auf einem Karten-Foto noch trägt. */}
-      <div className="mt-2 rounded-xl bg-gradient-to-br from-amber-800/50 via-forest-800/50 to-slate-900/70 p-7 flex justify-center overflow-hidden">
-        <div className="relative">
-          <div style={geclippt ? { filter: randFilter } : undefined}>
-            <div
-              className="leading-tight text-center"
-              style={{
-                fontSize: 15,
-                background: rgba(cfg.bg, cfg.bgAlpha),
-                borderRadius: form.borderRadius,
-                ...(geclippt
-                  ? { clipPath: form.clipPath }
-                  : { boxShadow: 'inset 0 0 0 0.09em ' + cfg.rahmen }),
-                padding: form.padding,
-              }}
-            >
-              <div className="font-bold" style={{ color: cfg.textName }}>{name}</div>
-              {motto && (
-                <div className="italic text-[0.8em]" style={{ color: cfg.textSlogan }}>
-                  {'„' + motto + '“'}
-                </div>
-              )}
-            </div>
-          </div>
-          <NameplateDeko deko={cfg.deko} />
-        </div>
+      {/* Vorschau — dieselbe Komponente wie auf der Tafel.
+          Entscheidend ist der KONTEXT: das Schild misst in `cqh` und
+          `var(--d)`/`var(--dh)`. Auf der Aufguss-Karte gibt es beides, hier
+          nicht — deshalb sah die Vorschau vorher anders aus als die Tafel.
+          Der Rahmen unten stellt das nach: `container-type: size` mit der
+          Hoehe einer echten Kachel (~290 px auf 1080p) und beide Dichte-
+          Variablen auf 1. Damit rechnet die Vorschau exakt dieselben Groessen.
+          Der Untergrund ist absichtlich unruhig: so sieht man sofort, ob die
+          gewaehlte Transparenz auf einem Karten-Foto noch traegt. */}
+      <div
+        className="mt-2 rounded-xl bg-gradient-to-br from-amber-800/50 via-forest-800/50 to-slate-900/70 overflow-hidden flex items-center justify-center"
+        style={{ containerType: 'size', height: 290, ['--d' as string]: 1, ['--dh' as string]: 1 }}
+      >
+        <Nameplate config={cfg} name={name} motto={motto} />
       </div>
 
       {/* Form */}
@@ -535,41 +513,77 @@ function NamensschildEditor({ name, motto }: { name: string; motto: string | nul
         </div>
       </div>
 
-      {/* Farben — Hintergrund, Rahmen, beide Schriften */}
-      {farbZeilen.map((zeile) => (
-        <div key={zeile.key} className="mt-3">
-          <div className="text-[10px] uppercase tracking-wider text-forest-500">
-            {zeile.titel}
-            {!zeile.lesbar && (
-              <span className="ml-2 normal-case tracking-normal text-amber-300">
-                ⚠ schwer lesbar (Kontrast {kontrastWert(cfg[zeile.key], cfg.bg, cfg.bgAlpha).toFixed(1)}:1,
-                nötig {KONTRAST_SCHWELLE}:1)
-              </span>
-            )}
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {FARBEN.map((farbe) => {
-              const aktiv = cfg[zeile.key] === farbe.hex;
-              const schwach =
-                zeile.key.startsWith('text') && !istLesbar(farbe.hex, cfg.bg, cfg.bgAlpha);
-              return (
+      {/* Farben. Die Lesbarkeits-Warnung ist raus (User-Wunsch): freie Hand,
+          die Vorschau oben zeigt ohnehin sofort, was dabei herauskommt.
+          Neben den abgestimmten Vorschlaegen steht jetzt ein freier Waehler —
+          damit ist wirklich jede Farbe moeglich, nicht nur zehn. */}
+      {farbZeilen.map((zeile) => {
+        const wert = cfg[zeile.key];
+        const istVerlauf = zeile.key === 'bg2';
+        return (
+          <div key={zeile.key} className="mt-3">
+            <div className="text-[10px] uppercase tracking-wider text-forest-500">{zeile.titel}</div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {istVerlauf && (
+                <button
+                  type="button"
+                  onClick={() => aendern({ bg2: null })}
+                  title="Einfarbig statt Verlauf"
+                  className={
+                    'rounded-lg px-2.5 py-1.5 text-xs transition ' +
+                    (wert === null
+                      ? 'bg-forest-500 text-forest-950 font-semibold'
+                      : 'bg-forest-900/60 text-forest-200 ring-1 ring-forest-800/50 hover:bg-forest-900')
+                  }
+                >
+                  ohne
+                </button>
+              )}
+              {FARBEN.map((farbe) => (
                 <button
                   key={farbe.hex}
                   type="button"
                   onClick={() => aendern({ [zeile.key]: farbe.hex })}
-                  title={schwach ? farbe.label + ' — auf diesem Hintergrund schwer lesbar' : farbe.label}
+                  title={farbe.label}
                   className={
                     'h-7 w-7 rounded-full transition ' +
-                    (aktiv ? 'ring-2 ring-forest-300' : 'ring-1 ring-forest-700/60 hover:ring-forest-500') +
-                    (schwach ? ' opacity-40' : '')
+                    (wert === farbe.hex
+                      ? 'ring-2 ring-forest-300'
+                      : 'ring-1 ring-forest-700/60 hover:ring-forest-500')
                   }
                   style={{ background: farbe.hex }}
                 />
-              );
-            })}
+              ))}
+              <input
+                type="color"
+                value={typeof wert === 'string' ? wert : '#ffffff'}
+                onChange={(e) => aendern({ [zeile.key]: e.target.value })}
+                title="Eigene Farbe"
+                className="h-7 w-9 cursor-pointer rounded-md bg-forest-900 ring-1 ring-forest-700/60"
+              />
+            </div>
           </div>
+        );
+      })}
+
+      {/* Rahmenstaerke */}
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-wider text-forest-500">
+          Rahmenstaerke —{' '}
+          <span className="tabular-nums normal-case">
+            {cfg.rahmenStaerke === 0 ? 'ohne' : cfg.rahmenStaerke.toFixed(2) + ' em'}
+          </span>
         </div>
-      ))}
+        <input
+          type="range"
+          min={0}
+          max={24}
+          step={1}
+          value={Math.round(cfg.rahmenStaerke * 100)}
+          onChange={(e) => aendern({ rahmenStaerke: Number(e.target.value) / 100 })}
+          className="mt-1.5 w-full accent-forest-400"
+        />
+      </div>
 
       {/* Transparenz */}
       <div className="mt-3">

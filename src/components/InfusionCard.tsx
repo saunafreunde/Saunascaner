@@ -9,8 +9,8 @@ import { themeFromAttributes, stripThemeAttrs } from '@/lib/aufgussTheme';
 import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
-import { nameplateAus, rgba, FORM_BY_ID } from '@/lib/nameplates';
-import { NameplateDeko } from '@/components/NameplateDeko';
+import { nameplateAus } from '@/lib/nameplates';
+import { Nameplate } from '@/components/Nameplate';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
@@ -124,8 +124,6 @@ export function InfusionCard({
   // Einlesen geprüft und notfalls durch die Vorgabe ersetzt — Alt-Daten und
   // halb gespeicherte Objekte dürfen die Tafel nicht kippen.
   const schild = nameplateAus(meisterDefaults?.nameplate_config);
-  const schildForm = FORM_BY_ID[schild.form];
-  const geclippt = !!schildForm?.clipPath;
 
   const label = dayLabel(infusion.start_time, now);
   const suffix = label === 'heute' ? 'Uhr' : label === 'morgen' ? 'morgen' : label;
@@ -590,75 +588,25 @@ export function InfusionCard({
                     weiterhin schwer zu lesen. Farbe, Transparenz und Form
                     waehlt der Aufgiesser selbst in seinem Profil; unbekannte
                     oder leere Werte fallen auf „Klarglas" zurueck. */}
-                <div className="relative min-w-0" style={{ overflow: 'visible' }}>
-                  {/* Der farbige Rahmen bei geclippten Formen: ein statischer
-                      Vier-Richtungs-drop-shadow am ELTERN-Element. Ein
-                      box-shadow würde vom clip-path mitgeschnitten, und eine
-                      untergelegte Randplatte schimmert durch, sobald der
-                      Nutzer Transparenz wählt — und Transparenz ist hier der
-                      Punkt. Der Filter ist statisch, rastert also einmal; die
-                      animierte Deko liegt bewusst AUSSERHALB davon. */}
-                  <div
-                    style={geclippt ? {
-                      filter: [
-                        `drop-shadow(0.06em 0 0 ${schild.rahmen})`,
-                        `drop-shadow(-0.06em 0 0 ${schild.rahmen})`,
-                        `drop-shadow(0 0.06em 0 ${schild.rahmen})`,
-                        `drop-shadow(0 -0.06em 0 ${schild.rahmen})`,
-                      ].join(' '),
-                    } : undefined}
-                  >
-                <div
-                  className="min-w-0 leading-tight text-center"
-                  style={{
-                    /* EIGENE Schriftgröße als Bezug für die em-Maße der Form.
-                       Ohne die erbt das Schild die Kartenschrift, und
-                       `padding: 0.5em 1.15em` wurde dadurch so breit, dass die
-                       vier Fußspalten nicht mehr nebeneinander passten und
-                       umbrachen — die Fußzeile fraß 71 % der Karte. Der Wert
-                       liegt bewusst unter der Namensschrift: Innenabstand und
-                       Rundung sollen sich am Schild orientieren, nicht an der
-                       größten Schrift darin. */
-                    fontSize: 'clamp(calc(10px * var(--d)), 2.4cqh, 15px)',
-                    background: rgba(schild.bg, schild.bgAlpha),
-                    borderRadius: schildForm?.borderRadius ?? '999em',
-                    ...(geclippt ? { clipPath: schildForm!.clipPath } : { boxShadow: `inset 0 0 0 0.09em ${schild.rahmen}` }),
-                    padding: schildForm?.padding ?? '0.5em 1.15em',
-                  }}
-                >
-                  <div
-                    className="font-bold truncate"
-                    style={{
-                      fontSize: 'clamp(calc(16px * var(--dh)), 4.1cqh, 24px)',
-                      color: schild.textName,
-                    }}
-                  >
-                    {meisterName ?? meisterDefaults.name}
-                    {meisterMeta?.isGuest && (
-                      <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
-                    )}
-                    {coNames && coNames.length > 0 && (
-                      <span className="ml-1 text-amber-700">+ {coNames.join(' + ')}</span>
-                    )}
-                  </div>
-                  {meisterDefaults.motto && (
-                    <div
-                      /* slate-600 statt -500: eine Stufe dunkler bringt spürbar
-                         Kontrast auf den Foto-Karten und bleibt trotzdem klar
-                         zurückhaltender als der Name darüber. */
-                      className="italic truncate"
-                      style={{ fontSize: 'clamp(calc(10px * var(--d)), 2.5cqh, 14px)' }}
-                    >
-                      „{meisterDefaults.motto}"
-                    </div>
-                  )}
-                </div>
-                  </div>
-                  {/* Jahreszeiten-Grafik: liegt ÜBER dem Schild, darf über
-                      dessen Kanten hinaus (User-Wunsch) und steht bewusst
-                      ausserhalb des gefilterten Wrappers. */}
-                  <NameplateDeko deko={schild.deko} />
-                </div>
+                {/* Namensschild — dieselbe Komponente wie in der Vorschau im
+                    Profil. Vorher gab es zwei Fassungen, die prompt
+                    auseinanderliefen: die Tafel rechnete in cqh/--d, der
+                    Editor nahm feste Pixel. */}
+                <Nameplate
+                  config={schild}
+                  name={meisterName ?? meisterDefaults.name}
+                  motto={meisterDefaults.motto || null}
+                  nameZusatz={
+                    <>
+                      {meisterMeta?.isGuest && (
+                        <span className="ml-1 text-emerald-700">🌍{meisterMeta.homeGroup ? ` ${meisterMeta.homeGroup}` : ''}</span>
+                      )}
+                      {coNames && coNames.length > 0 && (
+                        <span className="ml-1 text-amber-700">+ {coNames.join(' + ')}</span>
+                      )}
+                    </>
+                  }
+                />
               </div>
             ) : (
               /* Personal-Aufguss: Mittel-Spalte leer aber als Spacer, damit
