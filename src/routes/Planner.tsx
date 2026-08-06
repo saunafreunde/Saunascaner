@@ -424,7 +424,10 @@ export default function Planner() {
   // dem Kontingent. Räuchern zählt dagegen mit — es ist und bleibt ein
   // normales Attribut.
   const MIN_AUSWAHL = 3;
-  const MAX_AUSWAHL = 6;
+  // 6 -> 8 am 03.08.2026 auf Wunsch: zwei Details mehr pro Aufguss. Die Oele
+  // bleiben bei MAX_OIL_SLOTS (3), die zusaetzlichen Plaetze gehen also an
+  // Eigenschaften — 3 Oele + 5 Besonderheiten sind das Maximum.
+  const MAX_AUSWAHL = 8;
   const oilCount = oils.filter(Boolean).length;
   const auswahlAnzahl = attrs.length + customAttrIds.length + oilCount;
   const auswahlVoll = auswahlAnzahl >= MAX_AUSWAHL;
@@ -1557,7 +1560,7 @@ export default function Planner() {
                     </span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-forest-400/60">
-                    Öle und Eigenschaften zusammen: mindestens {MIN_AUSWAHL}, höchstens {MAX_AUSWAHL} — beliebig gemischt.
+                    Öle und Eigenschaften zusammen: mindestens {MIN_AUSWAHL}, höchstens {MAX_AUSWAHL} — beliebig gemischt (Öle max. {MAX_OIL_SLOTS}).
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {/* hidden = Kirschwasser/Haferpflaume, laufen jetzt über den

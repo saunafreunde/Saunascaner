@@ -25,6 +25,8 @@ import { OIL_BY_ID } from '@/lib/oils';
 import { FORMEN, FORM_BY_ID, DEKOS, FARBEN, nameplateAus, rgba, kontrastWert, istLesbar,
          KONTRAST_SCHWELLE, type NameplateConfig } from '@/lib/nameplates';
 import { NameplateDeko } from '@/components/NameplateDeko';
+import { useUpdateMyStarProfile } from '@/lib/api';
+import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
 import { Avatar } from '@/components/Avatar';
 import AvatarPicker from '@/components/AvatarPicker';
 import { FollowButton } from '@/components/FollowButton';
@@ -435,6 +437,18 @@ function NamensschildEditor({ name, motto }: { name: string; motto: string | nul
   const speichern = useSetMyNameplate();
   const [cfg, setCfg] = useState<NameplateConfig>(() => nameplateAus(me.data?.nameplate_config));
   const [fehler, setFehler] = useState<string | null>(null);
+  // Rahmen um den Avatar — liegt in members.star_accent_color und wird ueber
+  // update_my_star_profile gesetzt. Die RPC behandelt null als „nicht
+  // aendern"; ein LEERER String loescht dagegen (nullif(btrim(''),'')) — das
+  // ist der Weg zurueck auf „ohne Rahmen".
+  const starSpeichern = useUpdateMyStarProfile();
+  const rahmen = me.data?.star_accent_color ?? null;
+
+  async function rahmenSetzen(hex: string) {
+    setFehler(null);
+    try { await starSpeichern.mutateAsync({ accent: hex }); }
+    catch (e) { setFehler((e as Error).message); }
+  }
 
   useEffect(() => { setCfg(nameplateAus(me.data?.nameplate_config)); }, [me.data?.nameplate_config]);
 
@@ -612,6 +626,78 @@ function NamensschildEditor({ name, motto }: { name: string; motto: string | nul
           ))}
         </div>
       </div>
+
+      {/* Rahmen um das eigene Bild.
+          Die Funktion gab es laengst — nur versteckt unter /aufgieser/<id> →
+          „Bearbeiten" und dort „Trading-Card-Farbe" genannt. Der Name sagte
+          nichts ueber den Ring, der auf der Tafel um den Avatar liegt, und die
+          Seite hat mit dem Profil nichts zu tun. Deshalb steht die Einstellung
+          jetzt HIER, bei allem anderen, was das Erscheinungsbild auf der Tafel
+          betrifft — dieselbe Spalte (members.star_accent_color), dieselbe RPC.
+
+          Gate bewusst OHNE reinen Admin: update_my_star_profile verlangt
+          is_aufgieser() (= is_aufgieser ODER guest_aufgieser). Ein Admin ohne
+          das Flag bekaeme eine Exception statt eines gespeicherten Werts. */}
+      {(me.data?.is_aufgieser || me.data?.role === 'guest_aufgieser') && (
+        <div className="mt-4 border-t border-forest-800/40 pt-4">
+          <div className="text-[10px] uppercase tracking-wider text-forest-500">
+            Rahmen um mein Bild
+          </div>
+          <p className="mt-1 text-xs text-forest-400/70">
+            Der Ring um deinen Avatar — auf der Tafel, auf deiner Trading-Card und im Star-Profil.
+            Alle drei nutzen denselben Wert.
+          </p>
+          <div className="mt-2 flex items-center gap-4">
+            <span
+              aria-hidden
+              className="h-14 w-14 flex-shrink-0 rounded-full overflow-hidden"
+              style={{
+                boxShadow: rahmen
+                  ? `0 0 0 2px ${rahmen}, 0 0 14px ${rahmen}66`
+                  : '0 0 0 2px rgba(148,163,184,0.4)',
+                background: 'rgba(255,255,255,0.7)',
+              }}
+            >
+              <img
+                src={resolveAvatarUrl(me.data?.avatar_path ?? null, 128)
+                  ?? dicebearUrl('fun-emoji', me.data?.id ?? 'x', 128)}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => rahmenSetzen('')}
+                title="Kein Rahmen — es bleibt der neutrale graue Ring"
+                className={
+                  'rounded-lg px-2.5 py-1.5 text-xs transition ' +
+                  (!rahmen
+                    ? 'bg-forest-500 text-forest-950 font-semibold'
+                    : 'bg-forest-900/60 text-forest-200 ring-1 ring-forest-800/50 hover:bg-forest-900')
+                }
+              >
+                ohne
+              </button>
+              {FARBEN.map((farbe) => (
+                <button
+                  key={farbe.hex}
+                  type="button"
+                  onClick={() => rahmenSetzen(farbe.hex)}
+                  title={farbe.label}
+                  className={
+                    'h-7 w-7 rounded-full transition ' +
+                    (rahmen === farbe.hex
+                      ? 'ring-2 ring-forest-300'
+                      : 'ring-1 ring-forest-700/60 hover:ring-forest-500')
+                  }
+                  style={{ background: farbe.hex }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {fehler && <p className="mt-2 text-xs text-rose-300">{fehler}</p>}
     </div>
