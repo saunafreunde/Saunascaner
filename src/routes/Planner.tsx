@@ -1604,6 +1604,11 @@ export default function Planner() {
                 </div>
                 {titlePickerOpen && (
                   <TitleSuggestionPicker
+                    /* Was es schon gibt, soll nicht nochmal vorgeschlagen
+                       werden — die Liste liegt ohnehin im Speicher. */
+                    vorhandeneTitel={infusions
+                      .map((x) => x.title)
+                      .filter((t): t is string => !!t)}
                     /* ALLES mitgeben, nicht nur Standard-Besonderheiten und
                        Oele: vorher fehlten eigene Buttons, eigene Oele, der
                        Schnaps, der Sud und das Raeucherwerk komplett — ein

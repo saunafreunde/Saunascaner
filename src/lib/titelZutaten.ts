@@ -3,6 +3,7 @@ import { OIL_BY_ID } from '@/lib/oils';
 import { SCHNAPS_BY_ID, parseSchnapsAttr } from '@/lib/schnaps';
 import { parseSudAttr, parseSudMixAttr, type SudKraut, type SudMix } from '@/lib/sud';
 import { RAEUCHER_ATTR } from '@/lib/aufgussTheme';
+import { charakterAusKategorie, charakterAusName, type Charakter } from '@/lib/titelBausteine';
 
 /** Alles, woraus sich ein Aufguss-Titel speisen kann — in KLARTEXT.
  *
@@ -31,6 +32,10 @@ export type TitelZutaten = {
   temperatur?: string;
   uhrzeit?: string;
   jahreszeit?: string;
+  /** Sinneswelt der Hauptzutat — steuert die Wortwahl im Generator.
+   *  Kommt aus der Oel-KATEGORIE, wenn die bekannt ist; das ist genauer als
+   *  jede Namensheuristik ('Litsea Cubeba' verraet nichts ueber Zitrus). */
+  charakter?: Charakter;
 };
 
 export const LEERE_ZUTATEN: TitelZutaten = {
@@ -127,9 +132,24 @@ export function zutatenAus(input: {
   const schnapsSlug = schnaps ? (parseSchnapsAttr(schnaps) ?? schnaps) : null;
   const schnapsName = schnapsSlug ? (SCHNAPS_BY_ID[schnapsSlug]?.name ?? null) : null;
 
+  // Charakter aus dem ERSTEN Standard-Oel — dort steht die Kategorie. Gibt es
+  // keins, entscheidet spaeter der Name im Generator.
+  const erstesStandardOel = oils
+    .filter((o): o is string => !!o)
+    .map((o) => OIL_BY_ID[o])
+    .find(Boolean);
+  const schnapsDa = !!schnaps;
+  const charakter: Charakter | undefined = erstesStandardOel
+    ? charakterAusKategorie(erstesStandardOel.category)
+    : schnapsDa ? 'warm'
+    : raeucherwerk.length > 0 ? 'rauch'
+    : sud.length > 0 ? charakterAusName(sud[0])
+    : undefined;
+
   return {
     besonderheiten,
     oele,
+    ...(charakter ? { charakter } : {}),
     schnaps: schnapsName,
     sud,
     raeucherwerk,

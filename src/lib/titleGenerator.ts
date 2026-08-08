@@ -9,6 +9,10 @@
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from './attributes';
 import { OIL_BY_ID, type OilCategory } from './oils';
 import type { TitelZutaten } from './titelZutaten';
+import {
+  kompositum, kompositumFrei, charakterAusName, tageszeit, EMOJI,
+  type Charakter,
+} from './titelBausteine';
 
 // Adjektive pro Attribut. Der Generator pickt eines per Seed.
 // Partial: nicht jedes Attribut MUSS ein eigenes Mapping haben — neue
@@ -199,335 +203,193 @@ export function generateInfusionTitle(
 // + funktioniert offline + sofort.
 // ═══════════════════════════════════════════════════════════════════════
 
-export type TitleStyleId = 'poetisch' | 'kurz' | 'mystisch' | 'sinnlich' | 'frech';
-export type StyledTitle = { style: TitleStyleId; title: string };
-
-// Wortbänke pro Stil — bei jedem Aufruf wird zufällig kombiniert.
-// Erweitert 30.05.2026: jede Bank ungefähr verdoppelt für mehr Variation
-// beim "🎲 Neu würfeln". Stil-Charakter bleibt klar erhalten.
-const POETISCH = {
-  prefix: ['🌿', '🍃', '✨', '🌙', '☀️', '🌅', '🌳', '🌾', '💫', '🪶', '🦋', '🌸'],
-  // STAMM ohne Endung — die haengt vom Geschlecht des Substantivs ab.
-  adjektiv: [
-    'flüstern', 'golden', 'tanzend', 'duftend', 'leis', 'dampfend',
-    'sanft', 'kühl', 'warm', 'wild', 'zitternd', 'frisch',
-    'glühend', 'ruhig', 'weich', 'samten', 'mild', 'glänzend',
-    'leuchtend', 'träumend', 'schimmernd', 'atmend', 'sonnig', 'silbern',
-  ],
-  // Mit Geschlecht, weil das Adjektiv sich danach richtet: „Donnernder Strom",
-  // aber „Donnernde Welle" und „Donnerndes Lied". Vorher wurde stumpf die
-  // maskuline Endung angehaengt — bei jedem dritten Substantiv falsch.
-  substantiv: [
-    { w: 'Hauch', g: 'm' }, { w: 'Tanz', g: 'm' }, { w: 'Atem', g: 'm' },
-    { w: 'Schimmer', g: 'm' }, { w: 'Klang', g: 'm' }, { w: 'Schleier', g: 'm' },
-    { w: 'Flügel', g: 'm' }, { w: 'Gruß', g: 'm' }, { w: 'Bogen', g: 'm' },
-    { w: 'Kuss', g: 'm' }, { w: 'Strom', g: 'm' }, { w: 'Reigen', g: 'm' },
-    { w: 'Funke', g: 'm' }, { w: 'Spiegel', g: 'm' }, { w: 'Glanz', g: 'm' },
-    { w: 'Mantel', g: 'm' }, { w: 'Wirbel', g: 'm' },
-    { w: 'Wiege', g: 'f' }, { w: 'Welle', g: 'f' }, { w: 'Stille', g: 'f' },
-    { w: 'Lied', g: 'n' }, { w: 'Märchen', g: 'n' }, { w: 'Leuchten', g: 'n' },
-  ] as { w: string; g: 'm' | 'f' | 'n' }[],
-  // Praeposition und Ort als PAAR. Frei kombiniert entstand Unsinn wie
-  // „vom Himmels" — der Genitiv passt zu „des", nicht zu „vom".
-  ortsangabe: [
-    'des Waldes', 'des Schwarzwalds', 'des Morgens', 'des Abends',
-    'des Sommers', 'des Himmels', 'des Birkenhains', 'des Nordwinds',
-    'des Kräutergartens', 'des Mondes', 'des Tannenwalds', 'des Lichts',
-    'im Nebel', 'im Tal', 'im Bergsee', 'im Heidekraut',
-    'am Quellbach', 'am Lagerfeuer', 'am Bergstrom', 'am Sonnental',
-    'aus dem Frühling', 'aus dem Schwarzwald', 'vom Sternenhimmel',
-    'vom Aufgang', 'beim Lagerfeuer',
-  ],
-};
-
-const KURZ = {
-  basis: [
-    'Glut', 'Atem', 'Hauch', 'Welle', 'Funke', 'Klang',
-    'Blitz', 'Sprung', 'Tanz', 'Wirbel', 'Sturm', 'Brise',
-    'Lava', 'Eis', 'Fels', 'Wald', 'Dunst', 'Feuer',
-    'Glanz', 'Strudel', 'Wind', 'Quelle', 'Boom', 'Frost',
-    'Flamme', 'Hitze', 'Donner', 'Echo',
-  ],
-  suffix: [
-    'stoß', '-Bad', '-Kuss', '-Kick', 'feuer', '-Wave',
-    '-Zauber', '-Welt', '-Reise', '-Zone', '-Schock', '-Hauch',
-    '-Spritzer', '-Symphonie', '-Orgie', '-Magic', '-Rausch', '-Boost',
-  ],
-};
-
-const MYSTISCH = {
-  prefix: ['🔮', '🐉', '🌋', '⚡', '🔱', '🗝️', '🌌', '🦅', '🗡️', '🏔️', '🌠', '🪬'],
-  wesen: [
-    'Phönix', 'Drache', 'Schamane', 'Druide', 'Götter', 'Walküren',
-    'Schmied', 'Nymphe', 'Sturmgeist', 'Salamander',
-    'Hexe', 'Sphinx', 'Zentaur', 'Faun', 'Kobold',
-    'Erdenmagier', 'Feuergeist', 'Schicksal', 'Orakel', 'Titan',
-    'Drudin', 'Walkürengruß', 'Nordlicht', 'Runenmeister',
-  ],
-  verb: [
-    'weckt', 'beschwört', 'tanzt mit', 'erweckt', 'küsst', 'lockt',
-    'zähmt', 'entfesselt', 'ruft', 'beschwingt', 'formt', 'schmiedet',
-    'flüstert mit', 'umarmt', 'fängt ein',
-  ],
-  ergaenzung: [
-    'die Glut', 'das Feuer', 'den Sturm', 'die Tiefe', 'das Echo',
-    'die Asche', 'das Licht', 'die Schatten', 'den Atem', 'das Funkeln',
-    'die Tiefen', 'das Brausen', 'den Glanz', 'das Eis', 'das Rauschen',
-  ],
-};
-
-const SINNLICH = {
-  prefix: ['🌹', '💋', '🔥', '💕', '🌸', '✨', '🍷', '🕯️', '🌿', '💫'],
-  adjektiv: [
-    'Heiße', 'Sanfte', 'Verlockende', 'Verführerische', 'Zarte',
-    'Glühende', 'Wilde', 'Atemberaubende',
-    'Pulsierende', 'Brennende', 'Süße', 'Honig-warme', 'Cremige',
-    'Knisternde', 'Sinnliche', 'Lockende', 'Berauschende', 'Schmelzende',
-  ],
-  substantiv: [
-    'Berührung', 'Verführung', 'Umarmung', 'Liebkosung', 'Versuchung',
-    'Hingabe', 'Sehnsucht', 'Welle',
-    'Reise', 'Begegnung', 'Erfüllung', 'Zärtlichkeit', 'Magie',
-    'Wärme', 'Lust', 'Glut', 'Hingabe', 'Verzauberung',
-  ],
-  modifier: [
-    'der Sinne', 'der Glut', 'der Wärme', 'des Augenblicks',
-    'für die Haut', 'in Hitze', 'des Moments',
-    'auf nackter Haut', 'im Glühen', 'der Verheißung', 'des Vergessens',
-    'der Lust', 'in Flammen', 'unter der Haut', 'der Stille',
-  ],
-};
-
-const FRECH = {
-  prefix: ['😉', '🤪', '🥵', '🤘', '🎬', '🤙', '🍻', '🙈', '💨', '🚀', '🔥', '🎉'],
-  intro: [
-    'Operation', 'Mission', 'Tatort', 'Achtung', 'Vorsicht', 'Hallo',
-    'Alarm', 'Voilà', 'Tadaa', 'Yo', 'Hochkonjunktur', 'Notruf',
-    'Showtime', 'Bühne frei für',
-  ],
-  thema: [
-    'Schwitzwurst', 'Hitze-Hammer', 'Glut-Knaller', 'Volldampf',
-    'Heiße Sache', 'Ofen aus', 'Augen zu', 'Schwitzkasten',
-    'Heiße Hütte', 'Schweißbruder', 'Schwitzparade', 'Saunaschock',
-    'Ofengeflüster', 'Glühwein-Style', 'Hot-Hot-Hot', 'Brennzauber',
-    'Verdampf-Spezial', 'Schwitzfest', 'Heißduscher',
-  ],
-  zusatz: [
-    '!', ' deluxe', ' XXL', ' & durch', ' Spezial', ' — jetzt!',
-    ' Premium', ' ohne Pardon', ' mit Bums', ' ohne Reue', ' on Fire',
-    ' mit Wumms', ' à la Carte', ' — Vorhang auf', ' für Mutige',
-  ],
-};
-
-// ──────────────────────────────────────────────────────────────────────
-// Seed-basierte Picker — deterministisch innerhalb eines Aufrufs, aber
-// abwechslungsreich beim "🎲 Neu würfeln" durch Date.now()-Seed-Bump.
-
-function pick<T>(arr: T[], seed: number): T {
-  return arr[Math.abs(seed) % arr.length];
-}
-
-// Hash für stabile Differenzierung pro Stil (sonst alle 5 mit gleichem seed)
+/** Streut denselben Seed pro Stil und pro Wortwahl auseinander — ohne das
+ *  liefern alle fuenf Vorschlaege dieselben Indizes. */
 function shift(seed: number, salt: number): number {
   return Math.imul(seed ^ salt, 2654435761) | 0;
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Kontext für die Stil-Bausteine.
+export type TitleStyleId = 'kompositum' | 'kurz' | 'stimmung' | 'bild' | 'frech';
+export type StyledTitle = { style: TitleStyleId; title: string };
+
+// ══════════════════════════════════════════════════════════════════════
+// Die fünf Typen sind KEINE erfundenen Stile mehr, sondern die Muster, die
+// im Bestand tatsächlich vorkommen (593 handgeschriebene Titel, ausgewertet
+// am 09.08.2026):
 //
-// Vorher stand hier eine Struktur, die zwar alle Öle und Attribute sammelte —
-// aber KEIN Baustein hat die Listen je gelesen. Alle fünf griffen nur auf das
-// ERSTE Öl und die ERSTE Besonderheit zu. Bei drei Ölen und fünf
-// Besonderheiten flossen also zwei von acht Angaben ein, der Rest war
-// wirkungslos. Genau das war der Grund für die beliebig wirkenden Titel.
+//   kompositum  „Duftreise" (49×), „Zitrusfrische", „Räuchermagie"
+//               — mit Abstand am häufigsten
+//   kurz        „Citrus", „Valhalla", „Klassisch" — ein Wort, fertig
+//   stimmung    „Guten Morgen", „Abend-Ruhe 🌕", „Schönes Wochenende"
+//   bild        „Waldspaziergang", „Feuerteufel", „Blumenwiese"
+//   frech       „Hardrock Halleluja", „Ami im Wunderland"
 //
-// Jetzt trägt der Kontext echte Klartext-Zutaten (siehe lib/titelZutaten.ts)
-// und die Bausteine nutzen sie.
+// Leitplanken aus derselben Auswertung: 2,6 Wörter im Schnitt, 18 Zeichen,
+// 58 % höchstens zweiwortig, nur 24 % mit Emoji — und wenn, dann meist
+// HINTEN. Der alte Generator lieferte dagegen „🌹 Atemberaubende Erfüllung
+// in Flammen": fünf Wörter, Emoji vorn. Grammatisch korrekt, aber niemand
+// im Verein schreibt so.
+// ══════════════════════════════════════════════════════════════════════
+
+const STIMMUNG_VORLAGEN = [
+  (t: string) => `Guten ${t}`,
+  (t: string) => `${t}ruhe`,
+  (t: string) => `${t}zauber`,
+  (t: string) => `Schöner ${t}`,
+  (t: string) => `${t}stunde`,
+];
+
+const FRECH_KURZ = [
+  'Augen zu und durch', 'Volle Kanne', 'Ofen an', 'Schwitzkasten',
+  'Hitzefrei', 'Kein Entkommen', 'Bis zur Kante', 'Alles oder nichts',
+  'Feuer frei', 'Jetzt wird geschwitzt', 'Ohne Reue', 'Wer zuletzt lacht',
+];
 
 type GenContext = {
   /** Der Kopf des Aufgusses: Schnaps schlägt Mischung schlägt Öl. */
   held: string | null;
-  /** Zweiter Bestandteil für Titel, die zwei Namen tragen können. */
   zweiter: string | null;
-  /** Alle Zutaten-Namen zusammen — für Stile, die frei greifen. */
-  alleZutaten: string[];
-  /** Erste Besonderheit als Klartext. */
   attrLabel: string | null;
-  /** Passende Adjektive zur ersten Besonderheit, falls es welche gibt. */
   attrAdjektive: string[];
+  charakter: Charakter;
   jahreszeit: string | null;
-  temperatur: string | null;
-};
-
-/** Saisonale Wörter — greifen nur, wenn eine Jahreszeit mitgegeben wurde. */
-const SAISON_WORT: Record<string, string[]> = {
-  Advent: ['Advents-', 'Zimt-', 'Kerzen-', 'Winterlicher'],
-  Winter: ['Frost-', 'Winterlicher', 'Eis-', 'Schnee-'],
-  'Frühling': ['Frühlings-', 'Knospen-', 'Erwachender', 'Grüner'],
-  Sommer: ['Sommer-', 'Sonnen-', 'Hochsommerlicher', 'Heißer'],
-  Herbst: ['Herbst-', 'Nebel-', 'Goldener', 'Laub-'],
+  stunde: number | null;
 };
 
 function buildContext(z: TitelZutaten): GenContext {
-  // Rangfolge des „Helden": der Schnaps prägt die Karte am stärksten, dann
-  // eine benannte Sud-Mischung, dann das erste Öl. Wer nur Räucherwerk
-  // gewählt hat, bekommt das.
   const held = z.schnaps ?? z.sud[0] ?? z.oele[0] ?? z.raeucherwerk[0] ?? null;
   const alle = [...(z.schnaps ? [z.schnaps] : []), ...z.oele, ...z.sud, ...z.raeucherwerk];
+  const label = z.besonderheiten[0];
+  const treffer = label ? ATTRIBUTES.find((a) => a.label === label) : undefined;
   return {
     held,
     zweiter: alle.find((x) => x !== held) ?? null,
-    alleZutaten: alle,
-    attrLabel: z.besonderheiten[0] ?? null,
-    // Rueckweg vom Klartext zur ID: die Wortbaenke haengen an den IDs, die
-    // Zutaten tragen aber Labels. Der Fund ist eindeutig, Labels sind es.
-    attrAdjektive: (() => {
-      const label = z.besonderheiten[0];
-      if (!label) return [];
-      const treffer = ATTRIBUTES.find((a) => a.label === label);
-      return treffer ? (ATTR_ADJECTIVE[treffer.id] ?? []) : [];
-    })(),
+    attrLabel: label ?? null,
+    attrAdjektive: treffer ? (ATTR_ADJECTIVE[treffer.id] ?? []) : [],
+    // Der Charakter entscheidet über das Wortfeld. Kommt er vom Aufrufer
+    // (aus der Öl-Kategorie), ist er genauer als jede Namensheuristik.
+    charakter: z.charakter ?? (held ? charakterAusName(held)
+      : z.raeucherwerk.length > 0 ? 'rauch' : 'neutral'),
     jahreszeit: z.jahreszeit ?? null,
-    temperatur: z.temperatur ?? null,
+    stunde: z.uhrzeit ? Number(z.uhrzeit.slice(0, 2)) : null,
   };
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Stil-Builder — jeder returnt EINEN Titel passend zum Stil
-
-/** Haengt die passende Endung an: „golden" + Welle -> „goldene Welle".
- *  Adjektive, die auf einen Bindestrich enden („Hochspannungs-"), bleiben
- *  unveraendert und werden ohne Leerzeichen angeklebt. */
-function flektiert(stamm: string, genus: 'm' | 'f' | 'n'): string {
-  if (stamm.endsWith('-')) return stamm;
-  const endung = genus === 'm' ? 'er' : genus === 'f' ? 'e' : 'es';
-  return capitalize(stamm + endung);
+/** Emoji anhängen — sparsam, wie im echten Bestand: nur bei etwa jedem
+ *  dritten Titel, und dann hinten. */
+function mitEmoji(titel: string, ch: Charakter, seed: number): string {
+  // Etwa jeder dritte Aufruf — bei vier von fuenf Typen ergibt das die
+  // Quote des echten Bestands (24 %).
+  if (Math.abs(shift(seed, 21)) % 3 !== 0) return titel;
+  const liste = EMOJI[ch];
+  return `${titel} ${liste[Math.abs(shift(seed, 22)) % liste.length]}`;
 }
 
-function buildPoetisch(ctx: GenContext, seed: number): string {
-  const prefix = pick(POETISCH.prefix, seed);
-  const saison = ctx.jahreszeit ? SAISON_WORT[ctx.jahreszeit] : undefined;
-  // Hat die gewaehlte Besonderheit ein eigenes Adjektiv, geht das vor: bei
-  // AC/DC soll „Elektrischer" stehen, nicht ein beliebiges „Heisser".
-  const eigenes = ctx.attrAdjektive.length > 0
-    ? pick(ctx.attrAdjektive, shift(seed, 11))
-    : null;
-  // Die Jahreszeit ersetzt gelegentlich das Adjektiv — nicht immer, sonst
-  // klingt im Dezember jeder Titel gleich.
-  const fertig = eigenes && Math.abs(shift(seed, 12)) % 2 === 0
-    ? eigenes
-    : saison && Math.abs(shift(seed, 9)) % 3 === 0
-      ? pick(saison, shift(seed, 10))
-      : null;
-  const sub = pick(POETISCH.substantiv, shift(seed, 2));
-  // Fertige Adjektive kommen unveraendert durch, Staemme werden flektiert.
-  const wort = fertig ?? flektiert(pick(POETISCH.adjektiv, shift(seed, 1)), sub.g);
-  // Ein Adjektiv mit Bindestrich klebt direkt am Substantiv („Zimt-Strom"),
-  // ein normales bekommt ein Leerzeichen („Goldener Strom").
-  const kopf = wort.endsWith('-') ? `${wort}${sub.w}` : `${wort} ${sub.w}`;
-  if (ctx.held) {
-    // „des Kirschwassers" nur bei Woertern, die den Genitiv vertragen —
-    // sonst „aus"/"mit", das passt immer.
-    const part = pick([`aus ${ctx.held}`, `mit ${ctx.held}`, `vom ${ctx.held}`], shift(seed, 3));
-    return `${prefix} ${kopf} ${part}`;
-  }
-  return `${prefix} ${kopf} ${pick(POETISCH.ortsangabe, shift(seed, 4))}`;
+function buildKompositum(ctx: GenContext, seed: number): string {
+  const wort = ctx.held
+    ? kompositum(ctx.held, ctx.charakter, seed)
+    : kompositumFrei(ctx.charakter, seed);
+  return mitEmoji(wort, ctx.charakter, seed);
 }
 
 function buildKurz(ctx: GenContext, seed: number): string {
-  // Vorher kamen auf 200 Wuerfe nur 10 verschiedene Titel: es gab genau zwei
-  // Formen, und eine davon („A & B") hatte gar keine Variation. Jetzt fuenf
-  // Formen, und die Basiswoerter mischen mit.
-  const form = Math.abs(shift(seed, 6)) % 5;
-  const suf = pick(KURZ.suffix, seed);
-  const basis = pick(KURZ.basis, shift(seed, 8));
-  if (ctx.held && ctx.zweiter) {
-    if (form === 0) return `${ctx.held} & ${ctx.zweiter}`;
-    if (form === 1) return `${ctx.held}${suf}`;
-    if (form === 2) return `${basis} & ${ctx.held}`;
-    if (form === 3) return `${ctx.held} trifft ${ctx.zweiter}`;
-    return `${ctx.zweiter}${suf}`;
-  }
-  if (ctx.held) {
-    if (form === 0) return `${ctx.held}${suf}`;
-    if (form === 1) return `${basis} & ${ctx.held}`;
-    return `${ctx.held} ${basis}`;
-  }
-  if (ctx.attrLabel) return `${ctx.attrLabel}${suf}`;
-  return `${basis}${suf}`;
+  // Ein Wort. Entweder die Zutat pur, das Attribut, oder ein freies
+  // Kompositum — wie „Citrus", „Klassisch", „Waldluft".
+  const form = Math.abs(shift(seed, 6)) % 3;
+  if (form === 0 && ctx.held) return ctx.held;
+  if (form === 1 && ctx.attrLabel) return ctx.attrLabel;
+  return mitEmoji(kompositumFrei(ctx.charakter, shift(seed, 7)), ctx.charakter, shift(seed, 9));
 }
 
-function buildMystisch(ctx: GenContext, seed: number): string {
-  const prefix = pick(MYSTISCH.prefix, seed);
-  const wesen = pick(MYSTISCH.wesen, shift(seed, 1));
-  const verb = pick(MYSTISCH.verb, shift(seed, 2));
-  if (ctx.held) return `${prefix} ${wesen} ${verb} ${ctx.held}`;
-  return `${prefix} ${wesen} ${verb} ${pick(MYSTISCH.ergaenzung, shift(seed, 3))}`;
+function buildStimmung(ctx: GenContext, seed: number): string {
+  const t = ctx.stunde !== null ? tageszeit(ctx.stunde) : null;
+  const basis = t ?? ctx.jahreszeit ?? 'Abend';
+  const vorlage = STIMMUNG_VORLAGEN[Math.abs(shift(seed, 8)) % STIMMUNG_VORLAGEN.length];
+  return mitEmoji(vorlage(basis), ctx.charakter, seed);
 }
 
-function buildSinnlich(ctx: GenContext, seed: number): string {
-  const prefix = pick(SINNLICH.prefix, seed);
-  const adj = pick(SINNLICH.adjektiv, shift(seed, 1));
-  const sub = pick(SINNLICH.substantiv, shift(seed, 2));
-  if (ctx.held && ctx.zweiter) return `${prefix} ${adj} ${sub}: ${ctx.held} & ${ctx.zweiter}`;
-  if (ctx.held) return `${prefix} ${adj} ${sub} mit ${ctx.held}`;
-  return `${prefix} ${adj} ${sub} ${pick(SINNLICH.modifier, shift(seed, 3))}`;
+/** Substantive, deren Geschlecht ICH kenne — alle maskulin, damit das
+ *  Adjektiv immer auf -er endet. Das umgeht das eigentliche Problem: das
+ *  Geschlecht der ZUTATEN ist unbekannt. „Eiskalter Zitrone" war falsch (die
+ *  Zitrone), „Heißer Kirschwasser" auch (das Kirschwasser) — und eine
+ *  Genus-Tabelle für 64 Öle plus alle selbst angelegten wäre nie vollständig,
+ *  weil morgen jemand ein neues anlegt. */
+const BILD_TRAEGER = [
+  'Moment', 'Gruß', 'Zauber', 'Atem', 'Aufguss', 'Abend', 'Gang', 'Rausch',
+];
+
+function buildBild(ctx: GenContext, seed: number): string {
+  const adj = ctx.attrAdjektive.length > 0
+    ? ctx.attrAdjektive[Math.abs(shift(seed, 11)) % ctx.attrAdjektive.length]
+    : null;
+
+  // Adjektive mit Bindestrich kleben direkt an die Zutat — dort spielt das
+  // Geschlecht keine Rolle: „Hochspannungs-Rosmarin".
+  if (adj && adj.endsWith('-') && ctx.held) return `${adj}${ctx.held}`;
+
+  // Sonst bekommt das Adjektiv einen Träger, dessen Geschlecht feststeht.
+  if (adj) {
+    const traeger = BILD_TRAEGER[Math.abs(shift(seed, 14)) % BILD_TRAEGER.length];
+    return `${adj} ${traeger}`;
+  }
+
+  if (ctx.held && ctx.zweiter && Math.abs(shift(seed, 15)) % 3 === 0) {
+    return `${ctx.held} & ${ctx.zweiter}`;
+  }
+  if (ctx.held) return kompositum(ctx.held, ctx.charakter, shift(seed, 12));
+  return kompositumFrei(ctx.charakter, shift(seed, 13));
 }
 
 function buildFrech(ctx: GenContext, seed: number): string {
-  const prefix = pick(FRECH.prefix, seed);
-  // Vorher fiel dieser Stil fast immer auf den Schluss-Fallback zurueck: die
-  // Zweige verlangten eine Zutat ODER eine Besonderheit, und wenn der
-  // gewuerfelte Zweig gerade das forderte, was fehlte, blieb nur der Rest.
-  // Jetzt wird zuerst gesammelt, was ueberhaupt moeglich ist, und daraus
-  // gewaehlt — so kommt die Zutat vor, sooft es geht.
-  const moeglich: number[] = [0];
-  if (ctx.held) { moeglich.push(1); if (ctx.temperatur) moeglich.push(3); }
-  if (ctx.attrLabel) moeglich.push(2);
-  const variant = pick(moeglich, shift(seed, 1));
-  if (variant === 1 && ctx.held) return `${prefix} ${ctx.held} knockt dich um`;
-  if (variant === 2 && ctx.attrLabel) {
-    const adj = pick(['extra', 'ultra', 'mega', 'voll', 'richtig'], shift(seed, 5));
-    return `${prefix} ${capitalize(adj)} ${ctx.attrLabel}!`;
-  }
-  // Neu: die Temperatur mitnehmen, wenn sie bekannt ist.
-  if (variant === 3 && ctx.temperatur && ctx.held) {
-    return `${prefix} ${ctx.held} bei ${ctx.temperatur}`;
-  }
-  const intro = pick(FRECH.intro, shift(seed, 2));
-  const thema = pick(FRECH.thema, shift(seed, 3));
-  const zus = pick(FRECH.zusatz, shift(seed, 4));
-  return `${prefix} ${intro} ${thema}${zus}`;
+  const form = Math.abs(shift(seed, 1)) % 3;
+  if (form === 0 && ctx.held) return `${ctx.held} bis zum Anschlag`;
+  if (form === 1 && ctx.attrLabel) return `${ctx.attrLabel}, volle Kanne`;
+  return FRECH_KURZ[Math.abs(shift(seed, 2)) % FRECH_KURZ.length];
 }
 
-function capitalize(s: string): string {
-  return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
-}
+const STYLE_ORDER: TitleStyleId[] = ['kompositum', 'kurz', 'stimmung', 'bild', 'frech'];
 
-const STYLE_ORDER: TitleStyleId[] = ['poetisch', 'kurz', 'mystisch', 'sinnlich', 'frech'];
-
-/**
- * Fünf Titel-Vorschläge in fünf Stilen — rein regelbasiert.
+/** Fünf Titel-Vorschläge, gebaut nach den Mustern echter Vereinstitel.
  *
- * Dient seit 09.08.2026 als FALLBACK hinter dem KI-Vorschlag (api/ai.ts):
- * ohne Netz, ohne Schlüssel, ohne Wartezeit liefert er trotzdem etwas
- * Brauchbares. Bei gleichem seed identischer Output.
+ *  Dient als Fallback hinter dem KI-Vorschlag (api/ai.ts) — und trägt allein,
+ *  solange kein API-Schlüssel hinterlegt ist. Bei gleichem seed identisch.
  */
 export function generateInfusionTitles(
   zutaten: TitelZutaten,
   seed: number = Date.now(),
+  /** Titel, die es im Verein schon gibt. Werden gemieden, solange sich eine
+   *  Alternative finden lässt — „Duftreise" steht 49-mal im Bestand, als
+   *  Vorschlag wäre das korrekt, aber langweilig. Das ist etwas, das ein
+   *  Regelsystem kann und ein Sprachmodell ohne diese Liste nicht. */
+  vermeiden: readonly string[] = [],
 ): StyledTitle[] {
   const ctx = buildContext(zutaten);
-  return STYLE_ORDER.map((style, i): StyledTitle => {
-    const subSeed = shift(seed, i * 7919);
-    let title: string;
+  const belegt = new Set(vermeiden.map((t) => t.trim().toLowerCase()));
+
+  const baue = (style: TitleStyleId, sub: number): string => {
     switch (style) {
-      case 'poetisch': title = buildPoetisch(ctx, subSeed); break;
-      case 'kurz':     title = buildKurz(ctx, subSeed); break;
-      case 'mystisch': title = buildMystisch(ctx, subSeed); break;
-      case 'sinnlich': title = buildSinnlich(ctx, subSeed); break;
-      case 'frech':    title = buildFrech(ctx, subSeed); break;
+      case 'kompositum': return buildKompositum(ctx, sub);
+      case 'kurz':       return buildKurz(ctx, sub);
+      case 'stimmung':   return buildStimmung(ctx, sub);
+      case 'bild':       return mitEmoji(buildBild(ctx, sub), ctx.charakter, shift(sub, 31));
+      case 'frech':      return buildFrech(ctx, sub);
     }
+  };
+
+  // Was in DIESEM Durchgang schon vergeben ist, zählt auch als belegt —
+  // sonst stünden zwei gleiche Vorschläge untereinander.
+  const dieseRunde = new Set<string>();
+
+  return STYLE_ORDER.map((style, i): StyledTitle => {
+    let title = '';
+    // Bis zu acht Anläufe mit verschobenem Seed. Danach wird genommen, was
+    // da ist: lieber ein vorhandener Titel als gar keiner.
+    for (let versuch = 0; versuch < 8; versuch++) {
+      title = baue(style, shift(seed, i * 7919 + versuch * 104729));
+      const k = title.trim().toLowerCase();
+      if (!belegt.has(k) && !dieseRunde.has(k)) break;
+    }
+    dieseRunde.add(title.trim().toLowerCase());
     return { style, title };
   });
 }

@@ -19,21 +19,26 @@ import { zutatenLeer, type TitelZutaten } from '@/lib/titelZutaten';
 
 interface Props {
   zutaten: TitelZutaten;
+  /** Titel, die es im Verein schon gibt — werden gemieden. Der Planer hat
+   *  die Aufguss-Liste ohnehin geladen, das kostet keine Abfrage. */
+  vorhandeneTitel?: readonly string[];
   onPick: (title: string) => void;
   onClose: () => void;
 }
 
+// Benennung nach den Mustern, die im Bestand tatsaechlich vorkommen —
+// siehe lib/titleGenerator.ts.
 const STYLE_LABEL: Record<StyledTitle['style'], string> = {
-  poetisch: '🌿 Poetisch',
-  kurz:     '⚡ Kurz',
-  mystisch: '🔮 Mystisch',
-  sinnlich: '🌹 Sinnlich',
-  frech:    '😉 Frech',
+  kompositum: '🌿 Ein Wort',
+  kurz:       '⚡ Knapp',
+  stimmung:   '🕐 Stimmung',
+  bild:       '🖼️ Bild',
+  frech:      '😉 Frech',
 };
 
-export function TitleSuggestionPicker({ zutaten, onPick, onClose }: Props) {
+export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, onClose }: Props) {
   const [seed, setSeed] = useState(() => Date.now());
-  const regelTitel = generateInfusionTitles(zutaten, seed);
+  const regelTitel = generateInfusionTitles(zutaten, seed, vorhandeneTitel);
 
   // Stabiler Schluessel statt der Objekt-Referenz: `zutaten` wird vom
   // Aufrufer bei JEDEM Render neu gebaut (zutatenAus(...)). Als
