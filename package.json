@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && node scripts/check-cycles.mjs && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && node scripts/check-cycles.mjs",
     "types:gen": "supabase gen types typescript --project-id $env:SUPABASE_PROJECT_ID > src/types/database.ts"
   },
   "dependencies": {

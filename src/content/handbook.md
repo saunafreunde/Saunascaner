@@ -5,7 +5,7 @@
 > **Live unter:** [saunascaner.vercel.app](https://saunascaner.vercel.app)
 > **Stand:** 26.05.2026
 >
-> **Neu seit 22.05.2026**: Mobile-2-Spalten-Planner-Layout · 4-Farben-Slot-System (🔴 belegt · 🟢 frei · 🟠 gesperrt · 🟣 mein Aufguss) · „🔥 Heute geplant"-Hero · 🇷🇺 **Banja-Ritual** (90-Min-Spezial-Aufguss in 80°C-Sauna, automatische Personal-Aufguss-Übernahme).
+> **Neu seit 22.05.2026**: Mobile-2-Spalten-Planner-Layout · 4-Farben-Slot-System (🔴 belegt · 🟢 frei · 🟠 gesperrt · 🟣 mein Aufguss) · „🔥 Heute geplant"-Hero · 🇷🇺 **Banja-Ritual** (seit 08.08.2026 frei planbar: 2 h in jeder Sauna zu jeder Zeit, 90 Min um 19 Uhr, danach 1 h Ruhephase).
 >
 > **Schnellzugriff zu Rollen-Handbüchern** (kompakte Anleitungen je Rolle):
 > [👋 Gast](/hilfe#gast) · [🤝 Fan](/hilfe#fan) · [🤝 Unterstützer](/hilfe#unterstuetzer) · [🧖 Aufgießer](/hilfe#aufgieser) · [👨‍🍳 Personal](/hilfe#personal) · [🛠️ CP](/hilfe#cp) · [⚙️ Admin](/hilfe#admin)
@@ -72,7 +72,7 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 17 Tabs. Du springst direkt rei
 
 **🎨 Setup**
 - [🎨 Branding (Logo, Farben, org_name)](/admin#branding)
-- [🎨 Farben (Eigenschaften + Öle anpassen)](/admin#colors)
+- [🎨 Farben (Besonderheiten + Öle anpassen)](/admin#colors)
 - [🚫 Öle deaktivieren](/admin#oils)
 - [📖 Handbuch-Editor](/admin#handbook)
 - [🧹 **Cache-Reload** — App-Update an alle Geräte pushen](/admin#system) ⭐ neu
@@ -164,6 +164,7 @@ Du kannst hier:
 > - **Tages-Abschluss-Screen** ab 21:00 — Verabschiedung mit Statistiken (Aufgüsse, Lieblings-Aufgießer, Top-Öle, häufigste Besonderheiten)
 > - **Aufgießer haben eigene Öle + eigene Buttons (Besonderheiten)** — privat im Profil verwaltet, öffentlich sichtbar sobald in einem Aufguss verwendet
 > - **13 neue Eigenschaften** für Aufgüsse: Räucheraufguss-Zutaten (Kräuter-Sud, Stein-Klee, Honig-Klee, Berg-Minze, Thymian, Salzpeeling) + Musik-Stile (Rock, Kontrovers, Party-/Malle-/Deutsch-Schlager, Böse-Onkels, Klassik)
+>   <br>*Stand 08.08.2026: heißen jetzt **Besonderheiten**; vier der Sud-Zutaten sind in den Sud-Reiter gewandert, Malle-Schlager ging in „Schlager" auf — siehe „Aufguss anlegen".*
 > - **AI-Titel-Generator** (Claude Haiku 4.5) — Knopf „✨ Vorschlagen" beim Aufguss-Anlegen erzeugt kreative Titel aus Eigenschaften + Ölen
 > - **Admin kann Aufgießer beim Erstellen/Bearbeiten zuweisen** + Co-Aufgießer für Team-Aufgüsse pflegen
 > - **🧭 AreaHubFooter** am Ende jeder Mitglieder-Seite — schneller Sprung zu allen für die Rolle berechtigten Bereichen
@@ -669,50 +670,95 @@ Pro Sauna eine Zeile, pro Stunde eine Zelle. **Neu seit 26.05.2026**: auf dem Sm
 
 Beantwortet sofort die Frage „Was läuft heute?" ohne Wochen-Planner zu scrollen.
 
-### 🇷🇺 Banja-Ritual (90-Min-Spezial-Aufguss) ⭐ NEU 26.05.2026
+### 🇷🇺 Banja-Ritual ⭐ überarbeitet 08.08.2026
 
-Das **Traditionelle Banja-Ritual** ist ein Spezial-Aufguss mit festen Regeln:
+Das **Traditionelle Banja-Ritual** ist ein langes Dampfritual. Seit dem
+08.08.2026 ist es frei planbar — vorher war es fest auf 19:00 Uhr in der
+80°C-Sauna verdrahtet.
 
 | Parameter | Wert |
 |---|---|
-| Dauer | **90 Minuten** (belegt 2 Slots: 19:00 + 20:00) |
-| Startzeit | **ausschließlich 19:00 Uhr** (Berlin-Zeit) |
-| Sauna | **ausschließlich 80°C-Sauna** |
+| Dauer | **120 Minuten** — außer um 19:00 Uhr, dann **90** (um 20:30 ist ohnehin Schluss) |
+| Startzeit | **jede** Aufgussstunde |
+| Sauna | **jede** |
+| Danach | **1 Stunde Ruhe** — die Sauna wird gelüftet und ist nicht buchbar |
+| Wechselsperre | **gilt nicht** — Banja lässt sich immer anlegen, auch wenn die andere Sauna „dran" wäre |
 | Standard-Materialien | Banja-Marker 🇷🇺 + 🍃 Wenik (Birkenreiser) |
 
+Ein Ritual belegt also **zwei Aufguss-Kacheln**, und die dritte Stunde bleibt
+als Ruhephase frei.
+
 **So buchst du eine Banja**:
-1. Oben im Planner siehst du den **„🇷🇺 Spezial: Traditionelles Banja-Ritual"**-Banner (rot-gold, prominent)
-2. **Ein Klick auf „Banja buchen"** füllt das Form komplett aus: Sauna=80°C · Slot=19:00 · Dauer=90 · Titel · Attrs=[banja, wenik]
-3. Optional: weitere Materialien ergänzen (Wenik-Birkenreiser, Sude, ätherische Öle, Räucher-Zutaten oder eigene Custom-Attrs/Oils)
-4. **„🇷🇺 Banja-Ritual buchen"**-Button drücken — fertig
+1. Oben in der Matrix **Sauna und Startslot wählen** — der Banja-Knopf richtet
+   sich danach
+2. Klick auf **„Banja buchen"** füllt Dauer, Titel und Materialien aus
+3. Optional ergänzen: Weniks, **Sud-Kräuter und Mischungen**, ätherische Öle,
+   Räucher-Zutaten, Besonderheiten oder eigene Buttons — für Banja ist alles
+   erlaubt
+4. **„🇷🇺 Banja-Ritual buchen"** drücken
 
 **Automatische Personal-Aufguss-Übernahme**:
-Wenn 19:00 oder 20:00 in der 80°C-Sauna noch Personal-Aufgüsse (👨‍🍳-Slots) hatten, übernimmt die Banja-Buchung sie **automatisch und atomar** (DB-RPC `book_banja_ritual`, Migration 0105). Du musst die Personal-Aufgüsse nicht vorher selbst übernehmen.
+Standen in den belegten Stunden noch Personal-Aufgüsse (👨‍🍳-Slots), übernimmt
+die Buchung sie automatisch und atomar (DB-Funktion `book_banja_ritual`).
+Ein **echter** Aufgießer in diesen Stunden blockiert dagegen.
 
-**Visualisierung auf der Tafel**:
-- **Mobile-2-Spalten-Layout**: Banja-Block spannt 2 Rows in der 80°C-Spalte (gemerged mit rotem Gradient + "🇷🇺 Banja 90 Min"-Label)
-- **Desktop-Slot-Grid**: spannt 2 Spalten horizontal
-- **TV-Tafel**: 19:00-Tile zeigt die volle Banja-Card mit "🇷🇺 BANJA · 90 MIN"-Badge oben links (analog zum LIVE-Badge oben rechts), 20:00-Tile zeigt dezent "↑ 🇷🇺 Banja-Ritual läuft seit 19:00 Uhr"
+**Auf der TV-Tafel**:
+- Die Banja-Karte hat ihr eigenes Motiv (Birken- und Eichenwedel, Holzkübel,
+  glühende Steine) und spannt über beide Stunden
+- In der Ruhestunde erscheint eine eigene Kachel: **„🌬️ Ruhephase — nach dem
+  Banja-Ritual wird gelüftet"**. Ohne die stünde dort das normale Karussell,
+  und der Gast fragte sich, warum gerade nichts läuft
+- Der Banja-Look gewinnt vor Schnaps und Räuchern — das lange Ritual prägt
+  den Abend
 
 **Wann ist Banja nicht buchbar?**
-- Wenn 19:00 oder 20:00 schon durch einen **echten** Aufgießer belegt ist (rote/violette Slots)
-- Wenn 19:00 bereits vergangen ist
+- Wenn in einer der beiden Stunden schon ein echter Aufguss steht
+- Wenn der Slot vergangen ist
 - Wenn du kein Aufgießer/Admin bist
-
-Personal-Aufgüsse in 19+20:00 blockieren die Banja **NICHT** mehr (Bug-Fix 26.05.2026) — sie werden automatisch übernommen.
 
 ### Aufguss anlegen
 
 1. **Tag wählen** in der Wochenansicht
 2. **Slot in der Matrix anklicken** (grüne Zellen)
 3. **Titel** eintragen — oder Knopf **„✨ Vorschlagen"** klicken (AI-Titel-Generator mit Claude Haiku 4.5 erzeugt kreative Vorschläge aus Eigenschaften + Ölen; bei Netzwerkfehler fällt das System automatisch auf den regelbasierten Generator zurück)
-4. **Eigenschaften (Besonderheiten)** auswählen — über 25 Möglichkeiten in mehreren Gruppen:
-   - **Klassik:** 🍃 Naturöl · 🔥 Mit Feuer · 💧 Wasserdampf · 🌡️ Hitze · ❄️ Kühlung · 🪭 Wedeln
-   - **Räucheraufguss-Zutaten** (neu): 🌿 Kräuter-Sud · 🌾 Stein-Klee · 🍯 Honig-Klee · ⛰️ Berg-Minze · 🌿 Thymian · 🧂 Salzpeeling
-   - **Musik-Stile** (neu): 🎵 Musik · 🎸 Rock · 🎭 Kontrovers · 🎉 Party-Schlager · 🌴 Malle-Schlager · 🍻 Deutsch-Rock · 👿 Böse-Onkels · 🎻 Klassik-Musik
-5. **Ätherische Öle** (bis zu 3) für Runde 1/2/3 — wirkt sich auf Aroma-Tags im Feed aus
+4. **Besonderheiten** auswählen (heißen überall so, seit 08.08.2026 auch im Planer):
+   - **Aufguss-Stil:** 🔥 Extra heiß · 💧 Intensiver Sud · 🌿 Natur/Kräuter · ❄️ Menthol · ☕ Kaffee · 🌋 Vulkan · 🍃 Wenik · 🇷🇺 Banja · 🥃 Versucherle · 🧂 Salzpeeling · 🧪 Kräuter-Sud
+   - **Musik:** 🎵 Musik · 🔊 Sehr laut · 🔇 Ohne Musik · 🎸 Rock · 🤘 Deutsch-Rock · 🖤 Böhse Onkelz · ⚡ AC/DC · 🎤 Tote Hosen · 🪕 Acoustic · 📻 Oldies 60/70er · 🤠 Country · 🎉 Schlager · 🎻 Klassik · 😌 Entspannt · ⚠️ Kontrovers
+   - **Ritual & Format:** 🤫 Psssst → sonst raus · 3️⃣ 3×3 Runden · 🔁 Nachguss
+
+   > **Ausgemustert am 08.08.2026** nach Auswertung von 1000 Aufgüssen: Thymian
+   > (0×), Honig-Klee (1×), Berg-Minze (2×), Stein-Klee (3×), Malle-Schlager
+   > (2×, ging in „Schlager" auf). Die drei Sud-Zutaten stehen jetzt im
+   > **Sud-Reiter** als Kräuter — sinnvoller Ort, gleicher Inhalt. Bestehende
+   > Aufgüsse behalten ihre Beschriftung.
+
+5. **Aroma wählen** — vier Reiter über der Auswahl:
+   - **🌿 Öle** — bis zu 3 ätherische Öle für Runde 1/2/3
+   - **🥃 Schnaps** — 8 Sorten, jede mit eigenem Fruchtbild auf der Tafel
+   - **💨 Räuchern** — an/aus
+   - **🧪 Sud** ⭐ NEU — Kräuter und fertige Mischungen, siehe unten
 6. **Team-Aufguss** an/aus — bis zu 2 Co-Aufgießer können beitreten
 7. **„Aufguss eintragen"**
+
+> **3–8-Regel:** Öle, Besonderheiten und Sud zusammen müssen mindestens **3**
+> und dürfen höchstens **8** Einträge ergeben (Öle davon höchstens 3). Eine
+> Kräutermischung zählt als **ein** Eintrag, egal aus wie vielen Kräutern sie
+> besteht. Das Banja-Ritual ist vom Minimum ausgenommen.
+
+### 🧪 Sudaufguss — Kräuter und Mischungen ⭐ NEU 08.08.2026
+
+Der vierte Reiter neben Öle/Schnaps/Räuchern. **Der Kräutervorrat ist
+gemeinsam** — er steht im Regal und gehört dem Verein, nicht einer Person:
+
+- **Jeder Aufgießer darf Kräuter ergänzen** („🌱 Neues Kraut"), und alle
+  können sie danach verwenden
+- **Mischungen entstehen aus der Auswahl:** zwei oder mehr Kräuter anhaken,
+  „🧪 Aus N Kräutern eine Mischung machen" klicken, Namen vergeben — fertig.
+  Auch die steht danach allen zur Verfügung
+- **Löschen kann nur, wer es angelegt hat** (oder ein Admin). Sonst
+  verschwände ein Kraut aus dem bereits geplanten Aufguss eines anderen
+- Auf der Tafel bekommt der Aufguss ein eigenes Sud-Motiv, die Kräuter
+  erscheinen als Pillen neben den Ölen — beides sind Zutaten fürs Wasser
 
 > **Pills-Layout auf der Tafel:** Eigenschaften und Öle erscheinen seit Mai 2026 im **Card-Style mit Header-Bar** — oben „⚡ Besonderheiten" (kleine Emoji-Chips), darunter „🌿 Öle" (große Pills mit vollem Namen). Klare Hierarchie, gut lesbar auf 85"-TV.
 
