@@ -3,6 +3,8 @@ import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
 import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
+import { SudPicker } from '@/components/SudPicker';
+import { stripSudAttrs, sudFromAttributes, sudAttrId, sudMixAttrId } from '@/lib/sud';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import {
   useUpdateInfusion,
@@ -35,13 +37,20 @@ export function EditInfusionModal({
     const schnapsHit = schnapsFromAttributes(infusion.attributes);
     const std: InfusionAttribute[] = [];
     const custom: string[] = [];
+    // Sud wie Schnaps in den eigenen State heben — sonst landen die UUIDs
+    // unsichtbar in `custom` und werden beim Speichern doppelt geschrieben.
+    const sudHit = sudFromAttributes(infusion.attributes);
+    const sud = [
+      ...sudHit.kraeuter.map(sudAttrId),
+      ...sudHit.mixe.map(sudMixAttrId),
+    ];
     // stripSchnapsAttrs entfernt sowohl 'schnaps:<slug>' als auch die alten
     // Chips — der Schnaps lebt ab hier nur noch im eigenen State.
-    for (const a of stripSchnapsAttrs(infusion.attributes ?? [])) {
+    for (const a of stripSudAttrs(stripSchnapsAttrs(infusion.attributes ?? []))) {
       if ((ATTR_BY_ID as Record<string, unknown>)[a]) std.push(a as InfusionAttribute);
       else custom.push(a); // alles andere (UUIDs) als Custom behandeln
     }
-    return { std, custom, schnaps: schnapsHit?.id ?? null };
+    return { std, custom, sud, schnaps: schnapsHit?.id ?? null };
   }, [infusion.attributes]);
 
   const [title, setTitle] = useState(infusion.title ?? '');
@@ -50,7 +59,9 @@ export function EditInfusionModal({
   const [customAttrIds, setCustomAttrIds] = useState<string[]>(initialAttrs.custom);
   const [oils, setOils] = useState<(string | null)[]>(normalizeOilSlots(infusion.oils));
   const [schnaps, setSchnaps] = useState<string | null>(initialAttrs.schnaps);
-  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps' | 'raeuchern'>(initialAttrs.schnaps ? 'schnaps' : 'oils');
+  const [sudAuswahl, setSudAuswahl] = useState<string[]>(initialAttrs.sud);
+  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps' | 'raeuchern' | 'sud'>(
+    initialAttrs.schnaps ? 'schnaps' : initialAttrs.sud.length > 0 ? 'sud' : 'oils');
   const [teamInfusion, setTeamInfusion] = useState(infusion.team_infusion);
   const [duration, setDuration] = useState<number>(infusion.duration_minutes);
   const [showOilPicker, setShowOilPicker] = useState(false);
@@ -123,7 +134,7 @@ export function EditInfusionModal({
         description: description.trim() || null,
         // Standard-attrs + Custom-Attr-UUIDs + Schnaps zusammen in ein Array
         // (siehe lib/schnaps.ts warum der Schnaps hier mitreist)
-        attributes: [...attrs, ...customAttrIds, ...(schnaps ? [schnapsAttrId(schnaps)] : [])],
+        attributes: [...attrs, ...customAttrIds, ...sudAuswahl, ...(schnaps ? [schnapsAttrId(schnaps)] : [])],
         oils,
         team_infusion: teamInfusion,
         duration_minutes: duration,
@@ -321,6 +332,7 @@ export function EditInfusionModal({
                 { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oilCount > 0 },
                 { id: 'schnaps',   icon: '🥃', label: 'Schnaps',  filled: !!schnaps },
                 { id: 'raeuchern', icon: '💨', label: 'Räuchern', filled: raeuchernOn },
+                { id: 'sud',       icon: '🧪', label: 'Sud',       filled: sudAuswahl.length > 0 },
               ] as const).map((t) => {
                 const active = aromaTab === t.id;
                 return (
@@ -378,6 +390,17 @@ export function EditInfusionModal({
                   </div>
                 )}
               </div>
+            ) : aromaTab === 'sud' ? (
+              /* Nachtraeglich Sud waehlen — vorher fehlte das hier ganz: wer
+                 eine Banja bearbeitete, konnte keine Kraeuter mehr ergaenzen. */
+              <SudPicker
+                auswahl={sudAuswahl}
+                onChange={setSudAuswahl}
+                memberId={me.data?.id ?? ''}
+                istAdmin={isAdmin}
+                voll={false}
+                vollHinweis=""
+              />
             ) : (
               /* Räuchern kennt keine Sorten — nur an/aus, gespeichert als
                  Attribut 'raeuchern' (lib/aufgussTheme.ts). */
@@ -401,6 +424,18 @@ export function EditInfusionModal({
                     </span>
                   </span>
                 </button>
+
+                {raeuchernOn && (
+                  <SudPicker
+                    auswahl={sudAuswahl}
+                    onChange={setSudAuswahl}
+                    memberId={me.data?.id ?? ''}
+                    istAdmin={isAdmin}
+                    art="raeucher"
+                    voll={false}
+                    vollHinweis=""
+                  />
+                )}
               </div>
             )}
           </div>

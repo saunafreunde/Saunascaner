@@ -6,7 +6,7 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { themeFromAttributes, stripThemeAttrs } from '@/lib/aufgussTheme';
-import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, useBrandSettings, useSudKraeuter, useSudMixe, type CustomOil } from '@/lib/api';
+import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, useBrandSettings, useSudKraeuter, useSudMixe, publicAssetUrl, type CustomOil } from '@/lib/api';
 import { sudFromAttributes } from '@/lib/sud';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
@@ -190,9 +190,23 @@ export function InfusionCard({
   // der Karte. Ein Aufguss mit Zitrone, Eukalyptus und Fichte zeigt damit
   // buchstäblich seine Mischung. Custom-Öle ('custom:<uuid>') haben kein
   // Motiv und fallen raus.
-  const bgOils = theme
-    ? []
-    : (oils.map((o) => OIL_BY_ID[o]).filter(Boolean).slice(0, 3) as NonNullable<typeof OIL_BY_ID[string]>[]);
+  //
+  // Seit 08.08.2026 zaehlen SELBST ANGELEGTE Oele mit — sofern sie ein Motiv
+  // haben (member_custom_oils.image_path, Migration 0128). Vorher fielen sie
+  // hier heraus und eine Karte mit drei eigenen Oelen blieb bildlos.
+  // image_path traegt zwei Formen: '/…' ist eine Datei im Repo, alles andere
+  // ein Storage-Pfad — daher die Fallunterscheidung.
+  const bgOils = theme ? [] : oils.map((o) => {
+    const std = OIL_BY_ID[o];
+    if (std) return { key: std.id, bild: `/oele/${std.id}.webp`, farbe: colorForOil(std.id) };
+    const uuid = parseCustomOilId(o);
+    const eigen = uuid ? (customOilsAll.data ?? []).find((c) => c.id === uuid) : null;
+    if (!eigen?.image_path) return null;
+    const bild = eigen.image_path.startsWith('/')
+      ? eigen.image_path
+      : publicAssetUrl(eigen.image_path);
+    return bild ? { key: eigen.id, bild, farbe: eigen.color } : null;
+  }).filter((x): x is { key: string; bild: string; farbe: string } => x !== null).slice(0, 3);
   const bgOil = bgOils[0] ?? null;
 
   // Was am Ende WIRKLICH als Pille erscheint — inkl. Default-Mood-Fallback
@@ -309,7 +323,7 @@ export function InfusionCard({
           // background-image nicht sauber, weil sich jede Lage nur skalieren,
           // aber nicht auf ihr Drittel zuschneiden ließe. Hier bleibt nur die
           // Grundfarbe, damit die Karte auch beim Laden nicht weiß aufblitzt.
-          background: `linear-gradient(135deg, ${colorForOil(bgOil.id)}18, rgba(254,247,237,${deck(0.9, finish.karte)}))`,
+          background: `linear-gradient(135deg, ${bgOil.farbe}18, rgba(254,247,237,${deck(0.9, finish.karte)}))`,
         } : backgroundImage ? {
           // Das Bild liegt als eigene Ebene weiter unten (siehe Kachel-Foto),
           // NICHT als background-image: nur so lässt sich der im Admin
@@ -363,10 +377,10 @@ export function InfusionCard({
           <div aria-hidden className="absolute inset-0 flex" style={{ zIndex: 0 }}>
             {bgOils.map((o, i) => (
               <div
-                key={`${o.id}-${i}`}
+                key={`${o.key}-${i}`}
                 className="flex-1 min-w-0"
                 style={{
-                  backgroundImage: `url(${JSON.stringify(`/oele/${o.id}.webp`)})`,
+                  backgroundImage: `url(${JSON.stringify(o.bild)})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center bottom',
                   // Feine helle Trennlinie zwischen den Dritteln. Eine weiche
@@ -384,7 +398,7 @@ export function InfusionCard({
             style={{
               zIndex: 0,
               backgroundImage: [
-                `linear-gradient(200deg, ${colorForOil(bgOils[0].id)}00 0%, ${colorForOil(bgOils[0].id)}00 45%, ${colorForOil(bgOils[0].id)}2b 100%)`,
+                `linear-gradient(200deg, ${bgOils[0].farbe}00 0%, ${bgOils[0].farbe}00 45%, ${bgOils[0].farbe}2b 100%)`,
                 // Minimal offener als bei den Schnaps-Motiven: hier liegen bis
                 // zu drei Bilder nebeneinander, die sonst zu unruhig wirken.
                 schleierVerlauf(finish.schleier, 0.46, 0.34, 0.72),

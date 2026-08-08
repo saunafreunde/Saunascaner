@@ -1,0 +1,7 @@
+-- 0127_raeucherwerk.sql — angewendet 08.08.2026.
+-- Raeucherwerk kommt in DIESELBE Tabelle wie die Sud-Kraeuter, unterschieden
+-- durch die Spalte `art` ('kraut' | 'raeucher'). Eine zweite Tabelle waere
+-- Zeile fuer Zeile dieselben Policies, Hooks und UI gewesen.
+-- Eindeutigkeit gilt pro Art: „Salbei" darf es als Kraut UND als Raeucherwerk
+-- geben — dieselbe Pflanze, zwei Verwendungen.
+-- Grundstock: 10 Klassiker (Weihrauch, Myrrhe, Palo Santo, Wacholder, …).

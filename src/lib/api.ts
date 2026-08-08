@@ -3305,6 +3305,9 @@ export type CustomOil = {
   /** Hex-Farbcode (Migration 0101) — Default '#22c55e' für Alt-Daten. */
   color: string;
   created_at: string;
+  /** Motiv fuer die Tafel. Beginnt mit '/' -> Datei im Repo, sonst
+   *  Storage-Pfad. NULL = kein Bild (Migration 0128). */
+  image_path: string | null;
 };
 
 /** ID-Format für Custom-Öle in infusions.oils. */

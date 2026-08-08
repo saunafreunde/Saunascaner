@@ -1,0 +1,7 @@
+-- 0128_custom_oil_bild.sql — angewendet 08.08.2026.
+-- member_custom_oils.image_path: Motiv fuer selbst angelegte Oele.
+-- Beginnt der Wert mit '/', ist es eine Datei im Repo (public/oele/custom/…),
+-- sonst ein Pfad im Storage-Bucket assets. Eine Spalte fuer beides statt
+-- zweier mit Vorrang-Regel — der Aufrufer entscheidet am ersten Zeichen.
+-- 12 Oele haben ihr Motiv bereits (die meistgenutzten, per KI erzeugt mit
+-- Desktop\sauna_customoel_bilder.py).
