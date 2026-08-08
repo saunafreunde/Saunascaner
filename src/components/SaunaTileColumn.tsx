@@ -5,6 +5,7 @@ import { InfusionCard } from '@/components/InfusionCard';
 import { EmptyTile } from '@/components/EmptyTile';
 import { PersonalTile } from '@/components/PersonalTile';
 import { slotHoursForWeekday } from '@/lib/garantie';
+import type { Ausschnitt } from '@/types/branding';
 
 const TILES_PER_COLUMN_DEFAULT = 3;
 
@@ -15,7 +16,8 @@ interface SaunaTileColumnProps {
   meisterMeta?: (id: string | null) => { isGuest: boolean; homeGroup: string | null } | undefined;
   coNames: (infusionId: string) => string[];
   now: Date;
-  tileBgs?: (string | null)[];
+  /** Kachel-Hintergründe samt gewähltem Bildausschnitt, in Slot-Reihenfolge. */
+  tileBgs?: ({ url: string; ausschnitt: Ausschnitt } | null)[];
   /** Anzahl angezeigter Aufguss-Tiles pro Spalte (Admin-Setting, 3 oder 4). */
   tilesPerColumn?: 3 | 4;
   /** 0-basierte Position dieser Spalte unter den ANGEZEIGTEN Saunen.

@@ -3,12 +3,15 @@ import { motion } from 'framer-motion';
 import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock } from '@/lib/time';
 import { useBrandSync } from '@/lib/api';
+import { AusschnittBild } from '@/components/AusschnittBild';
+import type { Ausschnitt } from '@/types/branding';
 
 interface PersonalTileProps {
   infusion: Infusion;
   sauna: Sauna;
   className?: string;
-  backgroundImage?: string | null;
+  /** Kachel-Hintergrund samt gewähltem Ausschnitt (Branding-Tab). */
+  backgroundImage?: { url: string; ausschnitt: Ausschnitt } | null;
   /** Zusätzliches inline-style — die Spalte reicht darüber die feste
    *  Grid-Zeile durch (siehe SaunaTileColumn). Ohne die kann diese Kachel
    *  in eine implizite 0-px-Zeile rutschen. */
@@ -45,17 +48,31 @@ export function PersonalTile({ infusion, sauna, className = '', backgroundImage 
         zIndex: 2,
         isolation: 'isolate',
         transformOrigin: '50% 100%',
-        // Identisch zur InfusionCard: sauna-getönt in Ecken, warm-crème in Mitte
-        background: backgroundImage
-          ? `linear-gradient(135deg, ${sauna.accent_color}40 0%, rgba(254,247,237,0.78) 60%, ${sauna.accent_color}25 100%), url(${backgroundImage})`
-          : `linear-gradient(135deg, ${sauna.accent_color}55 0%, ${sauna.accent_color}1c 38%, rgba(254,247,237,0.88) 60%, ${sauna.accent_color}28 100%)`,
-        backgroundSize: backgroundImage ? 'cover' : undefined,
-        backgroundPosition: backgroundImage ? 'center' : undefined,
+        // Identisch zur InfusionCard: sauna-getönt in Ecken, warm-crème in
+        // Mitte. Das Foto liegt als eigene Ebene darunter (siehe unten) —
+        // nur so lässt sich der gewählte Ausschnitt anwenden.
+        background: `linear-gradient(135deg, ${sauna.accent_color}55 0%, ${sauna.accent_color}1c 38%, rgba(254,247,237,0.88) 60%, ${sauna.accent_color}28 100%)`,
         boxShadow:
           'inset 0 1px 0 rgba(255,255,255,0.5), 0 4px 10px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.08)',
         ...(extraStyle ?? {}),
       }}
     >
+      {/* Kachel-Foto mit dem im Branding-Tab gewählten Ausschnitt. Darüber
+          derselbe crème-getönte Schleier wie bisher, damit die dunkle Schrift
+          lesbar bleibt — vorher steckte beides in einem background-Stack, der
+          keinen Zoom kannte. */}
+      {backgroundImage && (
+        <div aria-hidden className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+          <AusschnittBild url={backgroundImage.url} ausschnitt={backgroundImage.ausschnitt} />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(135deg, ${sauna.accent_color}40 0%, rgba(254,247,237,0.78) 60%, ${sauna.accent_color}25 100%)`,
+            }}
+          />
+        </div>
+      )}
+
       {/* Sauna-Akzent-Streifen links — wie InfusionCard, aber dünner */}
       <span
         aria-hidden

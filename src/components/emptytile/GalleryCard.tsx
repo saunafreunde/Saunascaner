@@ -1,4 +1,5 @@
 import { publicAssetUrl } from '@/lib/api';
+import { AusschnittBild } from '@/components/AusschnittBild';
 import type { GalleryPhoto } from '@/types/branding';
 
 /** Vereins-Fotogalerie — eine Karte im Slot-Karussell leerer Tafel-Kacheln.
@@ -18,15 +19,15 @@ export function GalleryCard({ photo }: { photo: GalleryPhoto }) {
 
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden>
-      {/* Eigene Ebene für den Zoom, damit die Bildunterschrift ruhig steht */}
-      <div
-        className="slot-kenburns absolute inset-0"
-        style={{
-          backgroundImage: `url(${JSON.stringify(url)})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
+      {/* Zwei Ebenen mit klarer Aufgabenteilung:
+          außen der langsame Ken-Burns-Zoom (Pure-CSS, nur transform),
+          innen der vom Admin gewählte Ausschnitt. Getrennt, weil sich sonst
+          zwei transform-Werte auf demselben Element überschrieben — die
+          Animation hätte den Ausschnitt-Zoom einfach ersetzt.
+          Die Bildunterschrift liegt außerhalb und steht dadurch ruhig. */}
+      <div className="slot-kenburns absolute inset-0">
+        <AusschnittBild url={url} ausschnitt={photo.ausschnitt} />
+      </div>
       {/* Verlauf von links: trägt Uhrzeit-Pille, Sauna-Pin und die
           Bildunterschrift, ohne das Foto rechts zuzudecken. */}
       <div

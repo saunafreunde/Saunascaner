@@ -3599,11 +3599,25 @@ async function compressImage(
   return new File([blob], `${baseName}.${newExt}`, { type: outType });
 }
 
+/** Bilder, die auf der TV-Tafel landen, werden schonender behandelt.
+ *
+ *  Standard sind 1920 px lange Kante bei JPEG-Qualität 0,82 — für ein Logo
+ *  oder einen Seitenhintergrund reichlich. Kachel- und Galeriebilder lassen
+ *  sich aber im Ausschnitt-Wähler bis 300 % vergrößern, und ein 85-Zoll-Schirm
+ *  zeigt jedes Kompressionsartefakt. Deshalb hier mehr Reserve statt
+ *  nachträglichem Ärger: die Datei bleibt trotzdem im vertretbaren Rahmen.
+ */
+const FEINE_ORDNER = ['tile-bgs', 'slot-gallery'];
+
 export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     throw new Error(`Ungültiger Dateityp: ${file.type}. Erlaubt: JPEG, PNG, WebP, GIF, SVG.`);
   }
-  const compressed = await compressImage(file);
+  const fein = FEINE_ORDNER.some((f) => folder === f || folder.startsWith(f + '/'));
+  const compressed = await compressImage(
+    file,
+    fein ? { maxEdge: 2560, quality: 0.92, maxBytes: 1_500_000 } : {},
+  );
   const ext = compressed.name.split('.').pop() ?? 'bin';
   const path = `${folder}/${crypto.randomUUID()}.${ext}`;
   const { error } = await need().storage.from('assets').upload(path, compressed, {

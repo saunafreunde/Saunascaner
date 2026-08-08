@@ -234,8 +234,14 @@ export default function Dashboard() {
           /* tile_bgs stehen als Storage-PFADE in den Brand-Settings, nicht als
              URLs. Ohne publicAssetUrl() landete "tile-bgs/<id>/<id>.jpg" roh
              im CSS und wurde relativ zu /dashboard aufgelöst → 404, die
-             Admin-Tile-Hintergründe waren wirkungslos. */
-          tileBgs={(brand.data?.tile_bgs?.[saunaId] ?? []).map((p) => publicAssetUrl(p))}
+             Admin-Tile-Hintergründe waren wirkungslos.
+             Der Ausschnitt (Fokus + Zoom) reist mit: eine Kachel ist je nach
+             Aufteilung 2:1 bis 4:1, jedes Foto wird also beschnitten — wo,
+             bestimmt der Admin im Branding-Tab. */
+          tileBgs={(brand.data?.tile_bgs?.[saunaId] ?? []).map((t) => {
+            const url = publicAssetUrl(t?.path ?? null);
+            return url && t ? { url, ausschnitt: t.ausschnitt } : null;
+          })}
           tilesPerColumn={tilesPerColumn}
           /* DICHTER, 0-basierter Spaltenindex. Bewusst NICHT sauna.sort_order:
              das ist 1/2/3 und hat Luecken, sobald eine Sauna inaktiv ist

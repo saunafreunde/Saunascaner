@@ -4,7 +4,11 @@ import {
   useSaunas, uploadAsset, deleteAsset, publicAssetUrl,
   useTriggerAppReload, useScheduleSettings,
 } from '@/lib/api';
-import { defaultBrandSettings, type BrandSettings } from '@/types/branding';
+import {
+  defaultBrandSettings, AUSSCHNITT_DEFAULT, FINISH_DEFAULT,
+  type BrandSettings, type TileBg,
+} from '@/types/branding';
+import { AusschnittWaehler, aktivesFormat } from '@/components/admin/AusschnittWaehler';
 import type { Sauna } from '@/types/database';
 
 const SLOT_SIZE_HINTS = {
@@ -20,7 +24,16 @@ const SLOT_SIZE_HINTS = {
 export function BrandingTab() {
   const brandQ = useBrandSettings();
   const saunasQ = useSaunas();
+  const schedQ = useScheduleSettings();
   const update = useUpdateBrandSettings();
+
+  // Welches der vier Kachel-Formate zeigt die Tafel gerade? Ergibt sich aus
+  // der Zahl AKTIVER Saunen und den Kacheln pro Spalte — beides Settings, die
+  // hier nur gelesen werden. Der Ausschnitt-Wähler hebt dieses Format hervor.
+  const tafelFormat = aktivesFormat(
+    (saunasQ.data ?? []).filter((s) => s.is_active).length,
+    schedQ.data?.tiles_per_column ?? 3,
+  );
 
   const [brand, setBrand] = useState<BrandSettings>(defaultBrandSettings());
   const [dirty, setDirty] = useState(false);
@@ -108,6 +121,12 @@ export function BrandingTab() {
       <GallerySection
         photos={brand.slot_gallery}
         onChange={(g) => patchAndSave('slot_gallery', g)}
+        format={tafelFormat}
+      />
+
+      <FinishSection
+        finish={brand.tafel_finish}
+        onChange={(f) => patchAndSave('tafel_finish', f)}
       />
     </div>
   );
@@ -273,11 +292,13 @@ function TileBgsSection({
   const tafelSlots = sched.data?.tiles_per_column ?? 3;
   const activeSaunas = saunas.filter((s) => s.is_active);
 
-  const setSlot = (saunaId: string, idx: number, val: string | null) => {
+  const format = aktivesFormat(activeSaunas.length, tafelSlots);
+
+  const setSlot = (saunaId: string, idx: number, val: TileBg | null) => {
     // Bestehendes Array KOPIEREN und bei Bedarf verlaengern. Die alte Fassung
     // baute es als exakt dreielementig neu auf — ein vierter Eintrag wurde
     // damit bei jedem Upload einer anderen Kachel stillschweigend geloescht.
-    const next: (string | null)[] = [...(tileBgs[saunaId] ?? [])];
+    const next: (TileBg | null)[] = [...(tileBgs[saunaId] ?? [])];
     while (next.length <= idx) next.push(null);
     next[idx] = val;
     onChange({ ...tileBgs, [saunaId]: next });
@@ -303,19 +324,33 @@ function TileBgsSection({
                 <span className="text-[10px] text-forest-400">{s.temperature_label}</span>
               </div>
               <div className={`grid grid-cols-1 gap-3 ${anzahl > 3 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
-                {Array.from({ length: anzahl }, (_, idx) => (
-                  <AssetSlot
-                    key={idx}
-                    label={idx < tafelSlots ? `Slot ${idx + 1}` : `Slot ${idx + 1} · nicht sichtbar`}
-                    sizeHint={idx < tafelSlots
-                      ? SLOT_SIZE_HINTS.tile
-                      : `Die Tafel zeigt nur ${tafelSlots} Kacheln — dieses Bild bleibt ungenutzt.`}
-                    aspect="aspect-video"
-                    folder={`tile-bgs/${s.id}`}
-                    value={slots[idx] ?? null}
-                    onChange={(v) => setSlot(s.id, idx, v)}
-                  />
-                ))}
+                {Array.from({ length: anzahl }, (_, idx) => {
+                  const bg = slots[idx] ?? null;
+                  return (
+                    <div key={idx} className="space-y-1.5">
+                      <AssetSlot
+                        label={idx < tafelSlots ? `Slot ${idx + 1}` : `Slot ${idx + 1} · nicht sichtbar`}
+                        sizeHint={idx < tafelSlots
+                          ? SLOT_SIZE_HINTS.tile
+                          : `Die Tafel zeigt nur ${tafelSlots} Kacheln — dieses Bild bleibt ungenutzt.`}
+                        aspect="aspect-video"
+                        folder={`tile-bgs/${s.id}`}
+                        value={bg?.path ?? null}
+                        onChange={(v) => setSlot(s.id, idx, v
+                          ? { path: v, ausschnitt: bg?.ausschnitt ?? { ...AUSSCHNITT_DEFAULT } }
+                          : null)}
+                      />
+                      {bg && (
+                        <AusschnittWaehler
+                          url={publicAssetUrl(bg.path) ?? ''}
+                          wert={bg.ausschnitt}
+                          aktiv={format}
+                          onChange={(a) => setSlot(s.id, idx, { ...bg, ausschnitt: a })}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -359,10 +394,12 @@ function BadgeSection({ badge, onChange }: { badge: BrandSettings['badge']; onCh
 const GALLERY_SLOTS = 8;
 
 function GallerySection({
-  photos, onChange,
+  photos, onChange, format,
 }: {
   photos: BrandSettings['slot_gallery'];
   onChange: (g: BrandSettings['slot_gallery']) => void;
+  /** Kachel-Format, das die Tafel gerade zeigt — für den Ausschnitt-Wähler. */
+  format: string;
 }) {
   const padded: (BrandSettings['slot_gallery'][number] | null)[] =
     Array.from({ length: GALLERY_SLOTS }, (_, i) => photos[i] ?? null);
@@ -391,22 +428,101 @@ function GallerySection({
               value={photo?.image_path ?? null}
               onChange={(v) => {
                 if (v === null) setSlot(idx, null);
-                else setSlot(idx, { image_path: v, caption: photo?.caption ?? null });
+                else setSlot(idx, {
+                  image_path: v,
+                  caption: photo?.caption ?? null,
+                  ausschnitt: photo?.ausschnitt ?? { ...AUSSCHNITT_DEFAULT },
+                });
               }}
             />
             {photo?.image_path && (
-              <div>
-                <label className="text-[10px] uppercase tracking-wider text-forest-300 font-semibold">Bildunterschrift</label>
-                <input
-                  value={photo.caption ?? ''}
-                  onChange={(e) => setSlot(idx, { ...photo, caption: e.target.value || null })}
-                  placeholder={'z.B. „Sommerfest 2026"'}
-                  className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-xs text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              <>
+                <AusschnittWaehler
+                  url={publicAssetUrl(photo.image_path) ?? ''}
+                  wert={photo.ausschnitt}
+                  aktiv={format}
+                  onChange={(a) => setSlot(idx, { ...photo, ausschnitt: a })}
                 />
-              </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-forest-300 font-semibold">Bildunterschrift</label>
+                  <input
+                    value={photo.caption ?? ''}
+                    onChange={(e) => setSlot(idx, { ...photo, caption: e.target.value || null })}
+                    placeholder={'z.B. „Sommerfest 2026"'}
+                    className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-xs text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </>
             )}
           </div>
         ))}
+      </div>
+    </Section>
+  );
+}
+
+// ─── Finish der Tafel ────────────────────────────────────────────────────
+// Vier Multiplikatoren auf die eingebauten Deckkräfte. Bewusst KEINE
+// absoluten Werte: die Karte staffelt ihre Schleier (oben deckend für die
+// Uhrzeit, in der Mitte offen fürs Motiv, unten wieder heller für den Fuß) —
+// ein absoluter Regler würde diese Staffelung einebnen und die Karte je nach
+// Motiv unlesbar machen. Der Faktor staucht oder streckt sie stattdessen.
+const FINISH_REGLER = [
+  { key: 'schleier' as const, icon: '🌫️', label: 'Schleier über den Motiven',
+    hint: 'Der stärkste Hebel. Kleiner = Öl- und Schnapsbilder kommen kräftiger durch, größer = ruhiger und leichter lesbar.' },
+  { key: 'pillen' as const, icon: '🧊', label: 'Flächen der Blöcke',
+    hint: 'Die Kästen „Besonderheiten" und „Öle" samt ihren Kopfzeilen.' },
+  { key: 'oele' as const, icon: '💊', label: 'Die Pillen selbst',
+    hint: 'Jede einzelne Duft- und Eigenschafts-Pille.' },
+  { key: 'karte' as const, icon: '🗒️', label: 'Karten-Untergrund',
+    hint: 'Die Grundfläche einer Karte ohne Motiv dahinter.' },
+];
+
+function FinishSection({
+  finish, onChange,
+}: {
+  finish: BrandSettings['tafel_finish'];
+  onChange: (f: BrandSettings['tafel_finish']) => void;
+}) {
+  const geaendert = FINISH_REGLER.some((r) => finish[r.key] !== 1);
+  return (
+    <Section
+      icon="🎚️"
+      title="Finish der Tafel"
+      hint="Feinschliff der Durchsichtigkeit. 100 % ist der eingebaute Zustand — kleiner lässt die Motive stärker durchkommen, größer macht die Karte ruhiger. Wirkt sofort auf allen Bildschirmen."
+    >
+      <div className="space-y-4">
+        {FINISH_REGLER.map((r) => (
+          <div key={r.key}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-semibold text-forest-100">
+                <span aria-hidden className="mr-1">{r.icon}</span>{r.label}
+              </span>
+              <span className={`text-[11px] tabular-nums ${finish[r.key] === 1 ? 'text-forest-400' : 'text-amber-300'}`}>
+                {Math.round(finish[r.key] * 100)} %
+              </span>
+            </div>
+            <p className="text-[10px] text-forest-400/80 leading-snug mt-0.5">{r.hint}</p>
+            <input
+              type="range"
+              min={20}
+              max={160}
+              step={5}
+              value={Math.round(finish[r.key] * 100)}
+              onChange={(e) => onChange({ ...finish, [r.key]: Number(e.target.value) / 100 })}
+              className="mt-1 w-full accent-amber-400"
+            />
+          </div>
+        ))}
+        {geaendert && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...FINISH_DEFAULT })}
+            className="text-[11px] text-forest-300 underline hover:text-forest-100"
+          >
+            Alle vier auf 100 % zurücksetzen
+          </button>
+        )}
       </div>
     </Section>
   );

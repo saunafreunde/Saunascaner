@@ -6,22 +6,43 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { themeFromAttributes, stripThemeAttrs } from '@/lib/aufgussTheme';
-import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, type CustomOil } from '@/lib/api';
+import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, useBrandSettings, type CustomOil } from '@/lib/api';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
 import { nameplateAus } from '@/lib/nameplates';
 import { Nameplate } from '@/components/Nameplate';
+import { AusschnittBild } from '@/components/AusschnittBild';
+import { deck, FINISH_DEFAULT, type Ausschnitt, type TafelFinish } from '@/types/branding';
 // BadgeChip-Import + BadgeDefinition bewusst entfernt — Auszeichnungen werden
 // nicht mehr auf Aufguss-Karten gerendert. Prop meisterBadges ist raus.
 
 // Helper: hex-Farbe + alpha-Suffix → rgba-Hintergrund.
 // Z.B. tintBg('#f59e0b', 0.33) → "linear-gradient(135deg, #f59e0b55, rgba(8,18,12,0.55))"
 // HELL-THEME: Pills auf cremig-hellem Untergrund statt forest-Dunkel.
-function tintBg(hex: string): string {
-  return `linear-gradient(135deg, ${hex}33, rgba(255,255,255,0.7))`;
+function tintBg(hex: string, f = 1): string {
+  return `linear-gradient(135deg, ${hex}33, rgba(255,255,255,${deck(0.7, f)}))`;
 }
 function tintRing(hex: string): string {
   return `inset 0 0 0 1px ${hex}66`;
+}
+
+/** Der weiße Schleier über Öl- und Schnaps-Motiven.
+ *
+ *  Bewusst ein Band und keine gleichmäßige Fläche:
+ *    oben  (0–34 %)  ~0,92 → fast weiß, hier stehen Uhrzeit und Titel
+ *    Mitte (60–84 %) ~0,30 → das Motiv kommt voll durch
+ *    unten (100 %)   ~0,70 → Sauna-Badge und Aufgießer bleiben lesbar
+ *  Ein gleichmäßiger Schleier macht die dunklen Fotos milchig und die Frucht
+ *  unkenntlich — dieses Band hält beides. Der Faktor staucht oder streckt die
+ *  ganze Staffelung, ohne sie einzuebnen.
+ */
+function schleierVerlauf(f: number, mitte = 0.42, tief = 0.30, fuss = 0.70): string {
+  return 'linear-gradient(180deg, '
+    + `rgba(255,255,255,${deck(0.95, f)}) 0%, `
+    + `rgba(255,255,255,${deck(0.90, f)}) 34%, `
+    + `rgba(255,255,255,${deck(mitte, f)}) 60%, `
+    + `rgba(255,255,255,${deck(tief, f)}) 84%, `
+    + `rgba(255,255,255,${deck(fuss, f)}) 100%)`;
 }
 
 const IMMINENT_MIN = 10;
@@ -86,7 +107,10 @@ export function InfusionCard({
   now: Date;
   compact?: boolean;
   className?: string;
-  backgroundImage?: string | null;
+  /** Kachel-Hintergrund aus dem Branding-Tab, samt gewähltem Ausschnitt.
+   *  Greift nur, wenn die Karte weder ein Sonder-Thema noch Öl-Motive hat —
+   *  die legen sich sonst darüber. */
+  backgroundImage?: { url: string; ausschnitt: Ausschnitt } | null;
   /** Zusätzliches inline-style — wird auf das motion.div-Root gemergt.
    *  Hauptverwendung: gridRow span 2 für Banja-Ritual (90 Min, 2 Slots).
    *  Migration 30.05.2026. */
@@ -103,6 +127,12 @@ export function InfusionCard({
   // infusion.attributes statt Standard-Slug steht (User-Bug:
   // selbst erstellte Buttons wurden nicht angezeigt).
   const customAttrsAll = useAllCustomAttrs();
+  // Feinschliff der Deckkräfte (Admin → Branding → „Finish der Tafel").
+  // Multiplikatoren, nicht absolute Werte: die Karte staffelt ihre Schleier
+  // bewusst (oben deckend für die Uhrzeit, Mitte offen fürs Motiv, unten
+  // wieder heller für den Fuß) — ein absoluter Regler machte das platt.
+  // Bei 1 rechnet alles exakt wie zuvor, das Standard-Aussehen bleibt.
+  const finish: TafelFinish = useBrandSettings().data?.tafel_finish ?? FINISH_DEFAULT;
   const colorForAttr = (id: string): string => attrColors.data?.[id] ?? sauna.accent_color;
   const colorForOil = (id: string): string => oilColors.data?.[id] ?? '#f59e0b';
   const start = new Date(infusion.start_time);
@@ -255,7 +285,7 @@ export function InfusionCard({
           // im Bild sitzt (siehe Prompt-Vorgabe in Desktop\sauna_gen.py).
           backgroundImage: [
             `linear-gradient(200deg, ${theme.color}00 0%, ${theme.color}00 45%, ${theme.color}30 100%)`,
-            'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.42) 60%, rgba(255,255,255,0.30) 84%, rgba(255,255,255,0.70) 100%)',
+            schleierVerlauf(finish.schleier),
             `url(${JSON.stringify(theme.image)})`,
           ].join(', '),
           backgroundSize: 'cover',
@@ -266,24 +296,38 @@ export function InfusionCard({
           // background-image nicht sauber, weil sich jede Lage nur skalieren,
           // aber nicht auf ihr Drittel zuschneiden ließe. Hier bleibt nur die
           // Grundfarbe, damit die Karte auch beim Laden nicht weiß aufblitzt.
-          background: `linear-gradient(135deg, ${colorForOil(bgOil.id)}18, rgba(254,247,237,0.9))`,
+          background: `linear-gradient(135deg, ${colorForOil(bgOil.id)}18, rgba(254,247,237,${deck(0.9, finish.karte)}))`,
         } : backgroundImage ? {
-          backgroundImage: `linear-gradient(rgba(2,6,12,0.62), rgba(2,6,12,0.62)), url(${backgroundImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          // Das Bild liegt als eigene Ebene weiter unten (siehe Kachel-Foto),
+          // NICHT als background-image: nur so lässt sich der im Admin
+          // gewählte Ausschnitt anwenden. Hier bleibt die Grundfarbe, damit
+          // die Karte beim Laden nicht weiß aufblitzt.
+          background: 'rgba(2,6,12,0.62)',
         } : {
           // Plakat-Hintergrund (statt klinischem bg-white/80): stark
           // sauna-getönt in den Ecken (40% alpha), Mitte warm-crème statt
           // fast-weiß damit der Farbeindruck nicht "blass" wird.
           // 1. Iteration war zu dezent (14%/8%) → User: "noch immer weiß".
           // Wood-Maserung kommt zusätzlich via .card-wood-grain ::after.
-          background: `linear-gradient(135deg, ${sauna.accent_color}55 0%, ${sauna.accent_color}1c 38%, rgba(254,247,237,0.88) 60%, ${sauna.accent_color}28 100%)`,
+          background: `linear-gradient(135deg, ${sauna.accent_color}55 0%, ${sauna.accent_color}1c 38%, rgba(254,247,237,${deck(0.88, finish.karte)}) 60%, ${sauna.accent_color}28 100%)`,
         }),
       } as CSSProperties}
     >
       {/* Sauna-Badge wurde aus der absoluten Position in den Footer-Bereich
           unten verschoben — Teil der einheitlichen 3-Spalten-Footer-Zeile
           (siehe ganz unten in der compact-Sektion: Sauna | Aufgießer | Uhrzeit). */}
+
+      {/* Kachel-Foto aus dem Branding-Tab, mit dem dort gewählten Ausschnitt.
+          Als eigene Ebene statt als background-image: `background-size: cover`
+          kennt keinen Zoom-Faktor, `object-fit` + `object-position` schon.
+          Darüber derselbe dunkle Schleier wie vorher, damit der helle Text
+          der Karte lesbar bleibt. */}
+      {backgroundImage && !theme && !bgOil && bgOils.length === 0 && (
+        <div aria-hidden className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+          <AusschnittBild url={backgroundImage.url} ausschnitt={backgroundImage.ausschnitt} />
+          <div className="absolute inset-0" style={{ background: 'rgba(2,6,12,0.62)' }} />
+        </div>
+      )}
 
       {/* Akzent-Stripe links */}
       <span
@@ -328,7 +372,9 @@ export function InfusionCard({
               zIndex: 0,
               backgroundImage: [
                 `linear-gradient(200deg, ${colorForOil(bgOils[0].id)}00 0%, ${colorForOil(bgOils[0].id)}00 45%, ${colorForOil(bgOils[0].id)}2b 100%)`,
-                'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.90) 34%, rgba(255,255,255,0.46) 60%, rgba(255,255,255,0.34) 84%, rgba(255,255,255,0.72) 100%)',
+                // Minimal offener als bei den Schnaps-Motiven: hier liegen bis
+                // zu drei Bilder nebeneinander, die sonst zu unruhig wirken.
+                schleierVerlauf(finish.schleier, 0.46, 0.34, 0.72),
               ].join(', '),
             }}
           />
@@ -492,6 +538,7 @@ export function InfusionCard({
             colorForOil={colorForOil}
             customOils={customOilsAll.data ?? []}
             customAttrs={customAttrsAll.data ?? []}
+            finish={finish}
           />
 
           {/* Footer-Zeile: drei Spalten ALLE UNTEN AUSGERICHTET damit es
@@ -807,13 +854,18 @@ type PillsBlockProps = {
   /** ALLE Custom-Attrs aller Aufgießer für Lookup wenn ein attribute-ID
    *  eine UUID statt eines Standard-Slugs ist (selbst erstellte Buttons). */
   customAttrs: MemberCustomAttr[];
+  /** Deckkraft-Feinschliff. Als Prop und NICHT über einen eigenen Hook:
+   *  dieser Block steigt gleich in der ersten Zeile aus, wenn es nichts
+   *  anzuzeigen gibt — ein Hook davor wäre ein Regelbruch, einer danach
+   *  würde bei jedem zweiten Rendern übersprungen. */
+  finish: TafelFinish;
 };
 
 function PillsBlock({
   attributes, oils,
   attributesAreDefault = false,
   oilsAreDefault = false,
-  colorForAttr, colorForOil, customOils, customAttrs,
+  colorForAttr, colorForOil, customOils, customAttrs, finish,
 }: PillsBlockProps) {
   if (attributes.length === 0 && oils.length === 0) return null;
 
@@ -928,8 +980,8 @@ function PillsBlock({
               ...subHeaderStyle,
               padding: headerPadding,
               background: attributesAreDefault
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(237,233,254,0.72))'
-                : 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(226,232,240,0.72))',
+                ? `linear-gradient(180deg, rgba(255,255,255,${deck(0.82, finish.pillen)}), rgba(237,233,254,${deck(0.72, finish.pillen)}))`
+                : `linear-gradient(180deg, rgba(255,255,255,${deck(0.82, finish.pillen)}), rgba(226,232,240,${deck(0.72, finish.pillen)}))`,
             }}
           >
             {attributesAreDefault ? '🪶 Sein Stil' : '⚡ Besonderheiten'}
@@ -941,7 +993,7 @@ function PillsBlock({
               // Nur hier, wo die Pillen stehen, liegt noch ein Hauch Weiß —
               // 20 % statt der früheren 65 %. Genug, damit die Pillen sich
               // absetzen, wenig genug, dass die Öl-Motive durchkommen.
-              background: 'rgba(255,255,255,0.20)',
+              background: `rgba(255,255,255,${deck(0.20, finish.pillen)})`,
             }}
           >
             {shownAttrs.map((a) => {
@@ -957,7 +1009,7 @@ function PillsBlock({
                     style={{
                       padding: '0.34em 0.85em',
                       gap: '0.4em',
-                      background: tintBg(c),
+                      background: tintBg(c, finish.oele),
                       boxShadow: tintRing(c),
                     }}
                   >
@@ -978,7 +1030,7 @@ function PillsBlock({
                     style={{
                       padding: '0.34em 0.85em',
                       gap: '0.4em',
-                      background: tintBg(c),
+                      background: tintBg(c, finish.oele),
                       boxShadow: tintRing(c),
                     }}
                   >
@@ -996,7 +1048,7 @@ function PillsBlock({
                 className="inline-flex items-center rounded-full backdrop-blur font-bold text-slate-700 whitespace-nowrap"
                 style={{
                   padding: '0.34em 0.85em',
-                  background: tintBg('#64748b'),
+                  background: tintBg('#64748b', finish.oele),
                   boxShadow: tintRing('#64748b'),
                 }}
               >
@@ -1021,8 +1073,8 @@ function PillsBlock({
               ...subHeaderStyle,
               padding: headerPadding,
               background: oilsAreDefault
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(237,233,254,0.72))'
-                : 'linear-gradient(180deg, rgba(255,251,235,0.84), rgba(253,230,138,0.70))',
+                ? `linear-gradient(180deg, rgba(255,255,255,${deck(0.82, finish.pillen)}), rgba(237,233,254,${deck(0.72, finish.pillen)}))`
+                : `linear-gradient(180deg, rgba(255,251,235,${deck(0.84, finish.pillen)}), rgba(253,230,138,${deck(0.70, finish.pillen)}))`,
             }}
           >
             {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : '🌿 Öle'}
@@ -1031,7 +1083,7 @@ function PillsBlock({
             className="flex flex-1 flex-wrap items-center content-center justify-center min-h-0"
             style={{
               fontSize: pillFontOil, gap: '0.45em', padding: '0.5em 0.6em',
-              background: 'rgba(255,251,235,0.20)',
+              background: `rgba(255,251,235,${deck(0.20, finish.pillen)})`,
             }}
           >
             {oils.map((oilId, i) => {

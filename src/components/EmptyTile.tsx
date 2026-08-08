@@ -6,7 +6,10 @@ import { SlotCarousel } from '@/components/emptytile/SlotCarousel';
 interface EmptyTileProps {
   sauna: Sauna;
   className?: string;
-  backgroundImage?: string | null;
+  /** Wird bewusst NICHT verwendet — das Karussell IST der Hintergrund.
+   *  Bleibt im Interface, weil SaunaTileColumn allen drei Kachelarten
+   *  dieselbe Prop-Liste reicht. */
+  backgroundImage?: { url: string; ausschnitt: unknown } | null;
   /** Info über die andere Sauna, die zur gleichen Slot-Zeit aktiv ist.
    *  Steuert nur noch die Schwimmrichtung der Riff-Tiere — der pulsierende
    *  Leit-Hinweis („→ Jetzt bei Blockhaus 100°C") ist entfallen, siehe unten. */

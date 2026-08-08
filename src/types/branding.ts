@@ -36,6 +36,39 @@ export type BadgeAssets = {
 /* AdSlot (Werbeplätze der TV-Sidebar) ist am 08.08.2026 entfallen — die
    Sidebar selbst gibt es seit dem Tafel-Umbau nicht mehr, siehe BrandingTab. */
 
+/** Welcher Teil eines Bildes in der Kachel zu sehen ist.
+ *
+ *  Eine Tafel-Kachel ist je nach Aufteilung 2:1 bis 4:1 breit (gemessen auf
+ *  1080p: 2 Saunen × 3 Aufgüsse = 920×301, 2×4 = 920×224, 3×3 = 603×301,
+ *  3×4 = 603×224). Ein Foto im üblichen 3:2 oder 4:3 wird davon immer
+ *  beschnitten — die Frage ist nur, WO. Genau das legen diese drei Zahlen fest,
+ *  statt für jede Aufteilung ein eigenes Bild zu verlangen.
+ *
+ *  x/y sind Prozentwerte (0–100) und bezeichnen den Punkt des Bildes, der in
+ *  der Kachel sichtbar bleiben MUSS — 50/50 ist die Bildmitte, also das
+ *  bisherige Verhalten. zoom vergrößert darüber hinaus (1 = formatfüllend).
+ *  Verlustfrei: skaliert wird bei der Anzeige, die Datei bleibt unangetastet. */
+export type Ausschnitt = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+export const AUSSCHNITT_DEFAULT: Ausschnitt = { x: 50, y: 50, zoom: 1 };
+
+/** Prüft einen Ausschnitt aus der Datenbank. Alles Unplausible fällt auf die
+ *  Bildmitte zurück — ein kaputter Wert darf die Tafel nicht entstellen. */
+export function ausschnittAus(v: unknown): Ausschnitt {
+  const o = (v ?? {}) as Partial<Ausschnitt>;
+  const zahl = (n: unknown, min: number, max: number, fallback: number) =>
+    typeof n === 'number' && Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+  return {
+    x: zahl(o.x, 0, 100, AUSSCHNITT_DEFAULT.x),
+    y: zahl(o.y, 0, 100, AUSSCHNITT_DEFAULT.y),
+    zoom: zahl(o.zoom, 1, 3, AUSSCHNITT_DEFAULT.zoom),
+  };
+}
+
 /** Vereins-Foto für die leeren Kacheln der TV-Tafel (Slot-Karussell).
  *  Liegt bewusst hier statt in einer eigenen Tabelle: brand_settings ist ein
  *  jsonb-Blob in system_config und über die Policy config_read_public bereits
@@ -43,7 +76,52 @@ export type BadgeAssets = {
 export type GalleryPhoto = {
   image_path: string;
   caption: string | null;
+  ausschnitt: Ausschnitt;
 };
+
+/** Hintergrundbild einer einzelnen Aufguss-Kachel.
+ *  Bis 08.08.2026 stand hier nur der nackte Pfad als String; mergeBrandDefaults
+ *  hebt Altbestände beim Lesen auf diese Form an, deshalb ohne Migration. */
+export type TileBg = {
+  path: string;
+  ausschnitt: Ausschnitt;
+};
+
+/** Feinschliff der Tafel-Optik: Multiplikatoren auf die eingebauten
+ *  Deckkräfte, in vier Gruppen. 1 = unverändert wie gebaut, kleiner = das
+ *  Motiv kommt kräftiger durch, größer = ruhiger und lesbarer.
+ *
+ *  Bewusst Multiplikatoren statt absoluter Werte: die Karte arbeitet nicht mit
+ *  EINER Deckkraft, sondern mit abgestuften Verläufen (oben fast deckend für
+ *  die Uhrzeit, in der Mitte offen fürs Motiv, unten wieder heller für den
+ *  Fuß). Ein absoluter Regler würde diese Staffelung plattmachen. */
+export type TafelFinish = {
+  /** Weißer Schleier über Öl- und Schnaps-Motiven. Der stärkste Hebel. */
+  schleier: number;
+  /** Flächen der Blöcke „Besonderheiten" und „Öle". */
+  pillen: number;
+  /** Die einzelnen Öl- und Attribut-Pillen darin. */
+  oele: number;
+  /** Grundfläche der Karte, wenn kein Motiv dahinterliegt. */
+  karte: number;
+};
+
+export const FINISH_DEFAULT: TafelFinish = { schleier: 1, pillen: 1, oele: 1, karte: 1 };
+
+export function finishAus(v: unknown): TafelFinish {
+  const o = (v ?? {}) as Partial<TafelFinish>;
+  const f = (n: unknown, fallback: number) =>
+    typeof n === 'number' && Number.isFinite(n) ? Math.min(1.6, Math.max(0.2, n)) : fallback;
+  return {
+    schleier: f(o.schleier, 1), pillen: f(o.pillen, 1),
+    oele: f(o.oele, 1), karte: f(o.karte, 1),
+  };
+}
+
+/** Deckkraft mit Faktor — bleibt garantiert im gültigen Bereich. */
+export function deck(basis: number, faktor: number): number {
+  return Math.min(1, Math.max(0, basis * faktor));
+}
 
 /** Welche Deko-Karten im Karussell leerer Tafel-Kacheln mitlaufen.
  *  Öl-Tafel und Vereins-Galerie sind IMMER dabei (die Galerie blendet sich
@@ -60,10 +138,11 @@ export type BrandSettings = {
   org: OrgInfo;
   logo: LogoSet;
   backgrounds: PageBackgrounds;
-  tile_bgs: { [saunaId: string]: (string | null)[] };
+  tile_bgs: { [saunaId: string]: (TileBg | null)[] };
   badge: BadgeAssets;
   slot_gallery: GalleryPhoto[];
   slot_cards: SlotCards;
+  tafel_finish: TafelFinish;
 };
 
 export function defaultBrandSettings(): BrandSettings {
@@ -82,6 +161,7 @@ export function defaultBrandSettings(): BrandSettings {
     badge: { front_bg: null, back_bg: null },
     slot_gallery: [],
     slot_cards: { reef: false, forest: false },
+    tafel_finish: { ...FINISH_DEFAULT },
   };
 }
 
@@ -96,13 +176,40 @@ export function mergeBrandDefaults(partial: Partial<BrandSettings> | null | unde
     // sie bei jedem Speichern wieder mit.
     logo: { icon: partial.logo?.icon ?? def.logo.icon, banner: partial.logo?.banner ?? def.logo.banner },
     backgrounds: { ...def.backgrounds, ...(partial.backgrounds ?? {}) },
-    tile_bgs: partial.tile_bgs ?? def.tile_bgs,
+    // Altbestand anheben: bis 08.08.2026 stand pro Kachel nur der nackte Pfad.
+    // Beide Formen kommen aus derselben jsonb-Spalte, das Anheben passiert
+    // deshalb hier beim Lesen — eine Migration braucht es dafür nicht.
+    tile_bgs: tileBgsAus(partial.tile_bgs),
     badge: { ...def.badge, ...(partial.badge ?? {}) },
     slot_gallery: Array.isArray(partial.slot_gallery)
       ? partial.slot_gallery
           .filter((g) => !!g?.image_path)
-          .map((g) => ({ image_path: g.image_path, caption: g.caption ?? null }))
+          .map((g) => ({
+            image_path: g.image_path,
+            caption: g.caption ?? null,
+            ausschnitt: ausschnittAus(g.ausschnitt),
+          }))
       : def.slot_gallery,
     slot_cards: { ...def.slot_cards, ...(partial.slot_cards ?? {}) },
+    tafel_finish: finishAus(partial.tafel_finish),
   };
+}
+
+/** Normalisiert die Kachel-Hintergründe: alte Einträge sind Strings, neue
+ *  Objekte mit Ausschnitt. Nach dieser Funktion ist beides dasselbe. */
+function tileBgsAus(roh: unknown): BrandSettings['tile_bgs'] {
+  if (!roh || typeof roh !== 'object') return {};
+  const aus: BrandSettings['tile_bgs'] = {};
+  for (const [saunaId, liste] of Object.entries(roh as Record<string, unknown>)) {
+    if (!Array.isArray(liste)) continue;
+    aus[saunaId] = liste.map((e): TileBg | null => {
+      if (typeof e === 'string' && e) return { path: e, ausschnitt: { ...AUSSCHNITT_DEFAULT } };
+      const o = e as Partial<TileBg> | null;
+      if (o && typeof o.path === 'string' && o.path) {
+        return { path: o.path, ausschnitt: ausschnittAus(o.ausschnitt) };
+      }
+      return null;
+    });
+  }
+  return aus;
 }
