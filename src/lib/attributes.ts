@@ -32,6 +32,9 @@ export type InfusionAttribute =
   | 'acoustic'        // Acoustic / Unplugged
   | 'oldies'          // Oldies 60er/70er
   | 'country'         // Country
+  | 'acdc'            // AC/DC
+  | 'tote_hosen'      // Die Toten Hosen
+  | 'entspannt'       // ruhig, entspannt
   | 'kontrovers'      // Kontrovers (Inhaltswarnung)
   // ─── Ritual & Format ──────────────────────────────────────────────────
   | 'silent_strict'   // psssst → sonst raus (strenge Stille-Regel)
@@ -97,6 +100,9 @@ export const ATTRIBUTES: {
   { id: 'acoustic',       emoji: '🪕', label: 'Acoustic' },
   { id: 'oldies',         emoji: '📻', label: 'Oldies 60/70er' },
   { id: 'country',        emoji: '🤠', label: 'Country' },
+  { id: 'acdc',           emoji: '⚡', label: 'AC/DC' },
+  { id: 'tote_hosen',     emoji: '🎤', label: 'Tote Hosen' },
+  { id: 'entspannt',      emoji: '😌', label: 'Entspannt' },
   { id: 'kontrovers',     emoji: '⚠️', label: 'Kontrovers' },
   // Ritual & Format
   { id: 'silent_strict',  emoji: '🤫', label: 'Psssst → sonst raus' },

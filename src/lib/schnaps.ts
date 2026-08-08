@@ -32,6 +32,11 @@ export const SCHNAPS: Schnaps[] = [
   { id: 'slibowitz',    name: 'Slibowitz',    emoji: '🥃',  color: '#4e2a84', image: '/schnaps/slibowitz.webp' },
   { id: 'zwetschke',    name: 'Zwetschke',    emoji: '🟣',  color: '#5b2c6f', image: '/schnaps/zwetschke.webp' },
   { id: 'schoko_chili', name: 'Schoko-Chili', emoji: '🌶️', color: '#7b241c', image: '/schnaps/schoko-chili.webp' },
+  // Ergaenzt am 08.08.2026. Beide standen als selbstgebaute Buttons in der
+  // Datenbank („Mirabelle" am 01.08., „Sud mit Willi" am 08.08.) — als Custom-
+  // Attribut bekamen sie aber weder Bild noch Badge auf der Tafel.
+  { id: 'williamsbirne', name: 'Williamsbirne', emoji: '🍐', color: '#8c9a3f', image: '/schnaps/williamsbirne.webp' },
+  { id: 'mirabelle',     name: 'Mirabelle',     emoji: '🟡', color: '#d4a017', image: '/schnaps/mirabelle.webp' },
 ];
 
 export const SCHNAPS_BY_ID: Record<string, Schnaps> =
