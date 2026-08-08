@@ -15,6 +15,7 @@
 // dieser Aufguss?" — damit InfusionCard nicht zwei parallele Pfade braucht.
 
 import { schnapsFromAttributes, stripSchnapsAttrs, type Schnaps } from './schnaps';
+import { hasSud } from './sud';
 
 export interface AufgussTheme {
   id: string;
@@ -46,6 +47,35 @@ export const RAEUCHER_THEME: AufgussTheme = {
   kategorie: 'Räucheraufguss',
 };
 
+/** Sudaufguss — Kräuter im Aufgusswasser. Dritter Look neben Schnaps und
+ *  Räuchern. Steht in der Rangfolge HINTER beiden: wer Schnaps oder Räuchern
+ *  angehakt hat, hat die auffälligere Ansage gemacht; der Sud erscheint dann
+ *  weiter unten als Pille, die Information geht nicht verloren. */
+export const SUD_THEME: AufgussTheme = {
+  id: 'sud-aufguss',
+  name: 'Sudaufguss',
+  emoji: '🧪',
+  // Kräutergrün, klar unterscheidbar vom Rauch-Schiefer und den Fruchtfarben.
+  color: '#4d7c2f',
+  image: '/sud/sudaufguss.webp',
+  badge: '🧪 Sud',
+  kategorie: 'Sudaufguss',
+};
+
+/** Banja — das lange Dampfritual. Eigener Look, weil es über zwei
+ *  Aufgussstunden läuft und auf der Tafel entsprechend groß erscheint. */
+export const BANJA_ATTR = 'banja';
+
+export const BANJA_THEME: AufgussTheme = {
+  id: BANJA_ATTR,
+  name: 'Banja',
+  emoji: '🇷🇺',
+  color: '#7a5c3e',
+  image: '/banja/banja.webp',
+  badge: '🇷🇺 Banja',
+  kategorie: 'Banja-Ritual',
+};
+
 function schnapsTheme(s: Schnaps): AufgussTheme {
   return {
     id: s.id,
@@ -60,12 +90,21 @@ function schnapsTheme(s: Schnaps): AufgussTheme {
   };
 }
 
-/** Welchen Look hat dieser Aufguss? Schnaps schlägt Räuchern — wer beides
- *  ankreuzt, bekommt die Sorte gezeigt, weil die spezifischer ist. */
+/** Welchen Look hat dieser Aufguss?
+ *
+ *  Rangfolge, von spezifisch nach allgemein:
+ *    1. Banja    — das lange Ritual prägt den ganzen Abend, es gewinnt immer
+ *    2. Schnaps  — eine benannte Sorte ist die konkreteste Ansage
+ *    3. Räuchern
+ *    4. Sud
+ *  Was nicht gewinnt, verschwindet nicht: es erscheint weiter unten als Pille
+ *  (siehe stripThemeAttrs — entfernt wird nur die gewinnende Art). */
 export function themeFromAttributes(attrs: readonly string[] | null | undefined): AufgussTheme | null {
+  if (attrs?.includes(BANJA_ATTR)) return BANJA_THEME;
   const s = schnapsFromAttributes(attrs);
   if (s) return schnapsTheme(s);
   if (attrs?.includes(RAEUCHER_ATTR)) return RAEUCHER_THEME;
+  if (hasSud(attrs)) return SUD_THEME;
   return null;
 }
 
@@ -83,6 +122,11 @@ export function hasRaeuchern(attrs: readonly string[] | null | undefined): boole
 export function stripThemeAttrs(attrs: readonly string[]): string[] {
   const won = themeFromAttributes(attrs);
   if (!won) return [...attrs];
+  // Banja behält seine Pille bewusst NICHT doppelt: das Badge steht schon oben.
+  if (won.id === BANJA_ATTR) return attrs.filter((a) => a !== BANJA_ATTR);
   if (won.id === RAEUCHER_ATTR) return attrs.filter((a) => a !== RAEUCHER_ATTR);
+  // Der Sud gewinnt nur, wenn sonst nichts da ist — seine Kräuter bleiben als
+  // Pillen stehen, sie sind der eigentliche Inhalt und nicht bloß ein Etikett.
+  if (won.id === SUD_THEME.id) return [...attrs];
   return stripSchnapsAttrs(attrs);
 }

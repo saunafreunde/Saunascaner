@@ -6,7 +6,8 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID, MAX_OIL_SLOTS } from '@/lib/oils';
 import { themeFromAttributes, stripThemeAttrs } from '@/lib/aufgussTheme';
-import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, useBrandSettings, type CustomOil } from '@/lib/api';
+import { useAttributeColors, useOilColors, useAllCustomOils, useAllCustomAttrs, parseCustomOilId, useMeisterDirectory, useBrandSettings, useSudKraeuter, useSudMixe, type CustomOil } from '@/lib/api';
+import { sudFromAttributes } from '@/lib/sud';
 import type { MemberCustomAttr } from '@/types/database';
 import { resolveAvatarUrl, dicebearUrl } from '@/lib/avatar';
 import { nameplateAus } from '@/lib/nameplates';
@@ -127,6 +128,8 @@ export function InfusionCard({
   // infusion.attributes statt Standard-Slug steht (User-Bug:
   // selbst erstellte Buttons wurden nicht angezeigt).
   const customAttrsAll = useAllCustomAttrs();
+  const sudKraeuterAll = useSudKraeuter();
+  const sudMixeAll = useSudMixe();
   // Feinschliff der Deckkräfte (Admin → Branding → „Finish der Tafel").
   // Multiplikatoren, nicht absolute Werte: die Karte staffelt ihre Schleier
   // bewusst (oben deckend für die Uhrzeit, Mitte offen fürs Motiv, unten
@@ -203,11 +206,21 @@ export function InfusionCard({
     .filter(knownAttr);
   const pillOils = oils.length ? oils : (meisterDefaults?.default_mood_oils ?? []).slice(0, MAX_OIL_SLOTS);
 
+  // Sud: 'sud:<uuid>' / 'sudmix:<uuid>' zu Namen aufloesen. Die Roh-Eintraege
+  // fallen oben schon durch knownAttr() aus den Besonderheiten-Pillen — hier
+  // kommen sie als das zurueck, was sie sind: Zutaten neben den Oelen.
+  // Mischungen zuerst, sie sind die groessere Aussage.
+  const sudRoh = sudFromAttributes(infusion.attributes);
+  const sudPillen = [
+    ...sudRoh.mixe.map((id) => (sudMixeAll.data ?? []).find((m) => m.id === id)),
+    ...sudRoh.kraeuter.map((id) => (sudKraeuterAll.data ?? []).find((k) => k.id === id)),
+  ].filter(Boolean).map((x) => ({ id: x!.id, emoji: x!.emoji, name: x!.name, color: x!.color }));
+
   // Inhalts-Achse des Dichte-Faktors: sind BEIDE Sektionen gefüllt (der vom
   // User genannte Normalfall), wird es eng → 1. Sonst darf alles 25 % größer
   // werden — das ist die bisherige onlyOne-Regel aus PillsBlock, nur als Zahl
   // und damit auch für Kopf und Fuß nutzbar.
-  const dContent = pillAttrs.length > 0 && pillOils.length > 0 ? 1 : 1.25;
+  const dContent = pillAttrs.length > 0 && (pillOils.length > 0 || sudPillen.length > 0) ? 1 : 1.25;
 
   // Countdown-Text bis Start (oder Status falls läuft/vorbei).
   // Wird sekündlich/minütlich aktualisiert via Parent-`now`-Prop (alle 5s im Dashboard).
@@ -539,6 +552,7 @@ export function InfusionCard({
             customOils={customOilsAll.data ?? []}
             customAttrs={customAttrsAll.data ?? []}
             finish={finish}
+            sud={sudPillen}
           />
 
           {/* Footer-Zeile: drei Spalten ALLE UNTEN AUSGERICHTET damit es
@@ -854,6 +868,9 @@ type PillsBlockProps = {
   /** ALLE Custom-Attrs aller Aufgießer für Lookup wenn ein attribute-ID
    *  eine UUID statt eines Standard-Slugs ist (selbst erstellte Buttons). */
   customAttrs: MemberCustomAttr[];
+  /** Kraeuter und Mischungen des Sudaufgusses — stehen im selben Block wie
+   *  die Oele, weil sie dasselbe sind: Zutaten, die ins Wasser kommen. */
+  sud: { id: string; emoji: string; name: string; color: string }[];
   /** Deckkraft-Feinschliff. Als Prop und NICHT über einen eigenen Hook:
    *  dieser Block steigt gleich in der ersten Zeile aus, wenn es nichts
    *  anzuzeigen gibt — ein Hook davor wäre ein Regelbruch, einer danach
@@ -865,15 +882,15 @@ function PillsBlock({
   attributes, oils,
   attributesAreDefault = false,
   oilsAreDefault = false,
-  colorForAttr, colorForOil, customOils, customAttrs, finish,
+  colorForAttr, colorForOil, customOils, customAttrs, finish, sud,
 }: PillsBlockProps) {
-  if (attributes.length === 0 && oils.length === 0) return null;
+  if (attributes.length === 0 && oils.length === 0 && sud.length === 0) return null;
 
   // User-Wunsch (Mai 2026): wenn nur EINE der beiden Sektionen aktiv ist
   // (NUR Besonderheiten ODER NUR Öle), wird sie um 50% größer dargestellt
   // damit sie den verfügbaren Platz besser nutzt — Karte wirkt weniger leer.
   const hasAttrs = attributes.length > 0;
-  const hasOils  = oils.length > 0;
+  const hasOils  = oils.length > 0 || sud.length > 0;
   const onlyOne  = hasAttrs !== hasOils; // XOR
 
   // Alle Minima zusätzlich über --d (Raum × Inhalt, siehe index.css .tile-body).
@@ -1058,9 +1075,12 @@ function PillsBlock({
           </div>
         </div>
       )}
-      {oils.length > 0 && (
+      {(oils.length > 0 || sud.length > 0) && (
         /* Öle-Card analog mit eigenem Background + amber-Tönung. Steht je nach
-           Kartenbreite unter oder neben der Besonderheiten-Card (.pills-both). */
+           Kartenbreite unter oder neben der Besonderheiten-Card (.pills-both).
+           Nimmt auch den Sud auf: Kräuter und Öle sind dasselbe — Zutaten, die
+           ins Wasser kommen. Ein eigener dritter Kasten hätte die Karte auf
+           einer 301-px-Kachel gesprengt. */
         <div
           className={`flex-1 min-w-0 rounded-xl ring-2 overflow-hidden shadow-sm ${
             oilsAreDefault ? 'ring-violet-400/40 opacity-95' : 'ring-amber-500/45'
@@ -1077,7 +1097,7 @@ function PillsBlock({
                 : `linear-gradient(180deg, rgba(255,251,235,${deck(0.84, finish.pillen)}), rgba(253,230,138,${deck(0.70, finish.pillen)}))`,
             }}
           >
-            {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : '🌿 Öle'}
+            {oilsAreDefault ? '🪶 Seine Lieblings-Öle' : (oils.length > 0 && sud.length > 0 ? '🌿 Öle & Sud' : sud.length > 0 && oils.length === 0 ? '🧪 Sud' : '🌿 Öle')}
           </div>
           <div
             className="flex flex-1 flex-wrap items-center content-center justify-center min-h-0"
@@ -1116,6 +1136,23 @@ function PillsBlock({
                 </span>
               );
             })}
+            {sud.map((sp) => (
+              <span
+                key={`s-${sp.id}`}
+                title={sp.name}
+                className="inline-flex items-center rounded-full backdrop-blur font-semibold whitespace-nowrap"
+                style={{
+                  padding: '0.34em 0.85em',
+                  gap: '0.4em',
+                  color: '#3f3f1a',
+                  background: tintBg(sp.color, finish.oele),
+                  boxShadow: tintRing(sp.color),
+                }}
+              >
+                <span aria-hidden>{sp.emoji}</span>
+                <span>{sp.name}</span>
+              </span>
+            ))}
           </div>
         </div>
       )}

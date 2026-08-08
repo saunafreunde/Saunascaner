@@ -1,0 +1,4 @@
+-- 0125_banja_frei.sql — angewendet 08.08.2026 auf tbjptybrtsmqyqmbiley.
+-- Banja neu geregelt: Dauer 120 Min (um 19:00 Uhr 90), jede Uhrzeit, jede
+-- Sauna, plus einstuendige Ruhephase danach. Vorher (0104): exakt 90 Min,
+-- exakt 19:00, exakt 80°C. Volltext siehe validate_infusion_banja_and_overlap().

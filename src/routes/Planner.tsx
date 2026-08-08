@@ -12,6 +12,8 @@ import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID, parseSchnapsAttr, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
 import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
+import { SudPicker } from '@/components/SudPicker';
+import { stripSudAttrs, sudFromAttributes, sudAttrId, sudMixAttrId } from '@/lib/sud';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { lookupMemberName } from '@/lib/memberDisplay';
 import { berlinYmd } from '@/lib/time';
@@ -108,14 +110,25 @@ function isSameYMD(a: Date, b: Date): boolean {
 // 15 Min), wird die im Select dynamisch ergänzt damit der Wert weiter
 // gespeichert wird ohne Verlust.
 const DEFAULT_DURATION_MIN = 20;
-const DURATION_OPTIONS = [20, 30, 45, 90] as const;
+const DURATION_OPTIONS = [20, 30, 45, 90, 120] as const;
 
-// Banja-Ritual: 90-Min-Spezial-Aufguss, 19:00 Uhr, ausschließlich 80°C-Sauna.
-// Marker = String 'banja' im attributes-Array (existiert als Standard-Attribute).
-// DB-Constraints siehe Migration 0104. UI-Side: hier zentralisierte Konstanten.
-const BANJA_DURATION_MIN = 90;
-const BANJA_START_HOUR = 19;
-const BANJA_SAUNA_TEMP_LABEL = '80°C';
+// Banja-Ritual: langes Dampfritual, Marker = 'banja' im attributes-Array.
+//
+// Seit 08.08.2026 frei planbar — jede Sauna, jede Uhrzeit, keine Wechselsperre.
+// Fest ist nur die Dauer, und die haengt an der Startstunde: zwei Stunden,
+// ausser um 19:00 Uhr, wo 90 Minuten reichen (um 20:30 ist ohnehin Schluss,
+// zwei volle Stunden gingen ueber den Betrieb hinaus).
+// Gespiegelt in DB: validate_infusion_banja_and_overlap() + book_banja_ritual().
+const BANJA_DURATION_LANG = 120;
+const BANJA_DURATION_KURZ = 90;
+const BANJA_KURZ_HOUR = 19;
+/** Wie lange dauert eine Banja, die zu dieser Stunde beginnt? */
+function banjaDauerFuer(hour: number): number {
+  return hour === BANJA_KURZ_HOUR ? BANJA_DURATION_KURZ : BANJA_DURATION_LANG;
+}
+/** Wie viele Stunden-Kacheln belegt sie? Zwei — und danach bleibt die Sauna
+ *  eine weitere Stunde zu (Ruhephase, siehe DB-Trigger). */
+const BANJA_RUHE_STUNDEN = 1;
 const BANJA_ATTR: InfusionAttribute = 'banja';
 const BANJA_TITLE_DEFAULT = '🇷🇺 Traditionelles Banja-Ritual';
 
@@ -405,7 +418,10 @@ export default function Planner() {
   // attributes geschrieben (siehe lib/schnaps.ts). Öle und Schnaps sind
   // unabhängig — der Reiter schaltet nur die Sicht, nicht die Daten.
   const [schnaps, setSchnaps] = useState<string | null>(null);
-  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps' | 'raeuchern'>('oils');
+  const [aromaTab, setAromaTab] = useState<'oils' | 'schnaps' | 'raeuchern' | 'sud'>('oils');
+  // Sud: fertige Attribut-Eintraege ('sud:<uuid>' / 'sudmix:<uuid>'), damit sie
+  // unveraendert in attributes[] wandern koennen (siehe lib/sud.ts).
+  const [sudAuswahl, setSudAuswahl] = useState<string[]>([]);
   const [teamInfusion, setTeamInfusion] = useState(false);
   // Aufguss-Dauer (User-Wunsch: 20/30/45 wählbar, Default 20; 90 = Banja)
   const [duration, setDuration] = useState<number>(DEFAULT_DURATION_MIN);
@@ -429,13 +445,16 @@ export default function Planner() {
   // Eigenschaften — 3 Oele + 5 Besonderheiten sind das Maximum.
   const MAX_AUSWAHL = 8;
   const oilCount = oils.filter(Boolean).length;
-  const auswahlAnzahl = attrs.length + customAttrIds.length + oilCount;
+  // Sud zaehlt mit: eine Mischung ist EIN Platz, egal aus wie vielen Kraeutern
+  // sie besteht — sonst waere ein guter Sud allein schon am Limit.
+  const auswahlAnzahl = attrs.length + customAttrIds.length + oilCount + sudAuswahl.length;
   const auswahlVoll = auswahlAnzahl >= MAX_AUSWAHL;
   // Attribute + Custom-Buttons + ggf. Schnaps — so wandert alles in EINEM
   // text[] in die DB (siehe lib/schnaps.ts warum der Schnaps hier mitreist).
   const attrsPayload = (): string[] => [
     ...attrs,
     ...customAttrIds,
+    ...sudAuswahl,
     ...(schnaps ? [schnapsAttrId(schnaps)] : []),
   ];
   // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
@@ -616,7 +635,15 @@ export default function Planner() {
     // gibt: unsichtbar, aber im 3-6-Zaehler mitgezaehlt und dadurch nicht
     // mehr abwaehlbar. `customAttrIds` wird dabei bewusst NEU gesetzt statt
     // stehen gelassen, sonst zaehlt eine Alt-Auswahl doppelt.
-    const tplOhneSchnaps = stripSchnapsAttrs(t.attributes);
+    // Sud gehoert wie der Schnaps in seinen eigenen Reiter — sonst schriebe
+    // attrsPayload() ihn doppelt und die UUIDs landeten als unsichtbare,
+    // aber mitgezaehlte Eintraege in `attrs`.
+    const tplSud = sudFromAttributes(t.attributes);
+    setSudAuswahl([
+      ...tplSud.kraeuter.map(sudAttrId),
+      ...tplSud.mixe.map(sudMixAttrId),
+    ]);
+    const tplOhneSchnaps = stripSudAttrs(stripSchnapsAttrs(t.attributes));
     const bekannteAttrs = new Set<string>(ATTRIBUTES.map((a) => a.id));
     const eigeneIds = new Set<string>(customAttrs.map((a) => a.id));
     setAttrs(tplOhneSchnaps.filter((a) => bekannteAttrs.has(a)) as InfusionAttribute[]);
@@ -655,6 +682,7 @@ export default function Planner() {
     setCustomAttrIds([]);
     setOils(Array.from({ length: MAX_OIL_SLOTS }, () => null) as (string | null)[]);
     setSchnaps(null);
+    setSudAuswahl([]);
     setAromaTab('oils');
     setTeamInfusion(false);
     setAdminSaunameisterId('');
@@ -716,15 +744,13 @@ export default function Planner() {
     // Feedback BEVOR der Server-Call gemacht wird (UX statt Toast nach Fehler).
     // Personal-Fallback auf 19/20:00 ist OK (wird via book_banja_ritual atomic übernommen).
     if (isBanjaSubmit) {
-      if (duration !== BANJA_DURATION_MIN) {
-        return setFormError(`🇷🇺 Banja-Ritual muss genau ${BANJA_DURATION_MIN} Minuten dauern.`);
-      }
-      if (slot !== `${String(BANJA_START_HOUR).padStart(2, '0')}:00`) {
-        return setFormError(`🇷🇺 Banja-Ritual startet ausschließlich um ${BANJA_START_HOUR}:00 Uhr.`);
-      }
-      const banjaSauna = saunas.find((s) => s.id === saunaId);
-      if (banjaSauna?.temperature_label !== BANJA_SAUNA_TEMP_LABEL) {
-        return setFormError(`🇷🇺 Banja-Ritual findet ausschließlich in der ${BANJA_SAUNA_TEMP_LABEL}-Sauna statt.`);
+      // Uhrzeit und Sauna sind seit 08.08.2026 frei — geprueft wird nur noch
+      // die Dauer, und die ergibt sich aus der Startstunde.
+      const sollDauer = banjaDauerFuer(selectedSlotHour);
+      if (duration !== sollDauer) {
+        return setFormError(
+          `🇷🇺 Banja um ${String(selectedSlotHour).padStart(2, '0')}:00 Uhr dauert ${sollDauer} Minuten.`,
+        );
       }
       // Beide Banja-Slots prüfen: 'free' oder 'fallback' sind OK (Fallback wird
       // serverseitig automatisch gelöscht via book_banja_ritual). 'taken'/'mine'
@@ -748,6 +774,7 @@ export default function Planner() {
         await bookBanja.mutateAsync({
           sauna_id: saunaId,
           date: selectedDate,
+          start_hour: selectedSlotHour,
           title: title.trim(),
           attributes: attrsPayload(),
           oils: oils.some(Boolean) ? oils : null,
@@ -1394,31 +1421,31 @@ export default function Planner() {
             ) : (
               <>
                 {/* ── BANJA-RITUAL QUICK-ACTION ─────────────────────────────
-                    90-Min-Spezial-Aufguss: 19:00 + 20:00 in der 80°C-Sauna.
-                    Bei Klick wird das Form vollständig vorausgefüllt
-                    (Sauna/Slot/Dauer/Titel/Attrs). User kann dann noch Material
-                    (Wenik, Sud, Öle, Custom-Materialien) ergänzen.            */}
+                    Seit 08.08.2026 frei planbar: der Knopf richtet sich nach
+                    dem, was oben in der Matrix gewaehlt ist — Sauna und Slot
+                    kommen von dort, die Dauer aus der Startstunde. Vorher war
+                    beides fest auf 19:00 in der 80°C-Sauna verdrahtet.       */}
                 {(() => {
-                  const banjaSauna = saunas.find(
-                    (s) => s.is_active && s.temperature_label === BANJA_SAUNA_TEMP_LABEL,
-                  );
+                  const banjaSauna = saunas.find((s) => s.id === saunaId && s.is_active);
                   if (!banjaSauna) return null;
-                  const slot19 = slotStatusFor(selectedDate, banjaSauna.id, '19:00');
-                  const slot20 = slotStatusFor(selectedDate, banjaSauna.id, '20:00');
+                  const startStunde = selectedSlotHour;
+                  const dauer = banjaDauerFuer(startStunde);
+                  // Zwei Stunden-Kacheln plus die Ruhestunde danach.
+                  const belegt = [startStunde, startStunde + 1];
+                  const stati = belegt.map((h) =>
+                    slotStatusFor(selectedDate, banjaSauna.id, `${String(h).padStart(2, '0')}:00`));
                   const banjaStart = new Date(selectedDate);
-                  banjaStart.setHours(BANJA_START_HOUR, 0, 0, 0);
+                  banjaStart.setHours(startStunde, 0, 0, 0);
                   const isInPast = banjaStart.getTime() < Date.now();
-                  // Banja akzeptiert 'free' UND 'fallback' (Personal-Aufguss wird
-                  // automatisch übernommen/gelöscht via book_banja_ritual RPC).
-                  const slot19Bookable = slot19.kind === 'free' || slot19.kind === 'fallback';
-                  const slot20Bookable = slot20.kind === 'free' || slot20.kind === 'fallback';
-                  const takesOverFallback = slot19.kind === 'fallback' || slot20.kind === 'fallback';
-                  const canBook = (isAufgieser || isAdmin) && slot19Bookable && slot20Bookable && !isInPast;
+                  // 'free' UND 'fallback' sind buchbar — Personal-Aufguesse raeumt
+                  // book_banja_ritual atomar ab.
+                  const alleFrei = stati.every((st) => st.kind === 'free' || st.kind === 'fallback');
+                  const takesOverFallback = stati.some((st) => st.kind === 'fallback');
+                  const canBook = (isAufgieser || isAdmin) && alleFrei && !isInPast;
 
                   let hint = '';
-                  if (isInPast) hint = '⏱️ 19:00 Uhr ist heute bereits vorbei.';
-                  else if (!slot19Bookable) hint = '🔴 19:00 Uhr ist bereits durch einen Aufgießer belegt.';
-                  else if (!slot20Bookable) hint = '🔴 20:00 Uhr ist bereits durch einen Aufgießer belegt.';
+                  if (isInPast) hint = '⏱️ Dieser Slot ist bereits vorbei.';
+                  else if (!alleFrei) hint = '🔴 In den zwei Stunden ist schon ein Aufguss eingetragen.';
                   else if (!isAufgieser && !isAdmin) hint = 'Nur Aufgießer dürfen Banja anlegen.';
                   else if (takesOverFallback) hint = '👨‍🍳 Personal-Aufguss wird automatisch übernommen.';
 
@@ -1437,7 +1464,8 @@ export default function Planner() {
                             Spezial: Traditionelles Banja-Ritual
                           </h3>
                           <p className={`text-[11px] mt-0.5 ${canBook ? 'text-rose-200/80' : 'text-forest-400/70'}`}>
-                            90 Min · 19:00 + 20:00 Uhr · {banjaSauna.name} · 2 Slots werden zu einem Block
+                            {dauer} Min · ab {String(startStunde).padStart(2, '0')}:00 Uhr · {banjaSauna.name}
+                            {' '}· 2 Kacheln + {BANJA_RUHE_STUNDEN} h Ruhe danach
                           </p>
                           {hint && (
                             <p className="text-[10px] mt-1 text-forest-400">{hint}</p>
@@ -1449,8 +1477,7 @@ export default function Planner() {
                           onClick={() => {
                             setSelectedDate(selectedDate);
                             setSaunaId(banjaSauna.id);
-                            setSlot('19:00');
-                            setDuration(BANJA_DURATION_MIN);
+                            setDuration(dauer);
                             setTitle(BANJA_TITLE_DEFAULT);
                             setAttrs([BANJA_ATTR, 'wenik']);
                           }}
@@ -1615,6 +1642,7 @@ export default function Planner() {
                       { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oils.some(Boolean) },
                       { id: 'schnaps',   icon: '🥃', label: 'Schnaps',  filled: !!schnaps },
                       { id: 'raeuchern', icon: '💨', label: 'Räuchern', filled: raeuchernOn },
+                      { id: 'sud',       icon: '🧪', label: 'Sud',       filled: sudAuswahl.length > 0 },
                     ] as const).map((t) => {
                       const active = aromaTab === t.id;
                       return (
@@ -1696,6 +1724,14 @@ export default function Planner() {
                         </div>
                       )}
                     </div>
+                  ) : aromaTab === 'sud' ? (
+                    <SudPicker
+                      auswahl={sudAuswahl}
+                      onChange={setSudAuswahl}
+                      memberId={m?.id ?? ''}
+                      voll={auswahlVoll}
+                      vollHinweis={`Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.`}
+                    />
                   ) : (
                     /* Räuchern hat keine Sorten — nur an/aus. Gespeichert wird das
                        seit jeher vorhandene Attribut 'raeuchern' (lib/aufgussTheme.ts),

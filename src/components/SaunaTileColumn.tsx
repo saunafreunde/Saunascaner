@@ -4,6 +4,7 @@ import type { Infusion, Sauna } from '@/types/database';
 import { InfusionCard } from '@/components/InfusionCard';
 import { EmptyTile } from '@/components/EmptyTile';
 import { PersonalTile } from '@/components/PersonalTile';
+import { BanjaRuheTile } from '@/components/BanjaRuheTile';
 import { slotHoursForWeekday } from '@/lib/garantie';
 import type { Ausschnitt } from '@/types/branding';
 
@@ -436,6 +437,28 @@ export function SaunaTileColumn({
                   compact
                   className="min-h-0 h-full overflow-hidden"
                   backgroundImage={tileBgs[slotIndex] ?? null}
+                  style={rowStyle}
+                />
+              );
+            }
+            // Liegt dieser freie Slot in der Ruhestunde nach einem Banja?
+            // Dann keine Deko, sondern die Erklaerung — sonst fragt sich der
+            // Gast, warum ausgerechnet jetzt nichts laeuft. Die Sperre selbst
+            // sitzt in der DB (validate_infusion_banja_and_overlap).
+            const banjaDavor = infusions.some((inf) => {
+              if (inf.sauna_id !== sauna.id) return false;
+              if (!inf.attributes?.includes('banja')) return false;
+              const ende = new Date(inf.end_time).getTime();
+              const t = slotTime.getTime();
+              return t >= ende && t < ende + 60 * 60 * 1000;
+            });
+            if (banjaDavor) {
+              return (
+                <BanjaRuheTile
+                  key={`banjaruhe-${slotTime.toISOString()}`}
+                  sauna={sauna}
+                  slotTime={slotTime}
+                  className="min-h-0 h-full overflow-hidden"
                   style={rowStyle}
                 />
               );

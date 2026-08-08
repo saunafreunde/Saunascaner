@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence, MemberRole, Invitation } from '@/types/database';
+import type { SudKraut, SudMix } from '@/lib/sud';
 import type { InfusionAttribute } from './attributes';
 import { type BrandSettings, mergeBrandDefaults, defaultBrandSettings } from '@/types/branding';
 import type { TvStageState } from './season';
@@ -3171,6 +3172,89 @@ export function useAllCustomAttrs() {
   });
 }
 
+// ─── Sudaufguss: Kräuter-Pool + Mischungen (Migration 0124) ──────────────
+// Gemeinsam für den ganzen Verein, nicht pro Aufgießer. Beide Tabellen sind
+// anon lesbar, weil die TV-Tafel ohne Login läuft und 'sud:<uuid>' in Namen
+// auflösen muss.
+
+export function useSudKraeuter() {
+  return useQuery({
+    queryKey: ['sud-kraeuter'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('sud_kraeuter')
+        .select('id,name,emoji,color,created_by')
+        .order('name');
+      if (error) throw error;
+      return data as SudKraut[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useSudMixe() {
+  return useQuery({
+    queryKey: ['sud-mixe'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('sud_mixe')
+        .select('id,name,emoji,color,kraeuter,created_by')
+        .order('name');
+      if (error) throw error;
+      return data as SudMix[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useAddSudKraut() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (k: { name: string; emoji: string; color: string; created_by: string }) => {
+      const { error } = await need().from('sud_kraeuter').insert(k);
+      // Der unique-Index auf lower(btrim(name)) verhindert Dubletten. Die
+      // Rohmeldung ist für den Aufgießer unbrauchbar, deshalb übersetzt.
+      if (error) {
+        throw new Error(error.code === '23505'
+          ? `„${k.name}" gibt es schon im Kräuterregal.`
+          : error.message);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sud-kraeuter'] }),
+  });
+}
+
+export function useAddSudMix() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (m: { name: string; emoji: string; color: string; kraeuter: string[]; created_by: string }) => {
+      const { error } = await need().from('sud_mixe').insert(m);
+      if (error) {
+        throw new Error(error.code === '23505'
+          ? `Eine Mischung „${m.name}" gibt es schon.`
+          : error.message);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sud-mixe'] }),
+  });
+}
+
+export function useDeleteSudEintrag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, art }: { id: string; art: 'kraut' | 'mix' }) => {
+      const { error } = await need()
+        .from(art === 'kraut' ? 'sud_kraeuter' : 'sud_mixe')
+        .delete().eq('id', id);
+      if (error) throw error;
+      return art;
+    },
+    onSuccess: (art) => qc.invalidateQueries({
+      queryKey: [art === 'kraut' ? 'sud-kraeuter' : 'sud-mixe'],
+    }),
+  });
+}
+
 export function useCreateCustomAttr() {
   const qc = useQueryClient();
   return useMutation({
@@ -3789,6 +3873,9 @@ export function useBookBanjaRitual() {
     mutationFn: async (p: {
       sauna_id: string;
       date: Date;          // wird zu YYYY-MM-DD (lokal) konvertiert
+      /** Startstunde. Seit 08.08.2026 frei — vorher fest 19. Die Dauer
+       *  ergibt sich daraus: 90 Minuten um 19 Uhr, sonst 120. */
+      start_hour: number;
       title: string;
       attributes?: string[];
       oils?: (string | null)[] | null;
@@ -3810,6 +3897,7 @@ export function useBookBanjaRitual() {
       const { data, error } = await need().rpc('book_banja_ritual', {
         p_sauna_id: p.sauna_id,
         p_date: dateStr,
+        p_start_hour: p.start_hour,
         p_title: p.title,
         p_attributes: p.attributes ?? ['banja', 'wenik'],
         p_oils: p.oils ?? null,

@@ -1,0 +1,5 @@
+-- 0126_banja_rpc.sql — angewendet 08.08.2026.
+-- book_banja_ritual bekommt p_start_hour. DROP vor CREATE, weil ein
+-- zusaetzlicher Parameter sonst eine ZWEITE Ueberladung erzeugt und PostgREST
+-- mit "Could not choose the best candidate function" abbricht.
+-- Raeumt Personal-Fallbacks in allen belegten Stunden ab, nicht nur 19+20.
