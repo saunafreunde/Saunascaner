@@ -25,3 +25,9 @@
 -- Stand danach: 36 von 45 eigenen Oelen haben ein Motiv. Die restlichen neun
 -- (Rose, Lorbeer, Koriander, Kakao, Muskatbluete, Osmanthus, Vanille, Ysop,
 -- ZufallOel) sind hoechstens 1x benutzt worden — dafuer lohnt kein Bild.
+
+-- Nachtrag 08.08.2026: fuer die letzten acht (Rose, Lorbeer, Koriander,
+-- Kakao, Muskatbluete, Osmanthus, Vanille, Ysop) gab es kein passendes
+-- vorhandenes Motiv — sie haben jetzt ein eigenes.
+-- Stand: 44 von 45 eigenen Oelen mit Bild. Ohne bleibt nur „ZufallOel",
+-- offenkundig ein Testeintrag.
