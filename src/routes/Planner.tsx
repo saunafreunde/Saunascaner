@@ -129,8 +129,9 @@ function banjaDauerFuer(hour: number): number {
 /** Wie viele Stunden-Kacheln belegt sie? Zwei — und danach bleibt die Sauna
  *  eine weitere Stunde zu (Ruhephase, siehe DB-Trigger). */
 const BANJA_RUHE_STUNDEN = 1;
+const RUHE_MS = BANJA_RUHE_STUNDEN * 60 * 60 * 1000;
 const BANJA_ATTR: InfusionAttribute = 'banja';
-const BANJA_TITLE_DEFAULT = '🇷🇺 Traditionelles Banja-Ritual';
+const BANJA_TITLE_DEFAULT = '♨️ Traditionelles Banja-Ritual';
 
 function isBanjaInfusion(inf: { attributes?: string[] | null; duration_minutes?: number } | null | undefined): boolean {
   return !!inf && Array.isArray(inf.attributes) && inf.attributes.includes(BANJA_ATTR);
@@ -142,7 +143,15 @@ type SlotStatus =
   | { kind: 'free' }
   | { kind: 'fallback'; infusion: Infusion }   // Personal-Aufguss → übernehmbar
   | { kind: 'mine'; infusion: Infusion }       // eigener Aufguss
-  | { kind: 'taken'; infusion: Infusion };     // anderer Aufgießer
+  | { kind: 'taken'; infusion: Infusion }      // anderer Aufgießer
+  // Ein laengerer Aufguss laeuft in diese Stunde hinein — betrifft vor allem
+  // das zweistuendige Banja-Ritual. Vorher fehlte dieser Zustand: die Matrix
+  // fragte nur, ob zu GENAU dieser Stunde etwas BEGINNT, und zeigte die
+  // zweite Banja-Stunde faelschlich als frei an.
+  | { kind: 'laeuft'; infusion: Infusion }
+  // Ruhephase nach dem Ritual — die Sauna wird gereinigt und gelueftet.
+  // Serverseitig gesperrt (validate_infusion_banja_and_overlap).
+  | { kind: 'ruhe' };
 
 // 4-Farben-System (User-Entscheidung Mai 2026): Rot / Grün / Orange + Violett für mine.
 // Wird von BEIDEN Slot-Renderern genutzt (SaunaSlotRow Desktop + DaySaunaMatrix Mobile)
@@ -168,6 +177,12 @@ function slotVisualFor(status: SlotStatus, blockedBySecondary: boolean): SlotVis
   }
   if (status.kind === 'fallback') {
     return { bg: 'bg-amber-500/20', text: 'text-amber-100', ring: 'ring-amber-500/40', icon: '👨‍🍳', title: 'Personal-Aufguss übernehmen', disabled: false };
+  }
+  if (status.kind === 'laeuft') {
+    return { bg: 'bg-rose-500/15', text: 'text-rose-100/80', ring: 'ring-rose-500/30', icon: '⏳', title: `Läuft noch — ${status.infusion.title}`, disabled: true };
+  }
+  if (status.kind === 'ruhe') {
+    return { bg: 'bg-sky-500/15', text: 'text-sky-100/80', ring: 'ring-sky-400/30', icon: '🌬️', title: 'Ruhephase — die Sauna wird gereinigt', disabled: true };
   }
   // status.kind === 'free'
   if (blockedBySecondary) {
@@ -547,11 +562,30 @@ export default function Planner() {
     const start = slotToDate(date, hhmm);
     if (isBefore(start, new Date())) return { kind: 'past' };
     const inf = infusionByKey.get(infusionKey(saunaIdLookup, start));
-    if (!inf) return { kind: 'free' };
-    if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
-    if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
-    return { kind: 'taken', infusion: inf };
-  }, [infusionByKey, m?.id]);
+    if (inf) {
+      if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
+      if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
+      return { kind: 'taken', infusion: inf };
+    }
+
+    // Kein Aufguss, der GENAU hier beginnt — aber laeuft einer herein?
+    // Die Map oben ist nach Startzeit indiziert und uebersieht deshalb jede
+    // Stunde, die ein laengerer Aufguss ueberdeckt. Beim zweistuendigen Banja
+    // war dadurch die zweite Stunde als frei markiert, und die Ruhephase
+    // danach ebenfalls — die Sperre existierte nur in der Datenbank und
+    // schlug erst beim Speichern zu.
+    const t = start.getTime();
+    for (const x of infusions) {
+      if (x.sauna_id !== saunaIdLookup) continue;
+      const s0 = new Date(x.start_time).getTime();
+      const e0 = new Date(x.end_time).getTime();
+      if (t > s0 && t < e0) return { kind: 'laeuft', infusion: x };
+      if (x.attributes?.includes(BANJA_ATTR) && t >= e0 && t < e0 + RUHE_MS) {
+        return { kind: 'ruhe' };
+      }
+    }
+    return { kind: 'free' };
+  }, [infusionByKey, infusions, m?.id]);
 
   function getInfusionAt(date: Date, saunaIdLookup: string, hhmm: string): Infusion | undefined {
     return infusionByKey.get(infusionKey(saunaIdLookup, slotToDate(date, hhmm)));
@@ -749,7 +783,7 @@ export default function Planner() {
       const sollDauer = banjaDauerFuer(selectedSlotHour);
       if (duration !== sollDauer) {
         return setFormError(
-          `🇷🇺 Banja um ${String(selectedSlotHour).padStart(2, '0')}:00 Uhr dauert ${sollDauer} Minuten.`,
+          `♨️ Banja um ${String(selectedSlotHour).padStart(2, '0')}:00 Uhr dauert ${sollDauer} Minuten.`,
         );
       }
       // Beide Banja-Slots prüfen: 'free' oder 'fallback' sind OK (Fallback wird
@@ -758,11 +792,11 @@ export default function Planner() {
       // prüft das nochmal im RPC, aber UX-Feedback soll sofort kommen.
       const slot19Status = slotStatusFor(selectedDate, saunaId, '19:00');
       if (slot19Status.kind === 'taken' || slot19Status.kind === 'mine') {
-        return setFormError('🇷🇺 19:00-Slot ist bereits durch einen echten Aufgießer belegt.');
+        return setFormError('♨️ 19:00-Slot ist bereits durch einen echten Aufgießer belegt.');
       }
       const slot20Status = slotStatusFor(selectedDate, saunaId, '20:00');
       if (slot20Status.kind === 'taken' || slot20Status.kind === 'mine') {
-        return setFormError('🇷🇺 20:00-Slot ist bereits durch einen echten Aufgießer belegt.');
+        return setFormError('♨️ 20:00-Slot ist bereits durch einen echten Aufgießer belegt.');
       }
     }
 
@@ -1458,7 +1492,7 @@ export default function Planner() {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="text-3xl flex-shrink-0">🇷🇺</div>
+                        <div className="text-3xl flex-shrink-0">♨️</div>
                         <div className="flex-1 min-w-0">
                           <h3 className={`text-sm font-bold ${canBook ? 'text-rose-100' : 'text-forest-300'}`}>
                             Spezial: Traditionelles Banja-Ritual
@@ -1729,6 +1763,7 @@ export default function Planner() {
                       auswahl={sudAuswahl}
                       onChange={setSudAuswahl}
                       memberId={m?.id ?? ''}
+                      istAdmin={isAdmin}
                       voll={auswahlVoll}
                       vollHinweis={`Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.`}
                     />
@@ -1759,6 +1794,22 @@ export default function Planner() {
                           </span>
                         </span>
                       </button>
+
+                      {/* Raeucherwerk aus demselben gemeinsamen Regal wie die
+                          Sud-Kraeuter — nur nach `art` gefiltert. Erscheint
+                          erst, wenn Raeuchern auch angehakt ist: ohne den
+                          Aufguss waere die Auswahl gegenstandslos. */}
+                      {raeuchernOn && (
+                        <SudPicker
+                          auswahl={sudAuswahl}
+                          onChange={setSudAuswahl}
+                          memberId={m?.id ?? ''}
+                          istAdmin={isAdmin}
+                          art="raeucher"
+                          voll={auswahlVoll}
+                          vollHinweis={`Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.`}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -1839,7 +1890,7 @@ export default function Planner() {
                     {addInf.isPending || takeoverFallback.isPending || bookBanja.isPending
                       ? 'Speichere …'
                       : isBanjaPlanned
-                        ? '🇷🇺 Banja-Ritual buchen'
+                        ? '♨️ Banja-Ritual buchen'
                         : selectedFallbackId
                           ? '🔄 Personal-Aufguss übernehmen'
                           : 'Aufguss eintragen'}
@@ -2165,13 +2216,13 @@ function SaunaSlotRow({
               type="button"
               disabled={v.disabled}
               onClick={() => onPick(hhmm)}
-              title={isBanjaBlock ? `🇷🇺 Banja-Ritual — ${(status as { infusion: Infusion }).infusion.title}` : v.title}
+              title={isBanjaBlock ? `♨️ Banja-Ritual — ${(status as { infusion: Infusion }).infusion.title}` : v.title}
               style={spanCols > 1 ? { gridColumn: `span ${spanCols}` } : undefined}
               className={`relative rounded-lg min-h-[44px] px-2 py-2 text-sm lg:text-xs font-mono tabular-nums ring-1 transition ${bg} ${text} ${ring} ${v.disabled && !isBanjaBlock ? 'cursor-not-allowed opacity-60' : 'hover:brightness-125 active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
             >
               {isBanjaBlock ? (
                 <span className="flex items-center justify-center gap-1.5 font-bold">
-                  <span>🇷🇺</span>
+                  <span>♨️</span>
                   <span className="uppercase tracking-wider text-[10px]">Banja 90 Min</span>
                 </span>
               ) : (
@@ -2287,7 +2338,7 @@ function DaySaunaMatrix({
             ring = 'ring-forest-400 ring-2';
           }
 
-          // Banja-Block: kräftiges Rose-Visual mit Hero-Label "🇷🇺 BANJA 90 Min"
+          // Banja-Block: kräftiges Rose-Visual mit Hero-Label "♨️ BANJA 90 Min"
           if (isBanjaBlock) {
             bg = 'bg-gradient-to-br from-rose-700/40 via-rose-600/30 to-amber-700/30';
             text = 'text-rose-50';
@@ -2300,13 +2351,13 @@ function DaySaunaMatrix({
               type="button"
               disabled={v.disabled}
               onClick={() => onPick(s.id, hhmm)}
-              title={isBanjaBlock ? `🇷🇺 Banja-Ritual — ${(status as { infusion: Infusion }).infusion.title}` : v.title}
+              title={isBanjaBlock ? `♨️ Banja-Ritual — ${(status as { infusion: Infusion }).infusion.title}` : v.title}
               style={spanRows > 1 ? { gridRow: `span ${spanRows}` } : undefined}
               className={`relative rounded-lg min-h-[44px] px-1.5 py-1.5 text-xs font-mono tabular-nums ring-1 transition flex flex-col items-center justify-center gap-0.5 ${bg} ${text} ${ring} ${v.disabled && !isBanjaBlock ? 'cursor-not-allowed opacity-60' : 'active:scale-95'} ${isSelected ? 'font-bold' : ''}`}
             >
               {isBanjaBlock ? (
                 <>
-                  <span className="text-base">🇷🇺</span>
+                  <span className="text-base">♨️</span>
                   <span className="text-[9px] font-black uppercase tracking-wider">Banja</span>
                   <span className="text-[8px] opacity-80">90 Min</span>
                 </>

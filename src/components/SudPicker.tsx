@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSudKraeuter, useSudMixe, useAddSudKraut, useAddSudMix, useDeleteSudEintrag } from '@/lib/api';
-import { sudAttrId, sudMixAttrId, parseSudAttr, parseSudMixAttr } from '@/lib/sud';
+import { sudAttrId, sudMixAttrId, parseSudAttr, parseSudMixAttr, type ZutatArt } from '@/lib/sud';
 import EmojiPicker from '@/components/EmojiPicker';
 
 /** Sudaufguss-Reiter: Kräuter und fertige Mischungen.
@@ -17,7 +17,7 @@ import EmojiPicker from '@/components/EmojiPicker';
 const FARBEN = ['#4d7c0f', '#16a34a', '#0d9488', '#0891b2', '#7c3aed', '#d97706', '#ca8a04', '#78716c'];
 
 export function SudPicker({
-  auswahl, onChange, memberId, voll, vollHinweis,
+  auswahl, onChange, memberId, voll, vollHinweis, art = 'kraut', istAdmin = false,
 }: {
   auswahl: string[];
   onChange: (next: string[]) => void;
@@ -25,7 +25,14 @@ export function SudPicker({
   /** Kontingent der 3–8-Regel erschöpft — Dazuwählen gesperrt, Abwählen nicht. */
   voll: boolean;
   vollHinweis: string;
+  /** 'kraut' = Sud-Zutaten fürs Wasser, 'raeucher' = Räucherwerk für die
+   *  Steine. Beide kommen aus demselben Regal, nur anders gefiltert. */
+  art?: ZutatArt;
+  /** Admins räumen auch fremde Einträge weg — sonst bliebe ein Tippfehler
+   *  von jemandem, der nicht mehr aktiv ist, für immer im Regal stehen. */
+  istAdmin?: boolean;
 }) {
+  const istRaeucher = art === 'raeucher';
   const kraeuterQ = useSudKraeuter();
   const mixeQ = useSudMixe();
   const addKraut = useAddSudKraut();
@@ -41,8 +48,8 @@ export function SudPicker({
   const [mixOffen, setMixOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
 
-  const kraeuter = kraeuterQ.data ?? [];
-  const mixe = mixeQ.data ?? [];
+  const kraeuter = (kraeuterQ.data ?? []).filter((k) => k.art === art);
+  const mixe = istRaeucher ? [] : (mixeQ.data ?? []);
 
   const gewaehlteKraeuter = auswahl.map(parseSudAttr).filter((x): x is string => !!x);
   const gewaehlteMixe = auswahl.map(parseSudMixAttr).filter((x): x is string => !!x);
@@ -58,7 +65,7 @@ export function SudPicker({
     const n = name.trim();
     if (!n) return setFehler('Bitte einen Namen eingeben.');
     try {
-      await addKraut.mutateAsync({ name: n, emoji, color: farbe, created_by: memberId });
+      await addKraut.mutateAsync({ name: n, emoji, color: farbe, art, created_by: memberId });
       setName(''); setEmoji('🌿'); setNeuOffen(false);
     } catch (e) { setFehler((e as Error).message); }
   }
@@ -115,7 +122,7 @@ export function SudPicker({
                   <span aria-hidden>{m.emoji}</span>
                   <span>{m.name}</span>
                   <span className="opacity-60 tabular-nums">{m.kraeuter.length}</span>
-                  {m.created_by === memberId && (
+                  {(m.created_by === memberId || istAdmin) && (
                     <span
                       role="button"
                       tabIndex={0}
@@ -134,7 +141,8 @@ export function SudPicker({
 
       <div>
         <label className="text-xs text-forest-300">
-          Kräuter <span className="text-forest-400/60">— jedes zählt einzeln</span>
+          {istRaeucher ? 'Räucherwerk' : 'Kräuter'}{' '}
+          <span className="text-forest-400/60">— jedes zählt einzeln</span>
         </label>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {kraeuter.map((k) => {
@@ -157,7 +165,7 @@ export function SudPicker({
               >
                 <span aria-hidden>{k.emoji}</span>
                 <span>{k.name}</span>
-                {k.created_by === memberId && (
+                {(k.created_by === memberId || istAdmin) && (
                   <span
                     role="button"
                     tabIndex={0}
@@ -180,9 +188,9 @@ export function SudPicker({
           onClick={() => { setNeuOffen((o) => !o); setMixOffen(false); setFehler(null); }}
           className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900"
         >
-          🌱 Neues Kraut
+          {istRaeucher ? '🕯️ Neues Räucherwerk' : '🌱 Neues Kraut'}
         </button>
-        <button
+        {!istRaeucher && <button
           type="button"
           onClick={() => { setMixOffen((o) => !o); setNeuOffen(false); setFehler(null); }}
           disabled={gewaehlteKraeuter.length < 2}
@@ -190,7 +198,7 @@ export function SudPicker({
           className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900 disabled:opacity-40"
         >
           🧪 Aus {gewaehlteKraeuter.length || '…'} Kräutern eine Mischung machen
-        </button>
+        </button>}
       </div>
 
       {neuOffen && (
@@ -207,7 +215,7 @@ export function SudPicker({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="z.B. Holunderblüte"
+              placeholder={istRaeucher ? 'z.B. Weißer Salbei' : 'z.B. Holunderblüte'}
               className="flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
             />
           </div>
@@ -263,7 +271,9 @@ export function SudPicker({
 
       {(gewaehlteKraeuter.length > 0 || gewaehlteMixe.length > 0) && (
         <p className="text-[11px] text-forest-400/70">
-          Der Aufguss erscheint mit Sud-Bild auf der Tafel.
+          {istRaeucher
+            ? 'Erscheint als Pille auf der Tafel.'
+            : 'Der Aufguss erscheint mit Sud-Bild auf der Tafel.'}
         </p>
       )}
 

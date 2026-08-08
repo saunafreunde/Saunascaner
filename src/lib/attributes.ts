@@ -8,7 +8,7 @@ export type InfusionAttribute =
   | 'kaffee'          // Kaffee-Aufguss
   | 'kirschwasser'    // Kirschwasser
   | 'haferpflaume'    // Haferpflaume
-  | 'banja'           // russische Banja
+  | 'banja'           // traditionelles Dampfritual
   | 'wenik'           // Wenikaufguss (Birkenzweig)
   | 'vulkan'          // Vulkanaufguss
   | 'versucherle'     // es gibt etwas zum Probieren
@@ -73,7 +73,7 @@ export const ATTRIBUTES: {
   { id: 'kaffee',         emoji: '☕', label: 'Kaffee' },
   { id: 'kirschwasser',   emoji: '🍒', label: 'Kirschwasser', hidden: true },
   { id: 'haferpflaume',   emoji: '🟣', label: 'Haferpflaume', hidden: true },
-  { id: 'banja',          emoji: '🇷🇺', label: 'Banja' },
+  { id: 'banja',          emoji: '♨️', label: 'Banja' },
   { id: 'wenik',          emoji: '🍃', label: 'Wenikaufguss' },
   { id: 'vulkan',         emoji: '🌋', label: 'Vulkanaufguss' },
   { id: 'versucherle',    emoji: '🥃', label: 'Versucherle' },

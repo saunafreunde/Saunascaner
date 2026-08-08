@@ -111,7 +111,7 @@ export function EditInfusionModal({
     // Submit. Admin könnte sonst versehentlich Banja-Duration ändern und
     // bekäme cryptische Trigger-Message.
     if (attrs.includes('banja' as InfusionAttribute) && duration !== 90) {
-      setErrorMsg('🇷🇺 Banja-Ritual muss genau 90 Minuten dauern. Entweder Dauer auf 90 setzen oder das Banja-Attribut entfernen.');
+      setErrorMsg('♨️ Banja-Ritual muss genau 90 Minuten dauern. Entweder Dauer auf 90 setzen oder das Banja-Attribut entfernen.');
       return;
     }
     try {

@@ -69,10 +69,10 @@ export const BANJA_ATTR = 'banja';
 export const BANJA_THEME: AufgussTheme = {
   id: BANJA_ATTR,
   name: 'Banja',
-  emoji: '🇷🇺',
+  emoji: '♨️',
   color: '#7a5c3e',
   image: '/banja/banja.webp',
-  badge: '🇷🇺 Banja',
+  badge: '♨️ Banja',
   kategorie: 'Banja-Ritual',
 };
 

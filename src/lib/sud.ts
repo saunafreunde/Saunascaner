@@ -15,11 +15,20 @@
 // (Migration 0124) — gemeinsam für den ganzen Verein, nicht pro Aufgießer:
 // ein Kräutervorrat steht im Regal und gehört nicht einer Person.
 
+/** Eine Zutat aus dem gemeinsamen Regal.
+ *
+ *  `art` unterscheidet, WO sie landet: 'kraut' im Aufgusswasser,
+ *  'raeucher' auf den Steinen. Beide liegen in derselben Tabelle und werden
+ *  im Aufguss gleich referenziert ('sud:<uuid>') — ein zweites Praefix haette
+ *  nichts hinzugefuegt, aber jeden Parser verdoppelt. */
+export type ZutatArt = 'kraut' | 'raeucher';
+
 export interface SudKraut {
   id: string;
   name: string;
   emoji: string;
   color: string;
+  art: ZutatArt;
   created_by: string | null;
 }
 

@@ -701,7 +701,7 @@ export function InfusionCard({
                   {theme ? theme.kategorie : 'Banja-Ritual'}
                 </span>
                 <span style={{ fontSize: '1.22em', letterSpacing: '0.01em' }}>
-                  {theme ? theme.badge : '🇷🇺 90 Min'}
+                  {theme ? theme.badge : '♨️ 90 Min'}
                 </span>
               </span>
             )}

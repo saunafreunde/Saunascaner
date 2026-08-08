@@ -5,7 +5,7 @@
 > **Live unter:** [saunascaner.vercel.app](https://saunascaner.vercel.app)
 > **Stand:** 26.05.2026
 >
-> **Neu seit 22.05.2026**: Mobile-2-Spalten-Planner-Layout · 4-Farben-Slot-System (🔴 belegt · 🟢 frei · 🟠 gesperrt · 🟣 mein Aufguss) · „🔥 Heute geplant"-Hero · 🇷🇺 **Banja-Ritual** (seit 08.08.2026 frei planbar: 2 h in jeder Sauna zu jeder Zeit, 90 Min um 19 Uhr, danach 1 h Ruhephase).
+> **Neu seit 22.05.2026**: Mobile-2-Spalten-Planner-Layout · 4-Farben-Slot-System (🔴 belegt · 🟢 frei · 🟠 gesperrt · 🟣 mein Aufguss) · „🔥 Heute geplant"-Hero · ♨️ **Banja-Ritual** (seit 08.08.2026 frei planbar: 2 h in jeder Sauna zu jeder Zeit, 90 Min um 19 Uhr, danach 1 h Ruhephase).
 >
 > **Schnellzugriff zu Rollen-Handbüchern** (kompakte Anleitungen je Rolle):
 > [👋 Gast](/hilfe#gast) · [🤝 Fan](/hilfe#fan) · [🤝 Unterstützer](/hilfe#unterstuetzer) · [🧖 Aufgießer](/hilfe#aufgieser) · [👨‍🍳 Personal](/hilfe#personal) · [🛠️ CP](/hilfe#cp) · [⚙️ Admin](/hilfe#admin)
@@ -670,7 +670,7 @@ Pro Sauna eine Zeile, pro Stunde eine Zelle. **Neu seit 26.05.2026**: auf dem Sm
 
 Beantwortet sofort die Frage „Was läuft heute?" ohne Wochen-Planner zu scrollen.
 
-### 🇷🇺 Banja-Ritual ⭐ überarbeitet 08.08.2026
+### ♨️ Banja-Ritual ⭐ überarbeitet 08.08.2026
 
 Das **Traditionelle Banja-Ritual** ist ein langes Dampfritual. Seit dem
 08.08.2026 ist es frei planbar — vorher war es fest auf 19:00 Uhr in der
@@ -683,7 +683,7 @@ Das **Traditionelle Banja-Ritual** ist ein langes Dampfritual. Seit dem
 | Sauna | **jede** |
 | Danach | **1 Stunde Ruhe** — die Sauna wird gelüftet und ist nicht buchbar |
 | Wechselsperre | **gilt nicht** — Banja lässt sich immer anlegen, auch wenn die andere Sauna „dran" wäre |
-| Standard-Materialien | Banja-Marker 🇷🇺 + 🍃 Wenik (Birkenreiser) |
+| Standard-Materialien | Banja-Marker ♨️ + 🍃 Wenik (Birkenreiser) |
 
 Ein Ritual belegt also **zwei Aufguss-Kacheln**, und die dritte Stunde bleibt
 als Ruhephase frei.
@@ -695,7 +695,7 @@ als Ruhephase frei.
 3. Optional ergänzen: Weniks, **Sud-Kräuter und Mischungen**, ätherische Öle,
    Räucher-Zutaten, Besonderheiten oder eigene Buttons — für Banja ist alles
    erlaubt
-4. **„🇷🇺 Banja-Ritual buchen"** drücken
+4. **„♨️ Banja-Ritual buchen"** drücken
 
 **Automatische Personal-Aufguss-Übernahme**:
 Standen in den belegten Stunden noch Personal-Aufgüsse (👨‍🍳-Slots), übernimmt
@@ -722,7 +722,7 @@ Ein **echter** Aufgießer in diesen Stunden blockiert dagegen.
 2. **Slot in der Matrix anklicken** (grüne Zellen)
 3. **Titel** eintragen — oder Knopf **„✨ Vorschlagen"** klicken (AI-Titel-Generator mit Claude Haiku 4.5 erzeugt kreative Vorschläge aus Eigenschaften + Ölen; bei Netzwerkfehler fällt das System automatisch auf den regelbasierten Generator zurück)
 4. **Besonderheiten** auswählen (heißen überall so, seit 08.08.2026 auch im Planer):
-   - **Aufguss-Stil:** 🔥 Extra heiß · 💧 Intensiver Sud · 🌿 Natur/Kräuter · ❄️ Menthol · ☕ Kaffee · 🌋 Vulkan · 🍃 Wenik · 🇷🇺 Banja · 🥃 Versucherle · 🧂 Salzpeeling · 🧪 Kräuter-Sud
+   - **Aufguss-Stil:** 🔥 Extra heiß · 💧 Intensiver Sud · 🌿 Natur/Kräuter · ❄️ Menthol · ☕ Kaffee · 🌋 Vulkan · 🍃 Wenik · ♨️ Banja · 🥃 Versucherle · 🧂 Salzpeeling · 🧪 Kräuter-Sud
    - **Musik:** 🎵 Musik · 🔊 Sehr laut · 🔇 Ohne Musik · 🎸 Rock · 🤘 Deutsch-Rock · 🖤 Böhse Onkelz · ⚡ AC/DC · 🎤 Tote Hosen · 🪕 Acoustic · 📻 Oldies 60/70er · 🤠 Country · 🎉 Schlager · 🎻 Klassik · 😌 Entspannt · ⚠️ Kontrovers
    - **Ritual & Format:** 🤫 Psssst → sonst raus · 3️⃣ 3×3 Runden · 🔁 Nachguss
 

@@ -25,7 +25,7 @@ const ATTR_ADJECTIVE: Partial<Record<InfusionAttribute, string[]>> = {
   kaffee:         ['Wacher', 'Aromatischer', 'Espresso-'],
   kirschwasser:   ['Kirschiger', 'Festlicher', 'Süßer'],
   haferpflaume:   ['Fruchtiger', 'Dunkler', 'Pflaumiger'],
-  banja:          ['Russischer', 'Wilder', 'Banja-'],
+  banja:          ['Traditionelles', 'Wildes', 'Dampf-'],
   wenik:          ['Birken-', 'Wedel-', 'Klassischer'],
   vulkan:         ['Eruptiver', 'Vulkanischer', 'Glut-'],
   // Sud-Zutaten
@@ -78,7 +78,7 @@ const ATTR_ONLY_TEMPLATE: Partial<Record<InfusionAttribute, string[]>> = {
   kaffee:         ['☕ Kaffee-Aufguss', '☕ Espresso-Wakeup'],
   kirschwasser:   ['🍒 Kirsch-Aufguss', '🍒 Kirschwasser-Klassik'],
   haferpflaume:   ['🟣 Pflaume-Hafer'],
-  banja:          ['🇷🇺 Banja-Klassiker'],
+  banja:          ['♨️ Banja-Klassiker'],
   wenik:          ['🍃 Wenik-Bad', '🍃 Birken-Wedel'],
   vulkan:         ['🌋 Vulkan-Eruption', '🌋 Lava-Aufguss'],
   // Sud-Zutaten

@@ -1,8 +1,11 @@
 import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import type { Sauna } from '@/types/database';
-import { BANJA_THEME } from '@/lib/aufgussTheme';
 import { fmtClock } from '@/lib/time';
+
+/** Nasses Birkenlaub auf den Bänken — das Bild zeigt den Grund für die
+ *  Pause, statt nur zu behaupten, dass eine ist. */
+const RUHE_BILD = '/banja/ruhephase.webp';
 
 /** Die Stunde nach einem Banja-Ritual.
  *
@@ -37,7 +40,7 @@ export function BanjaRuheTile({
           // Kräftiger Schleier als auf den Aufguss-Karten: hier steht wenig
           // Text, das Motiv darf ruhig zurücktreten und dunkel wirken.
           `linear-gradient(180deg, rgba(12,10,8,0.82) 0%, rgba(12,10,8,0.62) 45%, rgba(12,10,8,0.86) 100%)`,
-          `url(${JSON.stringify(BANJA_THEME.image)})`,
+          `url(${JSON.stringify(RUHE_BILD)})`,
         ].join(', '),
         backgroundSize: 'cover',
         backgroundPosition: 'center',
@@ -52,15 +55,15 @@ export function BanjaRuheTile({
       <div className="relative px-[4cqw] text-center">
         <div
           className="font-black tracking-tight text-white/95"
-          style={{ fontSize: 'clamp(14px, 7cqh, 34px)', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}
+          style={{ fontSize: 'clamp(12px, 5.6cqh, 28px)', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}
         >
-          🌬️ Ruhephase
+          🧹 Erst kehren, dann schwitzen
         </div>
         <div
           className="mt-[1cqh] font-semibold text-white/80"
           style={{ fontSize: 'clamp(10px, 3.6cqh, 18px)', textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}
         >
-          Nach dem Banja-Ritual wird gelüftet
+          Das Birkenlaub muss raus — gleich geht's weiter
         </div>
         <div
           className="mt-[1.4cqh] inline-flex items-center gap-[0.5em] rounded-full px-[1em] py-[0.3em] tabular-nums text-white"

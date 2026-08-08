@@ -3183,7 +3183,7 @@ export function useSudKraeuter() {
     queryFn: async () => {
       const { data, error } = await need()
         .from('sud_kraeuter')
-        .select('id,name,emoji,color,created_by')
+        .select('id,name,emoji,color,art,created_by')
         .order('name');
       if (error) throw error;
       return data as SudKraut[];
@@ -3210,13 +3210,13 @@ export function useSudMixe() {
 export function useAddSudKraut() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (k: { name: string; emoji: string; color: string; created_by: string }) => {
+    mutationFn: async (k: { name: string; emoji: string; color: string; art: 'kraut' | 'raeucher'; created_by: string }) => {
       const { error } = await need().from('sud_kraeuter').insert(k);
       // Der unique-Index auf lower(btrim(name)) verhindert Dubletten. Die
       // Rohmeldung ist für den Aufgießer unbrauchbar, deshalb übersetzt.
       if (error) {
         throw new Error(error.code === '23505'
-          ? `„${k.name}" gibt es schon im Kräuterregal.`
+          ? `„${k.name}" gibt es schon im Regal.`
           : error.message);
       }
     },
