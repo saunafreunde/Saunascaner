@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useBrandSettings, brandAssetUrl } from '@/lib/api';
+import { useCurrentMember, useBrandSettings, brandAssetUrl, publicAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 type Mode = 'signin' | 'signup' | 'bootstrap';
@@ -78,14 +78,33 @@ export default function Login() {
   const logoUrl = brand.data?.logo?.icon
     ? brandAssetUrl(brand.data.logo.icon) ?? '/icons/icon-512.png'
     : '/icons/icon-512.png';
+  // Login-Hintergrund aus dem Branding-Tab. Der Slot war dort seit jeher
+  // aufladbar, wurde aber nirgends gelesen — die Login-Seite bringt ihre
+  // Bergsilhouetten selbst mit und nutzt PageBackground nicht.
+  const loginBgUrl = publicAssetUrl(brand.data?.backgrounds?.login ?? null);
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const shortName = brand.data?.org?.short_name ?? 'Saunafreunde';
   const location = brand.data?.org?.location ?? 'Freudenstadt';
 
   return (
-    <div className="login-stage min-h-full flex flex-col items-center justify-start sm:justify-center px-4 py-6 relative overflow-hidden">
-      {/* Schwarzwald-Hintergrund: gestaffelte Bergsilhouetten + sanfter Verlauf */}
-      <BackgroundLayers />
+    <div
+      className="login-stage min-h-full flex flex-col items-center justify-start sm:justify-center px-4 py-6 relative overflow-hidden"
+      style={loginBgUrl
+        ? {
+            /* Dunkler Verlauf ÜBER dem Foto — die Anmeldekarte und der
+               Vereinsname müssen lesbar bleiben, egal wie hell das Bild ist. */
+            backgroundImage:
+              `linear-gradient(180deg, rgba(2,6,23,0.82) 0%, rgba(5,46,22,0.74) 55%, rgba(2,6,23,0.88) 100%), url(${JSON.stringify(loginBgUrl)})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }
+        : undefined}
+    >
+      {/* Schwarzwald-Hintergrund: gestaffelte Bergsilhouetten + sanfter Verlauf.
+          Nur ohne eigenes Bild — sonst läge die gezeichnete Bergkette über dem
+          Foto und beides wäre unruhig. */}
+      {!loginBgUrl && <BackgroundLayers />}
 
       <div className="relative z-10 w-full max-w-md">
         {/* Hero: Logo + Headline */}

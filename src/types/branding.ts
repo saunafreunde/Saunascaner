@@ -11,11 +11,14 @@ export type OrgInfo = {
   mail_footer: string | null;
 };
 
+/** Nur zwei Varianten. `favicon` und `dark` gab es hier bis 08.08.2026 auch —
+ *  beide wurden von keiner Stelle der App je gelesen (das Favicon kommt
+ *  statisch aus index.html und dem PWA-Manifest). Die Felder sind aus dem Typ
+ *  entfernt, nicht aus der Datenbank: brand_settings ist ein jsonb-Blob, alte
+ *  Werte werden von mergeBrandDefaults einfach ignoriert. */
 export type LogoSet = {
   icon: string | null;
   banner: string | null;
-  favicon: string | null;
-  dark: string | null;
 };
 
 export type PageBackgrounds = {
@@ -30,11 +33,8 @@ export type BadgeAssets = {
   back_bg: string | null;
 };
 
-export type AdSlot = {
-  image_path: string;
-  href: string | null;
-  alt: string | null;
-};
+/* AdSlot (Werbeplätze der TV-Sidebar) ist am 08.08.2026 entfallen — die
+   Sidebar selbst gibt es seit dem Tafel-Umbau nicht mehr, siehe BrandingTab. */
 
 /** Vereins-Foto für die leeren Kacheln der TV-Tafel (Slot-Karussell).
  *  Liegt bewusst hier statt in einer eigenen Tabelle: brand_settings ist ein
@@ -62,7 +62,6 @@ export type BrandSettings = {
   backgrounds: PageBackgrounds;
   tile_bgs: { [saunaId: string]: (string | null)[] };
   badge: BadgeAssets;
-  ads: AdSlot[];
   slot_gallery: GalleryPhoto[];
   slot_cards: SlotCards;
 };
@@ -77,11 +76,10 @@ export function defaultBrandSettings(): BrandSettings {
       contact_email: 'info@sauna-fds.de',
       mail_footer: null,
     },
-    logo: { icon: null, banner: null, favicon: null, dark: null },
+    logo: { icon: null, banner: null },
     backgrounds: { dashboard: null, guest: null, planner: null, login: null },
     tile_bgs: {},
     badge: { front_bg: null, back_bg: null },
-    ads: [],
     slot_gallery: [],
     slot_cards: { reef: false, forest: false },
   };
@@ -93,17 +91,13 @@ export function mergeBrandDefaults(partial: Partial<BrandSettings> | null | unde
   if (!partial) return def;
   return {
     org: { ...def.org, ...(partial.org ?? {}) },
-    logo: { ...def.logo, ...(partial.logo ?? {}) },
+    // logo bewusst FELDWEISE statt per Spread: der Blob in der Datenbank trägt
+    // noch die abgeschafften Keys `favicon` und `dark`. Ein Spread schleppte
+    // sie bei jedem Speichern wieder mit.
+    logo: { icon: partial.logo?.icon ?? def.logo.icon, banner: partial.logo?.banner ?? def.logo.banner },
     backgrounds: { ...def.backgrounds, ...(partial.backgrounds ?? {}) },
     tile_bgs: partial.tile_bgs ?? def.tile_bgs,
     badge: { ...def.badge, ...(partial.badge ?? {}) },
-    ads: Array.isArray(partial.ads)
-      ? partial.ads.map((a) => ({
-          image_path: a.image_path,
-          href: a.href ?? null,
-          alt: a.alt ?? null,
-        }))
-      : def.ads,
     slot_gallery: Array.isArray(partial.slot_gallery)
       ? partial.slot_gallery
           .filter((g) => !!g?.image_path)

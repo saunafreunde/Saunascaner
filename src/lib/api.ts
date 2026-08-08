@@ -3616,7 +3616,11 @@ export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
 }
 
 export async function deleteAsset(path: string): Promise<void> {
-  await need().storage.from('assets').remove([path]);
+  // Storage meldet Fehler im Response-Objekt, nicht per throw. Ohne diese
+  // Prüfung scheiterte ein Löschen lautlos und die Datei blieb als Karteileiche
+  // im Bucket — sichtbar wurde davon nie etwas.
+  const { error } = await need().storage.from('assets').remove([path]);
+  if (error) throw error;
 }
 
 // ─── Calendar-Feed (iCal) + Telegram-Linking (Migration 0038) ───────────

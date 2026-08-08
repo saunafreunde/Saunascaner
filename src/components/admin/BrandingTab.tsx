@@ -2,21 +2,18 @@ import { useEffect, useState } from 'react';
 import {
   useBrandSettings, useUpdateBrandSettings,
   useSaunas, uploadAsset, deleteAsset, publicAssetUrl,
-  useTriggerAppReload,
+  useTriggerAppReload, useScheduleSettings,
 } from '@/lib/api';
 import { defaultBrandSettings, type BrandSettings } from '@/types/branding';
 import type { Sauna } from '@/types/database';
 
 const SLOT_SIZE_HINTS = {
   icon: '256×256 quadratisch — App-Header, Login, Mail, Badge',
-  banner: '16:5 (~1600×500) — optional Dashboard-Banner',
-  favicon: '192×192 quadratisch — PWA-Icon Override',
-  dark: '256×256 quadratisch — optional Dark-Mode-Variante',
+  banner: '16:5 (~1600×500) — Kopf der Rundgang-Seite',
   page: 'Querformat 16:9 — wird mit dunklem Overlay verwendet',
   tile: 'Querformat 16:9 — pro Aufguss-Tile auf der TV-Tafel',
   badge_front: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
   badge_back: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
-  ad: '16:9 — Werbe-Banner in der TV-Sidebar',
   gallery: 'Querformat, gern 3:1 — füllt eine leere Kachel der TV-Tafel',
 };
 
@@ -112,8 +109,6 @@ export function BrandingTab() {
         photos={brand.slot_gallery}
         onChange={(g) => patchAndSave('slot_gallery', g)}
       />
-
-      <AdsSection ads={brand.ads} onChange={(a) => patchAndSave('ads', a)} />
     </div>
   );
 }
@@ -188,9 +183,14 @@ function Field(props: {
 }
 
 // ─── Logo-Set ────────────────────────────────────────────────────────────
+// Nur noch zwei Slots. Favicon und Dark-Variante liessen sich hier zwar
+// hochladen, wurden aber von keiner einzigen Stelle der App gelesen: das
+// Favicon kommt statisch aus index.html + dem PWA-Manifest, eine Dark-Variante
+// gab es nie. Ein Upload-Feld, das nichts bewirkt, ist irrefuehrender als gar
+// keines — deshalb raus (08.08.2026).
 function LogoSection({ logo, onChange }: { logo: BrandSettings['logo']; onChange: (l: BrandSettings['logo']) => void }) {
   return (
-    <Section icon="🖼️" title="Logo-Set" hint="Vier Logo-Varianten für unterschiedliche Kontexte.">
+    <Section icon="🖼️" title="Logo-Set" hint="Das Icon trägt die ganze App. Der Banner ist optional.">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <AssetSlot
           label="Icon"
@@ -209,22 +209,6 @@ function LogoSection({ logo, onChange }: { logo: BrandSettings['logo']; onChange
           folder="logo/banner"
           value={logo.banner}
           onChange={(v) => onChange({ ...logo, banner: v })}
-        />
-        <AssetSlot
-          label="Favicon (optional)"
-          sizeHint={SLOT_SIZE_HINTS.favicon}
-          aspect="aspect-square"
-          folder="logo/favicon"
-          value={logo.favicon}
-          onChange={(v) => onChange({ ...logo, favicon: v })}
-        />
-        <AssetSlot
-          label="Dark-Variante (optional)"
-          sizeHint={SLOT_SIZE_HINTS.dark}
-          aspect="aspect-square"
-          folder="logo/dark"
-          value={logo.dark}
-          onChange={(v) => onChange({ ...logo, dark: v })}
         />
       </div>
     </Section>
@@ -254,7 +238,7 @@ function BackgroundsSection({
         ))}
         <div className="rounded-2xl bg-forest-900/40 ring-1 ring-forest-800/40 p-3 flex flex-col gap-2 justify-center">
           <p className="text-xs text-forest-300/80">Auf alle Seiten kopieren</p>
-          <p className="text-[11px] text-forest-400/70">Nimm Dashboard-Hintergrund und setze ihn auf alle 5 Seiten.</p>
+          <p className="text-[11px] text-forest-400/70">Nimm den Dashboard-Hintergrund und setze ihn auf alle vier Seiten.</p>
           <button
             type="button"
             disabled={!backgrounds.dashboard}
@@ -282,30 +266,50 @@ function TileBgsSection({
   tileBgs: BrandSettings['tile_bgs'];
   onChange: (t: BrandSettings['tile_bgs']) => void;
 }) {
+  // Die Tafel zeigt 3 ODER 4 Kacheln pro Spalte (Admin → Saunen → Wochenplan
+  // & Tafel-Anzeige). Diese Sektion kannte fest nur drei — bei vier Kacheln
+  // blieb die unterste ohne Bild.
+  const sched = useScheduleSettings();
+  const tafelSlots = sched.data?.tiles_per_column ?? 3;
   const activeSaunas = saunas.filter((s) => s.is_active);
+
   const setSlot = (saunaId: string, idx: number, val: string | null) => {
-    const cur = tileBgs[saunaId] ?? [null, null, null];
-    const next: (string | null)[] = [cur[0] ?? null, cur[1] ?? null, cur[2] ?? null];
+    // Bestehendes Array KOPIEREN und bei Bedarf verlaengern. Die alte Fassung
+    // baute es als exakt dreielementig neu auf — ein vierter Eintrag wurde
+    // damit bei jedem Upload einer anderen Kachel stillschweigend geloescht.
+    const next: (string | null)[] = [...(tileBgs[saunaId] ?? [])];
+    while (next.length <= idx) next.push(null);
     next[idx] = val;
     onChange({ ...tileBgs, [saunaId]: next });
   };
+
   return (
-    <Section icon="🪟" title="Tile-Hintergründe" hint="Pro Sauna 3 Hintergrund-Bilder für die einzelnen Aufguss-Tiles auf der TV-Tafel.">
+    <Section
+      icon="🪟"
+      title="Tile-Hintergründe"
+      hint={`Ein Hintergrundbild je Aufguss-Kachel. Die Tafel zeigt derzeit ${tafelSlots} Kacheln pro Spalte — umstellbar unter Saunen → „Wochenplan & Tafel-Anzeige".`}
+    >
       <div className="space-y-5">
         {activeSaunas.map((s) => {
-          const slots = tileBgs[s.id] ?? [null, null, null];
+          const slots = tileBgs[s.id] ?? [];
+          // So viele Slots wie die Tafel zeigt — mindestens aber so viele, wie
+          // schon belegt sind. Sonst waere ein Bild nach dem Zurueckstellen auf
+          // 3 Kacheln unsichtbar UND unloeschbar.
+          const anzahl = Math.max(tafelSlots, slots.length);
           return (
             <div key={s.id} className="rounded-xl bg-forest-900/30 p-3 ring-1 ring-forest-800/40" style={{ borderLeft: `4px solid ${s.accent_color}` }}>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-bold text-forest-100">{s.name}</span>
                 <span className="text-[10px] text-forest-400">{s.temperature_label}</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[0, 1, 2].map((idx) => (
+              <div className={`grid grid-cols-1 gap-3 ${anzahl > 3 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
+                {Array.from({ length: anzahl }, (_, idx) => (
                   <AssetSlot
                     key={idx}
-                    label={`Slot ${idx + 1}`}
-                    sizeHint={SLOT_SIZE_HINTS.tile}
+                    label={idx < tafelSlots ? `Slot ${idx + 1}` : `Slot ${idx + 1} · nicht sichtbar`}
+                    sizeHint={idx < tafelSlots
+                      ? SLOT_SIZE_HINTS.tile
+                      : `Die Tafel zeigt nur ${tafelSlots} Kacheln — dieses Bild bleibt ungenutzt.`}
                     aspect="aspect-video"
                     folder={`tile-bgs/${s.id}`}
                     value={slots[idx] ?? null}
@@ -373,7 +377,7 @@ function GallerySection({
     <Section
       icon="🖼️"
       title="Tafel-Galerie"
-      hint="Eure Vereinsfotos für leere Kacheln der TV-Tafel. Sie wechseln sich dort mit dem Öl-des-Slots und der Riff-Szene ab. Ohne Fotos zeigt die Tafel nur die beiden anderen Karten."
+      hint="Eure Vereinsfotos für leere Kacheln der TV-Tafel. Sie wechseln sich dort mit der Öl-Tafel ab. Die beiden Deko-Szenen (Riff, Schwarzwald-Fenster) stehen standardmäßig aus und lassen sich unter Module → 🎭 Bühne dazuschalten."
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {padded.map((photo, idx) => (
@@ -408,65 +412,16 @@ function GallerySection({
   );
 }
 
-// ─── Ads ─────────────────────────────────────────────────────────────────
-function AdsSection({ ads, onChange }: { ads: BrandSettings['ads']; onChange: (a: BrandSettings['ads']) => void }) {
-  // TV-Tafel zeigt 3 Werbeplätze pro AdSidebar (Dashboard.tsx AdSidebar slice(0,3)).
-  const slots = 3;
-  const padded: (BrandSettings['ads'][number] | null)[] = Array.from({ length: slots }, (_, i) => ads[i] ?? null);
-
-  const setSlot = (idx: number, val: BrandSettings['ads'][number] | null) => {
-    const next: (BrandSettings['ads'][number] | null)[] = [...padded];
-    next[idx] = val;
-    // Kompaktieren: nulls am Ende abschneiden
-    const compact = next.filter((a): a is BrandSettings['ads'][number] => a !== null);
-    onChange(compact);
-  };
-
-  return (
-    <Section icon="📺" title="Werbung Tafel" hint="Wird in der TV-Sidebar angezeigt (wenn ≤ 2 Saunen aktiv). Optional mit Klick-URL und Alt-Text.">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {padded.map((ad, idx) => (
-          <div key={idx} className="rounded-2xl bg-forest-900/40 ring-1 ring-forest-800/40 p-3 space-y-2">
-            <p className="text-[11px] uppercase tracking-wider text-forest-300 font-semibold">Slot {idx + 1}</p>
-            <AssetSlot
-              label=""
-              sizeHint={SLOT_SIZE_HINTS.ad}
-              aspect="aspect-video"
-              folder="ads"
-              value={ad?.image_path ?? null}
-              onChange={(v) => {
-                if (v === null) setSlot(idx, null);
-                else setSlot(idx, { image_path: v, href: ad?.href ?? null, alt: ad?.alt ?? null });
-              }}
-            />
-            {ad?.image_path && (
-              <>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-forest-300 font-semibold">Klick-URL (optional)</label>
-                  <input
-                    value={ad.href ?? ''}
-                    onChange={(e) => setSlot(idx, { ...ad, href: e.target.value || null })}
-                    placeholder="https://…"
-                    className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-xs text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-forest-300 font-semibold">Alt-Text</label>
-                  <input
-                    value={ad.alt ?? ''}
-                    onChange={(e) => setSlot(idx, { ...ad, alt: e.target.value || null })}
-                    placeholder="z.B. „Sponsor XYZ"
-                    className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-xs text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
+// ─── Werbung Tafel: entfernt (08.08.2026) ────────────────────────────────
+// Die AdSidebar ist beim Tafel-Umbau aus dem Dashboard geflogen — die
+// Sauna-Spalten nutzen die Breite jetzt vollstaendig (siehe Dashboard.tsx).
+// Die drei Upload-Slots blieben stehen und speicherten brav weiter in
+// brand_settings.ads, angezeigt hat sie danach nichts mehr, und der Hinweis
+// versprach unverdrossen „Wird in der TV-Sidebar angezeigt".
+//
+// Falls Werbeplaetze zurueckkommen sollen: nicht als Sidebar, sondern als
+// weitere Karte im Karussell leerer Kacheln (src/components/emptytile/) —
+// dort ist Platz, der ohnehin nur Deko traegt.
 
 // ─── Wiederverwendbare Asset-Upload-Karte ────────────────────────────────
 function AssetSlot({
@@ -503,16 +458,27 @@ function AssetSlot({
   async function handleRemove() {
     if (!value) return;
     if (!confirm('Wirklich entfernen?')) return;
-    try { await deleteAsset(value); } catch { /* ignore */ }
+    // Der Eintrag verschwindet AUCH dann, wenn die Datei im Speicher nicht
+    // gelöscht werden konnte — angezeigt wird nur, was hier steht. Der Fehler
+    // wird aber sichtbar gemacht statt geschluckt.
+    setErr(null);
+    try { await deleteAsset(value); }
+    catch (e) { setErr('Bild entfernt, Datei blieb im Speicher: ' + (e as Error).message); }
     onChange(null);
   }
 
   return (
     <div className="space-y-1.5">
-      {label && (
-        <div className="flex items-baseline justify-between gap-2">
+      {/* Kopfzeile IMMER rendern, sobald es etwas zu beschriften oder zu
+          entfernen gibt. Vorher hing die ganze Zeile an `label` — und weil
+          Tafel-Galerie und Werbung ihre Überschrift schon darüber stehen
+          haben, riefen sie mit label="" auf. Damit fiel der Entfernen-Link
+          stillschweigend mit weg: elf Bild-Slots liessen sich nur noch
+          ueberschreiben, nicht loeschen. */}
+      {(label || value) && (
+        <div className="flex items-baseline justify-between gap-2 min-h-[1.25rem]">
           <label className="text-xs font-semibold text-forest-100">
-            {label}{required && <span className="text-rose-400 ml-0.5">*</span>}
+            {label}{label && required && <span className="text-rose-400 ml-0.5">*</span>}
           </label>
           {value && (
             <button onClick={handleRemove} className="text-[10px] text-rose-300 hover:text-rose-200 underline">
