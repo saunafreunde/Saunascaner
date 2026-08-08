@@ -15,6 +15,7 @@ import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
 import { SudPicker } from '@/components/SudPicker';
 import { stripSudAttrs, sudFromAttributes, sudAttrId, sudMixAttrId } from '@/lib/sud';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
+import { zutatenAus } from '@/lib/titelZutaten';
 import { lookupMemberName } from '@/lib/memberDisplay';
 import { berlinYmd } from '@/lib/time';
 import AchievementToast from '@/components/AchievementToast';
@@ -43,7 +44,7 @@ import {
   useCoAufgieser, useJoinTeamInfusion, useLeaveTeamInfusion,
   useMeisterDirectory,
   useMyPolls, useSubmitPollResponse, useUpdateEntryCode, checkEntryCodeAvailable,
-  useMyCustomAttrs,
+  useMyCustomAttrs, useMyCustomOils, useSudKraeuter, useSudMixe,
   useRatableInfusions, type RatableInfusion,
   togglePresenceByCode, type MyPoll,
   sendBroadcastPush,
@@ -283,6 +284,11 @@ export default function Planner() {
   const customAttrsQ = useMyCustomAttrs(isAufgieser ? m?.id : undefined);
   const ratableQ = useRatableInfusions(m?.is_present ? m?.id : undefined);
   const customAttrs = customAttrsQ.data ?? [];
+  // Nur fuer den Titel-Vorschlag: eigene Oele und das Kraeuterregal, um
+  // UUIDs in lesbare Namen aufzuloesen (siehe lib/titelZutaten.ts).
+  const myOilsQ = useMyCustomOils(m?.id ?? null);
+  const sudKraeuterQ = useSudKraeuter();
+  const sudMixeQ = useSudMixe();
   const [showAttrCreator, setShowAttrCreator] = useState(false);
   const [customAttrIds, setCustomAttrIds] = useState<string[]>([]);
 
@@ -1598,8 +1604,24 @@ export default function Planner() {
                 </div>
                 {titlePickerOpen && (
                   <TitleSuggestionPicker
-                    attributes={attrs}
-                    oils={oils.filter((o): o is string => !!o)}
+                    /* ALLES mitgeben, nicht nur Standard-Besonderheiten und
+                       Oele: vorher fehlten eigene Buttons, eigene Oele, der
+                       Schnaps, der Sud und das Raeucherwerk komplett — ein
+                       Kirschwasser-Aufguss mit Rosmarin-Sud erzeugte denselben
+                       Titel wie ein leerer. */
+                    zutaten={zutatenAus({
+                      attrs,
+                      customAttrIds,
+                      oils,
+                      schnaps,
+                      sudAuswahl,
+                      customAttrs,
+                      customOils: myOilsQ.data ?? [],
+                      sudKraeuter: sudKraeuterQ.data ?? [],
+                      sudMixe: sudMixeQ.data ?? [],
+                      sauna: saunas.find((x) => x.id === saunaId) ?? null,
+                      zeitpunkt: slotToDate(selectedDate, slot),
+                    })}
                     onPick={(t) => { setTitle(t); setTitlePickerOpen(false); }}
                     onClose={() => setTitlePickerOpen(false)}
                   />

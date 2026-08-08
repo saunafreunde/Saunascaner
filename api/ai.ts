@@ -76,15 +76,59 @@ const STYLES: { id: string; description: string }[] = [
   },
 ];
 
+// Was der Aufruf mitschickt. Bewusst KLARTEXT statt IDs: 'flame' oder
+// 'custom:9f3e...' sagt einem Sprachmodell nichts, "Extra heiss" und
+// "Blaue Kamille" sehr wohl. Aufgeloest wird im Frontend
+// (src/lib/titelZutaten.ts), weil nur dort die Nachschlagewerke liegen.
+type Zutaten = {
+  besonderheiten?: string[];
+  oele?: string[];
+  schnaps?: string | null;
+  sud?: string[];
+  raeucherwerk?: string[];
+  sauna?: string;
+  temperatur?: string;
+  uhrzeit?: string;
+  jahreszeit?: string;
+};
+
+/** Beschreibung des Aufgusses fuer den Prompt. Leere Felder fallen raus —
+ *  eine Zeile "Sud: —" verleitet das Modell dazu, sich etwas auszudenken. */
+function zutatenText(z: Zutaten): string {
+  const zeilen: string[] = [];
+  const liste = (label: string, werte?: string[] | null) => {
+    if (Array.isArray(werte) && werte.length > 0) zeilen.push(label + ': ' + werte.join(', '));
+  };
+  if (z.schnaps) zeilen.push('Schnaps-Sorte (praegt den Aufguss): ' + z.schnaps);
+  liste('Aetherische Oele', z.oele);
+  liste('Sud-Kraeuter und Mischungen', z.sud);
+  liste('Raeucherwerk', z.raeucherwerk);
+  liste('Besonderheiten', z.besonderheiten);
+  const kontext: string[] = [];
+  if (z.sauna) kontext.push(z.temperatur ? z.sauna + ' (' + z.temperatur + ')' : z.sauna);
+  if (z.uhrzeit) kontext.push(z.uhrzeit + ' Uhr');
+  if (z.jahreszeit) kontext.push(z.jahreszeit);
+  if (kontext.length > 0) zeilen.push('Rahmen: ' + kontext.join(' - '));
+  return zeilen.join('
+');
+}
+
 async function suggestTitle(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
   const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) ?? {};
-  const attributes: string[] = Array.isArray(body.attributes) ? body.attributes : [];
-  const oils: string[] = Array.isArray(body.oils) ? body.oils : [];
 
-  // Wenn beide Listen leer → Standard-Vorschläge
-  if (attributes.length === 0 && oils.length === 0) {
+  // Neues Format bevorzugt; die alten Felder bleiben lesbar, damit ein Client
+  // mit altem Bundle (Service Worker!) nicht ins Leere laeuft.
+  const z: Zutaten = (body.zutaten && typeof body.zutaten === 'object')
+    ? body.zutaten
+    : {
+        besonderheiten: Array.isArray(body.attributes) ? body.attributes : [],
+        oele: Array.isArray(body.oils) ? body.oils : [],
+      };
+  const beschreibung = zutatenText(z);
+
+  if (beschreibung.length === 0) {
     return res.status(200).json({
       titles: [
         '🌿 Klassischer Aufguss',
@@ -108,7 +152,11 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
     system:
       'Du bist Aufguss-Meister im Saunaverein „Saunafreunde Schwarzwald". ' +
       'Erstelle GENAU 5 sehr unterschiedliche kreative deutsche Titel-Vorschläge ' +
-      'für einen Sauna-Aufguss, basierend auf Eigenschaften und Ölen. Jeder Vorschlag ' +
+      'für einen Sauna-Aufguss. Du bekommst alles, was ihn ausmacht: Öle, ' +
+      'Sud-Kräuter, Räucherwerk, eine mögliche Schnaps-Sorte, die Besonderheiten ' +
+      'sowie Sauna, Uhrzeit und Jahreszeit. Nutze davon das, was am stärksten ' +
+      'prägt — nicht alles muss vorkommen, aber der Titel soll erkennbar zu ' +
+      'DIESEM Aufguss gehören und nicht zu jedem beliebigen. Jeder Vorschlag ' +
       'hat einen ANDEREN Stil-Charakter (siehe Liste). Vermeide Wiederholungen — ' +
       'die fünf Titel sollen sich klar voneinander unterscheiden, andere Wortwahl, ' +
       'andere Stimmung. Gerne mit passenden Emojis am Anfang (oder ohne).\n\n' +
@@ -119,9 +167,14 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       'Keine Erklärung, keine Markdown-Codeblöcke, kein Text außerhalb des Arrays.',
     messages: [{
       role: 'user',
-      content:
-        `Eigenschaften: ${attributes.join(', ') || '—'}\n` +
-        `Öle: ${oils.join(', ') || '—'}`,
+      content: beschreibung
+        // Ein Zufallswert pro Aufruf, damit "Neu wuerfeln" auch bei
+        // identischer Auswahl andere Titel bringt — ohne den liefert das
+        // Modell bei gleicher Eingabe sehr aehnliche Ergebnisse.
+        + '
+
+(Variation ' + String(body.variation ?? Date.now()).slice(-5)
+        + ' — bitte andere Bilder als beim letzten Mal.)',
     }],
   });
 

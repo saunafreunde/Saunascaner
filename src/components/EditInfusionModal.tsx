@@ -6,10 +6,11 @@ import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
 import { SudPicker } from '@/components/SudPicker';
 import { stripSudAttrs, sudFromAttributes, sudAttrId, sudMixAttrId } from '@/lib/sud';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
+import { zutatenAus } from '@/lib/titelZutaten';
 import {
   useUpdateInfusion,
   useCurrentMember, useMeisterDirectory, useCoAufgieser, useAdminSetCoAufgieser,
-  useMyCustomAttrs,
+  useMyCustomAttrs, useMyCustomOils, useSudKraeuter, useSudMixe, useSaunas,
 } from '@/lib/api';
 import { isAdmin as isAdminHelper } from '@/lib/roles';
 import OilPicker from '@/components/OilPicker';
@@ -80,6 +81,11 @@ export function EditInfusionModal({
   // auf me.data?.id für Neu-Anlagen ohne saunameister_id.
   const ownerMemberId = infusion.saunameister_id ?? me.data?.id;
   const myCustomAttrs = useMyCustomAttrs(ownerMemberId);
+  // Nachschlagewerke fuer den Titel-Vorschlag: UUIDs zu Namen aufloesen.
+  const myOilsQ = useMyCustomOils(ownerMemberId ?? null);
+  const sudKraeuterQ = useSudKraeuter();
+  const sudMixeQ = useSudMixe();
+  const saunasQ = useSaunas();
 
   // Saunameister-Auswahl (nur Admin sieht das Dropdown im UI)
   const [saunameisterId, setSaunameisterId] = useState<string>(infusion.saunameister_id ?? '');
@@ -208,8 +214,20 @@ export function EditInfusionModal({
             </div>
             {titlePickerOpen && (
               <TitleSuggestionPicker
-                attributes={attrs}
-                oils={oils.filter((o): o is string => !!o)}
+                /* Wie im Planer: alles mitgeben, was den Aufguss ausmacht. */
+                zutaten={zutatenAus({
+                  attrs,
+                  customAttrIds,
+                  oils,
+                  schnaps,
+                  sudAuswahl,
+                  customAttrs: myCustomAttrs.data ?? [],
+                  customOils: myOilsQ.data ?? [],
+                  sudKraeuter: sudKraeuterQ.data ?? [],
+                  sudMixe: sudMixeQ.data ?? [],
+                  sauna: (saunasQ.data ?? []).find((x) => x.id === infusion.sauna_id) ?? null,
+                  zeitpunkt: new Date(infusion.start_time),
+                })}
                 onPick={(t) => { setTitle(t); setTitlePickerOpen(false); }}
                 onClose={() => setTitlePickerOpen(false)}
               />

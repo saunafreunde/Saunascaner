@@ -8,6 +8,7 @@
 
 import { ATTR_BY_ID, type InfusionAttribute } from './attributes';
 import { OIL_BY_ID, type OilCategory } from './oils';
+import type { TitelZutaten } from './titelZutaten';
 
 // Adjektive pro Attribut. Der Generator pickt eines per Seed.
 // Partial: nicht jedes Attribut MUSS ein eigenes Mapping haben — neue
@@ -43,6 +44,18 @@ const ATTR_ADJECTIVE: Partial<Record<InfusionAttribute, string[]>> = {
   malle_schlager: ['Malle-', 'Sonniger', 'Strand-'],
   klassik_musik:  ['Klassischer', 'Konzertanter', 'Edler'],
   kontrovers:     ['Wilder', 'Kontroverser', 'Pikanter'],
+  // Nachgetragen 09.08.2026: diese zehn hatten kein Mapping und bekamen
+  // stumpf „Besonderer". Betraf ausgerechnet alle zuletzt ergaenzten.
+  acoustic:       ['Handgemachter', 'Leiser', 'Unplugged-'],
+  oldies:         ['Nostalgischer', 'Goldener', 'Vinyl-'],
+  country:        ['Staubiger', 'Weiter', 'Prärie-'],
+  acdc:           ['Elektrischer', 'Donnernder', 'Hochspannungs-'],
+  tote_hosen:     ['Rotziger', 'Ehrlicher', 'Düsseldorfer'],
+  entspannt:      ['Entspannter', 'Gelassener', 'Weicher'],
+  versucherle:    ['Verkosteter', 'Neugieriger', 'Probier-'],
+  silent_strict:  ['Andächtiger', 'Schweigender', 'Stiller'],
+  three_x_three:  ['Dreifacher', 'Gestaffelter', 'Drei-Runden-'],
+  nachguss:       ['Nachgelegter', 'Zweiter', 'Zugaben-'],
 };
 
 // Default-Adjektive wenn ein Attribut noch kein eigenes Mapping hat.
@@ -96,6 +109,16 @@ const ATTR_ONLY_TEMPLATE: Partial<Record<InfusionAttribute, string[]>> = {
   malle_schlager: ['🏖️ Malle-Bad', '🏖️ Strand-Schlager'],
   klassik_musik:  ['🎻 Klassik-Stunde', '🎻 Konzertanter Aufguss'],
   kontrovers:     ['⚠️ Kontroverser Aufguss', '⚠️ Wilde Stunde'],
+  acoustic:       ['🪕 Unplugged-Session', '🪕 Handgemacht & heiß'],
+  oldies:         ['📻 Oldie-Stunde', '📻 Goldene Ära'],
+  country:        ['🤠 Prärie-Aufguss', '🤠 Whiskey & Dampf'],
+  acdc:           ['⚡ Highway to Sweat', '⚡ Hochspannung'],
+  tote_hosen:     ['🎤 Hosen-Session', '🎤 Rotzig & heiß'],
+  entspannt:      ['😌 Ruhepol', '😌 Entspannte Runde'],
+  versucherle:    ['🥃 Versucherle-Runde', '🥃 Zum Probieren'],
+  silent_strict:  ['🤫 Andacht', '🤫 Stille Stunde'],
+  three_x_three:  ['3️⃣ Drei mal drei', '3️⃣ Dreifach-Runde'],
+  nachguss:       ['🔁 Der Nachguss', '🔁 Zugabe'],
 };
 
 function pickRandom<T>(arr: T[], seed: number): T {
@@ -299,26 +322,52 @@ function shift(seed: number, salt: number): number {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Helfer: zieht passendes Öl/Attribut als "Hauptbestandteil" für die Titel.
+// Kontext für die Stil-Bausteine.
+//
+// Vorher stand hier eine Struktur, die zwar alle Öle und Attribute sammelte —
+// aber KEIN Baustein hat die Listen je gelesen. Alle fünf griffen nur auf das
+// ERSTE Öl und die ERSTE Besonderheit zu. Bei drei Ölen und fünf
+// Besonderheiten flossen also zwei von acht Angaben ein, der Rest war
+// wirkungslos. Genau das war der Grund für die beliebig wirkenden Titel.
+//
+// Jetzt trägt der Kontext echte Klartext-Zutaten (siehe lib/titelZutaten.ts)
+// und die Bausteine nutzen sie.
+
 type GenContext = {
-  oils: { id: string; name: string; emoji: string; category: OilCategory }[];
-  attrs: InfusionAttribute[];
-  /** Erstes Öl (für Stile die ein Öl nennen). */
-  oilName: string | null;
-  /** Erstes Attribut-Label (für Stile die eine Eigenschaft nennen). */
+  /** Der Kopf des Aufgusses: Schnaps schlägt Mischung schlägt Öl. */
+  held: string | null;
+  /** Zweiter Bestandteil für Titel, die zwei Namen tragen können. */
+  zweiter: string | null;
+  /** Alle Zutaten-Namen zusammen — für Stile, die frei greifen. */
+  alleZutaten: string[];
+  /** Erste Besonderheit als Klartext. */
   attrLabel: string | null;
+  jahreszeit: string | null;
+  temperatur: string | null;
 };
 
-function buildContext(attributes: string[], oils: string[]): GenContext {
-  const validOils = oils
-    .filter((o) => OIL_BY_ID[o])
-    .map((o) => ({ id: o, name: OIL_BY_ID[o].name, emoji: OIL_BY_ID[o].emoji, category: OIL_BY_ID[o].category }));
-  const validAttrs = attributes.filter((a) => (ATTR_BY_ID as Record<string, unknown>)[a]) as InfusionAttribute[];
+/** Saisonale Wörter — greifen nur, wenn eine Jahreszeit mitgegeben wurde. */
+const SAISON_WORT: Record<string, string[]> = {
+  Advent: ['Advents-', 'Zimt-', 'Kerzen-', 'Winterlicher'],
+  Winter: ['Frost-', 'Winterlicher', 'Eis-', 'Schnee-'],
+  'Frühling': ['Frühlings-', 'Knospen-', 'Erwachender', 'Grüner'],
+  Sommer: ['Sommer-', 'Sonnen-', 'Hochsommerlicher', 'Heißer'],
+  Herbst: ['Herbst-', 'Nebel-', 'Goldener', 'Laub-'],
+};
+
+function buildContext(z: TitelZutaten): GenContext {
+  // Rangfolge des „Helden": der Schnaps prägt die Karte am stärksten, dann
+  // eine benannte Sud-Mischung, dann das erste Öl. Wer nur Räucherwerk
+  // gewählt hat, bekommt das.
+  const held = z.schnaps ?? z.sud[0] ?? z.oele[0] ?? z.raeucherwerk[0] ?? null;
+  const alle = [...(z.schnaps ? [z.schnaps] : []), ...z.oele, ...z.sud, ...z.raeucherwerk];
   return {
-    oils: validOils,
-    attrs: validAttrs,
-    oilName: validOils[0]?.name ?? null,
-    attrLabel: validAttrs[0] ? ATTR_BY_ID[validAttrs[0]].label : null,
+    held,
+    zweiter: alle.find((x) => x !== held) ?? null,
+    alleZutaten: alle,
+    attrLabel: z.besonderheiten[0] ?? null,
+    jahreszeit: z.jahreszeit ?? null,
+    temperatur: z.temperatur ?? null,
   };
 }
 
@@ -327,76 +376,66 @@ function buildContext(attributes: string[], oils: string[]): GenContext {
 
 function buildPoetisch(ctx: GenContext, seed: number): string {
   const prefix = pick(POETISCH.prefix, seed);
-  const adj = pick(POETISCH.adjektiv, shift(seed, 1));
+  const saison = ctx.jahreszeit ? SAISON_WORT[ctx.jahreszeit] : undefined;
+  // Die Jahreszeit ersetzt gelegentlich das Adjektiv — nicht immer, sonst
+  // klingt im Dezember jeder Titel gleich.
+  const adj = saison && Math.abs(shift(seed, 9)) % 3 === 0
+    ? pick(saison, shift(seed, 10))
+    : capitalize(pick(POETISCH.adjektiv, shift(seed, 1)));
   const sub = pick(POETISCH.substantiv, shift(seed, 2));
-  if (ctx.oilName) {
-    const part = pick(['des ' + ctx.oilName + 's', 'aus ' + ctx.oilName, 'vom ' + ctx.oilName], shift(seed, 3));
-    return `${prefix} ${capitalize(adj)} ${sub} ${part}`;
+  if (ctx.held) {
+    const part = pick([`des ${ctx.held}s`, `aus ${ctx.held}`, `vom ${ctx.held}`], shift(seed, 3));
+    return `${prefix} ${adj} ${sub} ${part}`;
   }
   const von = pick(POETISCH.von_im, shift(seed, 3));
   const ort = pick(POETISCH.ort, shift(seed, 4));
-  return `${prefix} ${capitalize(adj)} ${sub} ${von} ${ort}`;
+  return `${prefix} ${adj} ${sub} ${von} ${ort}`;
 }
 
 function buildKurz(ctx: GenContext, seed: number): string {
-  // 1-2 Wörter, prägnant
-  if (ctx.oilName) {
-    // Variante A: Öl + suffix
-    const suf = pick(KURZ.suffix, seed);
-    return `${ctx.oilName}${suf}`;
+  // Zwei Zutaten ergeben den praegnantesten Kurztitel — vorher wurde immer
+  // nur die erste genommen.
+  if (ctx.held && ctx.zweiter && Math.abs(shift(seed, 6)) % 2 === 0) {
+    return `${ctx.held} & ${ctx.zweiter}`;
   }
-  if (ctx.attrLabel) {
-    const suf = pick(KURZ.suffix, seed);
-    return `${ctx.attrLabel}${suf}`;
-  }
-  const a = pick(KURZ.basis, seed);
-  const b = pick(KURZ.suffix, shift(seed, 1));
-  return `${a}${b}`;
+  if (ctx.held) return `${ctx.held}${pick(KURZ.suffix, seed)}`;
+  if (ctx.attrLabel) return `${ctx.attrLabel}${pick(KURZ.suffix, seed)}`;
+  return `${pick(KURZ.basis, seed)}${pick(KURZ.suffix, shift(seed, 1))}`;
 }
 
 function buildMystisch(ctx: GenContext, seed: number): string {
   const prefix = pick(MYSTISCH.prefix, seed);
   const wesen = pick(MYSTISCH.wesen, shift(seed, 1));
   const verb = pick(MYSTISCH.verb, shift(seed, 2));
-  if (ctx.oilName) {
-    return `${prefix} ${wesen} ${verb} ${ctx.oilName}`;
-  }
-  const erg = pick(MYSTISCH.ergaenzung, shift(seed, 3));
-  return `${prefix} ${wesen} ${verb} ${erg}`;
+  if (ctx.held) return `${prefix} ${wesen} ${verb} ${ctx.held}`;
+  return `${prefix} ${wesen} ${verb} ${pick(MYSTISCH.ergaenzung, shift(seed, 3))}`;
 }
 
 function buildSinnlich(ctx: GenContext, seed: number): string {
   const prefix = pick(SINNLICH.prefix, seed);
   const adj = pick(SINNLICH.adjektiv, shift(seed, 1));
   const sub = pick(SINNLICH.substantiv, shift(seed, 2));
-  if (ctx.oilName) {
-    return `${prefix} ${adj} ${sub} mit ${ctx.oilName}`;
-  }
-  const mod = pick(SINNLICH.modifier, shift(seed, 3));
-  return `${prefix} ${adj} ${sub} ${mod}`;
+  if (ctx.held && ctx.zweiter) return `${prefix} ${adj} ${sub}: ${ctx.held} & ${ctx.zweiter}`;
+  if (ctx.held) return `${prefix} ${adj} ${sub} mit ${ctx.held}`;
+  return `${prefix} ${adj} ${sub} ${pick(SINNLICH.modifier, shift(seed, 3))}`;
 }
 
 function buildFrech(ctx: GenContext, seed: number): string {
   const prefix = pick(FRECH.prefix, seed);
-  const variant = Math.abs(shift(seed, 1)) % 3;
-  if (variant === 0) {
-    // "Operation Schwitzwurst!"
-    const intro = pick(FRECH.intro, shift(seed, 2));
-    const thema = pick(FRECH.thema, shift(seed, 3));
-    const zus = pick(FRECH.zusatz, shift(seed, 4));
-    return `${prefix} ${intro} ${thema}${zus}`;
-  }
-  if (variant === 1 && ctx.oilName) {
-    return `${prefix} ${ctx.oilName} knockt dich um`;
-  }
+  const variant = Math.abs(shift(seed, 1)) % 4;
+  if (variant === 1 && ctx.held) return `${prefix} ${ctx.held} knockt dich um`;
   if (variant === 2 && ctx.attrLabel) {
     const adj = pick(['extra', 'ultra', 'mega', 'voll', 'richtig'], shift(seed, 5));
     return `${prefix} ${capitalize(adj)} ${ctx.attrLabel}!`;
   }
-  // Fallback
+  // Neu: die Temperatur mitnehmen, wenn sie bekannt ist.
+  if (variant === 3 && ctx.temperatur && ctx.held) {
+    return `${prefix} ${ctx.held} bei ${ctx.temperatur}`;
+  }
   const intro = pick(FRECH.intro, shift(seed, 2));
   const thema = pick(FRECH.thema, shift(seed, 3));
-  return `${prefix} ${intro} ${thema}`;
+  const zus = pick(FRECH.zusatz, shift(seed, 4));
+  return `${prefix} ${intro} ${thema}${zus}`;
 }
 
 function capitalize(s: string): string {
@@ -406,23 +445,19 @@ function capitalize(s: string): string {
 const STYLE_ORDER: TitleStyleId[] = ['poetisch', 'kurz', 'mystisch', 'sinnlich', 'frech'];
 
 /**
- * Generiert genau 5 Titel-Vorschläge in 5 unterschiedlichen Stilen.
+ * Fünf Titel-Vorschläge in fünf Stilen — rein regelbasiert.
  *
- * Reine Funktion — keine Network-Calls, keine API-Keys, instant.
- * Bei gleichem seed identischer Output (für Determinismus in Tests).
- * "🎲 Neu würfeln" im UI: einfach mit neuem Date.now()-Seed aufrufen.
- *
- * @returns Array von 5 StyledTitle in fester Reihenfolge:
- *   [poetisch, kurz, mystisch, sinnlich, frech]
+ * Dient seit 09.08.2026 als FALLBACK hinter dem KI-Vorschlag (api/ai.ts):
+ * ohne Netz, ohne Schlüssel, ohne Wartezeit liefert er trotzdem etwas
+ * Brauchbares. Bei gleichem seed identischer Output.
  */
 export function generateInfusionTitles(
-  attributes: string[],
-  oils: string[],
+  zutaten: TitelZutaten,
   seed: number = Date.now(),
 ): StyledTitle[] {
-  const ctx = buildContext(attributes, oils);
+  const ctx = buildContext(zutaten);
   return STYLE_ORDER.map((style, i): StyledTitle => {
-    const subSeed = shift(seed, i * 7919); // jeder Stil eigener Seed-Salt
+    const subSeed = shift(seed, i * 7919);
     let title: string;
     switch (style) {
       case 'poetisch': title = buildPoetisch(ctx, subSeed); break;

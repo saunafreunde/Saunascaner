@@ -1,23 +1,24 @@
 // Picker für 5 Aufguss-Titel-Vorschläge in unterschiedlichen Stilen.
 //
-// User-Wunsch 30.05.2026: vorher Anthropic-API-Call (Claude Haiku),
-// jetzt 100 % regelbasiert via generateInfusionTitles().
-// Vorteile gegenüber AI:
-//   - 0 API-Kosten, kein Vercel-Env nötig
-//   - Instant (kein Network-Call → ~0 ms)
-//   - Funktioniert offline (Auch auf der Sauna-Tafel oder im Vereinsraum
-//     wenn das WLAN gerade muckt)
-//   - Keine Rate-Limits
-//   - 100 % vorhersagbar (für Tests)
+// ── Zwei Wege, einer davon immer verfügbar ──
+// 1. KI (api/ai.ts, Claude Haiku): bekommt ALLE Zutaten im Klartext plus
+//    Sauna, Uhrzeit und Jahreszeit. Liefert Titel, die den Aufguss wirklich
+//    treffen.
+// 2. Regeln (lib/titleGenerator.ts): ohne Netz, ohne Schlüssel, ohne
+//    Wartezeit. Greift, wenn der Aufruf scheitert — etwa weil
+//    ANTHROPIC_API_KEY in Vercel fehlt oder das WLAN im Vereinsraum muckt.
 //
-// Stile: 🌿 Poetisch · ⚡ Kurz · 🔮 Mystisch · 🌹 Sinnlich · 😉 Frech
+// Der Fallback ist kein Notnagel, sondern der Normalfall, solange kein
+// Schlüssel hinterlegt ist. Deshalb wird er sofort angezeigt und erst
+// überschrieben, wenn die KI antwortet — niemand wartet auf einen leeren
+// Dialog.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { generateInfusionTitles, type StyledTitle } from '@/lib/titleGenerator';
+import { zutatenLeer, type TitelZutaten } from '@/lib/titelZutaten';
 
 interface Props {
-  attributes: string[];
-  oils: string[];
+  zutaten: TitelZutaten;
   onPick: (title: string) => void;
   onClose: () => void;
 }
@@ -30,12 +31,57 @@ const STYLE_LABEL: Record<StyledTitle['style'], string> = {
   frech:    '😉 Frech',
 };
 
-export function TitleSuggestionPicker({ attributes, oils, onPick, onClose }: Props) {
+export function TitleSuggestionPicker({ zutaten, onPick, onClose }: Props) {
   const [seed, setSeed] = useState(() => Date.now());
-  // Re-Generate bei seed-Wechsel (auch initial)
-  const titles = generateInfusionTitles(attributes, oils, seed);
+  const regelTitel = generateInfusionTitles(zutaten, seed);
 
-  // ESC zum Schließen
+  // Stabiler Schluessel statt der Objekt-Referenz: `zutaten` wird vom
+  // Aufrufer bei JEDEM Render neu gebaut (zutatenAus(...)). Als
+  // Effect-Abhaengigkeit haette das bei jedem Elternrender einen neuen
+  // KI-Aufruf ausgeloest — der Planer rendert sekuendlich.
+  const zutatenKey = useMemo(() => JSON.stringify(zutaten), [zutaten]);
+
+  const [kiTitel, setKiTitel] = useState<string[] | null>(null);
+  const [laedt, setLaedt] = useState(false);
+  const [kiFehler, setKiFehler] = useState<string | null>(null);
+
+  // KI bei jedem Öffnen und jedem Würfeln anfragen. Abbruch über AbortController,
+  // damit ein spätes Ergebnis nicht einen neueren Wurf überschreibt.
+  useEffect(() => {
+    if (zutatenLeer(zutaten)) { setKiTitel(null); return; }
+    const ctrl = new AbortController();
+    setLaedt(true);
+    setKiFehler(null);
+    fetch('/api/ai?action=suggest-title', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zutaten, variation: seed }),
+      signal: ctrl.signal,
+    })
+      .then(async (r) => {
+        const daten = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(daten?.error ?? `HTTP ${r.status}`);
+        const t = Array.isArray(daten?.titles) ? daten.titles.filter((x: unknown) => typeof x === 'string') : [];
+        if (t.length === 0) throw new Error('keine Vorschläge erhalten');
+        setKiTitel(t);
+      })
+      .catch((e) => {
+        if ((e as Error).name === 'AbortError') return;
+        setKiTitel(null);
+        setKiFehler((e as Error).message);
+      })
+      .finally(() => { if (!ctrl.signal.aborted) setLaedt(false); });
+    return () => ctrl.abort();
+    // zutaten bewusst NICHT in der Liste — der Schluessel vertritt es.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zutatenKey, seed]);
+
+  // Anzeige: KI wenn da, sonst Regeln. Die Stil-Etiketten bleiben dieselben —
+  // die KI liefert ihre fünf in derselben Reihenfolge.
+  const anzeige: StyledTitle[] = kiTitel
+    ? kiTitel.slice(0, 5).map((t, i) => ({ style: regelTitel[i]?.style ?? 'kurz', title: t }))
+    : regelTitel;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -57,7 +103,9 @@ export function TitleSuggestionPicker({ attributes, oils, onPick, onClose }: Pro
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-base font-semibold text-forest-100">✨ Titel-Vorschläge</h3>
-            <p className="text-[11px] text-forest-400 mt-0.5">5 Stile zur Auswahl — Tap zum Übernehmen</p>
+            <p className="text-[11px] text-forest-400 mt-0.5">
+              {laedt ? 'KI denkt nach…' : kiTitel ? '✨ von der KI · Tap zum Übernehmen' : '5 Stile zur Auswahl — Tap zum Übernehmen'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -68,10 +116,10 @@ export function TitleSuggestionPicker({ attributes, oils, onPick, onClose }: Pro
           </button>
         </div>
 
-        <div className="space-y-2">
-          {titles.map(({ style, title }) => (
+        <div className={`space-y-2 transition-opacity ${laedt ? 'opacity-60' : ''}`}>
+          {anzeige.map(({ style, title }, i) => (
             <button
-              key={style}
+              key={`${style}-${i}`}
               type="button"
               onClick={() => onPick(title)}
               className="group w-full rounded-xl bg-forest-900/60 ring-1 ring-forest-800/50 px-3 py-2.5 text-left hover:bg-forest-800/80 hover:ring-amber-500/60 transition active:scale-[0.98]"
@@ -87,6 +135,15 @@ export function TitleSuggestionPicker({ attributes, oils, onPick, onClose }: Pro
             </button>
           ))}
         </div>
+
+        {/* Der Fehler wird genannt, aber nicht dramatisiert: die Liste oben ist
+            trotzdem brauchbar. Nur wer wissen will, warum kein ✨ dasteht,
+            liest hier weiter. */}
+        {kiFehler && !laedt && (
+          <p className="mt-2 text-[10px] text-forest-500 leading-snug">
+            KI nicht erreichbar ({kiFehler}) — die Vorschläge oben kommen aus den Wortregeln.
+          </p>
+        )}
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <button
