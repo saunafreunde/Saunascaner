@@ -6,7 +6,7 @@
 // Bewusst KEIN AI/LLM-Call — instant, deterministisch, kostenlos,
 // funktioniert offline. Reicht für Sauna-Aufguss-Titel allemal.
 
-import { ATTR_BY_ID, type InfusionAttribute } from './attributes';
+import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from './attributes';
 import { OIL_BY_ID, type OilCategory } from './oils';
 import type { TitelZutaten } from './titelZutaten';
 
@@ -207,25 +207,36 @@ export type StyledTitle = { style: TitleStyleId; title: string };
 // beim "🎲 Neu würfeln". Stil-Charakter bleibt klar erhalten.
 const POETISCH = {
   prefix: ['🌿', '🍃', '✨', '🌙', '☀️', '🌅', '🌳', '🌾', '💫', '🪶', '🦋', '🌸'],
+  // STAMM ohne Endung — die haengt vom Geschlecht des Substantivs ab.
   adjektiv: [
-    'flüsternder', 'goldener', 'tanzender', 'duftender', 'leiser', 'dampfender',
-    'sanfter', 'kühler', 'warmer', 'wilder', 'zitternder', 'frischer',
-    'glühender', 'ruhiger', 'weicher', 'samtener', 'milder', 'glänzender',
-    'leuchtender', 'träumender', 'schimmernder', 'atmender', 'sonniger', 'silberner',
+    'flüstern', 'golden', 'tanzend', 'duftend', 'leis', 'dampfend',
+    'sanft', 'kühl', 'warm', 'wild', 'zitternd', 'frisch',
+    'glühend', 'ruhig', 'weich', 'samten', 'mild', 'glänzend',
+    'leuchtend', 'träumend', 'schimmernd', 'atmend', 'sonnig', 'silbern',
   ],
+  // Mit Geschlecht, weil das Adjektiv sich danach richtet: „Donnernder Strom",
+  // aber „Donnernde Welle" und „Donnerndes Lied". Vorher wurde stumpf die
+  // maskuline Endung angehaengt — bei jedem dritten Substantiv falsch.
   substantiv: [
-    'Hauch', 'Tanz', 'Atem', 'Schimmer', 'Klang', 'Schleier',
-    'Flügel', 'Wiege', 'Gruß', 'Bogen', 'Kuss', 'Strom',
-    'Welle', 'Reigen', 'Funke', 'Lied', 'Märchen', 'Spiegel',
-    'Glanz', 'Mantel', 'Wirbel', 'Hauch',
-  ],
-  von_im: ['des', 'der', 'aus dem', 'im', 'vom', 'auf dem', 'am', 'beim', 'aus'],
-  ort: [
-    'Waldes', 'Schwarzwalds', 'Morgens', 'Abends', 'Sommers', 'Himmels',
-    'Birkenhains', 'Sonnentals', 'Nordwinds', 'Kräutergartens',
-    'Bachs', 'Frühlings', 'Mondes', 'Sterns', 'Tannenwalds',
-    'Bergstroms', 'Lichts', 'Aufgangs', 'Lagerfeuers', 'Quellbachs',
-    'Bergsees', 'Heidekrauts', 'Nebels', 'Tals',
+    { w: 'Hauch', g: 'm' }, { w: 'Tanz', g: 'm' }, { w: 'Atem', g: 'm' },
+    { w: 'Schimmer', g: 'm' }, { w: 'Klang', g: 'm' }, { w: 'Schleier', g: 'm' },
+    { w: 'Flügel', g: 'm' }, { w: 'Gruß', g: 'm' }, { w: 'Bogen', g: 'm' },
+    { w: 'Kuss', g: 'm' }, { w: 'Strom', g: 'm' }, { w: 'Reigen', g: 'm' },
+    { w: 'Funke', g: 'm' }, { w: 'Spiegel', g: 'm' }, { w: 'Glanz', g: 'm' },
+    { w: 'Mantel', g: 'm' }, { w: 'Wirbel', g: 'm' },
+    { w: 'Wiege', g: 'f' }, { w: 'Welle', g: 'f' }, { w: 'Stille', g: 'f' },
+    { w: 'Lied', g: 'n' }, { w: 'Märchen', g: 'n' }, { w: 'Leuchten', g: 'n' },
+  ] as { w: string; g: 'm' | 'f' | 'n' }[],
+  // Praeposition und Ort als PAAR. Frei kombiniert entstand Unsinn wie
+  // „vom Himmels" — der Genitiv passt zu „des", nicht zu „vom".
+  ortsangabe: [
+    'des Waldes', 'des Schwarzwalds', 'des Morgens', 'des Abends',
+    'des Sommers', 'des Himmels', 'des Birkenhains', 'des Nordwinds',
+    'des Kräutergartens', 'des Mondes', 'des Tannenwalds', 'des Lichts',
+    'im Nebel', 'im Tal', 'im Bergsee', 'im Heidekraut',
+    'am Quellbach', 'am Lagerfeuer', 'am Bergstrom', 'am Sonnental',
+    'aus dem Frühling', 'aus dem Schwarzwald', 'vom Sternenhimmel',
+    'vom Aufgang', 'beim Lagerfeuer',
   ],
 };
 
@@ -342,6 +353,8 @@ type GenContext = {
   alleZutaten: string[];
   /** Erste Besonderheit als Klartext. */
   attrLabel: string | null;
+  /** Passende Adjektive zur ersten Besonderheit, falls es welche gibt. */
+  attrAdjektive: string[];
   jahreszeit: string | null;
   temperatur: string | null;
 };
@@ -366,6 +379,14 @@ function buildContext(z: TitelZutaten): GenContext {
     zweiter: alle.find((x) => x !== held) ?? null,
     alleZutaten: alle,
     attrLabel: z.besonderheiten[0] ?? null,
+    // Rueckweg vom Klartext zur ID: die Wortbaenke haengen an den IDs, die
+    // Zutaten tragen aber Labels. Der Fund ist eindeutig, Labels sind es.
+    attrAdjektive: (() => {
+      const label = z.besonderheiten[0];
+      if (!label) return [];
+      const treffer = ATTRIBUTES.find((a) => a.label === label);
+      return treffer ? (ATTR_ADJECTIVE[treffer.id] ?? []) : [];
+    })(),
     jahreszeit: z.jahreszeit ?? null,
     temperatur: z.temperatur ?? null,
   };
@@ -374,33 +395,66 @@ function buildContext(z: TitelZutaten): GenContext {
 // ──────────────────────────────────────────────────────────────────────
 // Stil-Builder — jeder returnt EINEN Titel passend zum Stil
 
+/** Haengt die passende Endung an: „golden" + Welle -> „goldene Welle".
+ *  Adjektive, die auf einen Bindestrich enden („Hochspannungs-"), bleiben
+ *  unveraendert und werden ohne Leerzeichen angeklebt. */
+function flektiert(stamm: string, genus: 'm' | 'f' | 'n'): string {
+  if (stamm.endsWith('-')) return stamm;
+  const endung = genus === 'm' ? 'er' : genus === 'f' ? 'e' : 'es';
+  return capitalize(stamm + endung);
+}
+
 function buildPoetisch(ctx: GenContext, seed: number): string {
   const prefix = pick(POETISCH.prefix, seed);
   const saison = ctx.jahreszeit ? SAISON_WORT[ctx.jahreszeit] : undefined;
+  // Hat die gewaehlte Besonderheit ein eigenes Adjektiv, geht das vor: bei
+  // AC/DC soll „Elektrischer" stehen, nicht ein beliebiges „Heisser".
+  const eigenes = ctx.attrAdjektive.length > 0
+    ? pick(ctx.attrAdjektive, shift(seed, 11))
+    : null;
   // Die Jahreszeit ersetzt gelegentlich das Adjektiv — nicht immer, sonst
   // klingt im Dezember jeder Titel gleich.
-  const adj = saison && Math.abs(shift(seed, 9)) % 3 === 0
-    ? pick(saison, shift(seed, 10))
-    : capitalize(pick(POETISCH.adjektiv, shift(seed, 1)));
+  const fertig = eigenes && Math.abs(shift(seed, 12)) % 2 === 0
+    ? eigenes
+    : saison && Math.abs(shift(seed, 9)) % 3 === 0
+      ? pick(saison, shift(seed, 10))
+      : null;
   const sub = pick(POETISCH.substantiv, shift(seed, 2));
+  // Fertige Adjektive kommen unveraendert durch, Staemme werden flektiert.
+  const wort = fertig ?? flektiert(pick(POETISCH.adjektiv, shift(seed, 1)), sub.g);
+  // Ein Adjektiv mit Bindestrich klebt direkt am Substantiv („Zimt-Strom"),
+  // ein normales bekommt ein Leerzeichen („Goldener Strom").
+  const kopf = wort.endsWith('-') ? `${wort}${sub.w}` : `${wort} ${sub.w}`;
   if (ctx.held) {
-    const part = pick([`des ${ctx.held}s`, `aus ${ctx.held}`, `vom ${ctx.held}`], shift(seed, 3));
-    return `${prefix} ${adj} ${sub} ${part}`;
+    // „des Kirschwassers" nur bei Woertern, die den Genitiv vertragen —
+    // sonst „aus"/"mit", das passt immer.
+    const part = pick([`aus ${ctx.held}`, `mit ${ctx.held}`, `vom ${ctx.held}`], shift(seed, 3));
+    return `${prefix} ${kopf} ${part}`;
   }
-  const von = pick(POETISCH.von_im, shift(seed, 3));
-  const ort = pick(POETISCH.ort, shift(seed, 4));
-  return `${prefix} ${adj} ${sub} ${von} ${ort}`;
+  return `${prefix} ${kopf} ${pick(POETISCH.ortsangabe, shift(seed, 4))}`;
 }
 
 function buildKurz(ctx: GenContext, seed: number): string {
-  // Zwei Zutaten ergeben den praegnantesten Kurztitel — vorher wurde immer
-  // nur die erste genommen.
-  if (ctx.held && ctx.zweiter && Math.abs(shift(seed, 6)) % 2 === 0) {
-    return `${ctx.held} & ${ctx.zweiter}`;
+  // Vorher kamen auf 200 Wuerfe nur 10 verschiedene Titel: es gab genau zwei
+  // Formen, und eine davon („A & B") hatte gar keine Variation. Jetzt fuenf
+  // Formen, und die Basiswoerter mischen mit.
+  const form = Math.abs(shift(seed, 6)) % 5;
+  const suf = pick(KURZ.suffix, seed);
+  const basis = pick(KURZ.basis, shift(seed, 8));
+  if (ctx.held && ctx.zweiter) {
+    if (form === 0) return `${ctx.held} & ${ctx.zweiter}`;
+    if (form === 1) return `${ctx.held}${suf}`;
+    if (form === 2) return `${basis} & ${ctx.held}`;
+    if (form === 3) return `${ctx.held} trifft ${ctx.zweiter}`;
+    return `${ctx.zweiter}${suf}`;
   }
-  if (ctx.held) return `${ctx.held}${pick(KURZ.suffix, seed)}`;
-  if (ctx.attrLabel) return `${ctx.attrLabel}${pick(KURZ.suffix, seed)}`;
-  return `${pick(KURZ.basis, seed)}${pick(KURZ.suffix, shift(seed, 1))}`;
+  if (ctx.held) {
+    if (form === 0) return `${ctx.held}${suf}`;
+    if (form === 1) return `${basis} & ${ctx.held}`;
+    return `${ctx.held} ${basis}`;
+  }
+  if (ctx.attrLabel) return `${ctx.attrLabel}${suf}`;
+  return `${basis}${suf}`;
 }
 
 function buildMystisch(ctx: GenContext, seed: number): string {
@@ -422,7 +476,15 @@ function buildSinnlich(ctx: GenContext, seed: number): string {
 
 function buildFrech(ctx: GenContext, seed: number): string {
   const prefix = pick(FRECH.prefix, seed);
-  const variant = Math.abs(shift(seed, 1)) % 4;
+  // Vorher fiel dieser Stil fast immer auf den Schluss-Fallback zurueck: die
+  // Zweige verlangten eine Zutat ODER eine Besonderheit, und wenn der
+  // gewuerfelte Zweig gerade das forderte, was fehlte, blieb nur der Rest.
+  // Jetzt wird zuerst gesammelt, was ueberhaupt moeglich ist, und daraus
+  // gewaehlt — so kommt die Zutat vor, sooft es geht.
+  const moeglich: number[] = [0];
+  if (ctx.held) { moeglich.push(1); if (ctx.temperatur) moeglich.push(3); }
+  if (ctx.attrLabel) moeglich.push(2);
+  const variant = pick(moeglich, shift(seed, 1));
   if (variant === 1 && ctx.held) return `${prefix} ${ctx.held} knockt dich um`;
   if (variant === 2 && ctx.attrLabel) {
     const adj = pick(['extra', 'ultra', 'mega', 'voll', 'richtig'], shift(seed, 5));
