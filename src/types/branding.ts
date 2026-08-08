@@ -1,3 +1,5 @@
+import { infoKartenAus, type InfoKarte } from '@/types/infokarten';
+
 // Zentrale Vereins-Identität — wird aus system_config.brand_settings gelesen.
 // Single source of truth für Logo-Set, Vereinsdaten, Mail-Footer-Texte und
 // alle visuellen Assets (Seiten-Hintergründe, Tile-Backgrounds, Badge, Ads).
@@ -143,6 +145,11 @@ export type BrandSettings = {
   slot_gallery: GalleryPhoto[];
   slot_cards: SlotCards;
   tafel_finish: TafelFinish;
+  /** Frei gestaltete Info-Karten für die Tafel (siehe types/infokarten.ts).
+   *  Liegen hier und nicht unter einem eigenen system_config-Key, weil die
+   *  Lese-Policy die erlaubten Keys einzeln aufzählt — ein neuer Key wäre für
+   *  die anonyme Tafel unsichtbar. */
+  info_karten: InfoKarte[];
 };
 
 export function defaultBrandSettings(): BrandSettings {
@@ -162,6 +169,7 @@ export function defaultBrandSettings(): BrandSettings {
     slot_gallery: [],
     slot_cards: { reef: false, forest: false },
     tafel_finish: { ...FINISH_DEFAULT },
+    info_karten: [],
   };
 }
 
@@ -192,6 +200,7 @@ export function mergeBrandDefaults(partial: Partial<BrandSettings> | null | unde
       : def.slot_gallery,
     slot_cards: { ...def.slot_cards, ...(partial.slot_cards ?? {}) },
     tafel_finish: finishAus(partial.tafel_finish),
+    info_karten: infoKartenAus(partial.info_karten),
   };
 }
 

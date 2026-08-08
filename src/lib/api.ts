@@ -3629,6 +3629,38 @@ export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
   return path;
 }
 
+/** Video für eine Info-Karte. Bewusst getrennt von uploadAsset:
+ *
+ *  Videos dürfen NICHT durch compressImage laufen (das würde einen Canvas auf
+ *  eine Videodatei loslassen), und sie brauchen ein hartes Größenlimit. Die
+ *  Tafel läuft 24/7 auf einem TV-Stick — ein großes Video in Dauerschleife ist
+ *  das Teuerste, was dort laufen kann. 20 MB reichen für die paar Sekunden,
+ *  um die es hier geht, und halten den Speicher im Rahmen.
+ */
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm'];
+const VIDEO_MAX_BYTES = 20 * 1024 * 1024;
+
+export async function uploadVideo(file: File, folder = 'info-karten'): Promise<string> {
+  if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
+    throw new Error(`Ungültiges Videoformat: ${file.type || 'unbekannt'}. Erlaubt: MP4 und WebM.`);
+  }
+  if (file.size > VIDEO_MAX_BYTES) {
+    throw new Error(
+      `Video ist ${(file.size / 1024 / 1024).toFixed(1)} MB groß — erlaubt sind 20 MB. `
+      + 'Kürze es oder exportiere es kleiner.',
+    );
+  }
+  const ext = file.type === 'video/webm' ? 'webm' : 'mp4';
+  const path = `${folder}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await need().storage.from('assets').upload(path, file, {
+    cacheControl: '86400',
+    upsert: false,
+    contentType: file.type,
+  });
+  if (error) throw error;
+  return path;
+}
+
 export async function deleteAsset(path: string): Promise<void> {
   // Storage meldet Fehler im Response-Objekt, nicht per throw. Ohne diese
   // Prüfung scheiterte ein Löschen lautlos und die Datei blieb als Karteileiche

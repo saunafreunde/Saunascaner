@@ -6,6 +6,7 @@ import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 // PageBackground bewusst nicht mehr genutzt — Tafel hat eigenes Hell-Theme
 // statt der dunklen forest-Hintergründe.
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
+import { InfoEinblendung } from '@/components/infokarte/InfoEinblendung';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useSaunas,
@@ -300,6 +301,11 @@ export default function Dashboard() {
       <main className="flex-1 min-h-0 w-full px-4 py-4 flex gap-4">
         {renderMain()}
       </main>
+
+      {/* Als „wichtig" markierte Info-Karten, periodisch groß über der Tafel.
+          Muss sein, weil eine Info-Karte im Karussell nur in LEEREN Kacheln
+          erscheint — an vollen Tagen gäbe es keine. */}
+      <InfoEinblendung now={now} />
 
       {/* Connection-Indicator als Floating-Pixel rechts unten */}
       <div className="fixed bottom-2 right-3 z-40 pointer-events-none">

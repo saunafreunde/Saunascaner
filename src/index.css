@@ -1557,3 +1557,17 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   .np-sommer-kern { opacity: 0.66; }
   .np-sommer-flimmer { opacity: 0.1; transform: translate3d(0, -0.6em, 0); }
 }
+
+/* --- Info-Einblendung ------------------------------------- */
+/* Weiches Auftauchen, damit die Ansage nicht ins Bild springt. Pure-CSS,
+   nur opacity/transform — die Tafel laeuft 24/7. Das Ausblenden passiert per
+   Unmount und braucht keine eigene Animation: der dunkle Untergrund
+   verschwindet mit, das liest sich als Schnitt und nicht als Ruckler. */
+@keyframes info-auf {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.info-einblendung { animation: info-auf 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .info-einblendung { animation: none; }
+}

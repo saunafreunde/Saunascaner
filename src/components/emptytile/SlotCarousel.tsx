@@ -3,6 +3,8 @@ import { ReefScene } from '@/components/ReefScene';
 import { OilCard, useSlotOil } from '@/components/emptytile/OilCard';
 import { GalleryCard } from '@/components/emptytile/GalleryCard';
 import { ForestWindow } from '@/components/emptytile/ForestWindow';
+import { InfoKarteView } from '@/components/infokarte/InfoKarteView';
+import { karteLaeuft } from '@/types/infokarten';
 
 /** Karussell für leere Tafel-Kacheln.
  *
@@ -27,7 +29,7 @@ import { ForestWindow } from '@/components/emptytile/ForestWindow';
  *  etwa alle 7 s irgendwo auf der Tafel etwas. */
 const CARD_MS = 20_000;
 
-export type SlotCardId = 'reef' | 'forest' | 'oil' | 'gallery';
+export type SlotCardId = 'reef' | 'forest' | 'oil' | 'gallery' | 'info';
 
 type Props = {
   now: Date;
@@ -71,12 +73,21 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
     ? gallery[(((tick + kachelNr) % gallery.length) + gallery.length) % gallery.length]
     : null;
 
+  // Info-Karten mit gültigem Zeitfenster. Laufen mehrere, wechseln sie sich
+  // ab — wie die Fotos, nur eigener Topf, damit eine Ansage nicht mit den
+  // Vereinsfotos um denselben Platz konkurriert.
+  const infos = (brand.data?.info_karten ?? []).filter((k) => karteLaeuft(k, now));
+  const info = infos.length > 0
+    ? infos[(((tick + kachelNr) % infos.length) + infos.length) % infos.length]
+    : null;
+
   // Nur Karten in den Pool, die auch wirklich etwas anzeigen können:
   // ohne Fotos keine Galerie, ohne freigeschaltete Öle keine Öl-Karte.
   // Riff und Schwarzwald-Fenster sind reine Deko und stehen per Default AUS —
   // sie passten nicht mehr zum Rest der Tafel. Im Admin unter „🎭 Bühne"
   // lassen sie sich jederzeit wieder dazuschalten.
   const pool: SlotCardId[] = [];
+  if (info) pool.push('info');
   if (oil) pool.push('oil');
   if (photo) pool.push('gallery');
   if (cards?.reef) pool.push('reef');
@@ -106,6 +117,7 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
       {card === 'forest' && <ForestWindow />}
       {card === 'oil' && oil && <OilCard oil={oil} now={now} />}
       {card === 'gallery' && photo && <GalleryCard photo={photo} />}
+      {card === 'info' && info && <InfoKarteView karte={info} now={now} />}
     </div>
   );
 }

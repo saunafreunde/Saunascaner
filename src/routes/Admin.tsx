@@ -16,6 +16,7 @@ import { BrandingTab } from '@/components/admin/BrandingTab';
 import { HandbookTab } from '@/components/admin/HandbookTab';
 import { PasswortUmstellungTab } from '@/components/admin/PasswortUmstellungTab';
 import { StageAdminTab } from '@/components/admin/StageAdminTab';
+import { InfoKartenTab } from '@/components/admin/InfoKartenTab';
 import { SharedEmailAccountsTab } from '@/components/admin/SharedEmailAccountsTab';
 import { ColorsAdminTab } from '@/components/admin/ColorsAdminTab';
 import { OilsAdminTab } from '@/components/admin/OilsAdminTab';
@@ -46,7 +47,7 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock, berlinYmd } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'uebersichten' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays' | 'pw_setup';
+type Tab = 'saunas' | 'members' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'uebersichten' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays' | 'pw_setup' | 'infokarten';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:       { label: 'Saunen',       icon: '🔥' },
@@ -65,6 +66,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
   tasks:        { label: 'Aufgaben',     icon: '🤝' },
   feed:         { label: 'Feed',         icon: '📸' },
   news:         { label: 'News',         icon: '📣' },
+  infokarten:   { label: 'Tafel-Infos',  icon: '📢' },
   aroma:        { label: 'Aroma',        icon: '🌿' },
   stage:        { label: 'Bühne',        icon: '🎭' },
   shared_email: { label: 'Vereins-Postfach', icon: '📧' },
@@ -84,7 +86,7 @@ const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = 
   operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring', 'availability'] },
   members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'invitations', 'shared_email', 'pw_setup'] },
   reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen', 'uebersichten', 'activity'] },
-  modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'aroma', 'feed', 'polls', 'tasks', 'stage'] },
+  modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'infokarten', 'aroma', 'feed', 'polls', 'tasks', 'stage'] },
   setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'colors', 'oils', 'oil_weighing', 'wifi', 'holidays', 'handbook'] },
 };
 
@@ -245,6 +247,7 @@ export default function Admin() {
         {tab === 'aroma' && <AromaRecipesAdminTab />}
         {tab === 'activity' && <ActivityLogTab />}
         {tab === 'stage' && <StageAdminTab />}
+        {tab === 'infokarten' && <InfoKartenTab />}
         {tab === 'shared_email' && <SharedEmailAccountsTab />}
         {tab === 'pw_setup' && <PasswortUmstellungTab />}
         {tab === 'colors' && <ColorsAdminTab />}
