@@ -1,0 +1,27 @@
+-- 0129_custom_oil_bilder_zuordnung.sql — angewendet 08.08.2026.
+-- Reine DATEN-Zuordnung (kein Schema): bildlose eigene Oele bekommen ein
+-- vorhandenes Motiv. Es geht um das BILD, nicht um botanische Gleichsetzung —
+-- „Manuka" ist nicht der Teebaum, aber ein Zweig mit schmalen Myrtenblaettern
+-- sieht aus wie der andere. Wo die Verwandtschaft nicht traegt, bleibt das Oel
+-- bewusst ohne Bild: ein falsches Motiv ist schlechter als keines.
+--
+-- Zugeordnet ueber den NAMEN, nicht die UUID: „Blaue Kamille" liegt dreimal,
+-- von drei Personen unabhaengig angelegt, und soll dreimal dasselbe zeigen.
+--
+--   identisch zum Standard-Oel   Zirbelkiefer (2 Schreibweisen), Heublume, Patchouli
+--   gleiche Pflanzengruppe       Weisskiefer→Kiefer, Schwarzfichte→Fichte,
+--                                Wacholderbeere→Wacholder, Zimtrinde→Cassia,
+--                                Ravintsara→Kampfer, Manuka→Teebaum,
+--                                Lemon Myrte→Zitronen-Teebaum,
+--                                Zitronenverbene/Eisenkraut→Melisse,
+--                                Rosenholz→Amyris, Neroli→Bitterorange,
+--                                Francipani/Cananga/Ylang Ylang→Gardenia-Mix
+--   Zitrus-Sammelmotiv           Yuzu, Zitrone/Basilikum, Zitrusreise
+--   eigenes neues Motiv          Kamillensud→Roemische Kamille
+--   Schnaps-Fruchtbild           Kirschwasser, Mirabellen Schnaps (als Oel
+--                                angelegt; falsch einsortiert, aber mit Bild
+--                                besser dran als ohne)
+--
+-- Stand danach: 36 von 45 eigenen Oelen haben ein Motiv. Die restlichen neun
+-- (Rose, Lorbeer, Koriander, Kakao, Muskatbluete, Osmanthus, Vanille, Ysop,
+-- ZufallOel) sind hoechstens 1x benutzt worden — dafuer lohnt kein Bild.
