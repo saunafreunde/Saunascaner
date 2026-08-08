@@ -109,8 +109,7 @@ function zutatenText(z: Zutaten): string {
   if (z.uhrzeit) kontext.push(z.uhrzeit + ' Uhr');
   if (z.jahreszeit) kontext.push(z.jahreszeit);
   if (kontext.length > 0) zeilen.push('Rahmen: ' + kontext.join(' - '));
-  return zeilen.join('
-');
+  return zeilen.join('\n');
 }
 
 async function suggestTitle(req: VercelRequest, res: VercelResponse) {
@@ -171,9 +170,7 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
         // Ein Zufallswert pro Aufruf, damit "Neu wuerfeln" auch bei
         // identischer Auswahl andere Titel bringt — ohne den liefert das
         // Modell bei gleicher Eingabe sehr aehnliche Ergebnisse.
-        + '
-
-(Variation ' + String(body.variation ?? Date.now()).slice(-5)
+        + '\n\n(Variation ' + String(body.variation ?? Date.now()).slice(-5)
         + ' — bitte andere Bilder als beim letzten Mal.)',
     }],
   });
