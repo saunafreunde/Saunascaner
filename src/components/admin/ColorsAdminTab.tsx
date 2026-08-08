@@ -104,7 +104,7 @@ export function ColorsAdminTab() {
                 : 'bg-forest-900/60 text-forest-300 hover:bg-forest-900 ring-1 ring-forest-700/50'
             }`}
           >
-            Eigenschaften ({ATTRIBUTES.length})
+            Besonderheiten ({ATTRIBUTES.length})
           </button>
           <button
             onClick={() => setTab('oils')}

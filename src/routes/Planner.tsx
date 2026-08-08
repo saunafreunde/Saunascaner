@@ -675,10 +675,10 @@ export default function Planner() {
     // einen festen Charakter, dem man nicht kuenstlich eine dritte Zutat
     // anhaengen sollte. Die Obergrenze gilt auch fuer Banja.
     if (auswahlAnzahl < MIN_AUSWAHL && !(attrs as string[]).includes(BANJA_ATTR)) {
-      return setFormError(`Bitte mindestens ${MIN_AUSWAHL} Dinge waehlen - Oele und Eigenschaften zusammen (aktuell ${auswahlAnzahl}).`);
+      return setFormError(`Bitte mindestens ${MIN_AUSWAHL} Dinge waehlen - Oele und Besonderheiten zusammen (aktuell ${auswahlAnzahl}).`);
     }
     if (auswahlAnzahl > MAX_AUSWAHL) {
-      return setFormError(`Hoechstens ${MAX_AUSWAHL} Dinge - Oele und Eigenschaften zusammen (aktuell ${auswahlAnzahl}).`);
+      return setFormError(`Hoechstens ${MAX_AUSWAHL} Dinge - Oele und Besonderheiten zusammen (aktuell ${auswahlAnzahl}).`);
     }
     if (isMondaySelected) return setFormError('Montag keine Aufgüsse.');
     // Defense in depth zum Slot-Clamp-Effect: nie außerhalb der Öffnungs-
@@ -1546,7 +1546,7 @@ export default function Planner() {
 
                 <div>
                   <div className="flex items-baseline justify-between gap-2">
-                    <label className="text-xs text-forest-300">Eigenschaften</label>
+                    <label className="text-xs text-forest-300">Besonderheiten</label>
                     {/* Laufender Zähler statt Fehlermeldung erst beim Absenden —
                         die 3–6-Regel ist sonst unsichtbar, bis es zu spät ist. */}
                     <span className={`text-[11px] tabular-nums ${
@@ -1560,12 +1560,13 @@ export default function Planner() {
                     </span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-forest-400/60">
-                    Öle und Eigenschaften zusammen: mindestens {MIN_AUSWAHL}, höchstens {MAX_AUSWAHL} — beliebig gemischt (Öle max. {MAX_OIL_SLOTS}).
+                    Öle und Besonderheiten zusammen: mindestens {MIN_AUSWAHL}, höchstens {MAX_AUSWAHL} — beliebig gemischt (Öle max. {MAX_OIL_SLOTS}).
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {/* hidden = Kirschwasser/Haferpflaume, laufen jetzt über den
-                        Schnaps-Reiter weiter unten (lib/attributes.ts). */}
-                    {ATTRIBUTES.filter((a) => !a.hidden).map((a) => {
+                    {/* hidden  = Kirschwasser/Haferpflaume/Räuchern — laufen über
+                            die Reiter weiter unten (lib/attributes.ts).
+                        retired = ausgemustert, siehe dort. */}
+                    {ATTRIBUTES.filter((a) => !a.hidden && !a.retired).map((a) => {
                       const active = attrs.includes(a.id);
                       const gesperrt = !active && auswahlVoll;
                       return (

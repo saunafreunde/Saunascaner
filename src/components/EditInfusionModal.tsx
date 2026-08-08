@@ -258,10 +258,11 @@ export function EditInfusionModal({
 
           {/* Attribute */}
           <div>
-            <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Eigenschaften</label>
+            <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Besonderheiten</label>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {/* hidden = Kirschwasser/Haferpflaume, laufen über den Schnaps-Reiter */}
-              {ATTRIBUTES.filter((a) => !a.hidden).map((a) => {
+              {/* hidden = Kirschwasser/Haferpflaume/Räuchern (eigene Reiter),
+                  retired = ausgemustert (lib/attributes.ts) */}
+              {ATTRIBUTES.filter((a) => !a.hidden && !a.retired).map((a) => {
                 const active = attrs.includes(a.id);
                 return (
                   <button

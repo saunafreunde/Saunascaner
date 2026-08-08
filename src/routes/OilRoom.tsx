@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { fmtClock, dayLabel } from '@/lib/time';
-import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
+import { ATTRIBUTES_WAEHLBAR, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationWithPhoto } from '@/lib/telegram';
 import {
@@ -631,9 +631,12 @@ function OilRoomContent() {
 
               {/* Standard-Eigenschaften */}
               <div>
-                <label className="text-sm text-forest-300">Eigenschaften</label>
+                <label className="text-sm text-forest-300">Besonderheiten</label>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {ATTRIBUTES.map((a) => {
+                  {/* Ausgemusterte raus — hidden bleibt hier bewusst drin:
+                      der Kiosk hat keine Schnaps-/Räuchern-Reiter, ein Filter
+                      würde diese Aufgussarten hier ersatzlos streichen. */}
+                  {ATTRIBUTES_WAEHLBAR.map((a) => {
                     const active = attrs.includes(a.id);
                     return (
                       <button key={a.id} type="button" onClick={() => toggleAttr(a.id)}

@@ -6,7 +6,7 @@ import {
   useMyCustomOils, useAddCustomOil, useDeleteCustomOil,
   useSetMyDefaultMood, customOilId,
 } from '@/lib/api';
-import { ATTRIBUTES } from '@/lib/attributes';
+import { ATTRIBUTES_WAEHLBAR } from '@/lib/attributes';
 import { OILS } from '@/lib/oils';
 import { sendNotification } from '@/lib/telegram';
 import EmojiPicker from '@/components/EmojiPicker';
@@ -100,7 +100,7 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
     setMoodAttrs((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
       if (prev.length >= MAX_DEFAULT_ATTRS) {
-        setMoodError(`Maximal ${MAX_DEFAULT_ATTRS} Standard-Eigenschaften.`);
+        setMoodError(`Maximal ${MAX_DEFAULT_ATTRS} Standard-Besonderheiten.`);
         return prev;
       }
       return [...prev, id];
@@ -443,7 +443,7 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
               Eigenschaften ({moodAttrs.length}/{MAX_DEFAULT_ATTRS})
             </p>
             <div className="flex flex-wrap gap-1">
-              {ATTRIBUTES.map((a) => {
+              {ATTRIBUTES_WAEHLBAR.map((a) => {
                 const active = moodAttrs.includes(a.id);
                 return (
                   <button

@@ -1584,7 +1584,7 @@ export function useMeisterDirectory() {
 // keine eigenen attrs/oils hat — "🪶 Sein Stil"-Pills.
 const SET_DEFAULT_MOOD_ERROR_LABELS: Record<string, string> = {
   not_authenticated: 'Nicht eingeloggt.',
-  too_many_attributes: 'Maximal 5 Standard-Eigenschaften.',
+  too_many_attributes: 'Maximal 5 Standard-Besonderheiten.',
   too_many_oils: 'Maximal 3 Standard-Öle.',
 };
 export function useSetMyDefaultMood() {
