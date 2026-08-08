@@ -1,4 +1,7 @@
-import { AUSSCHNITT_DEFAULT, ausschnittAus, type Ausschnitt } from '@/types/branding';
+// Bewusst aus '@/types/ausschnitt' und NICHT aus '@/types/branding': branding
+// importiert seinerseits diese Datei (info_karten), und der Kreis liess die
+// ganze App weiss bleiben — 'Cannot access ... before initialization'.
+import { AUSSCHNITT_DEFAULT, ausschnittAus, type Ausschnitt } from '@/types/ausschnitt';
 
 /** Frei gestaltete Info-Karten für die TV-Tafel.
  *
