@@ -231,22 +231,56 @@ export type StyledTitle = { style: TitleStyleId; title: string };
 // im Verein schreibt so.
 // ══════════════════════════════════════════════════════════════════════
 
-const STIMMUNG_VORLAGEN = [
-  (t: string) => `Guten ${t}`,
-  (t: string) => `${t}ruhe`,
-  (t: string) => `${t}zauber`,
-  (t: string) => `Schöner ${t}`,
-  (t: string) => `${t}stunde`,
+// ── Ziel-Länge: VIER bis SECHS Wörter (User-Vorgabe 09.08.2026) ──
+// Das liegt bewusst über dem Bestand (2,6 Wörter im Schnitt): gewünscht sind
+// ausdrucksstärkere Titel als die bisher geschriebenen. Jede Vorlage unten
+// ist so gebaut, dass sie mit eingesetzter Zutat in diesem Fenster landet;
+// generateInfusionTitles prüft danach nach und würfelt neu, wenn nicht.
+const MIN_WOERTER = 4;
+const MAX_WOERTER = 6;
+
+function woerter(t: string): number {
+  // Emojis zählen nicht als Wort — sie stehen für sich.
+  return t.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '')
+    .trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Zeit- und Ortsangaben, die einen Titel natürlich verlängern. */
+const RAHMEN = [
+  'am späten Abend', 'zur blauen Stunde', 'im warmen Dämmerlicht',
+  'wenn der Ofen glüht', 'kurz vor Sonnenuntergang', 'mitten in der Glut',
+  'auf heißen Steinen', 'im Dampf der Kabine', 'bei voller Hitze',
 ];
 
-const FRECH_KURZ = [
-  'Augen zu und durch', 'Volle Kanne', 'Ofen an', 'Schwitzkasten',
-  'Hitzefrei', 'Kein Entkommen', 'Bis zur Kante', 'Alles oder nichts',
-  'Feuer frei', 'Jetzt wird geschwitzt', 'Ohne Reue', 'Wer zuletzt lacht',
+const STIMMUNG_VORLAGEN: ((t: string, k: string) => string)[] = [
+  (t, k) => `Ein guter ${t} mit ${k}`,
+  (t, k) => `${k} für einen langen ${t}`,
+  (t, k) => `${t}stunde mit ${k} und Dampf`,
+  (t, k) => `${t} ganz im Zeichen von ${k}`,
+  (t, k) => `${k} macht diesen ${t} aus`,
+];
+
+const FRECH_VORLAGEN: ((z: string) => string)[] = [
+  () => `Heute wird es richtig heiß, Freunde`,
+  (z) => `${z} bis zum letzten Tropfen`,
+  () => `Augen zu und einfach durch damit`,
+  (z) => `Wer jetzt geht, verpasst ${z}`,
+  (z) => `${z} und kein Zurück mehr`,
+  (z) => `Ofen an, Verstand aus, ${z}`,
+];
+
+// TRAEGER sind alle maskulin — dort ist die Adjektiv-Endung -er immer
+// richtig. Die Zutat steht davon getrennt hinter „mit"/„aus" oder als
+// Subjekt am Satzanfang.
+const BILD_VORLAGEN: ((a: string, k: string) => string)[] = [
+  (a, k) => `${a} Gruß mit ${k}`,
+  (_a, k) => `Wenn ${k} die Steine trifft`,
+  (a, _k) => `${a} Moment im Dampf der Kabine`,
+  (a, k) => `Ein ${a.toLowerCase()} Aufguss mit ${k}`,
+  (_a, k) => `${k} entfaltet die volle Kraft`,
 ];
 
 type GenContext = {
-  /** Der Kopf des Aufgusses: Schnaps schlägt Mischung schlägt Öl. */
   held: string | null;
   zweiter: string | null;
   attrLabel: string | null;
@@ -266,8 +300,6 @@ function buildContext(z: TitelZutaten): GenContext {
     zweiter: alle.find((x) => x !== held) ?? null,
     attrLabel: label ?? null,
     attrAdjektive: treffer ? (ATTR_ADJECTIVE[treffer.id] ?? []) : [],
-    // Der Charakter entscheidet über das Wortfeld. Kommt er vom Aufrufer
-    // (aus der Öl-Kategorie), ist er genauer als jede Namensheuristik.
     charakter: z.charakter ?? (held ? charakterAusName(held)
       : z.raeucherwerk.length > 0 ? 'rauch' : 'neutral'),
     jahreszeit: z.jahreszeit ?? null,
@@ -275,76 +307,60 @@ function buildContext(z: TitelZutaten): GenContext {
   };
 }
 
-/** Emoji anhängen — sparsam, wie im echten Bestand: nur bei etwa jedem
- *  dritten Titel, und dann hinten. */
+/** Emoji sparsam und hinten — wie im echten Bestand (24 %). */
 function mitEmoji(titel: string, ch: Charakter, seed: number): string {
-  // Etwa jeder dritte Aufruf — bei vier von fuenf Typen ergibt das die
-  // Quote des echten Bestands (24 %).
-  if (Math.abs(shift(seed, 21)) % 3 !== 0) return titel;
+  if (Math.abs(shift(seed, 21)) % 4 !== 0) return titel;
   const liste = EMOJI[ch];
   return `${titel} ${liste[Math.abs(shift(seed, 22)) % liste.length]}`;
 }
 
-function buildKompositum(ctx: GenContext, seed: number): string {
-  const wort = ctx.held
+/** Der Kern des Aufgusses als EIN Wort — Kompositum aus der Zutat oder frei. */
+function kernwort(ctx: GenContext, seed: number): string {
+  return ctx.held
     ? kompositum(ctx.held, ctx.charakter, seed)
     : kompositumFrei(ctx.charakter, seed);
-  return mitEmoji(wort, ctx.charakter, seed);
+}
+
+function buildKompositum(ctx: GenContext, seed: number): string {
+  // Das Kompositum bleibt der Kern, bekommt aber einen Rahmen — allein waere
+  // es ein Wort und damit weit unter der Vorgabe.
+  const kern = kernwort(ctx, seed);
+  const rahmen = RAHMEN[Math.abs(shift(seed, 5)) % RAHMEN.length];
+  return mitEmoji(`${kern} ${rahmen}`, ctx.charakter, seed);
 }
 
 function buildKurz(ctx: GenContext, seed: number): string {
-  // Ein Wort. Entweder die Zutat pur, das Attribut, oder ein freies
-  // Kompositum — wie „Citrus", „Klassisch", „Waldluft".
-  const form = Math.abs(shift(seed, 6)) % 3;
-  if (form === 0 && ctx.held) return ctx.held;
-  if (form === 1 && ctx.attrLabel) return ctx.attrLabel;
-  return mitEmoji(kompositumFrei(ctx.charakter, shift(seed, 7)), ctx.charakter, shift(seed, 9));
+  // „Knapp" heisst jetzt: die Zutaten nebeneinander, ohne Schmuck.
+  if (ctx.held && ctx.zweiter) return `${ctx.held} trifft ${ctx.zweiter}`;
+  if (ctx.held && ctx.attrLabel) return `${ctx.held} und ${ctx.attrLabel} vereint`;
+  // „in seiner reinsten Form" waere bei „Blaue Kamille" falsch (ihrer).
+  if (ctx.held) return `${ctx.held} pur auf heißen Steinen`;
+  return `${kompositumFrei(ctx.charakter, shift(seed, 7))} für alle Sinne`;
 }
 
 function buildStimmung(ctx: GenContext, seed: number): string {
-  const t = ctx.stunde !== null ? tageszeit(ctx.stunde) : null;
-  const basis = t ?? ctx.jahreszeit ?? 'Abend';
+  const t = ctx.stunde !== null ? (tageszeit(ctx.stunde) ?? 'Abend') : (ctx.jahreszeit ?? 'Abend');
+  const kern = ctx.held ?? kernwort(ctx, shift(seed, 3));
   const vorlage = STIMMUNG_VORLAGEN[Math.abs(shift(seed, 8)) % STIMMUNG_VORLAGEN.length];
-  return mitEmoji(vorlage(basis), ctx.charakter, seed);
+  return mitEmoji(vorlage(t, kern), ctx.charakter, seed);
 }
 
-/** Substantive, deren Geschlecht ICH kenne — alle maskulin, damit das
- *  Adjektiv immer auf -er endet. Das umgeht das eigentliche Problem: das
- *  Geschlecht der ZUTATEN ist unbekannt. „Eiskalter Zitrone" war falsch (die
- *  Zitrone), „Heißer Kirschwasser" auch (das Kirschwasser) — und eine
- *  Genus-Tabelle für 64 Öle plus alle selbst angelegten wäre nie vollständig,
- *  weil morgen jemand ein neues anlegt. */
-const BILD_TRAEGER = [
-  'Moment', 'Gruß', 'Zauber', 'Atem', 'Aufguss', 'Abend', 'Gang', 'Rausch',
-];
-
 function buildBild(ctx: GenContext, seed: number): string {
-  const adj = ctx.attrAdjektive.length > 0
+  // Adjektive mit Bindestrich („Hochspannungs-") passen nicht in einen Satz —
+  // dort wird der Bindestrich zum Bruch. Dann lieber ein neutrales.
+  const roh = ctx.attrAdjektive.length > 0
     ? ctx.attrAdjektive[Math.abs(shift(seed, 11)) % ctx.attrAdjektive.length]
     : null;
-
-  // Adjektive mit Bindestrich kleben direkt an die Zutat — dort spielt das
-  // Geschlecht keine Rolle: „Hochspannungs-Rosmarin".
-  if (adj && adj.endsWith('-') && ctx.held) return `${adj}${ctx.held}`;
-
-  // Sonst bekommt das Adjektiv einen Träger, dessen Geschlecht feststeht.
-  if (adj) {
-    const traeger = BILD_TRAEGER[Math.abs(shift(seed, 14)) % BILD_TRAEGER.length];
-    return `${adj} ${traeger}`;
-  }
-
-  if (ctx.held && ctx.zweiter && Math.abs(shift(seed, 15)) % 3 === 0) {
-    return `${ctx.held} & ${ctx.zweiter}`;
-  }
-  if (ctx.held) return kompositum(ctx.held, ctx.charakter, shift(seed, 12));
-  return kompositumFrei(ctx.charakter, shift(seed, 13));
+  const adj = roh && !roh.endsWith('-') ? roh : 'Stiller';
+  const kern = ctx.held ?? kernwort(ctx, shift(seed, 12));
+  const vorlage = BILD_VORLAGEN[Math.abs(shift(seed, 13)) % BILD_VORLAGEN.length];
+  return mitEmoji(vorlage(adj, kern), ctx.charakter, seed);
 }
 
 function buildFrech(ctx: GenContext, seed: number): string {
-  const form = Math.abs(shift(seed, 1)) % 3;
-  if (form === 0 && ctx.held) return `${ctx.held} bis zum Anschlag`;
-  if (form === 1 && ctx.attrLabel) return `${ctx.attrLabel}, volle Kanne`;
-  return FRECH_KURZ[Math.abs(shift(seed, 2)) % FRECH_KURZ.length];
+  const kern = ctx.held ?? ctx.attrLabel ?? 'die Hitze';
+  const vorlage = FRECH_VORLAGEN[Math.abs(shift(seed, 2)) % FRECH_VORLAGEN.length];
+  return vorlage(kern);
 }
 
 const STYLE_ORDER: TitleStyleId[] = ['kompositum', 'kurz', 'stimmung', 'bild', 'frech'];
@@ -387,7 +403,11 @@ export function generateInfusionTitles(
     for (let versuch = 0; versuch < 8; versuch++) {
       title = baue(style, shift(seed, i * 7919 + versuch * 104729));
       const k = title.trim().toLowerCase();
-      if (!belegt.has(k) && !dieseRunde.has(k)) break;
+      const w = woerter(title);
+      // Neben Dubletten wird die LAENGE geprueft: vier bis sechs Woerter.
+      // Trifft es nach acht Anlaeufen nicht, gilt der letzte — ein Titel ist
+      // besser als eine leere Zeile.
+      if (!belegt.has(k) && !dieseRunde.has(k) && w >= MIN_WOERTER && w <= MAX_WOERTER) break;
     }
     dieseRunde.add(title.trim().toLowerCase());
     return { style, title };
