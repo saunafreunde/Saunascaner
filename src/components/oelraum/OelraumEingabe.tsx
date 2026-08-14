@@ -10,7 +10,7 @@ import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
 import {
   MIN_AUSWAHL, MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS,
   auswahlAnzahl as zaehleAuswahl, attrsPayload as baueAttrsPayload,
-  zerlegeAttributes, pruefeAuswahl, type ZutatenAuswahl,
+  pruefeAuswahl, type ZutatenAuswahl,
 } from '@/lib/aufgussRegeln';
 import OilPicker from '@/components/OilPicker';
 import { SudPicker } from '@/components/SudPicker';
@@ -30,9 +30,12 @@ import {
  *  gebauten Buttons wurden beim Absenden kommentarlos weggeworfen.
  *
  *  Zwei Betriebsarten:
- *    'neu'        einen Aufguss anlegen
- *    'ergaenzen'  einem bestehenden die fehlenden Zutaten nachtragen —
- *                 der Weg, den die Forderungs-Anzeige anbietet
+ *    'neu'        einen Aufguss anlegen — volles Formular
+ *    'ergaenzen'  einem bestehenden Aufguss die ÖLE nachtragen — der Weg,
+ *                 den die Forderungs-Anzeige anbietet. NUR Öle (Vorgabe
+ *                 14.08.2026): Sud, Räucherwerk, Schnaps und Banja plant man
+ *                 in der App, am Tablet lassen sie sich nicht ergänzen.
+ *                 Titel und Besonderheiten reisen unverändert wieder mit.
  */
 export type EingabeAuftrag =
   | { art: 'neu' }
@@ -108,19 +111,10 @@ export function OelraumEingabe({
   const [fehler, setFehler] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState<{ text: string; eingecheckt: boolean } | null>(null);
 
-  // Beim Ergänzen den Bestand ins Formular holen — aber erst, wenn die eigenen
-  // Buttons geladen sind: sonst würden deren UUIDs als „unbekannt" verworfen
-  // und der Aufgießer verlöre beim Speichern seine eigenen Angaben.
-  const [uebernommen, setUebernommen] = useState(false);
-  useEffect(() => {
-    if (!bestehend || uebernommen || eigeneAttrsQ.isLoading) return;
-    const teile = zerlegeAttributes(bestehend.attributes, eigeneAttrs.map((a) => a.id));
-    setAttrs([...teile.attrs]);
-    setEigeneAttrIds([...teile.customAttrIds]);
-    setSudAuswahl([...teile.sudAuswahl]);
-    setSchnaps(teile.schnaps);
-    setUebernommen(true);
-  }, [bestehend, uebernommen, eigeneAttrsQ.isLoading, eigeneAttrs]);
+  // Beim Ergänzen wird der Bestand NICHT zerlegt: Titel und attributes[]
+  // reisen beim Speichern unverändert wieder mit (nur die Öle sind editierbar).
+  // Damit kann hier auch nichts verloren gehen — egal, welche Alt-Daten oder
+  // fremden Button-UUIDs im Feld stehen.
 
   const aktiveSaunen = useMemo(() => saunas.filter((s) => s.is_active), [saunas]);
   useEffect(() => {
@@ -170,6 +164,41 @@ export function OelraumEingabe({
   const raeuchernAn = (attrs as string[]).includes(RAEUCHER_ATTR);
   const gewaehlterSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
 
+  // Die drei Öl-Plätze — identisch im Neu-Formular (Reiter „Öle") und im
+  // Nachtragen-Modus, deshalb nur einmal gebaut.
+  const oelChips = (
+    <div className="flex flex-wrap items-center gap-2">
+      {oils.map((id, i) => {
+        const eigenesId = id ? parseCustomOilId(id) : null;
+        const o = id && !eigenesId ? OIL_BY_ID[id] : null;
+        const gesperrt = !id && voll;
+        return (
+          <button key={i} type="button" disabled={gesperrt}
+            onClick={() => setPickerOffen(true)}
+            title={gesperrt ? VOLL_HINWEIS : undefined}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm ring-1 transition ${
+              gesperrt ? 'cursor-not-allowed opacity-30 ' : ''
+            }${id
+              ? 'bg-amber-900/40 text-amber-100 ring-amber-400/40'
+              : 'border border-dashed border-forest-700/60 bg-forest-900/60 text-forest-300 ring-forest-800/50'
+            }`}>
+            <span className="font-bold tabular-nums opacity-80">{i + 1}.</span>
+            {o ? (
+              <>
+                <span className="rounded bg-amber-950/60 px-1 text-[11px] tabular-nums">#{o.number}</span>
+                <span aria-hidden>{o.emoji}</span><span>{o.name}</span>
+              </>
+            ) : eigenesId ? (
+              <span>🌿 eigenes Öl</span>
+            ) : (
+              <span>+ Öl wählen</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   function leeren() {
     setTitel(''); setAttrs([]); setEigeneAttrIds([]);
     setOils(normalizeOilSlots(null)); setSudAuswahl([]); setSchnaps(null);
@@ -180,22 +209,31 @@ export function OelraumEingabe({
     e.preventDefault();
     setFehler(null); setErfolg(null);
     if (!gewaehlt) return setFehler('Bitte zuerst auswählen, wer du bist.');
-    if (!titel.trim()) return setFehler('Titel fehlt.');
-
-    const kontingent = pruefeAuswahl(auswahl);
-    if (kontingent) return setFehler(kontingent);
 
     const warDa = anwesend.has(gewaehlt.id);
-    const payload = baueAttrsPayload(auswahl) as InfusionAttribute[];
-    const oelListe = oils.some(Boolean) ? oils : null;
 
     try {
       if (bestehend) {
-        await updInf.mutateAsync({ id: bestehend.id, title: titel.trim(), attributes: payload, oils: oelListe });
-        setErfolg({ text: 'Zutaten nachgetragen.', eingecheckt: !warDa });
+        // Nachtragen = NUR Öle. Titel und attributes[] gehen unverändert
+        // zurück (die RPC nimmt sie nur als Ganzes entgegen) — damit sind
+        // Sud, Räucherwerk, Schnaps und Banja hier strukturell unantastbar.
+        if (!oils.some(Boolean)) return setFehler('Bitte mindestens ein Öl wählen.');
+        await updInf.mutateAsync({
+          id: bestehend.id,
+          title: bestehend.title,
+          attributes: (bestehend.attributes ?? []) as InfusionAttribute[],
+          oils,
+        });
+        setErfolg({ text: 'Öle nachgetragen.', eingecheckt: !warDa });
         setTimeout(onFertig, 2600);
         return;
       }
+
+      if (!titel.trim()) return setFehler('Titel fehlt.');
+      const kontingent = pruefeAuswahl(auswahl);
+      if (kontingent) return setFehler(kontingent);
+      const payload = baueAttrsPayload(auswahl) as InfusionAttribute[];
+      const oelListe = oils.some(Boolean) ? oils : null;
 
       if (!saunaId) return setFehler('Bitte eine Sauna wählen.');
       if (montagZu) return setFehler('Montag keine Aufgüsse.');
@@ -271,7 +309,7 @@ export function OelraumEingabe({
       )}
 
       <Kopf
-        titel={bestehend ? 'Zutaten nachtragen' : 'Aufguss eintragen'}
+        titel={bestehend ? 'Öle nachtragen' : 'Aufguss eintragen'}
         unter={gewaehlt.name}
         onFertig={onFertig}
         rechts={!bestehend && (
@@ -308,7 +346,9 @@ export function OelraumEingabe({
                 {saunas.find((s) => s.id === bestehend.sauna_id)?.name ?? ''}
               </p>
               <p className="mt-1 text-xs text-forest-400/70">
-                Zeit, Sauna und Dauer bleiben, wie sie sind — hier fehlen nur die Zutaten.
+                Hier lassen sich nur die Öle nachtragen. Zeit, Sauna, Dauer,
+                Titel und Besonderheiten bleiben, wie sie sind — Sud, Räuchern,
+                Schnaps und Banja plant man in der App.
               </p>
             </div>
           ) : (
@@ -370,25 +410,33 @@ export function OelraumEingabe({
             </>
           )}
 
-          {!montagZu && (
+          {(!!bestehend || !montagZu) && (
             <>
+              {/* Nachtragen-Modus: NUR die Öl-Plätze, sonst nichts. */}
+              {bestehend && (
+                <Feld label="Öle — höchstens 3, eines pro Runde">
+                  {oelChips}
+                </Feld>
+              )}
+
+              {!bestehend && (
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <Feld label="Titel">
                   <input value={titel} onChange={(e) => setTitel(e.target.value)}
                     placeholder="z.B. Eukalyptus klassisch"
                     className="w-full rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
                 </Feld>
-                {!bestehend && (
-                  <Feld label="Dauer">
-                    <select value={dauer} onChange={(e) => setDauer(Number(e.target.value))}
-                      className="rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
-                      {DURATIONS.map((d) => <option key={d} value={d}>{d} Min</option>)}
-                    </select>
-                  </Feld>
-                )}
+                <Feld label="Dauer">
+                  <select value={dauer} onChange={(e) => setDauer(Number(e.target.value))}
+                    className="rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
+                    {DURATIONS.map((d) => <option key={d} value={d}>{d} Min</option>)}
+                  </select>
+                </Feld>
               </div>
+              )}
 
               {/* Kontingent-Anzeige — dieselbe Regel wie im Planer */}
+              {!bestehend && (
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm text-forest-300">Zutaten & Besonderheiten</span>
                 <span className={`text-sm font-bold tabular-nums ${
@@ -398,8 +446,10 @@ export function OelraumEingabe({
                   {anzahl < MIN_AUSWAHL && ` — noch ${MIN_AUSWAHL - anzahl} nötig`}
                 </span>
               </div>
+              )}
 
               {/* Vier Reiter wie im Planer */}
+              {!bestehend && (
               <div>
                 <div className="flex gap-1.5 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/50">
                   {([
@@ -428,36 +478,7 @@ export function OelraumEingabe({
                     <p className="text-xs text-forest-400/70">
                       Eines pro Runde — höchstens {MAX_OIL_SLOTS}, zählt aufs Kontingent.
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {oils.map((id, i) => {
-                        const eigenesId = id ? parseCustomOilId(id) : null;
-                        const o = id && !eigenesId ? OIL_BY_ID[id] : null;
-                        const gesperrt = !id && voll;
-                        return (
-                          <button key={i} type="button" disabled={gesperrt}
-                            onClick={() => setPickerOffen(true)}
-                            title={gesperrt ? VOLL_HINWEIS : undefined}
-                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm ring-1 transition ${
-                              gesperrt ? 'cursor-not-allowed opacity-30 ' : ''
-                            }${id
-                              ? 'bg-amber-900/40 text-amber-100 ring-amber-400/40'
-                              : 'border border-dashed border-forest-700/60 bg-forest-900/60 text-forest-300 ring-forest-800/50'
-                            }`}>
-                            <span className="font-bold tabular-nums opacity-80">{i + 1}.</span>
-                            {o ? (
-                              <>
-                                <span className="rounded bg-amber-950/60 px-1 text-[11px] tabular-nums">#{o.number}</span>
-                                <span aria-hidden>{o.emoji}</span><span>{o.name}</span>
-                              </>
-                            ) : eigenesId ? (
-                              <span>🌿 eigenes Öl</span>
-                            ) : (
-                              <span>+ Öl wählen</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <div className="mt-2">{oelChips}</div>
                   </div>
                 ) : reiter === 'schnaps' ? (
                   <div className="mt-2">
@@ -502,7 +523,9 @@ export function OelraumEingabe({
                   </div>
                 )}
               </div>
+              )}
 
+              {!bestehend && (
               <Feld label="Besonderheiten">
                 <div className="flex flex-wrap gap-2">
                   {ATTRIBUTE_CHIPS.map((a) => {
@@ -521,8 +544,9 @@ export function OelraumEingabe({
                   })}
                 </div>
               </Feld>
+              )}
 
-              {eigeneAttrs.length > 0 && (
+              {!bestehend && eigeneAttrs.length > 0 && (
                 <Feld label="Meine Buttons">
                   <div className="flex flex-wrap gap-2">
                     {eigeneAttrs.map((a) => {
@@ -548,7 +572,7 @@ export function OelraumEingabe({
               <button type="submit" disabled={addInf.isPending || updInf.isPending}
                 className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-semibold text-forest-950 transition hover:bg-forest-400 disabled:opacity-60">
                 {addInf.isPending || updInf.isPending ? 'Speichere…'
-                  : bestehend ? 'Zutaten speichern' : 'Aufguss eintragen'}
+                  : bestehend ? 'Öle speichern' : 'Aufguss eintragen'}
               </button>
 
               {!anwesend.has(gewaehlt.id) && (

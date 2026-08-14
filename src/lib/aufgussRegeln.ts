@@ -140,16 +140,17 @@ export function pruefeAuswahl(a: ZutatenAuswahl): string | null {
 export const ATTRIBUTE_CHIPS = ATTRIBUTES.filter((a) => !a.retired && !a.hidden);
 
 /**
- * Hat dieser Aufguss etwas, das im Öl-Raum vorbereitet werden muss?
+ * Fehlen diesem Aufguss die Öle — muss das Tablet mahnen?
  *
- * Gemeint sind genau die vier Zutaten-Reiter: Öl, Schnaps, Räucherwerk, Sud.
- * Musik-Wünsche und Ritual-Angaben ändern nichts daran, was aus dem Regal
- * geholt werden muss — deshalb zählen sie hier nicht als Zutat, wohl aber als
- * Zeichen, dass sich jemand überhaupt Gedanken gemacht hat:
+ * Die Mahnung des Öl-Raums zielt auf ÖLE (Vorgabe Christoph, 14.08.2026):
+ * die kann man am Tablet nachtragen. Sud, Räucherwerk, Schnaps und Banja kann
+ * man dort ausdrücklich NICHT ergänzen — sie werden in der App geplant. Ein
+ * Aufguss, der eines davon trägt, gilt deshalb als versorgt: seine Art steht
+ * fest, ihm fehlt nichts, was das Tablet einfordern könnte.
  *
- *   'leer'               nichts eingetragen → das Tablet fordert deutlich
- *   'nur_besonderheiten' Besonderheiten ja, Zutaten nein → milder Hinweis
- *   'vollstaendig'       mindestens eine Zutat vorhanden
+ *   'leer'               gar nichts eingetragen → deutliche Forderung
+ *   'nur_besonderheiten' Besonderheiten ja, Öle nein → Forderung mit Hinweis
+ *   'vollstaendig'       Öle da ODER Art ist Sud/Räuchern/Schnaps/Banja
  *
  * Bewusst auf den ROHEN Feldern gerechnet. Die InfusionCard füllt leere
  * Aufgüsse auf der Tafel mit den Lieblingszutaten des Aufgießers auf
@@ -168,7 +169,8 @@ export function zutatenStatus(
   const hatSud = sud.kraeuter.length > 0 || sud.mixe.length > 0;
   const hatSchnaps = !!schnapsFromAttributes(attrs);
   const hatRaeuchern = attrs.includes(RAEUCHER_ATTR);
+  const hatBanja = attrs.includes(BANJA_ATTR);
 
-  if (hatOel || hatSud || hatSchnaps || hatRaeuchern) return 'vollstaendig';
+  if (hatOel || hatSud || hatSchnaps || hatRaeuchern || hatBanja) return 'vollstaendig';
   return attrs.length > 0 ? 'nur_besonderheiten' : 'leer';
 }

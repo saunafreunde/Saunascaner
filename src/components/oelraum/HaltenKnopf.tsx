@@ -10,12 +10,12 @@ import { useEffect, useRef, useState } from 'react';
  *  Warum kein PIN: der Öl-Raum lief einmal mit PIN 1234, die mit einem echten
  *  Mitglieds-PIN kollidierte. Der Zugang ist die Vereinstür, nicht dieses Feld.
  *
- *  1,2 s statt der früheren 3 s: die 3 s stammten aus der Zeit, als hier ein
- *  Sperrbildschirm den ganzen Tablet-Zugang bewachte. Jetzt bewacht die Geste
- *  nur noch den Wechsel weg von der Anzeige — da wären 3 s reine Schikane,
- *  gerade auf dem Knopf, der zum Eintragen auffordert.
+ *  2 Sekunden (Vorgabe Christoph, 14.08.2026): kurz genug, um nicht zu
+ *  schikanieren, lang genug, dass ein Streifen im Vorbeigehen die Anzeige
+ *  nicht wegwischt. Die früheren 3 s stammten aus der Zeit, als hier ein
+ *  Sperrbildschirm den ganzen Tablet-Zugang bewachte.
  */
-export const HALTEN_MS = 1200;
+export const HALTEN_MS = 2000;
 
 export function HaltenKnopf({
   children, onFertig, className = '', style, ringFarbe = 'rgba(226,232,240,0.35)', titel,

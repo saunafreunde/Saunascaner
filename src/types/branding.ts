@@ -125,8 +125,9 @@ export type OelraumSettings = {
   ausschnitt: Ausschnitt;
   /** Wie weit voraus das Tablet Aufgüsse zeigt. Darunter: nur das Logo. */
   vorlauf_stunden: number;
-  /** Ab wie vielen Minuten vor Start eine fehlende Zutat dringend angemahnt
-   *  wird (vorher steht der Hinweis ruhig da). */
+  /** Ab wie vielen Minuten vor Start fehlende Öle ROT PULSIEREND angemahnt
+   *  werden — vorher steht der Hinweis ruhig da. Vorgabe Christoph
+   *  (14.08.2026): 30 Minuten. */
   mahnung_ab_minuten: number;
 };
 
@@ -134,7 +135,7 @@ export const OELRAUM_DEFAULT: OelraumSettings = {
   hintergrund: null,
   ausschnitt: { ...AUSSCHNITT_DEFAULT },
   vorlauf_stunden: 3,
-  mahnung_ab_minuten: 90,
+  mahnung_ab_minuten: 30,
 };
 
 export function oelraumAus(v: unknown): OelraumSettings {
