@@ -483,7 +483,7 @@ function OelraumSection({
     <Section
       icon="🧴"
       title="Öl-Raum-Tablet"
-      hint="Der Bildschirm im Öl-Raum. Steht nichts an, zeigt er nur euer Logo auf diesem Hintergrund. Steht etwas an, zeigt er pro Aufguss die Öle — und fordert fehlende Öle ein."
+      hint="Der Bildschirm im Öl-Raum. Steht nichts an, zeigt er nur euer Logo auf diesem Hintergrund. Steht etwas an, zeigt er pro Aufguss die Öle und Zutaten — und fordert fehlende ein."
     >
       <div className="space-y-4">
         <AssetSlot
@@ -512,7 +512,7 @@ function OelraumSection({
         />
         <Regler
           label="Mahnung wird dringend"
-          hint="So lange vor Start fängt ein Aufguss ohne Öle an, rot zu pulsieren. Vorher steht der Hinweis ruhig da."
+          hint="So lange vor Start fängt ein Aufguss ohne Zutaten an, rot zu pulsieren. Vorher steht der Hinweis ruhig da."
           wert={oelraum.mahnung_ab_minuten}
           min={15} max={480} schritt={15} einheit="Min"
           onChange={(n) => onChange({ ...oelraum, mahnung_ab_minuten: n })}

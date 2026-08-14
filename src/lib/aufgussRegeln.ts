@@ -140,17 +140,17 @@ export function pruefeAuswahl(a: ZutatenAuswahl): string | null {
 export const ATTRIBUTE_CHIPS = ATTRIBUTES.filter((a) => !a.retired && !a.hidden);
 
 /**
- * Fehlen diesem Aufguss die Öle — muss das Tablet mahnen?
+ * Fehlen diesem Aufguss die Zutaten — muss das Tablet mahnen?
  *
- * Die Mahnung des Öl-Raums zielt auf ÖLE (Vorgabe Christoph, 14.08.2026):
- * die kann man am Tablet nachtragen. Sud, Räucherwerk, Schnaps und Banja kann
- * man dort ausdrücklich NICHT ergänzen — sie werden in der App geplant. Ein
- * Aufguss, der eines davon trägt, gilt deshalb als versorgt: seine Art steht
- * fest, ihm fehlt nichts, was das Tablet einfordern könnte.
+ * Am Tablet nachtragbar sind Öle, Sud, Räucherwerk und Schnaps (Vorgabe
+ * Christoph, 14.08.2026). Ein Aufguss, der irgendetwas davon trägt, gilt als
+ * versorgt. Das Banja zählt ebenfalls als versorgt, obwohl man es nicht
+ * nachtragen kann — es ist keine Zutat, sondern eine Buchung (2 Kacheln,
+ * Ruhephase, eigene Dauer) mit festem Charakter; ihm fehlt nichts.
  *
  *   'leer'               gar nichts eingetragen → deutliche Forderung
- *   'nur_besonderheiten' Besonderheiten ja, Öle nein → Forderung mit Hinweis
- *   'vollstaendig'       Öle da ODER Art ist Sud/Räuchern/Schnaps/Banja
+ *   'nur_besonderheiten' Besonderheiten ja, Zutaten nein → Forderung mit Hinweis
+ *   'vollstaendig'       mindestens eine Zutat ODER Banja
  *
  * Bewusst auf den ROHEN Feldern gerechnet. Die InfusionCard füllt leere
  * Aufgüsse auf der Tafel mit den Lieblingszutaten des Aufgießers auf

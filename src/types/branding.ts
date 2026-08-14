@@ -125,8 +125,8 @@ export type OelraumSettings = {
   ausschnitt: Ausschnitt;
   /** Wie weit voraus das Tablet Aufgüsse zeigt. Darunter: nur das Logo. */
   vorlauf_stunden: number;
-  /** Ab wie vielen Minuten vor Start fehlende Öle ROT PULSIEREND angemahnt
-   *  werden — vorher steht der Hinweis ruhig da. Vorgabe Christoph
+  /** Ab wie vielen Minuten vor Start fehlende Zutaten ROT PULSIEREND
+   *  angemahnt werden — vorher steht der Hinweis ruhig da. Vorgabe Christoph
    *  (14.08.2026): 30 Minuten. */
   mahnung_ab_minuten: number;
 };

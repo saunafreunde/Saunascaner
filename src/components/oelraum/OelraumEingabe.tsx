@@ -6,11 +6,11 @@ import { fmtClock, dayLabel } from '@/lib/time';
 import { slotHoursForWeekday } from '@/lib/garantie';
 import { OIL_BY_ID, MAX_OIL_SLOTS, normalizeOilSlots, parseCustomOilId } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID } from '@/lib/schnaps';
-import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
+import { RAEUCHER_ATTR, RAEUCHER_THEME, BANJA_ATTR } from '@/lib/aufgussTheme';
 import {
   MIN_AUSWAHL, MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS,
   auswahlAnzahl as zaehleAuswahl, attrsPayload as baueAttrsPayload,
-  pruefeAuswahl, type ZutatenAuswahl,
+  zerlegeAttributes, pruefeAuswahl, type ZutatenAuswahl,
 } from '@/lib/aufgussRegeln';
 import OilPicker from '@/components/OilPicker';
 import { SudPicker } from '@/components/SudPicker';
@@ -31,11 +31,13 @@ import {
  *
  *  Zwei Betriebsarten:
  *    'neu'        einen Aufguss anlegen — volles Formular
- *    'ergaenzen'  einem bestehenden Aufguss die ÖLE nachtragen — der Weg,
- *                 den die Forderungs-Anzeige anbietet. NUR Öle (Vorgabe
- *                 14.08.2026): Sud, Räucherwerk, Schnaps und Banja plant man
- *                 in der App, am Tablet lassen sie sich nicht ergänzen.
- *                 Titel und Besonderheiten reisen unverändert wieder mit.
+ *    'ergaenzen'  einem bestehenden Aufguss die Zutaten nachtragen — der Weg,
+ *                 den die Forderungs-Anzeige anbietet. Öle, Sud, Räucherwerk
+ *                 und Schnaps sind hier ergänzbar (Vorgabe 14.08.2026); fest
+ *                 bleiben Zeit, Sauna und Dauer. Das Banja ist bewusst außen
+ *                 vor: das ist keine Zutat, sondern eine Buchung (2 Kacheln,
+ *                 Ruhephase, eigene Dauer) — die entsteht nur im Planer über
+ *                 book_banja_ritual.
  */
 export type EingabeAuftrag =
   | { art: 'neu' }
@@ -43,6 +45,13 @@ export type EingabeAuftrag =
 
 const DURATIONS = [20, 30, 45] as const;
 const DEFAULT_DURATION_MIN = 20;
+
+// Der Banja-Chip fehlt am Tablet BEWUSST: ein Banja ist eine Buchung mit
+// eigenem atomarem Pfad (book_banja_ritual räumt Personal-Fallbacks, belegt
+// zwei Kacheln, hängt die Ruhephase an) — die Kiosk-RPCs kennen davon nichts.
+// Der Chip hier würde nur einen Aufguss erzeugen, den der BEFORE-Trigger
+// ablehnt oder die Tafel falsch rendert. Im Planer bleibt Banja wählbar.
+const TABLET_CHIPS = ATTRIBUTE_CHIPS.filter((a) => a.id !== BANJA_ATTR);
 
 function slotToDate(tag: 'today' | 'tomorrow', hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
@@ -111,10 +120,19 @@ export function OelraumEingabe({
   const [fehler, setFehler] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState<{ text: string; eingecheckt: boolean } | null>(null);
 
-  // Beim Ergänzen wird der Bestand NICHT zerlegt: Titel und attributes[]
-  // reisen beim Speichern unverändert wieder mit (nur die Öle sind editierbar).
-  // Damit kann hier auch nichts verloren gehen — egal, welche Alt-Daten oder
-  // fremden Button-UUIDs im Feld stehen.
+  // Beim Ergänzen den Bestand ins Formular holen — aber erst, wenn die eigenen
+  // Buttons geladen sind: sonst würden deren UUIDs als „unbekannt" verworfen
+  // und der Aufgießer verlöre beim Speichern seine eigenen Angaben.
+  const [uebernommen, setUebernommen] = useState(false);
+  useEffect(() => {
+    if (!bestehend || uebernommen || eigeneAttrsQ.isLoading) return;
+    const teile = zerlegeAttributes(bestehend.attributes, eigeneAttrs.map((a) => a.id));
+    setAttrs([...teile.attrs]);
+    setEigeneAttrIds([...teile.customAttrIds]);
+    setSudAuswahl([...teile.sudAuswahl]);
+    setSchnaps(teile.schnaps);
+    setUebernommen(true);
+  }, [bestehend, uebernommen, eigeneAttrsQ.isLoading, eigeneAttrs]);
 
   const aktiveSaunen = useMemo(() => saunas.filter((s) => s.is_active), [saunas]);
   useEffect(() => {
@@ -213,27 +231,23 @@ export function OelraumEingabe({
     const warDa = anwesend.has(gewaehlt.id);
 
     try {
-      if (bestehend) {
-        // Nachtragen = NUR Öle. Titel und attributes[] gehen unverändert
-        // zurück (die RPC nimmt sie nur als Ganzes entgegen) — damit sind
-        // Sud, Räucherwerk, Schnaps und Banja hier strukturell unantastbar.
-        if (!oils.some(Boolean)) return setFehler('Bitte mindestens ein Öl wählen.');
-        await updInf.mutateAsync({
-          id: bestehend.id,
-          title: bestehend.title,
-          attributes: (bestehend.attributes ?? []) as InfusionAttribute[],
-          oils,
-        });
-        setErfolg({ text: 'Öle nachgetragen.', eingecheckt: !warDa });
-        setTimeout(onFertig, 2600);
-        return;
-      }
-
       if (!titel.trim()) return setFehler('Titel fehlt.');
+      // Dasselbe Kontingent wie im Planer — auch beim Nachtragen: es gelten
+      // die gleichen Vorgaben wie in der App jedes Einzelnen.
       const kontingent = pruefeAuswahl(auswahl);
       if (kontingent) return setFehler(kontingent);
       const payload = baueAttrsPayload(auswahl) as InfusionAttribute[];
       const oelListe = oils.some(Boolean) ? oils : null;
+
+      if (bestehend) {
+        // Nachtragen: Öle, Sud, Räucherwerk, Schnaps, Besonderheiten, Titel.
+        // Zeit, Sauna und Dauer bleiben fest — und ein Banja lässt sich hier
+        // nicht anheften, das ist eine Buchung und entsteht nur im Planer.
+        await updInf.mutateAsync({ id: bestehend.id, title: titel.trim(), attributes: payload, oils: oelListe });
+        setErfolg({ text: 'Zutaten nachgetragen.', eingecheckt: !warDa });
+        setTimeout(onFertig, 2600);
+        return;
+      }
 
       if (!saunaId) return setFehler('Bitte eine Sauna wählen.');
       if (montagZu) return setFehler('Montag keine Aufgüsse.');
@@ -309,7 +323,7 @@ export function OelraumEingabe({
       )}
 
       <Kopf
-        titel={bestehend ? 'Öle nachtragen' : 'Aufguss eintragen'}
+        titel={bestehend ? 'Zutaten nachtragen' : 'Aufguss eintragen'}
         unter={gewaehlt.name}
         onFertig={onFertig}
         rechts={!bestehend && (
@@ -346,9 +360,9 @@ export function OelraumEingabe({
                 {saunas.find((s) => s.id === bestehend.sauna_id)?.name ?? ''}
               </p>
               <p className="mt-1 text-xs text-forest-400/70">
-                Hier lassen sich nur die Öle nachtragen. Zeit, Sauna, Dauer,
-                Titel und Besonderheiten bleiben, wie sie sind — Sud, Räuchern,
-                Schnaps und Banja plant man in der App.
+                Öle, Sud, Räucherwerk, Schnaps und Besonderheiten lassen sich
+                hier nachtragen. Zeit, Sauna und Dauer bleiben, wie sie sind —
+                und ein Banja bucht man im Planer, das ist keine Zutat.
               </p>
             </div>
           ) : (
@@ -412,31 +426,23 @@ export function OelraumEingabe({
 
           {(!!bestehend || !montagZu) && (
             <>
-              {/* Nachtragen-Modus: NUR die Öl-Plätze, sonst nichts. */}
-              {bestehend && (
-                <Feld label="Öle — höchstens 3, eines pro Runde">
-                  {oelChips}
-                </Feld>
-              )}
-
-              {!bestehend && (
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <Feld label="Titel">
                   <input value={titel} onChange={(e) => setTitel(e.target.value)}
                     placeholder="z.B. Eukalyptus klassisch"
                     className="w-full rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
                 </Feld>
-                <Feld label="Dauer">
-                  <select value={dauer} onChange={(e) => setDauer(Number(e.target.value))}
-                    className="rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
-                    {DURATIONS.map((d) => <option key={d} value={d}>{d} Min</option>)}
-                  </select>
-                </Feld>
+                {!bestehend && (
+                  <Feld label="Dauer">
+                    <select value={dauer} onChange={(e) => setDauer(Number(e.target.value))}
+                      className="rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
+                      {DURATIONS.map((d) => <option key={d} value={d}>{d} Min</option>)}
+                    </select>
+                  </Feld>
+                )}
               </div>
-              )}
 
               {/* Kontingent-Anzeige — dieselbe Regel wie im Planer */}
-              {!bestehend && (
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm text-forest-300">Zutaten & Besonderheiten</span>
                 <span className={`text-sm font-bold tabular-nums ${
@@ -446,10 +452,8 @@ export function OelraumEingabe({
                   {anzahl < MIN_AUSWAHL && ` — noch ${MIN_AUSWAHL - anzahl} nötig`}
                 </span>
               </div>
-              )}
 
               {/* Vier Reiter wie im Planer */}
-              {!bestehend && (
               <div>
                 <div className="flex gap-1.5 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/50">
                   {([
@@ -523,12 +527,10 @@ export function OelraumEingabe({
                   </div>
                 )}
               </div>
-              )}
 
-              {!bestehend && (
               <Feld label="Besonderheiten">
                 <div className="flex flex-wrap gap-2">
-                  {ATTRIBUTE_CHIPS.map((a) => {
+                  {TABLET_CHIPS.map((a) => {
                     const aktiv = attrs.includes(a.id);
                     const gesperrt = !aktiv && voll;
                     return (
@@ -544,9 +546,8 @@ export function OelraumEingabe({
                   })}
                 </div>
               </Feld>
-              )}
 
-              {!bestehend && eigeneAttrs.length > 0 && (
+              {eigeneAttrs.length > 0 && (
                 <Feld label="Meine Buttons">
                   <div className="flex flex-wrap gap-2">
                     {eigeneAttrs.map((a) => {
@@ -572,7 +573,7 @@ export function OelraumEingabe({
               <button type="submit" disabled={addInf.isPending || updInf.isPending}
                 className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-semibold text-forest-950 transition hover:bg-forest-400 disabled:opacity-60">
                 {addInf.isPending || updInf.isPending ? 'Speichere…'
-                  : bestehend ? 'Öle speichern' : 'Aufguss eintragen'}
+                  : bestehend ? 'Zutaten speichern' : 'Aufguss eintragen'}
               </button>
 
               {!anwesend.has(gewaehlt.id) && (

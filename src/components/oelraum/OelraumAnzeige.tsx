@@ -242,7 +242,7 @@ export function OelraumAnzeige({
                 </span>
               ))}
               {a.status !== 'vollstaendig' && (
-                <span className="ml-1 font-semibold text-rose-400">· Öle fehlen</span>
+                <span className="ml-1 font-semibold text-rose-400">· Zutaten fehlen</span>
               )}
             </span>
           ))}
@@ -291,13 +291,14 @@ function MahnBand({
         <h2 className={`text-[clamp(1rem,2.6vw,2rem)] font-black leading-tight ${
           dringend ? 'text-rose-100' : 'text-amber-100'
         }`}>
-          {fehlend.length === 1 ? 'Ein Aufguss hat noch keine Öle' : `${fehlend.length} Aufgüsse haben noch keine Öle`}
+          {fehlend.length === 1 ? 'Ein Aufguss hat noch keine Zutaten' : `${fehlend.length} Aufgüsse haben noch keine Zutaten`}
         </h2>
       </div>
 
       <p className={`mt-1 text-[clamp(0.72rem,1.5vw,1rem)] ${dringend ? 'text-rose-200/85' : 'text-amber-200/80'}`}>
-        Ohne Öl-Eintrag weiß am Regal niemand, was gebraucht wird — und der
-        Verbrauch lässt sich nicht auswerten. Bitte jetzt nachtragen.
+        Ohne Eintrag weiß am Regal niemand, was gebraucht wird — und der
+        Verbrauch lässt sich nicht auswerten. Bitte jetzt nachtragen: Öle,
+        Sud, Räucherwerk oder Schnaps.
       </p>
 
       <div className={`mt-[1.4vh] grid gap-[0.8vw] ${alleinig ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
@@ -318,7 +319,7 @@ function MahnBand({
                 </span>
                 <span className="block truncate text-[clamp(0.68rem,1.3vw,0.9rem)] text-slate-300/85">
                   {a.meister}
-                  {a.status === 'nur_besonderheiten' && ' — Besonderheiten da, Öle fehlen'}
+                  {a.status === 'nur_besonderheiten' && ' — Besonderheiten da, Zutaten fehlen'}
                 </span>
               </span>
               <span aria-hidden className="text-[clamp(0.9rem,2vw,1.4rem)] opacity-70">→</span>
@@ -392,7 +393,7 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
         </ul>
       ) : a.status !== 'vollstaendig' ? (
         <p className="mt-[1vh] text-[clamp(0.8rem,1.7vw,1.15rem)] font-bold text-rose-300">
-          Noch keine Öle eingetragen
+          Noch keine Zutaten eingetragen
         </p>
       ) : null}
 
