@@ -2906,11 +2906,13 @@ export function useActiveEvacuation() {
 export function useTriggerEvacuation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { triggered_by: string; present_names: string[]; telegram_status?: string }) => {
+    mutationFn: async (p: { triggered_by?: string | null; present_names: string[]; telegram_status?: string }) => {
       const { data, error } = await need()
         .from('evacuation_events')
         .insert({
-          triggered_by: p.triggered_by,
+          // Nullable in der DB — das anonyme Öl-Raum-Tablet löst auch ohne
+          // gewählten Aufgießer aus (Alarm ohne Name schlägt keinen Alarm).
+          triggered_by: p.triggered_by ?? null,
           present_names: p.present_names,
           present_count: p.present_names.length,
           telegram_status: p.telegram_status ?? null,

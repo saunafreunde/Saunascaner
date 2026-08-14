@@ -102,7 +102,10 @@ export default function OilRoom() {
     if (!auftrag) return;
     const neu = () => {
       clearTimeout(rueckfallRef.current);
-      rueckfallRef.current = setTimeout(() => setAuftrag(null), RUECKFALL_MS);
+      // Auch amGeraet leeren — der Rückfall IST der Zurückspring-Pfad: bleibt
+      // die Person stehen, würde Stunden später ein Evakuierungsalarm dem
+      // Falschen zugeschrieben.
+      rueckfallRef.current = setTimeout(() => { setAuftrag(null); setAmGeraet(null); }, RUECKFALL_MS);
     };
     neu();
     window.addEventListener('touchstart', neu);
@@ -177,7 +180,7 @@ export default function OilRoom() {
         // triggered_by darf leer bleiben — die Spalte nimmt NULL, und ein
         // Alarm ohne Namen ist tausendmal besser als kein Alarm.
         const ev = await trigEvac.mutateAsync({
-          triggered_by: amGeraet?.id as unknown as string,
+          triggered_by: amGeraet?.id ?? null,
           present_names: namen,
         });
         ausgeloestAm = ev.triggered_at;

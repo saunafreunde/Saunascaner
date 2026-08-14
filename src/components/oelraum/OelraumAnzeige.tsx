@@ -156,10 +156,16 @@ export function OelraumAnzeige({
   const kopfZeit = gruppe[0] ? uhr(gruppe[0].inf.start_time) : '';
   const kopfMinuten = gruppe[0]?.minuten ?? 0;
 
-  // Was fehlt — über den ganzen Horizont, nicht nur die nächste Gruppe: wer um
-  // 15:00 aufgießt, kann für 17:00 gleich mit eintragen, solange er ohnehin
-  // hier steht.
-  const fehlend = [...gruppe, ...danach].filter((a) => a.status !== 'vollstaendig');
+  // Was fehlt — über den ganzen Horizont: die LAUFENDEN zuerst (Nachtragen
+  // geht bis zwei Stunden nach dem Ende, und der gerade laufende zutatenlose
+  // Aufguss ist der dringendste Fall für die Verbrauchserfassung — er darf
+  // nicht verschwinden, nur weil schon der nächste ansteht), dann die nächste
+  // Gruppe, dann der Rest des Horizonts.
+  const fehlend = [
+    ...(istLaufend ? [] : laufend),
+    ...gruppe,
+    ...danach,
+  ].filter((a) => a.status !== 'vollstaendig');
   const dringend = fehlend.some((a) => a.minuten <= einstellungen.mahnung_ab_minuten);
 
   const griff = sammelListe(gruppe.map((a) => a.zutaten));

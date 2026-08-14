@@ -127,7 +127,12 @@ export function OelraumEingabe({
   // und der Aufgießer verlöre beim Speichern seine eigenen Angaben.
   const [uebernommen, setUebernommen] = useState(false);
   useEffect(() => {
-    if (!bestehend || uebernommen || eigeneAttrsQ.isLoading) return;
+    // isSuccess, nicht !isLoading: schlägt die Query nach den Retries fehl
+    // (24/7-Tablet, WLAN-Aussetzer), wäre isLoading false bei data=undefined —
+    // zerlegeAttributes würde dann alle eigenen Button-UUIDs verwerfen und das
+    // Speichern sie still löschen. Solange nicht übernommen ist, blockt
+    // absenden() den Ergänzen-Submit.
+    if (!bestehend || uebernommen || !eigeneAttrsQ.isSuccess) return;
     const teile = zerlegeAttributes(bestehend.attributes, eigeneAttrs.map((a) => a.id));
     setAttrs([...teile.attrs]);
     setEigeneAttrIds([...teile.customAttrIds]);
@@ -236,6 +241,9 @@ export function OelraumEingabe({
     e.preventDefault();
     setFehler(null); setErfolg(null);
     if (!gewaehlt) return setFehler('Bitte zuerst auswählen, wer du bist.');
+    if (bestehend && !uebernommen) {
+      return setFehler('Der Bestand wird noch geladen — bitte einen Moment.');
+    }
 
     const warDa = anwesend.has(gewaehlt.id);
 
