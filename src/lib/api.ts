@@ -607,6 +607,40 @@ export function useUpdateInfusionKiosk(saunameisterId: string | null) {
   });
 }
 
+/** Personal-Fallback am Tablet übernehmen (Migration 0131).
+ *
+ *  Ohne diesen Pfad kann das Tablet an einem frisch materialisierten Tag
+ *  GAR NICHTS anlegen: jede Stunde trägt einen Personal-Platzhalter in der
+ *  Garantie-Sauna (dort meldet der Overlap-Trigger „belegt"), und die jeweils
+ *  andere Sauna blockt die Zweit-Sauna-Regel. Der vorgesehene Ausweg ist die
+ *  Übernahme — takeover_personal_fallback aus dem Planer hängt aber an
+ *  auth.uid(), das Tablet läuft anonym. */
+export function useTakeoverFallbackKiosk(saunameisterId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (i: {
+      infusion_id: string;
+      title: string;
+      attributes: InfusionAttribute[];
+      oils: (string | null)[] | null;
+    }) => {
+      if (!saunameisterId) throw new Error('Kein Aufgießer ausgewählt.');
+      const { error } = await need().rpc('takeover_personal_fallback_kiosk', {
+        p_infusion_id: i.infusion_id,
+        p_saunameister_id: saunameisterId,
+        p_title: i.title,
+        p_attributes: i.attributes,
+        p_oils: i.oils ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+      qc.invalidateQueries({ queryKey: ['present-aufgieser-public'] });
+    },
+  });
+}
+
 export function useDeleteInfusionKiosk(saunameisterId: string | null) {
   const qc = useQueryClient();
   return useMutation({

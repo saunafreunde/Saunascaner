@@ -16,6 +16,7 @@ import OilPicker from '@/components/OilPicker';
 import { SudPicker } from '@/components/SudPicker';
 import {
   useAddInfusionKiosk, useUpdateInfusionKiosk, useDeleteInfusionKiosk,
+  useTakeoverFallbackKiosk,
   useMyCustomAttrs, useMyCustomOils,
   isInfusionCancelLocked, INFUSION_CANCEL_LOCK_MINUTES,
   type MeisterDirectoryEntry,
@@ -96,6 +97,7 @@ export function OelraumEingabe({
   const addInf = useAddInfusionKiosk(meisterId);
   const updInf = useUpdateInfusionKiosk(meisterId);
   const delInf = useDeleteInfusionKiosk(meisterId);
+  const uebernahme = useTakeoverFallbackKiosk(meisterId);
   const eigeneAttrsQ = useMyCustomAttrs(meisterId);
   const eigeneAttrs = useMemo(() => eigeneAttrsQ.data ?? [], [eigeneAttrsQ.data]);
   // Nur geladen, damit der Zähler „eigene Öle" stimmt — der Picker holt sie
@@ -156,15 +158,22 @@ export function OelraumEingabe({
     }
   }, [slots, slot, bestehend]);
 
-  // Belegte Slots — anders als früher mit deckendem Vergleich, damit ein
-  // laufender Mehrstünder (Banja: zwei Kacheln) nicht als frei gilt.
-  function slotBelegt(hhmm: string): boolean {
+  // Slot-Zustand — mit deckendem Vergleich, damit ein laufender Mehrstünder
+  // (Banja: zwei Kacheln) nicht als frei gilt. Personal-Fallbacks zählen NICHT
+  // als belegt, sondern als übernehmbar: an einem frisch materialisierten Tag
+  // trägt JEDE Stunde einen Fallback in der Garantie-Sauna — wer sie als
+  // belegt rendert, baut ein Tablet, an dem man nie etwas eintragen kann
+  // (Testlauf 14.08.2026, Migration 0131).
+  function slotInfo(hhmm: string): { art: 'frei' | 'belegt' | 'fallback'; fallbackId?: string } {
     const start = slotToDate(tag, hhmm).getTime();
-    return infusions.some((i) =>
+    const deckend = infusions.filter((i) =>
       i.sauna_id === saunaId &&
       i.id !== bestehend?.id &&
       Date.parse(i.start_time) <= start &&
       Date.parse(i.end_time) > start);
+    if (deckend.some((i) => !i.is_personal_fallback)) return { art: 'belegt' };
+    const fb = deckend.find((i) => i.is_personal_fallback);
+    return fb ? { art: 'fallback', fallbackId: fb.id } : { art: 'frei' };
   }
 
   // ─── Kontingent ────────────────────────────────────────────────────────────
@@ -254,7 +263,23 @@ export function OelraumEingabe({
       if (!slots.includes(slot)) return setFehler('Diese Uhrzeit gehört nicht zu den Aufgusszeiten des Tages.');
       const start = slotToDate(tag, slot);
       if (isBefore(start, new Date())) return setFehler('Slot liegt in der Vergangenheit.');
-      if (slotBelegt(slot)) return setFehler('Slot bereits belegt.');
+
+      const info = slotInfo(slot);
+      if (info.art === 'belegt') return setFehler('Slot bereits belegt.');
+
+      if (info.art === 'fallback' && info.fallbackId) {
+        // Der Slot gehört dem Personal-Platzhalter — übernehmen statt anlegen.
+        // Ein INSERT daneben würde ohnehin am Overlap-Trigger scheitern.
+        await uebernahme.mutateAsync({
+          infusion_id: info.fallbackId,
+          title: titel.trim(),
+          attributes: payload,
+          oils: oelListe,
+        });
+        leeren();
+        setErfolg({ text: 'Personal-Slot übernommen.', eingecheckt: !warDa });
+        return;
+      }
 
       await addInf.mutateAsync({
         sauna_id: saunaId,
@@ -403,21 +428,33 @@ export function OelraumEingabe({
                   <Feld label="Uhrzeit">
                     <div className="grid grid-cols-5 gap-2">
                       {slots.map((s) => {
-                        const belegt = slotBelegt(s);
+                        const info = slotInfo(s);
                         const vorbei = tag === 'today' && isBefore(slotToDate('today', s), new Date());
-                        const aus = belegt || vorbei;
+                        const aus = info.art === 'belegt' || vorbei;
+                        const istFallback = info.art === 'fallback' && !aus;
                         return (
                           <button key={s} type="button" disabled={aus} onClick={() => setSlot(s)}
+                            title={istFallback ? 'Personal-Slot — beim Eintragen übernimmst du ihn' : undefined}
                             className={`rounded-md px-1 py-3 font-mono text-sm tabular-nums ring-1 transition ${
-                              slot === s && !aus ? 'bg-forest-500 font-bold text-forest-950 ring-forest-400'
+                              slot === s && !aus
+                                ? (istFallback
+                                    ? 'bg-amber-500 font-bold text-amber-950 ring-amber-400'
+                                    : 'bg-forest-500 font-bold text-forest-950 ring-forest-400')
                                 : aus ? 'cursor-not-allowed bg-forest-950/40 text-forest-300/30 line-through ring-forest-900/40'
-                                  : 'bg-forest-900/60 text-forest-200 ring-forest-800/50'
+                                  : istFallback
+                                    ? 'bg-amber-900/40 text-amber-200 ring-amber-600/50'
+                                    : 'bg-forest-900/60 text-forest-200 ring-forest-800/50'
                             }`}>
-                            {s}
+                            {istFallback && <span aria-hidden>👨‍🍳</span>}{s}
                           </button>
                         );
                       })}
                     </div>
+                    {slots.some((s) => slotInfo(s).art === 'fallback') && (
+                      <p className="mt-1.5 text-[11px] text-amber-300/80">
+                        👨‍🍳 = Personal-Slot. Wähl ihn aus und trag ein — dann übernimmst du ihn.
+                      </p>
+                    )}
                   </Feld>
                 </>
               )}
@@ -570,10 +607,12 @@ export function OelraumEingabe({
 
               {fehler && <p className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{fehler}</p>}
 
-              <button type="submit" disabled={addInf.isPending || updInf.isPending}
+              <button type="submit" disabled={addInf.isPending || updInf.isPending || uebernahme.isPending}
                 className="w-full rounded-xl bg-forest-500 px-5 py-4 text-base font-semibold text-forest-950 transition hover:bg-forest-400 disabled:opacity-60">
-                {addInf.isPending || updInf.isPending ? 'Speichere…'
-                  : bestehend ? 'Zutaten speichern' : 'Aufguss eintragen'}
+                {addInf.isPending || updInf.isPending || uebernahme.isPending ? 'Speichere…'
+                  : bestehend ? 'Zutaten speichern'
+                    : slotInfo(slot).art === 'fallback' ? '👨‍🍳 Personal-Slot übernehmen'
+                      : 'Aufguss eintragen'}
               </button>
 
               {!anwesend.has(gewaehlt.id) && (
