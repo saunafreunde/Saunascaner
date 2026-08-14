@@ -19,6 +19,7 @@ const SLOT_SIZE_HINTS = {
   badge_front: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
   badge_back: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
   gallery: 'Querformat, gern 3:1 — füllt eine leere Kachel der TV-Tafel',
+  oelraum: 'Querformat 16:10 (~1280×800) — Vollbild des Tablets, wird dunkel überblendet',
 };
 
 export function BrandingTab() {
@@ -127,6 +128,11 @@ export function BrandingTab() {
       <FinishSection
         finish={brand.tafel_finish}
         onChange={(f) => patchAndSave('tafel_finish', f)}
+      />
+
+      <OelraumSection
+        oelraum={brand.oelraum}
+        onChange={(o) => patchAndSave('oelraum', o)}
       />
     </div>
   );
@@ -458,6 +464,85 @@ function GallerySection({
         ))}
       </div>
     </Section>
+  );
+}
+
+// ─── Öl-Raum-Tablet ──────────────────────────────────────────────────────
+// Das Gerät hängt anonym an der Wand und hat selbst keine Einstellungen —
+// wer dort etwas ändern könnte, könnte es auch jeder Gast. Deshalb wird es
+// von hier aus konfiguriert, und das heißt in der Praxis: vom Handy aus,
+// während man im Öl-Raum davorsteht.
+
+function OelraumSection({
+  oelraum, onChange,
+}: {
+  oelraum: BrandSettings['oelraum'];
+  onChange: (o: BrandSettings['oelraum']) => void;
+}) {
+  return (
+    <Section
+      icon="🧴"
+      title="Öl-Raum-Tablet"
+      hint="Der Bildschirm im Öl-Raum. Steht nichts an, zeigt er nur euer Logo auf diesem Hintergrund. Steht etwas an, zeigt er, was aus dem Regal muss — und fordert fehlende Zutaten ein."
+    >
+      <div className="space-y-4">
+        <AssetSlot
+          label="Hintergrund"
+          sizeHint={SLOT_SIZE_HINTS.oelraum}
+          aspect="aspect-video"
+          folder="oelraum"
+          value={oelraum.hintergrund}
+          onChange={(v) => onChange({ ...oelraum, hintergrund: v })}
+        />
+        {oelraum.hintergrund && (
+          <AusschnittWaehler
+            url={publicAssetUrl(oelraum.hintergrund) ?? ''}
+            wert={oelraum.ausschnitt}
+            aktiv="tablet"
+            onChange={(a) => onChange({ ...oelraum, ausschnitt: a })}
+          />
+        )}
+
+        <Regler
+          label="Vorlauf"
+          hint="Wie weit voraus das Tablet Aufgüsse zeigt. Alles darunter: nur das Logo."
+          wert={oelraum.vorlauf_stunden}
+          min={1} max={12} schritt={1} einheit="Std"
+          onChange={(n) => onChange({ ...oelraum, vorlauf_stunden: n })}
+        />
+        <Regler
+          label="Mahnung wird dringend"
+          hint="So lange vor Start fängt ein Aufguss ohne Zutaten an zu pulsieren. Vorher steht der Hinweis ruhig da."
+          wert={oelraum.mahnung_ab_minuten}
+          min={15} max={480} schritt={15} einheit="Min"
+          onChange={(n) => onChange({ ...oelraum, mahnung_ab_minuten: n })}
+        />
+      </div>
+    </Section>
+  );
+}
+
+function Regler({
+  label, hint, wert, min, max, schritt, einheit, onChange,
+}: {
+  label: string; hint: string; wert: number;
+  min: number; max: number; schritt: number; einheit: string;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm font-semibold text-forest-100">{label}</span>
+        <span className="text-sm font-bold tabular-nums text-amber-300">{wert} {einheit}</span>
+      </div>
+      <p className="mt-0.5 text-[11px] leading-snug text-forest-300/70">{hint}</p>
+      <input
+        type="range"
+        min={min} max={max} step={schritt} value={wert}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-2 w-full accent-amber-400"
+      />
+    </div>
   );
 }
 

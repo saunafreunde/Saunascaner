@@ -562,7 +562,48 @@ export function useAddInfusionKiosk(saunameisterId: string | null) {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+      // Seit Migration 0130 checkt das Eintragen den Aufgießer automatisch ein.
+      // Ohne diese Invalidierung stünde am Tablet bis zu 10 s lang noch „nicht
+      // eingecheckt" neben dem eigenen Namen.
+      qc.invalidateQueries({ queryKey: ['present-aufgieser-public'] });
+    },
+  });
+}
+
+/** Zutaten eines BESTEHENDEN Aufgusses am Tablet nachtragen (Migration 0130).
+ *
+ *  Der Grund für diese RPC ist die Forderungs-Anzeige: sie mahnt fehlende
+ *  Zutaten an, und eine Forderung, die man an Ort und Stelle nicht erfüllen
+ *  kann, ist nur ein Vorwurf. Anlegen hilft dort nicht — der Aufguss existiert
+ *  ja bereits und der Slot ist belegt.
+ *
+ *  Bewusst eng: Titel, Besonderheiten und Öle. Zeit, Sauna und Dauer bleiben
+ *  unangetastet, die gehören in den Planer. */
+export function useUpdateInfusionKiosk(saunameisterId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (i: {
+      id: string;
+      title: string;
+      attributes: InfusionAttribute[];
+      oils: (string | null)[] | null;
+    }) => {
+      if (!saunameisterId) throw new Error('Kein Aufgießer ausgewählt.');
+      const { error } = await need().rpc('update_infusion_kiosk', {
+        p_id: i.id,
+        p_saunameister_id: saunameisterId,
+        p_title: i.title,
+        p_attributes: i.attributes,
+        p_oils: i.oils ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+      qc.invalidateQueries({ queryKey: ['present-aufgieser-public'] });
+    },
   });
 }
 
@@ -2634,6 +2675,11 @@ export function usePresentAufgieserPublic() {
       return (data ?? []) as { member_id: string; name: string; last_scan_at: string | null }[];
     },
     refetchInterval: 10_000,
+    // Muss im Hintergrund weiterlaufen: der Kiosk-Browser meldet den Tab als
+    // hidden, obwohl der Bildschirm im Öl-Raum an ist und die Anwesenheits-
+    // Häkchen dort dauerhaft sichtbar sind. Ohne das friert die Anzeige beim
+    // ersten Standby ein und behauptet stundenlang eine falsche Anwesenheit.
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     staleTime: 0,
   });
@@ -3311,10 +3357,9 @@ export type CustomOil = {
 };
 
 /** ID-Format für Custom-Öle in infusions.oils. */
-export const CUSTOM_OIL_PREFIX = 'custom:';
-export const customOilId = (uuid: string) => `${CUSTOM_OIL_PREFIX}${uuid}`;
-export const parseCustomOilId = (id: string): string | null =>
-  id.startsWith(CUSTOM_OIL_PREFIX) ? id.slice(CUSTOM_OIL_PREFIX.length) : null;
+// Liegt seit 14.08.2026 in lib/oils.ts (dort, wo die Öl-IDs herkommen) — hier
+// nur noch re-exportiert, damit die bestehenden Importe aus api.ts weiterlaufen.
+export { CUSTOM_OIL_PREFIX, customOilId, parseCustomOilId } from './oils';
 
 /** Eigene Öle des aktuellen/angegebenen Aufgießers (für Picker + Verwaltung). */
 export function useMyCustomOils(memberId: string | null | undefined) {
@@ -3694,7 +3739,7 @@ async function compressImage(
  *  zeigt jedes Kompressionsartefakt. Deshalb hier mehr Reserve statt
  *  nachträglichem Ärger: die Datei bleibt trotzdem im vertretbaren Rahmen.
  */
-const FEINE_ORDNER = ['tile-bgs', 'slot-gallery'];
+const FEINE_ORDNER = ['tile-bgs', 'slot-gallery', 'oelraum'];
 
 export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {

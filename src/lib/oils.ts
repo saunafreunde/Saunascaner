@@ -135,6 +135,17 @@ export const OILS_BY_CATEGORY: Record<OilCategory, Oil[]> = CATEGORY_ORDER.reduc
  *  3-Tupel ausgelegt). */
 export const MAX_OIL_SLOTS = 3;
 
+/** ID-Format für eigene Öle in `infusions.oils`: `custom:<uuid>`.
+ *
+ *  Stand bis 14.08.2026 in api.ts. Umgezogen, weil es eine Eigenschaft der
+ *  Öl-ID ist und deshalb auch importfreie Regel-Dateien damit rechnen können
+ *  müssen, ohne sich die ganze API ins Bundle zu ziehen. api.ts re-exportiert
+ *  die drei Namen — bestehende Importe laufen unverändert weiter. */
+export const CUSTOM_OIL_PREFIX = 'custom:';
+export const customOilId = (uuid: string) => `${CUSTOM_OIL_PREFIX}${uuid}`;
+export const parseCustomOilId = (id: string): string | null =>
+  id.startsWith(CUSTOM_OIL_PREFIX) ? id.slice(CUSTOM_OIL_PREFIX.length) : null;
+
 /** Erzeugt aus einem (string | null)[] mit beliebiger Länge ein MAX_OIL_SLOTS-Tupel. */
 export function normalizeOilSlots(input: readonly (string | null | undefined)[] | null | undefined): (string | null)[] {
   const arr = (input ?? []).slice(0, MAX_OIL_SLOTS);

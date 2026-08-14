@@ -14,11 +14,18 @@ type Props = {
   selected: (string | null)[];                  // [Runde 1 … Runde MAX_OIL_SLOTS]
   onChange: (oils: (string | null)[]) => void;
   onClose: () => void;
+  /** Wessen eigene Öle angeboten werden. Ohne Angabe: der eingeloggte Nutzer.
+   *
+   *  Gebraucht vom Öl-Raum-Tablet: das läuft bewusst anonym, `useCurrentMember`
+   *  ist dort `null` und die Sektion mit den eigenen Ölen blieb deshalb leer —
+   *  ausgerechnet in dem Raum, in dem die Flaschen stehen. Der Kiosk kennt den
+   *  Aufgießer aus seiner Namensauswahl und reicht ihn hier durch. */
+  memberId?: string | null;
 };
 
 const EMPTY_SLOTS: (string | null)[] = Array.from({ length: MAX_OIL_SLOTS }, () => null);
 
-export default function OilPicker({ selected, onChange, onClose }: Props) {
+export default function OilPicker({ selected, onChange, onClose, memberId }: Props) {
   const slots = useMemo(() => normalizeOilSlots(selected), [selected]);
   const firstEmpty = slots.findIndex((s) => !s);
   const [activeRound, setActiveRound] = useState<number>(firstEmpty === -1 ? 0 : firstEmpty);
@@ -31,7 +38,7 @@ export default function OilPicker({ selected, onChange, onClose }: Props) {
   // Eigene Custom-Öle des Aufgießers (Migration 0098) — werden als
   // zusätzliche Sektion oben angezeigt, nur für den jeweiligen User sichtbar.
   const me = useCurrentMember();
-  const myCustomOils = useMyCustomOils(me.data?.id);
+  const myCustomOils = useMyCustomOils(memberId ?? me.data?.id);
 
   function setSlot(round: number, oilId: string | null) {
     const next = [...slots];

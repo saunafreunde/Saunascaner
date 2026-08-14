@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
+import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList, sendBadgeAnnouncement } from '@/lib/telegram';
 import { checkAndAwardBadges } from '@/lib/checkBadges';
@@ -10,10 +10,16 @@ import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
-import { SCHNAPS, SCHNAPS_BY_ID, parseSchnapsAttr, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
+import { SCHNAPS, SCHNAPS_BY_ID, parseSchnapsAttr } from '@/lib/schnaps';
 import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
 import { SudPicker } from '@/components/SudPicker';
-import { stripSudAttrs, sudFromAttributes, sudAttrId, sudMixAttrId } from '@/lib/sud';
+// Das Kontingent und die Zerlegung liegen seit 14.08.2026 in einer eigenen
+// Datei, damit der Öl-Raum-Kiosk dieselben Regeln benutzt statt einer Kopie.
+import {
+  MIN_AUSWAHL, MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS,
+  auswahlAnzahl as zaehleAuswahl, attrsPayload as baueAttrsPayload,
+  zerlegeAttributes, pruefeAuswahl, type ZutatenAuswahl,
+} from '@/lib/aufgussRegeln';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { zutatenAus } from '@/lib/titelZutaten';
 import { lookupMemberName } from '@/lib/memberDisplay';
@@ -460,24 +466,13 @@ export default function Planner() {
   // Aufgusses (eigener Reiter, eigener Karten-Look), sie ist keine Zutat aus
   // dem Kontingent. Räuchern zählt dagegen mit — es ist und bleibt ein
   // normales Attribut.
-  const MIN_AUSWAHL = 3;
-  // 6 -> 8 am 03.08.2026 auf Wunsch: zwei Details mehr pro Aufguss. Die Oele
-  // bleiben bei MAX_OIL_SLOTS (3), die zusaetzlichen Plaetze gehen also an
-  // Eigenschaften — 3 Oele + 5 Besonderheiten sind das Maximum.
-  const MAX_AUSWAHL = 8;
-  const oilCount = oils.filter(Boolean).length;
-  // Sud zaehlt mit: eine Mischung ist EIN Platz, egal aus wie vielen Kraeutern
-  // sie besteht — sonst waere ein guter Sud allein schon am Limit.
-  const auswahlAnzahl = attrs.length + customAttrIds.length + oilCount + sudAuswahl.length;
+  // Zaehlweise, Obergrenze und Payload-Bau stehen in lib/aufgussRegeln.ts —
+  // dieselbe Datei benutzt der Oel-Raum-Kiosk, damit am Tablet nicht andere
+  // Regeln gelten als in der App jedes Einzelnen.
+  const auswahl: ZutatenAuswahl = { attrs, customAttrIds, oils, sudAuswahl, schnaps };
+  const auswahlAnzahl = zaehleAuswahl(auswahl);
   const auswahlVoll = auswahlAnzahl >= MAX_AUSWAHL;
-  // Attribute + Custom-Buttons + ggf. Schnaps — so wandert alles in EINEM
-  // text[] in die DB (siehe lib/schnaps.ts warum der Schnaps hier mitreist).
-  const attrsPayload = (): string[] => [
-    ...attrs,
-    ...customAttrIds,
-    ...sudAuswahl,
-    ...(schnaps ? [schnapsAttrId(schnaps)] : []),
-  ];
+  const attrsPayload = (): string[] => baueAttrsPayload(auswahl);
   // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
   // Bei nicht-Admins wird m.id verwendet (Backend lehnt fremde IDs eh ab).
   const [adminSaunameisterId, setAdminSaunameisterId] = useState<string>('');
@@ -663,33 +658,20 @@ export default function Planner() {
 
   function applyTemplate(t: { title: string; description: string | null; duration_minutes: number; attributes: string[]; oils?: (string | null)[] | null }) {
     setTitle(t.title);
-    // Ein 'schnaps:<slug>' aus der Vorlage gehört in den Schnaps-Reiter, nicht
-    // in die Eigenschaften-Chips — sonst würde attrsPayload() ihn doppelt
-    // schreiben (siehe lib/schnaps.ts).
-    const tplSchnaps = schnapsFromAttributes(t.attributes);
-    setSchnaps(tplSchnaps?.id ?? null);
-    setAromaTab(tplSchnaps ? 'schnaps' : 'oils');
-    // Vorlagen legen Standard-Attribute UND die UUIDs eigener Buttons in
-    // EINEM Feld ab (siehe saveAsTemplate). Beim Anwenden muessen sie wieder
-    // auseinander — sonst landen UUIDs in `attrs`, wo es keinen Chip dafuer
-    // gibt: unsichtbar, aber im 3-6-Zaehler mitgezaehlt und dadurch nicht
-    // mehr abwaehlbar. `customAttrIds` wird dabei bewusst NEU gesetzt statt
-    // stehen gelassen, sonst zaehlt eine Alt-Auswahl doppelt.
-    // Sud gehoert wie der Schnaps in seinen eigenen Reiter — sonst schriebe
-    // attrsPayload() ihn doppelt und die UUIDs landeten als unsichtbare,
-    // aber mitgezaehlte Eintraege in `attrs`.
-    const tplSud = sudFromAttributes(t.attributes);
-    setSudAuswahl([
-      ...tplSud.kraeuter.map(sudAttrId),
-      ...tplSud.mixe.map(sudMixAttrId),
-    ]);
-    const tplOhneSchnaps = stripSudAttrs(stripSchnapsAttrs(t.attributes));
-    const bekannteAttrs = new Set<string>(ATTRIBUTES.map((a) => a.id));
-    const eigeneIds = new Set<string>(customAttrs.map((a) => a.id));
-    setAttrs(tplOhneSchnaps.filter((a) => bekannteAttrs.has(a)) as InfusionAttribute[]);
-    // Nur eigene Buttons, die es noch gibt — geloeschte werden verworfen,
-    // sonst haengt eine nicht abwaehlbare Auswahl im Kontingent.
-    setCustomAttrIds(tplOhneSchnaps.filter((a) => eigeneIds.has(a)));
+    // Vorlagen legen ALLES in EINEM Feld ab (siehe saveAsTemplate): Standard-
+    // Attribute, die UUIDs eigener Buttons, den Sud und die Schnaps-Sorte.
+    // Beim Anwenden muss das wieder auseinander — sonst landen UUIDs in
+    // `attrs`, wo es keinen Chip dafuer gibt: unsichtbar, aber im Kontingent
+    // mitgezaehlt und dadurch nicht mehr abwaehlbar. Und ein doppelt
+    // gefuehrter Schnaps/Sud wuerde von attrsPayload() zweimal geschrieben.
+    // `customAttrIds` wird dabei bewusst NEU gesetzt statt stehen gelassen,
+    // sonst zaehlt eine Alt-Auswahl doppelt.
+    const tpl = zerlegeAttributes(t.attributes, customAttrs.map((a) => a.id));
+    setSchnaps(tpl.schnaps);
+    setAromaTab(tpl.schnaps ? 'schnaps' : 'oils');
+    setSudAuswahl([...tpl.sudAuswahl]);
+    setAttrs([...tpl.attrs]);
+    setCustomAttrIds([...tpl.customAttrIds]);
     setOils(normalizeOilSlots(t.oils));
     // Template-Dauer übernehmen (falls 15 oder andere Alt-Daten → wird im
     // UI als Ad-hoc-Button gezeigt, siehe DURATION_OPTIONS-Block).
@@ -742,12 +724,8 @@ export default function Planner() {
     // Knopf setzt genau zwei Eigenschaften (banja + wenik), und das Ritual hat
     // einen festen Charakter, dem man nicht kuenstlich eine dritte Zutat
     // anhaengen sollte. Die Obergrenze gilt auch fuer Banja.
-    if (auswahlAnzahl < MIN_AUSWAHL && !(attrs as string[]).includes(BANJA_ATTR)) {
-      return setFormError(`Bitte mindestens ${MIN_AUSWAHL} Dinge waehlen - Oele und Besonderheiten zusammen (aktuell ${auswahlAnzahl}).`);
-    }
-    if (auswahlAnzahl > MAX_AUSWAHL) {
-      return setFormError(`Hoechstens ${MAX_AUSWAHL} Dinge - Oele und Besonderheiten zusammen (aktuell ${auswahlAnzahl}).`);
-    }
+    const kontingentFehler = pruefeAuswahl(auswahl);
+    if (kontingentFehler) return setFormError(kontingentFehler);
     if (isMondaySelected) return setFormError('Montag keine Aufgüsse.');
     // Defense in depth zum Slot-Clamp-Effect: nie außerhalb der Öffnungs-
     // Stunden des Tages eintragen (Server prüft Öffnungszeiten NICHT).
@@ -1654,7 +1632,7 @@ export default function Planner() {
                     {/* hidden  = Kirschwasser/Haferpflaume/Räuchern — laufen über
                             die Reiter weiter unten (lib/attributes.ts).
                         retired = ausgemustert, siehe dort. */}
-                    {ATTRIBUTES.filter((a) => !a.hidden && !a.retired).map((a) => {
+                    {ATTRIBUTE_CHIPS.map((a) => {
                       const active = attrs.includes(a.id);
                       const gesperrt = !active && auswahlVoll;
                       return (
@@ -1738,7 +1716,7 @@ export default function Planner() {
                               type="button"
                               onClick={() => setShowOilPicker(true)}
                               disabled={!o && auswahlVoll}
-                              title={!o && auswahlVoll ? `Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.` : undefined}
+                              title={!o && auswahlVoll ? VOLL_HINWEIS : undefined}
                               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${!o && auswahlVoll ? 'opacity-30 cursor-not-allowed ' : ''}${
                                 o
                                   ? 'bg-amber-900/40 ring-amber-400/40 text-amber-100 hover:bg-amber-900/60'
@@ -1792,7 +1770,7 @@ export default function Planner() {
                       memberId={m?.id ?? ''}
                       istAdmin={isAdmin}
                       voll={auswahlVoll}
-                      vollHinweis={`Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.`}
+                      vollHinweis={VOLL_HINWEIS}
                     />
                   ) : (
                     /* Räuchern hat keine Sorten — nur an/aus. Gespeichert wird das
@@ -1805,7 +1783,7 @@ export default function Planner() {
                         onClick={() => toggleAttr(RAEUCHER_ATTR as InfusionAttribute)}
                         disabled={!raeuchernOn && auswahlVoll}
                         title={!raeuchernOn && auswahlVoll
-                          ? `Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.` : undefined}
+                          ? VOLL_HINWEIS : undefined}
                         className="mt-1.5 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left ring-1 transition"
                         style={raeuchernOn
                           ? { background: `${RAEUCHER_THEME.color}55`, boxShadow: `inset 0 0 0 2px ${RAEUCHER_THEME.color}` }
@@ -1834,7 +1812,7 @@ export default function Planner() {
                           istAdmin={isAdmin}
                           art="raeucher"
                           voll={auswahlVoll}
-                          vollHinweis={`Hoechstens ${MAX_AUSWAHL} Dinge - erst etwas abwaehlen.`}
+                          vollHinweis={VOLL_HINWEIS}
                         />
                       )}
                     </div>

@@ -43,11 +43,13 @@ export type InfusionAttribute =
 
 // ── Zwei Arten, eine Besonderheit aus dem Weg zu räumen ──
 //
-// `hidden`  = UMGEZOGEN. Erscheint im Planer und im Bearbeiten-Fenster nicht
-//             mehr als Chip, weil es dort einen eigenen Reiter dafür gibt
-//             (Kirschwasser/Haferpflaume → Schnaps-Reiter, Räuchern → eigener
-//             Reiter). Im Öl-Raum-Kiosk bleibt es wählbar: dort gibt es die
-//             Reiter nicht, ein Filter würde die Funktion ersatzlos streichen.
+// `hidden`  = UMGEZOGEN. Erscheint überall dort nicht mehr als Chip, wo es
+//             einen eigenen Reiter dafür gibt (Kirschwasser/Haferpflaume →
+//             Schnaps-Reiter, Räuchern → eigener Reiter). Das ist seit
+//             14.08.2026 auch der Öl-Raum-Kiosk — vorher hatte der keine
+//             Reiter und musste die Chips deshalb behalten.
+//             Wer die Reiter hat, nimmt ATTRIBUTE_CHIPS aus lib/aufgussRegeln;
+//             wer sie nicht hat (IdentityCard), nimmt ATTRIBUTES_WAEHLBAR.
 //
 // `retired` = AUSGEMUSTERT. Wird NIRGENDS mehr angeboten, bleibt aber in der
 //             Liste, damit ATTR_BY_ID Alt-Aufgüsse weiter beschriften kann.
@@ -112,9 +114,9 @@ export const ATTRIBUTES: {
   { id: 'nachguss',       emoji: '🔁', label: 'Nachguss' },
 ];
 
-/** Was im Formular angeboten wird: alles außer ausgemustert.
- *  Der Planer blendet zusätzlich `hidden` aus (dort gibt es Reiter dafür) —
- *  der Öl-Raum-Kiosk nicht, weil er die Reiter nicht hat. */
+/** Alles außer ausgemustert — für Ansichten OHNE Zutaten-Reiter.
+ *  Formulare mit Reitern (Planer, Öl-Raum) nehmen ATTRIBUTE_CHIPS aus
+ *  lib/aufgussRegeln, das zusätzlich `hidden` ausblendet. */
 export const ATTRIBUTES_WAEHLBAR = ATTRIBUTES.filter((a) => !a.retired);
 
 export const ATTR_BY_ID: Record<InfusionAttribute, { emoji: string; label: string }> =

@@ -111,6 +111,44 @@ export type SlotCards = {
   forest: boolean;
 };
 
+/** Das Tablet im Öl-Raum. Nur der Admin stellt das ein — vom Handy aus, über
+ *  den Branding-Tab. Liegt wie slot_gallery im jsonb-Blob und kostet deshalb
+ *  keine Migration und keine neue Policy (config_read_public zählt die
+ *  erlaubten Keys einzeln auf, `brand_settings` ist schon dabei).
+ *
+ *  Bewusst NICHT unter `backgrounds` eingehängt: dort baut die Sammelaktion
+ *  „Dashboard → überall übernehmen" das Objekt mit vier festen Schlüsseln neu
+ *  und würde einen fünften stillschweigend verschlucken. */
+export type OelraumSettings = {
+  /** Hintergrund für Ruhe- und Vorbereitungsansicht. Null = schlichtes Dunkel. */
+  hintergrund: string | null;
+  ausschnitt: Ausschnitt;
+  /** Wie weit voraus das Tablet Aufgüsse zeigt. Darunter: nur das Logo. */
+  vorlauf_stunden: number;
+  /** Ab wie vielen Minuten vor Start eine fehlende Zutat dringend angemahnt
+   *  wird (vorher steht der Hinweis ruhig da). */
+  mahnung_ab_minuten: number;
+};
+
+export const OELRAUM_DEFAULT: OelraumSettings = {
+  hintergrund: null,
+  ausschnitt: { ...AUSSCHNITT_DEFAULT },
+  vorlauf_stunden: 3,
+  mahnung_ab_minuten: 90,
+};
+
+export function oelraumAus(v: unknown): OelraumSettings {
+  const o = (v ?? {}) as Partial<OelraumSettings>;
+  const zahl = (n: unknown, min: number, max: number, fallback: number) =>
+    typeof n === 'number' && Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+  return {
+    hintergrund: typeof o.hintergrund === 'string' && o.hintergrund ? o.hintergrund : null,
+    ausschnitt: ausschnittAus(o.ausschnitt),
+    vorlauf_stunden: zahl(o.vorlauf_stunden, 1, 12, OELRAUM_DEFAULT.vorlauf_stunden),
+    mahnung_ab_minuten: zahl(o.mahnung_ab_minuten, 15, 480, OELRAUM_DEFAULT.mahnung_ab_minuten),
+  };
+}
+
 export type BrandSettings = {
   org: OrgInfo;
   logo: LogoSet;
@@ -120,6 +158,7 @@ export type BrandSettings = {
   slot_gallery: GalleryPhoto[];
   slot_cards: SlotCards;
   tafel_finish: TafelFinish;
+  oelraum: OelraumSettings;
   /** Frei gestaltete Info-Karten für die Tafel (siehe types/infokarten.ts).
    *  Liegen hier und nicht unter einem eigenen system_config-Key, weil die
    *  Lese-Policy die erlaubten Keys einzeln aufzählt — ein neuer Key wäre für
@@ -144,6 +183,7 @@ export function defaultBrandSettings(): BrandSettings {
     slot_gallery: [],
     slot_cards: { reef: false, forest: false },
     tafel_finish: { ...FINISH_DEFAULT },
+    oelraum: { ...OELRAUM_DEFAULT, ausschnitt: { ...AUSSCHNITT_DEFAULT } },
     info_karten: [],
   };
 }
@@ -175,6 +215,7 @@ export function mergeBrandDefaults(partial: Partial<BrandSettings> | null | unde
       : def.slot_gallery,
     slot_cards: { ...def.slot_cards, ...(partial.slot_cards ?? {}) },
     tafel_finish: finishAus(partial.tafel_finish),
+    oelraum: oelraumAus(partial.oelraum),
     info_karten: infoKartenAus(partial.info_karten),
   };
 }

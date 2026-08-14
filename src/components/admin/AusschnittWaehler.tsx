@@ -14,6 +14,10 @@ export const KACHEL_FORMATE = [
   { id: '2x4', label: '2 Saunen · 4 Aufgüsse', px: '920×224', v: 920 / 224 },
   { id: '3x3', label: '3 Saunen · 3 Aufgüsse', px: '603×301', v: 603 / 301 },
   { id: '3x4', label: '3 Saunen · 4 Aufgüsse', px: '603×224', v: 603 / 224 },
+  // Keine Tafel-Kachel, sondern der ganze Bildschirm des Öl-Raum-Tablets.
+  // `aktivesFormat` liefert diese id nie — sie wird nur dort ausdrücklich
+  // übergeben, wo ein Vollbild und keine Kachel gemeint ist.
+  { id: 'tablet', label: 'Öl-Raum-Tablet (Vollbild)', px: '1280×800', v: 1280 / 800 },
 ] as const;
 
 export function aktivesFormat(saunen: number, kacheln: number): string {
