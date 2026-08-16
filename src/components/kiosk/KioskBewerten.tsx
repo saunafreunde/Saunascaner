@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DampfRueckkehr } from '@/components/DampfRueckkehr';
+import { GlutFazit, GlutRegler } from '@/components/GlutRegler';
 import { fmtClock } from '@/lib/time';
 
 // Bewerten am Eingangs-Tablet — OHNE Anmeldung (Migration 0137).
@@ -25,12 +26,12 @@ export type BewertbarerAufguss = {
 };
 
 const KATEGORIEN = [
-  { key: 'chemie', label: 'Chemie', hint: 'Stimmung zwischen Aufgießer und Gästen' },
-  { key: 'luftbewegung', label: 'Luftbewegung', hint: 'Wie kam die Hitze an?' },
-  { key: 'wedeltechnik', label: 'Wedeltechnik', hint: 'Handwerk am Tuch' },
-  { key: 'hitzeniveau', label: 'Hitze', hint: 'Zu lasch, genau richtig, zu viel?' },
-  { key: 'musik', label: 'Musik', hint: 'Passte der Klang?' },
-  { key: 'duftentwicklung', label: 'Duft', hint: 'Wie hat es gerochen?' },
+  { key: 'chemie', emoji: '✨', label: 'Chemie', hint: 'Stimmung zwischen Aufgießer und Gästen' },
+  { key: 'luftbewegung', emoji: '💨', label: 'Luftbewegung', hint: 'Wie kam die Hitze an?' },
+  { key: 'wedeltechnik', emoji: '🌊', label: 'Wedeltechnik', hint: 'Handwerk am Tuch' },
+  { key: 'hitzeniveau', emoji: '🌡️', label: 'Hitze', hint: 'Zu lasch, genau richtig, zu viel?' },
+  { key: 'musik', emoji: '🎵', label: 'Musik', hint: 'Passte der Klang?' },
+  { key: 'duftentwicklung', emoji: '🌿', label: 'Duft', hint: 'Wie hat es gerochen?' },
 ] as const;
 
 type NotenKey = (typeof KATEGORIEN)[number]['key'];
@@ -87,7 +88,9 @@ export function KioskBewerten({
     () => aufguesse.filter((a) => !a.schon_bewertet && !a.stunde_belegt),
     [aufguesse]
   );
-  const vollstaendig = KATEGORIEN.every((k) => noten[k.key]);
+  const vergeben = KATEGORIEN.map((k) => noten[k.key]).filter((n): n is number => !!n);
+  const vollstaendig = vergeben.length === KATEGORIEN.length;
+  const offeneAngaben = KATEGORIEN.length - vergeben.length;
 
   async function senden() {
     if (!offen || !vollstaendig || busy) return;
@@ -170,45 +173,38 @@ export function KioskBewerten({
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-5">
               {KATEGORIEN.map((k) => (
-                <div key={k.key}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-semibold text-forest-100">{k.label}</span>
-                    <span className="text-[11px] text-forest-500">{k.hint}</span>
-                  </div>
-                  <div className="mt-1.5 grid grid-cols-5 gap-2">
-                    {[1, 2, 3, 4, 5].map((n) => {
-                      const aktiv = noten[k.key] === n;
-                      return (
-                        <button
-                          key={n}
-                          onClick={() => { setNoten((v) => ({ ...v, [k.key]: n })); fristNeu(); }}
-                          aria-pressed={aktiv}
-                          aria-label={`${k.label}: ${n} von 5`}
-                          className={`h-14 rounded-xl text-xl font-bold transition ring-1 ${
-                            aktiv
-                              ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-amber-950 ring-amber-300'
-                              : 'bg-forest-900/70 text-forest-300 ring-forest-700/50 hover:bg-forest-800'
-                          }`}
-                        >
-                          {n}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <GlutRegler
+                  key={k.key}
+                  gross
+                  emoji={k.emoji}
+                  label={k.label}
+                  hinweis={k.hint}
+                  wert={noten[k.key] ?? null}
+                  onChange={(n) => { setNoten((v) => ({ ...v, [k.key]: n })); fristNeu(); }}
+                />
               ))}
             </div>
+
+            {vollstaendig && (
+              <div className="mt-5">
+                <GlutFazit gross noten={vergeben} />
+              </div>
+            )}
 
             {fehler && <p className="mt-4 text-sm text-rose-300">{fehler}</p>}
 
             <button
               onClick={senden}
               disabled={!vollstaendig || busy}
-              className="mt-5 w-full rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4 text-lg font-bold text-amber-950 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.99] transition"
+              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4 text-lg font-bold text-amber-950 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.99] transition"
             >
-              {busy ? 'Speichere…' : vollstaendig ? '⭐ Bewertung abschicken' : 'Bitte alle sechs vergeben'}
+              {busy
+                ? 'Speichere…'
+                : vollstaendig
+                  ? '⭐ Bewertung abschicken'
+                  : `Noch ${offeneAngaben} von 6`}
             </button>
           </section>
         ) : bewertbar.length > 0 ? (

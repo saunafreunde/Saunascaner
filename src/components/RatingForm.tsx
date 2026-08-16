@@ -5,7 +5,7 @@ import { RATING_CATEGORIES, type RatingCategoryId } from '@/lib/ratingCategories
 import { useSubmitRating, useMyRatingForInfusion, useCurrentMember, type RatableInfusion } from '@/lib/api';
 import { isAufgieser } from '@/lib/roles';
 import { computeRatingWindowClose } from '@/lib/ratingWindow';
-import { RatingStars } from './RatingStars';
+import { GlutFazit, GlutRegler } from './GlutRegler';
 import { EchoPromptModal } from './feed/EchoPromptModal';
 
 interface RatingFormProps {
@@ -64,7 +64,8 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
     }
   }, [myRatingQ.data]);
 
-  const allFilled = Object.values(ratings).every((v) => v !== null);
+  const vergeben = Object.values(ratings).filter((v): v is number => v !== null);
+  const allFilled = vergeben.length === RATING_CATEGORIES.length;
   const isEditing = !!myRatingQ.data;
 
   // Countdown until window closes — rolen-spezifisch (siehe Migration 0082)
@@ -141,24 +142,21 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
           </div>
         </div>
 
-        {/* Categories */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+        {/* Categories — derselbe Glut-Regler wie am Eingangs-Tablet. Wer dort
+            schon einmal bewertet hat, findet hier genau dasselbe wieder. */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
           {RATING_CATEGORIES.map((cat) => (
-            <div key={cat.id} className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-lg shrink-0">{cat.emoji}</span>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-200">{cat.label}</div>
-                  <div className="text-xs text-forest-400 truncate">{cat.tip}</div>
-                </div>
-              </div>
-              <RatingStars
-                value={ratings[cat.id as RatingCategoryId]}
-                onChange={(v) => setRatings((prev) => ({ ...prev, [cat.id]: v }))}
-                size="lg"
-              />
-            </div>
+            <GlutRegler
+              key={cat.id}
+              emoji={cat.emoji}
+              label={cat.label}
+              hinweis={cat.tip}
+              wert={ratings[cat.id as RatingCategoryId]}
+              onChange={(v) => setRatings((prev) => ({ ...prev, [cat.id]: v }))}
+            />
           ))}
+
+          {allFilled && <GlutFazit noten={vergeben} />}
 
           {/* Comment */}
           <div>
@@ -184,7 +182,7 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
         <div className="px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-forest-800/40 bg-forest-950/95 backdrop-blur-lg">
           {!allFilled && (
             <p className="text-xs text-forest-400 text-center mb-2">
-              Bitte alle 6 Kategorien bewerten
+              Noch {RATING_CATEGORIES.length - vergeben.length} von {RATING_CATEGORIES.length}
             </p>
           )}
           <button

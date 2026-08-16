@@ -1682,3 +1682,173 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
      Zeit noch bleibt. Also kein Ausblenden, nur ohne weiche Bewegung. */
   .kiosk-frist-balken { animation-timing-function: steps(20, end); }
 }
+
+/* ─── Glut-Regler (glut-*) ────────────────────────────────────────────────
+   Bewertet wird mit einem Schieberegler statt mit fuenf Kaestchen: ein Zug
+   mit dem Daumen, fuenf Rastpunkte, und die Bahn glueht mit steigender Note
+   von kalter Asche zu hellem Gold.
+
+   Warum wird die Fuenf nicht rot? Auf demselben Bildschirm laeuft der
+   Fristbalken von gruen nach rot — rot heisst dort „Zeit gleich vorbei".
+   Die beste Note darf nicht dieselbe Farbe tragen wie die Warnung. Statt
+   der Farbe steigt deshalb die Leuchtkraft: dieselbe Glut, nur heller.
+
+   Bedient wird ein echtes <input type="range">, das unsichtbar ueber der
+   gezeichneten Bahn liegt. Ziehen, Tippen auf eine Stelle, Pfeiltasten und
+   Screenreader kommen damit vom Browser und muessen nicht nachgebaut
+   werden — ein selbst gebauter Regler aus Pointer-Events kann all das nie
+   so gut. Damit die gezeichnete Optik deckungsgleich sitzt, bekommt der
+   native Daumen exakt die Breite --glut-d, und die Optik rechnet mit
+   derselben Formel wie der Browser: Mitte = d/2 + Anteil * (Breite - d).
+
+   Bewegt werden hier left und width statt transform. Das ist die Ausnahme
+   von der Tafel-Regel und Absicht: es passiert nur bei einem Stufenwechsel,
+   hoechstens vier Mal pro Zug, an einem absolut positionierten Element —
+   keine Dauerschleife, die ein Wandtablet 24/7 beschaeftigt. */
+.glut-bahn {
+  --glut-d: 2.6rem;   /* Daumendurchmesser — bestimmt auch die Trefferflaeche */
+  --glut-pos: 0;      /* 0…1, entspricht Note 1…5 */
+  --glut-von: #3f3a37;
+  --glut-bis: #57514c;
+  --glut-schein: 0;   /* 0…1, wie stark die Glut nach aussen strahlt */
+  position: relative;
+  height: var(--glut-d);
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.14));
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.glut-bahn-gross { --glut-d: 3.25rem; }
+
+.glut-fuellung {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--glut-d) / 2 + var(--glut-pos) * (100% - var(--glut-d)));
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--glut-von), var(--glut-bis));
+  box-shadow: 0 0 calc(0.5rem + var(--glut-schein) * 1.25rem)
+    rgba(251, 176, 68, calc(var(--glut-schein) * 0.55));
+  transition: width 0.17s cubic-bezier(0.2, 0.85, 0.3, 1), background 0.25s linear,
+    box-shadow 0.25s linear;
+}
+
+/* Marken und Daumen laufen auf derselben Spur wie der native Daumen:
+   innen um d/2 eingerueckt, damit 0 % und 100 % die Daumenmitte meinen. */
+.glut-spur {
+  position: absolute;
+  inset: 0;
+  margin-inline: calc(var(--glut-d) / 2);
+  pointer-events: none;
+}
+.glut-marke {
+  position: absolute;
+  top: 50%;
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.2);
+  transition: background 0.2s linear;
+}
+/* Ueberdeckte Marken werden dunkel — auf hellem Gold waere Weiss unsichtbar. */
+.glut-marke-erreicht { background: rgba(60, 30, 0, 0.32); }
+
+.glut-daumen {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--glut-pos) * 100%);
+  width: var(--glut-d);
+  height: var(--glut-d);
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 32%, #fffaf0, var(--glut-bis) 58%, var(--glut-von));
+  box-shadow:
+    0 2px 7px rgba(0, 0, 0, 0.6),
+    0 0 calc(0.35rem + var(--glut-schein) * 1.6rem)
+      rgba(255, 193, 96, calc(0.2 + var(--glut-schein) * 0.7)),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.32);
+  color: #2a1804;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition: left 0.17s cubic-bezier(0.2, 0.85, 0.3, 1), background 0.25s linear,
+    box-shadow 0.25s linear;
+}
+
+/* Ein Ring pro Rastung — die Rueckmeldung, dass die Stufe sitzt. */
+@keyframes glut-puls {
+  from { transform: translate(-50%, -50%) scale(0.62); opacity: 0.8; }
+  to   { transform: translate(-50%, -50%) scale(2.15); opacity: 0; }
+}
+.glut-puls {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 208, 128, 0.9);
+  pointer-events: none;
+  animation: glut-puls 0.5s ease-out forwards;
+}
+
+/* Der Hinweis liegt auf den Rastpunkten. Ohne Schatten schneidet ein Punkt
+   mitten durch ein Wort. */
+.glut-leer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: #6b9e7c;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+.glut-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  /* Senkrecht darf die Seite weiterscrollen, waagerecht gehoert die Geste
+     dem Regler. Ohne das klebt man auf dem Handy am Regler fest. */
+  touch-action: pan-y;
+}
+.glut-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--glut-d);
+  height: var(--glut-d);
+  border-radius: 50%;
+}
+.glut-input::-moz-range-thumb {
+  width: var(--glut-d);
+  height: var(--glut-d);
+  border: 0;
+  border-radius: 50%;
+}
+.glut-input::-moz-range-track { background: transparent; }
+/* Der Input ist unsichtbar — ohne das saehe man bei Tastaturbedienung nie,
+   auf welchem Regler man gerade steht. */
+.glut-bahn:has(.glut-input:focus-visible) {
+  outline: 2px solid #fbbf24;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glut-fuellung, .glut-daumen { transition: none; }
+  .glut-puls { display: none; }
+}
