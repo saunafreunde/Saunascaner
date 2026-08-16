@@ -40,7 +40,16 @@ export function aggregateOverview(
   //
   // Feed und TV-Tafel bleiben davon unberührt: dort zählt weiterhin nur,
   // was einer Person gehört.
-  const infs = infusions;
+  //
+  // ⚠️ Nur was schon stattgefunden hat. Der Planer legt acht Wochen im
+  // Voraus Platzhalter an, die noch keinem Aufgießer gehören und als
+  // Personal-Aufguss geführt werden — im August waren das 96 von 98. Ohne
+  // diesen Filter meldet der Export für den laufenden Monat lauter Aufgüsse,
+  // die erst noch kommen. (Der Fehler steckte vorher schon drin, betraf aber
+  // nur die wenigen künftigen Aufgüsse mit Aufgießer und fiel deshalb nicht
+  // auf.)
+  const jetzt = Date.now();
+  const infs = infusions.filter((i) => new Date(i.start_time).getTime() < jetzt);
   const personalAufguesse = infs.filter((i) => i.is_personal_fallback).length;
   const ohneZuordnung = infs.filter(
     (i) => !i.is_personal_fallback && !i.saunameister_id,
