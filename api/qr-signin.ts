@@ -5,6 +5,8 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { getBrandSettings, logEmailSend, sendSystemMail } from './_email_helpers.js';
+import { renderGastAccessEmail } from './_email_templates.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PIN_RE = /^\d{4}$/;
@@ -158,11 +160,23 @@ async function handleTabletSignup(
       .eq('auth_user_id', existing.id)
       .maybeSingle();
     if (memberRow && memberRow.checkin_pin) {
+      // Wer am Tablet steht, ist da — dieselbe Anwesenheits-Wirkung wie beim
+      // PIN-Checkin, sonst gilt der Tag nicht als Besuch und es lässt sich
+      // nichts bewerten (Migration 0082).
+      await markPresent(admin, memberRow.id);
+      const mailSent = await sendGastAccessMail(admin, {
+        memberId: memberRow.id,
+        email: cleanEmail,
+        name: memberRow.name,
+        pin: memberRow.checkin_pin,
+        isReturning: true,
+      });
       return res.status(200).json({
         existing: true,
         pin: memberRow.checkin_pin,
         name: memberRow.name,
         role: memberRow.role,
+        mailSent,
       });
     }
   }
@@ -184,14 +198,16 @@ async function handleTabletSignup(
 
   // Kurz warten + Member-PIN abholen (Trigger sollte sofort gefeuert haben)
   let pin: string | null = null;
+  let memberId: string | null = null;
   let attempts = 0;
   while (!pin && attempts < 5) {
     const { data: m } = await admin
       .from('members')
-      .select('checkin_pin')
+      .select('id, checkin_pin')
       .eq('auth_user_id', signupData.user!.id)
       .maybeSingle();
     pin = m?.checkin_pin ?? null;
+    memberId = m?.id ?? null;
     if (!pin) {
       await new Promise((r) => setTimeout(r, 200));
       attempts++;
@@ -199,12 +215,89 @@ async function handleTabletSignup(
   }
   if (!pin) return res.status(500).json({ error: 'pin_generation_failed' });
 
+  // Für heute angemeldet = anwesend. Ohne das startet der Gast ohne
+  // attendance_event in den Tag und get_ratable_infusions liefert nichts.
+  if (memberId) await markPresent(admin, memberId);
+
+  const mailSent = await sendGastAccessMail(admin, {
+    memberId,
+    email: cleanEmail,
+    name: cleanName,
+    pin,
+    isReturning: false,
+  });
+
   return res.status(200).json({
     existing: false,
     pin,
     name: cleanName,
     email: cleanEmail,
+    mailSent,
   });
+}
+
+// is_present + last_scan_at wie beim PIN-Checkin setzen. last_scan_at ist
+// Pflicht: ohne den Zeitstempel schreibt log_infusion_attendance_on_scan
+// Anwesenheiten für bereits vergangene Aufgüsse.
+async function markPresent(admin: SupabaseClient, memberId: string): Promise<void> {
+  await admin
+    .from('members')
+    .update({ is_present: true, last_scan_at: new Date().toISOString() })
+    .eq('id', memberId);
+}
+
+// Zugangsdaten-Mail von info@sauna-fds.de: PIN fürs Tablet + einmaliger
+// Passwort-Link für die App. Der Account wird mit einem Zufallspasswort
+// angelegt, das niemand kennt — ohne diese Mail bleibt die App für den Gast
+// verschlossen. Ein Fehlschlag darf die Anmeldung NICHT scheitern lassen:
+// der PIN steht dann trotzdem auf dem Tablet, und der Admin kann die Mail
+// später erneut auslösen.
+async function sendGastAccessMail(
+  admin: SupabaseClient,
+  p: { memberId: string | null; email: string; name: string; pin: string; isReturning: boolean },
+): Promise<boolean> {
+  const appLink = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
+  try {
+    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email: p.email,
+      options: { redirectTo: `${appLink}/reset-password` },
+    });
+    const passwordLink = linkData?.properties?.action_link;
+    if (linkErr || !passwordLink) throw new Error(linkErr?.message ?? 'no_action_link');
+
+    const brand = await getBrandSettings(admin);
+    const { html, text, subject } = renderGastAccessEmail({
+      recipientName: p.name,
+      pin: p.pin,
+      passwordLink,
+      appLink,
+      isReturning: p.isReturning,
+      brand,
+    });
+    await sendSystemMail({ to: p.email, subject, html, text });
+    await logEmailSend(admin, {
+      recipient: p.email,
+      subject,
+      templateName: 'gast-access',
+      status: 'sent',
+      memberId: p.memberId ?? undefined,
+      senderEmail: process.env.SAUNA_SMTP_USER,
+    });
+    return true;
+  } catch (e) {
+    console.warn('gast-access mail failed for', p.email, (e as Error).message);
+    await logEmailSend(admin, {
+      recipient: p.email,
+      subject: 'Gast-Zugang',
+      templateName: 'gast-access',
+      status: 'failed',
+      error: (e as Error).message,
+      memberId: p.memberId ?? undefined,
+      senderEmail: process.env.SAUNA_SMTP_USER,
+    }).catch(() => undefined);
+    return false;
+  }
 }
 
 function cryptoRandomPassword(): string {

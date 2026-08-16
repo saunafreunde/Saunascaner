@@ -12,7 +12,9 @@ export default function CheckinSignup() {
   const [dsgvo, setDsgvo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pinResult, setPinResult] = useState<{ pin: string; name: string; existing: boolean } | null>(null);
+  const [pinResult, setPinResult] = useState<
+    { pin: string; name: string; existing: boolean; mailSent: boolean } | null
+  >(null);
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
@@ -32,7 +34,12 @@ export default function CheckinSignup() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? 'Anmeldung fehlgeschlagen');
-      setPinResult({ pin: data.pin, name: data.name, existing: !!data.existing });
+      setPinResult({
+        pin: data.pin,
+        name: data.name,
+        existing: !!data.existing,
+        mailSent: !!data.mailSent,
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -69,10 +76,26 @@ export default function CheckinSignup() {
             </div>
 
             <p className="mt-6 text-xs text-forest-400 leading-relaxed">
-              Diesen PIN brauchst du <strong className="text-amber-300">jedes Mal</strong> wenn du in die Sauna kommst,
-              um Aufgüsse bewerten zu können. <br />
-              Den PIN findest du jederzeit auch in der App unter „Mein Bereich".
+              Diesen PIN brauchst du <strong className="text-amber-300">jedes Mal</strong> wenn du in die Sauna kommst.
+              Für heute bist du bereits angemeldet — du kannst die Aufgüsse dieses Tages
+              noch bis <strong className="text-amber-300">morgen 12 Uhr</strong> bewerten.
             </p>
+
+            <div className="mt-4 rounded-2xl bg-forest-900/70 ring-1 ring-forest-800/60 px-4 py-3 text-xs leading-relaxed">
+              {pinResult.mailSent ? (
+                <p className="text-forest-200">
+                  📧 Wir haben dir gerade eine E-Mail geschickt — darin steht dein PIN
+                  und der Link, mit dem du dein Passwort für die App festlegst.
+                  Schau auch im Spam-Ordner nach.
+                </p>
+              ) : (
+                <p className="text-amber-200/90">
+                  📧 Die E-Mail mit deinem App-Zugang konnten wir gerade nicht verschicken.
+                  Notier dir bitte deinen PIN — sag kurz beim Personal Bescheid,
+                  dann schicken wir dir die Zugangsdaten nach.
+                </p>
+              )}
+            </div>
 
             <button
               onClick={() => nav('/checkin')}

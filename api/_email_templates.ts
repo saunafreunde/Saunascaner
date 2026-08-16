@@ -242,6 +242,101 @@ export function renderSetPasswordEmail(vars: {
   return { html, text, subject };
 }
 
+// ─── Gast-Zugang nach der Tablet-Anmeldung ───────────────────────────────
+// Die Anmeldung am Eingangs-Tablet erzeugt einen Account mit Zufallspasswort,
+// das niemand kennt. Ohne diese Mail hat der Gast seinen PIN zwar auf dem
+// Tablet gesehen, kommt aber nie in die App — und kann deshalb auch nichts
+// bewerten (Bewerten setzt Anwesenheit UND einen App-Login voraus).
+export function renderGastAccessEmail(vars: {
+  recipientName: string;
+  pin: string;
+  passwordLink: string;
+  appLink: string;
+  isReturning: boolean;
+  brand?: BrandData;
+}): { html: string; text: string; subject: string } {
+  const shortName = vars.brand?.org?.short_name ?? 'Saunafreunde';
+  const orgName = vars.brand?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
+  const headline = vars.isReturning
+    ? `Hallo ${escapeHtml(vars.recipientName)},`
+    : `Willkommen, ${escapeHtml(vars.recipientName)}! 🎉`;
+  const lead = vars.isReturning
+    ? 'hier sind deine Zugangsdaten noch einmal in Ruhe zum Nachlesen.'
+    : `schön dass du da bist. Du gehörst ab jetzt zu ${escapeHtml(shortName)} — hier ist alles, was du brauchst.`;
+
+  const pinDigits = vars.pin
+    .split('')
+    .map(
+      (d) =>
+        `<td style="padding:0 4px;"><div style="width:52px;height:64px;background:linear-gradient(135deg,${COLORS.accent} 0%,#d97706 100%);border-radius:12px;color:${COLORS.bg};font-size:34px;font-weight:800;line-height:64px;text-align:center;">${escapeHtml(d)}</div></td>`
+    )
+    .join('');
+
+  const body = `
+    <h2 style="margin:0 0 16px;font-size:24px;color:${COLORS.textPrimary};">${headline}</h2>
+    <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${COLORS.textPrimary};">
+      ${lead}
+    </p>
+
+    <p style="margin:0 0 8px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:${COLORS.textSecondary};text-align:center;">
+      Dein PIN für das Tablet
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 8px;">
+      <tr>${pinDigits}</tr>
+    </table>
+    <p style="margin:0 0 28px;font-size:13px;line-height:1.6;color:${COLORS.textSecondary};text-align:center;">
+      Tippe ihn bei jedem Besuch am Tablet im Eingangsbereich ein.<br/>
+      Danach kannst du die Aufgüsse des Tages bewerten — Zeit dafür hast du
+      <strong style="color:${COLORS.accent};">bis zum nächsten Tag um 12 Uhr</strong>.
+    </p>
+
+    <div style="margin:0 0 8px;padding-top:24px;border-top:1px solid ${COLORS.accentDark}33;">
+      <p style="margin:0 0 4px;font-size:15px;line-height:1.6;color:${COLORS.textPrimary};">
+        <strong>Und jetzt noch dein App-Zugang:</strong>
+      </p>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:${COLORS.textSecondary};">
+        Lege einmalig ein Passwort fest, dann kommst du jederzeit in die App —
+        zum Bewerten, um zu sehen wer wann gießt, und um Aufgießern zu folgen.
+      </p>
+    </div>
+    ${button(vars.passwordLink, '🔐 Passwort festlegen')}
+    <p style="margin:0 0 24px;font-size:12px;color:${COLORS.textSecondary};text-align:center;">
+      Falls der Button nicht funktioniert, kopiere diesen Link:<br/>
+      <a href="${vars.passwordLink}" style="color:${COLORS.accent};word-break:break-all;text-decoration:underline;">${vars.passwordLink}</a>
+    </p>
+
+    <div style="margin-top:8px;padding-top:24px;border-top:1px solid ${COLORS.accentDark}33;">
+      <p style="margin:0;font-size:11px;color:${COLORS.textSecondary};line-height:1.6;">
+        Der Passwort-Link ist 1 Stunde gültig. Danach kannst du dir über
+        „Passwort vergessen“ auf <a href="${vars.appLink}" style="color:${COLORS.accent};text-decoration:none;">${vars.appLink.replace(/^https?:\/\//, '')}</a>
+        jederzeit einen neuen schicken lassen. Dein PIN bleibt davon unberührt.
+      </p>
+    </div>
+  `;
+
+  const html = wrap(vars.isReturning ? 'Deine Zugangsdaten' : `Willkommen bei ${orgName}`, body, vars.brand);
+  const text = [
+    vars.isReturning ? `Hallo ${vars.recipientName},` : `Willkommen, ${vars.recipientName}!`,
+    '',
+    `Dein PIN fuer das Tablet im Eingangsbereich: ${vars.pin}`,
+    'Damit giltst du als anwesend und kannst die Aufguesse des Tages bewerten —',
+    'Zeit dafuer hast du bis zum naechsten Tag um 12 Uhr.',
+    '',
+    'App-Zugang — bitte einmalig ein Passwort festlegen:',
+    vars.passwordLink,
+    '(1 Stunde gueltig, danach neu anfordern ueber "Passwort vergessen")',
+    '',
+    `Zur App: ${vars.appLink}`,
+    '',
+    `— ${orgName}`,
+  ].join('\n');
+
+  const subject = vars.isReturning
+    ? `👋 ${shortName}: Dein PIN und dein App-Zugang`
+    : `🎉 Willkommen bei ${shortName} — dein PIN und dein App-Zugang`;
+  return { html, text, subject };
+}
+
 // ─── Welcome-Template ────────────────────────────────────────────────────
 export function renderWelcomeEmail(vars: {
   recipientName: string;

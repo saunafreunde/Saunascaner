@@ -1,25 +1,25 @@
 # Tablet-Setup — Gäste-Launch
 
-> Stand 06.07.2026 · Für den Start reichen **zwei Tablets** (Eingang + Öl-Raum). Die TV-Tafel läuft bereits.
-> Grundregel: Im Saunabereich gilt Handy-Verbot — der QR-Anmelde-Aushang hängt deshalb **nur im Spindbereich**, alles Weitere läuft über PIN und Tablets.
+> Stand 16.08.2026 · Für den Start reichen **zwei Tablets** (Eingang + Öl-Raum). Die TV-Tafel läuft bereits.
+> Grundregel: Im Saunabereich gilt Handy-Verbot. **Es hängt kein QR-Plakat mehr im Spindbereich** — alles läuft über das Tablet im Eingangsbereich.
 
 ## Der Gäste-Flow auf einen Blick
 
 ```
-Weg A — Gast MIT Handy (im Spindbereich):
-  Spind-Plakat scannen → /gast-signup?ref=qr_spind
-  → Name + E-Mail + Datenschutz → Aktivierungs-Mail klicken
-  → App zeigt PIN unter „Mein Bereich"
-  → am Eingangs-Tablet PIN eintippen = eingecheckt
+Alles am Eingangs-Tablet, ein Bildschirm:
 
-Weg B — Gast OHNE Handy (direkt am Eingangs-Tablet):
-  /willkommen → „Neu hier? Schnelle Anmeldung"
-  → Name + E-Mail + Datenschutz → PIN erscheint SOFORT auf dem Tablet
-  → gleich weiter einchecken (PIN eintippen)
-  → zuhause: saunascaner.vercel.app → Login → „Login-Link" → Mail klicken
+Wer schon einen PIN hat:
+  4-stelligen PIN eintippen → gilt als anwesend
+  → kann ab diesem Moment die restlichen Aufgüsse des Tages bewerten
 
-Beide Wege danach identisch:
-  Check-in schreibt die Anwesenheit (attendance_events)
+Wer neu ist:
+  „Zum ersten Mal hier?" → Name + E-Mail + Datenschutz
+  → PIN erscheint SOFORT auf dem Tablet
+  → für diesen Tag angemeldet (= anwesend, ohne zweiten Schritt)
+  → E-Mail von info@sauna-fds.de mit PIN + Link zum Passwort-Festlegen
+
+Danach:
+  Anwesenheit steht in attendance_events
   → bewerten von überall möglich, bis zum Folgetag 12:00 Uhr
   → /gast zeigt offene Bewertungen automatisch an
 ```

@@ -247,7 +247,8 @@ Diese Seiten kann **jeder** ohne Anmeldung aufrufen — typisch für Tablets, TV
 
 | Link | Was passiert |
 |---|---|
-| QR-Code im Vereinsraum | öffnet `/gast-signup?ref=qr_<location>` — Schnellanmeldung |
+| Tablet im Eingangsbereich | „Zum ersten Mal hier?" → Name + E-Mail → PIN sofort auf dem Schirm, Zugangsdaten per Mail |
+| QR-Code an einer Sauna | öffnet `/gast-signup?ref=qr_<location>` — Schnellanmeldung (im Spindbereich hängt **kein** Plakat mehr) |
 | Admin-Einladung per Mail | öffnet `/m/<code>` — Magic-Entry, ein-Klick-Freischaltung mit zugewiesener Rolle |
 
 ### Admin-Preview-Mode 👁️

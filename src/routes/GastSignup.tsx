@@ -14,8 +14,9 @@ export default function GastSignup() {
   const loc = useLocation();
   const ref = new URLSearchParams(loc.search).get('ref') ?? 'qr';
 
+  // qr_spind ist bewusst raus — im Spindbereich hängt kein Plakat mehr,
+  // die Anmeldung läuft über das Tablet im Eingangsbereich (/checkin/signup).
   const origin = useMemo(() => ({
-    qr_spind: 'QR-Code · Spindbereich',
     qr_kelo: 'QR-Code · 80°C Sauna (Kelo)',
     qr_bio:  'QR-Code · 90°C Bio-Sauna',
     qr_haus: 'QR-Code · 100°C Blockhaus',
