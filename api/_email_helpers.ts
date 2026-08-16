@@ -84,6 +84,60 @@ function makeTransporter(opts: {
   } as any);
 }
 
+// ─── Logo: mitschicken statt verlinken ───────────────────────────────────
+// Ein `<img src="https://…">` in einer Mail wird von Gmail, Outlook und
+// Thunderbird standardmäßig NICHT geladen — erst nach „Bilder anzeigen".
+// Bei einer Zugangsmail an einen Gast, der den Absender noch nie gesehen
+// hat, passiert das praktisch nie: das Logo blieb unsichtbar (16.08.2026).
+//
+// Deshalb reist das Logo als Anhang mit und wird über `cid:` eingebunden.
+// Das zeigt jeder Client sofort, ohne Nachladen und ohne dass die Mail nach
+// außen telefoniert.
+export const LOGO_CID = 'saunafreunde-logo';
+const FALLBACK_LOGO_URL = 'https://saunascaner.vercel.app/icons/icon-512.png';
+
+/** Die öffentliche Adresse des hinterlegten Logos — Rückfalllösung, falls
+ *  der Anhang nicht zustande kommt. */
+export function logoUrlFuer(brand?: BrandData): string {
+  const pfad = brand?.logo?.icon;
+  return (pfad ? publicAssetUrlServer(pfad) : null) ?? FALLBACK_LOGO_URL;
+}
+
+// Das Logo ändert sich praktisch nie — einmal pro Viertelstunde reicht.
+let _logoCache: { buf: Buffer; expiresAt: number } | null = null;
+
+async function ladeLogoBinaer(): Promise<Buffer | null> {
+  if (_logoCache && _logoCache.expiresAt > Date.now()) return _logoCache.buf;
+  try {
+    const url = logoUrlFuer(await getBrandSettings());
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    _logoCache = { buf, expiresAt: Date.now() + 15 * 60_000 };
+    return buf;
+  } catch {
+    return null;
+  }
+}
+
+type MailAnhang = { filename: string; content: Buffer; cid: string; contentType: string };
+
+/** Hängt das Logo an, wenn das HTML es über `cid:` erwartet. Klappt der
+ *  Download nicht, wird auf die verlinkte Fassung zurückgeschaltet — eine
+ *  Mail ohne Logo ist besser als eine Mail mit kaputtem Bildplatzhalter. */
+async function mitLogoAnhang(html: string): Promise<{ html: string; attachments: MailAnhang[] }> {
+  if (!html.includes(`cid:${LOGO_CID}`)) return { html, attachments: [] };
+  const buf = await ladeLogoBinaer();
+  if (!buf) {
+    const url = logoUrlFuer(await getBrandSettings());
+    return { html: html.split(`cid:${LOGO_CID}`).join(url), attachments: [] };
+  }
+  return {
+    html,
+    attachments: [{ filename: 'logo.png', content: buf, cid: LOGO_CID, contentType: 'image/png' }],
+  };
+}
+
 // ─── System-Mail (info@sauna-fds.de) ─────────────────────────────────────
 export async function sendSystemMail(opts: {
   to: string;
@@ -101,13 +155,15 @@ export async function sendSystemMail(opts: {
   if (!host || !user || !pass) throw new Error('SMTP env missing (SAUNA_SMTP_*)');
 
   const transporter = makeTransporter({ host, port, secure, user, pass });
+  const { html, attachments } = await mitLogoAnhang(opts.html);
   const info = await transporter.sendMail({
     from,
     to: opts.to,
     subject: opts.subject,
-    html: opts.html,
+    html,
     text: opts.text,
     replyTo: opts.replyTo,
+    ...(attachments.length ? { attachments } : {}),
   });
   return { messageId: info.messageId };
 }
@@ -147,13 +203,15 @@ export async function sendFromAdmin(
     user: cred.email_address,
     pass: cred.password,
   });
+  const { html, attachments } = await mitLogoAnhang(opts.html);
   const info = await transporter.sendMail({
     from: `${fromName} <${cred.email_address}>`,
     to: opts.to,
     subject: opts.subject,
-    html: opts.html,
+    html,
     text: opts.text,
     replyTo: opts.replyTo,
+    ...(attachments.length ? { attachments } : {}),
   });
   return { messageId: info.messageId, fromEmail: cred.email_address };
 }

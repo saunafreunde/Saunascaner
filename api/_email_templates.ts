@@ -16,13 +16,15 @@ const COLORS = {
 };
 
 import type { BrandData } from './_email_helpers.js';
-import { publicAssetUrlServer } from './_email_helpers.js';
+import { LOGO_CID } from './_email_helpers.js';
 
-const FALLBACK_LOGO = 'https://saunascaner.vercel.app/icons/icon-512.png';
-
-function resolveLogoUrl(brand?: BrandData): string {
-  if (!brand?.logo?.icon) return FALLBACK_LOGO;
-  return publicAssetUrlServer(brand.logo.icon) ?? FALLBACK_LOGO;
+// Das Logo wird als Anhang mitgeschickt, nicht verlinkt: verlinkte Bilder
+// laden Mail-Programme standardmäßig nicht nach, dadurch blieb das Logo in
+// der Gast-Zugangsmail unsichtbar. Den Anhang setzt `sendSystemMail` /
+// `sendFromAdmin` — kommt er nicht zustande, ersetzen die beiden diese
+// Adresse automatisch wieder durch die öffentliche URL.
+function resolveLogoUrl(_brand?: BrandData): string {
+  return `cid:${LOGO_CID}`;
 }
 
 function escapeHtml(s: string): string {
