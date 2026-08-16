@@ -136,7 +136,7 @@ async function processQueue(req: VercelRequest, res: VercelResponse) {
   // Pending-Queue-Einträge holen (max 50 pro Run)
   const { data: queue, error: qErr } = await sb
     .from('notification_queue')
-    .select('id, kind, payload, dedup_key')
+    .select('id, kind, recipient_id, payload, dedup_key')
     .is('processed_at', null)
     .order('created_at', { ascending: true })
     .limit(50);
@@ -202,6 +202,35 @@ async function processQueue(req: VercelRequest, res: VercelResponse) {
             );
             totalSent += results.filter((r) => r.status === 'fulfilled').length;
           }
+        }
+      } else if (item.kind.startsWith('game_') && (item as { recipient_id?: string }).recipient_id) {
+        // Spiele-Pushes (Migration 0145): die Queue-Zeile traegt den Empfaenger
+        // und Titel/Body bereits im Payload — hier wird nur noch zugestellt.
+        // Bis 16.08.2026 wurden diese Kinds zwar als processed markiert, aber
+        // NIE versendet: seit Bestehen kam keine einzige Herausforderung an.
+        const recipientId = (item as { recipient_id: string }).recipient_id;
+        const { data: subs } = await sb
+          .from('push_subscriptions')
+          .select('endpoint, p256dh_key, auth_key')
+          .eq('member_id', recipientId);
+
+        if (subs && subs.length > 0) {
+          const matchId = payload.match_id as string | undefined;
+          const pushPayload = JSON.stringify({
+            title: (payload.title as string) || '🎮 Spiele',
+            body: (payload.body as string) || 'Es gibt Neuigkeiten in deinen Matches.',
+            url: matchId ? `/spiele/match/${matchId}` : '/spiele',
+            tag: item.dedup_key || `game-${matchId ?? 'hub'}`,
+          });
+          const results = await Promise.allSettled(
+            subs.map((s) =>
+              webpush.sendNotification(
+                { endpoint: s.endpoint, keys: { p256dh: s.p256dh_key, auth: s.auth_key } },
+                pushPayload
+              )
+            )
+          );
+          totalSent += results.filter((r) => r.status === 'fulfilled').length;
         }
       }
 

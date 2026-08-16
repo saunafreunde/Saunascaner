@@ -40,6 +40,10 @@ export type ActiveMatchSummary = {
   my_turn: boolean;
   last_move_at: string | null;
   status: MatchStatus;
+  /** Nur bei status='pending' gesetzt (Migration 0145):
+   *  'offen' = mein offener Tisch · 'eingeladen' = ich muss antworten ·
+   *  'wartet' = meine Einladung, der Gegner muss antworten. */
+  pending_role: 'offen' | 'eingeladen' | 'wartet' | null;
 };
 
 export type OpenMatchSummary = {
@@ -277,6 +281,51 @@ export function useResignMatch() {
     onSuccess: (_d, matchId) => {
       qc.invalidateQueries({ queryKey: ['game-match', matchId] });
       qc.invalidateQueries({ queryKey: ['games-active-mine'] });
+    },
+  });
+}
+
+// ─── Einladungs-Flow (Migration 0145) ────────────────────────────────────
+// Eine Herausforderung ist seitdem eine EINLADUNG (pending + player_b), keine
+// Zwangs-Partie. Erst das Annehmen startet das Match.
+
+export function useAcceptChallenge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (matchId: string) => {
+      const { error } = await need().rpc('games_accept_challenge', { p_match_id: matchId });
+      if (error) throw error;
+    },
+    onSuccess: (_d, matchId) => {
+      qc.invalidateQueries({ queryKey: ['game-match', matchId] });
+      qc.invalidateQueries({ queryKey: ['games-active-mine'] });
+    },
+  });
+}
+
+export function useDeclineChallenge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (matchId: string) => {
+      const { error } = await need().rpc('games_decline_challenge', { p_match_id: matchId });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['games-active-mine'] }),
+  });
+}
+
+/** Eigene offene Lobby oder nicht angenommene Einladung zurückziehen —
+ *  vorher waren hängende pending-Einträge für niemanden löschbar. */
+export function useCancelPending() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (matchId: string) => {
+      const { error } = await need().rpc('games_cancel_pending', { p_match_id: matchId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['games-active-mine'] });
+      qc.invalidateQueries({ queryKey: ['games-open'] });
     },
   });
 }

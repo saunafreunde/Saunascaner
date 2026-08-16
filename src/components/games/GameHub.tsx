@@ -3,11 +3,13 @@ import { useState } from 'react';
 import { useCurrentMember, useMembersDirectory } from '@/lib/api';
 import {
   useActiveMatchesForMe, useOpenMatches, useJoinOpenMatch, useChallenge,
+  useAcceptChallenge, useDeclineChallenge, useCancelPending,
   useGameLeaderboard, type GameKind,
 } from '@/lib/games';
 import { GAME_LABELS, GAME_REGISTRY, GAME_IDS } from './registry';
 import { Avatar } from '@/components/Avatar';
 import { LeaderboardSection } from './LeaderboardSection';
+import { PushPermission } from '@/components/PushPermission';
 
 // Der Spiele-Hub nach der Neubewertung vom 16.08.2026: EIN Screen ohne
 // Scrollen — sechs Kacheln mit ehrlicher Dauer-Angabe, darüber genau eine
@@ -70,32 +72,10 @@ export function GameHub() {
         <LeaderboardSection />
       ) : (
         <>
-          {/* Laufende Matches — kompakt, nur wenn vorhanden */}
+          {/* Laufende Matches + Einladungen — kompakt, nur wenn vorhanden */}
           {active.length > 0 && (
             <ul className="space-y-1.5">
-              {active.map((m) => {
-                const meta = GAME_LABELS[m.kind];
-                const wartet = m.status === 'pending';
-                return (
-                  <li key={m.match_id}>
-                    <Link to={`/spiele/match/${m.match_id}`}
-                      className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ring-1 transition ${
-                        m.my_turn ? 'bg-amber-500/15 ring-amber-500/40'
-                          : wartet ? 'bg-forest-900/40 ring-forest-800/40'
-                            : 'bg-forest-900/50 ring-forest-800/50'
-                      }`}>
-                      <span className="text-lg" aria-hidden>{meta.emoji}</span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-forest-100">
-                        {meta.label}
-                        <span className="text-forest-400">
-                          {wartet ? ' — wartet auf Gegner' : ` — vs. ${m.opponent_name ?? '?'}`}
-                        </span>
-                      </span>
-                      {m.my_turn && <span className="text-xs font-bold text-amber-300">dran →</span>}
-                    </Link>
-                  </li>
-                );
-              })}
+              {active.map((m) => <MatchZeile key={m.match_id} m={m} />)}
             </ul>
           )}
 
@@ -123,6 +103,11 @@ export function GameHub() {
               onZu={() => setPvpOffen(null)}
             />
           )}
+
+          {/* Ohne Push kommt keine Herausforderung an — Stand 16.08.2026
+              hatten 2 von 43 Mitgliedern ein Push-Abo. Der Hinweis steht
+              deshalb genau dort, wo man ihn braucht: beim Duell-Start. */}
+          {pvpOffen && myId && <PushPermission memberId={myId} />}
 
           {/* Offene Tische anderer */}
           {open.some((o) => o.challenger_id !== myId) && (
@@ -166,6 +151,92 @@ export function GameHub() {
         </>
       )}
     </div>
+  );
+}
+
+/** Eine Zeile der Match-Liste. Einladungen (Migration 0145) werden direkt
+ *  hier beantwortet — Annehmen/Ablehnen ohne Umweg über die Match-Seite. */
+function MatchZeile({ m }: { m: import('@/lib/games').ActiveMatchSummary }) {
+  const meta = GAME_LABELS[m.kind];
+  const accept = useAcceptChallenge();
+  const decline = useDeclineChallenge();
+  const cancel = useCancelPending();
+  const navigate = useNavigate();
+  const [fehler, setFehler] = useState<string | null>(null);
+  const busy = accept.isPending || decline.isPending || cancel.isPending;
+
+  if (m.pending_role === 'eingeladen') {
+    return (
+      <li className="rounded-xl bg-amber-500/15 px-3 py-2 ring-1 ring-amber-500/40">
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg" aria-hidden>{meta.emoji}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-forest-100">
+            <span className="font-semibold">{m.opponent_name ?? '?'}</span> fordert dich heraus
+            <span className="text-forest-400"> — {meta.label}</span>
+          </span>
+          <button
+            onClick={async () => {
+              setFehler(null);
+              try { await accept.mutateAsync(m.match_id); navigate(`/spiele/match/${m.match_id}`); }
+              catch (e) { setFehler((e as Error).message); }
+            }}
+            disabled={busy}
+            className="rounded-lg bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-forest-950 disabled:opacity-50"
+            style={{ touchAction: 'manipulation' }}
+          >
+            Annehmen
+          </button>
+          <button
+            onClick={() => { setFehler(null); decline.mutate(m.match_id, { onError: (e) => setFehler((e as Error).message) }); }}
+            disabled={busy}
+            className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs text-forest-300 ring-1 ring-forest-700/50 disabled:opacity-50"
+            style={{ touchAction: 'manipulation' }}
+          >
+            Ablehnen
+          </button>
+        </div>
+        {fehler && <p className="mt-1.5 text-xs text-rose-300">{fehler}</p>}
+      </li>
+    );
+  }
+
+  if (m.pending_role === 'wartet' || m.pending_role === 'offen') {
+    return (
+      <li className="flex items-center gap-2.5 rounded-xl bg-forest-900/40 px-3 py-2 ring-1 ring-forest-800/40">
+        <span className="text-lg" aria-hidden>{meta.emoji}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-forest-300">
+          {meta.label} — {m.pending_role === 'offen'
+            ? 'offener Tisch, wartet auf Mitspieler'
+            : `Einladung an ${m.opponent_name ?? '?'} — noch keine Antwort`}
+        </span>
+        <button
+          onClick={() => cancel.mutate(m.match_id, { onError: (e) => setFehler((e as Error).message) })}
+          disabled={busy}
+          className="rounded-lg px-2.5 py-1.5 text-xs text-forest-400 ring-1 ring-forest-800/50 disabled:opacity-50"
+          style={{ touchAction: 'manipulation' }}
+          title="Zurückziehen"
+        >
+          ✕ zurückziehen
+        </button>
+        {fehler && <span className="text-xs text-rose-300">{fehler}</span>}
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Link to={`/spiele/match/${m.match_id}`}
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ring-1 transition ${
+          m.my_turn ? 'bg-amber-500/15 ring-amber-500/40' : 'bg-forest-900/50 ring-forest-800/50'
+        }`}>
+        <span className="text-lg" aria-hidden>{meta.emoji}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-forest-100">
+          {meta.label}
+          <span className="text-forest-400"> — vs. {m.opponent_name ?? '?'}</span>
+        </span>
+        {m.my_turn && <span className="text-xs font-bold text-amber-300">dran →</span>}
+      </Link>
+    </li>
   );
 }
 
