@@ -4,4 +4,4 @@
 -- sonst ein Pfad im Storage-Bucket assets. Eine Spalte fuer beides statt
 -- zweier mit Vorrang-Regel — der Aufrufer entscheidet am ersten Zeichen.
 -- 12 Oele haben ihr Motiv bereits (die meistgenutzten, per KI erzeugt mit
--- Desktop\sauna_customoel_bilder.py).
+-- Desktop\CLAUDE-all\_ablage\saunascaner\skripte\sauna_customoel_bilder.py).

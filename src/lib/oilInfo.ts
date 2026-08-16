@@ -1,7 +1,7 @@
 // Duft-Kurzbeschreibungen für die „Öl des Slots"-Karte der TV-Tafel.
 //
 // Quelle sind die Produkttexte des eigenen Shops aromen123.de (Shopware,
-// abgerufen über die Admin-API mit Desktop\sauna_oelinfos.py). Die dortigen
+// abgerufen über die Admin-API mit Desktop\CLAUDE-all\_ablage\saunascaner\skripte\sauna_oelinfos.py). Die dortigen
 // Beschreibungen sind für einen Fernseher aber zu lang und zu technisch
 // (INCI, CAS-Nummern, Kaufberatung, Cross-Selling) — die Zeilen hier sind
 // daraus verdichtet: ein Satz, der sagt, wonach es riecht.

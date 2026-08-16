@@ -1,6 +1,6 @@
 // Auswahl der ausgelieferten Sauna-Header-Bilder für die TV-Tafel.
 // Die Dateien liegen im Repo unter public/saunen/ und werden mit
-// Desktop\sauna_gen.py (fal.ai flux/dev) erzeugt — bewusst als feste
+// Desktop\CLAUDE-all\_ablage\saunascaner\skripte\sauna_gen.py (fal.ai flux/dev) erzeugt — bewusst als feste
 // Assets statt Storage-Upload: nur eine Handvoll Bilder, versioniert,
 // über das Vercel-CDN ausgeliefert.
 //

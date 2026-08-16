@@ -309,7 +309,7 @@ export function InfusionCard({
           // Ein gleichmäßiger Schleier über die ganze Karte macht die dunklen
           // Fotos milchig und die Frucht unkenntlich — dieses Band hält beides.
           // background-position bottom, weil die Frucht in allen Motiven unten
-          // im Bild sitzt (siehe Prompt-Vorgabe in Desktop\sauna_gen.py).
+          // im Bild sitzt (siehe Prompt-Vorgabe in Desktop\CLAUDE-all\_ablage\saunascaner\skripte\sauna_gen.py).
           backgroundImage: [
             `linear-gradient(200deg, ${theme.color}00 0%, ${theme.color}00 45%, ${theme.color}30 100%)`,
             schleierVerlauf(finish.schleier),

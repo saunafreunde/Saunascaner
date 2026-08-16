@@ -22,7 +22,7 @@ export interface Schnaps {
   name: string;
   emoji: string;
   color: string;   // Akzentfarbe für Pille + Karten-Schleier auf der Tafel
-  image: string;   // Karten-Hintergrund, liegt in public/ (siehe Desktop\sauna_gen.py)
+  image: string;   // Karten-Hintergrund, liegt in public/ (siehe Desktop\CLAUDE-all\_ablage\saunascaner\skripte\sauna_gen.py)
 }
 
 export const SCHNAPS: Schnaps[] = [
