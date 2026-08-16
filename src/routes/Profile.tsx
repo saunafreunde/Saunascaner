@@ -21,7 +21,7 @@ import {
   useFavoriteOils, useSignatureInfusion, useSetMotto, useSetMyNameplate,
   useSetMyAutoCheckin, useSetMyDmVonGaesten,
 } from '@/lib/api';
-import { isAufgieser } from '@/lib/roles';
+import { isAufgieser, isGast } from '@/lib/roles';
 import { OIL_BY_ID } from '@/lib/oils';
 import { FORMEN, DEKOS, FARBEN, nameplateAus, type NameplateConfig } from '@/lib/nameplates';
 import { Nameplate } from '@/components/Nameplate';
@@ -309,7 +309,11 @@ export default function Profile() {
 
         {/* Sauna-Tablet-PIN (nur eigenes Profil) */}
         {isMyself && <MyCheckinPinCard />}
-        {isMyself && me.data && <AutoCheckinToggleCard enabled={me.data.auto_checkin_enabled} />}
+        {/* Gäste haben kein WLAN-Auto-Check-in (0139) — ein Schalter, der
+            nichts bewirkt, ist schlimmer als keiner. */}
+        {isMyself && me.data && !isGast(me.data) && (
+          <AutoCheckinToggleCard enabled={me.data.auto_checkin_enabled} />
+        )}
         {/* Nur für Aufgießer relevant — nur die bekommen ungefragt Post von Gästen. */}
         {isMyself && me.data && isAufgieser(me.data) && (
           <GastNachrichtenToggleCard enabled={me.data.dm_von_gaesten} />
