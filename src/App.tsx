@@ -35,7 +35,9 @@ function BottomNavGate() {
 }
 
 // Eager-loaded routes (für sofortige Verfügbarkeit)
-import Guest from '@/routes/Guest';
+// src/routes/Guest.tsx (öffentlicher Aufgussplan als Startseite) hat seit
+// 16.08.2026 keinen Aufrufer mehr — die Wurzel führt jetzt zur Anmeldung.
+// Die Datei bleibt vorerst stehen, falls die öffentliche Ansicht zurück soll.
 import Login from '@/routes/Login';
 import PendingApproval from '@/routes/PendingApproval';
 
@@ -147,11 +149,17 @@ export default function App() {
   );
 }
 
-// Root-Eintrag bei "/": wenn die App im PWA-Standalone-Modus läuft
-// (Home-Bildschirm-Icon angetippt), direkt zum Planner weiterleiten.
-// iOS ignoriert das `start_url` aus dem Manifest weitgehend — diese
-// Runtime-Erkennung schließt die Lücke. Im normalen Browser bleibt
-// der Gast-Auftritt aktiv.
+// Root-Eintrag bei "/": leitet jede Rolle in ihren Bereich weiter.
+//
+// Wer NICHT angemeldet ist, landet seit dem 16.08.2026 direkt auf der
+// Anmeldung (Vorgabe). Vorher stand hier der öffentliche Aufgussplan — der
+// war damit die Startseite der App, obwohl er das 85"-Display im
+// Vereinsraum ist. Die Tafel selbst bleibt unter /dashboard öffentlich
+// erreichbar, sie muss ohne Anmeldung laufen.
+//
+// Im PWA-Standalone-Modus (Home-Bildschirm-Icon) geht es für Aufgießer
+// direkt in den Planner; iOS ignoriert `start_url` aus dem Manifest
+// weitgehend, diese Runtime-Erkennung schließt die Lücke.
 function RootEntry() {
   const { ready, user } = useAuth();
   const member = useCurrentMember();
@@ -191,8 +199,12 @@ function RootEntry() {
   // Standalone-PWA: eingeloggte Aufgießer/Gast-Aufgießer/Admin → /planner
   if (isStandalone && user && member.data) return <Navigate to="/planner" replace />;
 
-  // Sonst: öffentliche Aufguss-Tafel
-  return <Guest />;
+  // Eingeloggte Aufgießer/Admins im Browser → Planner
+  if (user && member.data) return <Navigate to="/planner" replace />;
+
+  // Nicht angemeldet → Anmeldung. Der öffentliche Aufgussplan war hier bis
+  // 16.08.2026 die Startseite; er lebt weiter unter /dashboard (Vereins-TV).
+  return <Navigate to="/login" replace />;
 }
 
 // Pfade die Gäste nicht erreichen dürfen (Aktiv-Mitglieder-only)

@@ -80,7 +80,7 @@ export default function Feed() {
           <h1 className="text-base font-semibold text-forest-100">Feed</h1>
         </div>
         <NotificationBell />
-        {meIsAdmin ? <AdminQuickNav variant="icons" /> : <MemberQuickNav />}
+        {meIsAdmin ? <AdminQuickNav variant="icons" /> : <MemberQuickNav myMemberId={me.data?.id ?? null} />}
       </header>
 
       <main className="mx-auto w-full max-w-xl px-3 sm:px-4 py-4 space-y-4">

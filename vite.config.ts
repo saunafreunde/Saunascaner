@@ -27,9 +27,12 @@ export default defineConfig({
         background_color: '#050b08',
         display: 'standalone',
         orientation: 'any',
-        // Vom Home-Bildschirm direkt in den Planner starten.
-        // Wenn nicht eingeloggt → RequireAuth leitet zu /login.
-        start_url: '/planner',
+        // Vom Home-Bildschirm auf die Wurzel starten — RootEntry schickt jede
+        // Rolle in IHREN Bereich (Gast → /gast, Personal → /mitarbeiter,
+        // Aufgießer → /planner) und wer nicht angemeldet ist, auf /login.
+        // Vorher stand hier fest '/planner': für Gäste war die Startseite
+        // damit der Aufgussplan, obwohl sie ihn gar nicht bedienen können.
+        start_url: '/',
         scope: '/',
         id: '/',
         icons: [

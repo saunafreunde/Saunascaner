@@ -8,13 +8,19 @@ import { useCurrentMember, useMyEmailAccount } from '@/lib/api';
 
 type NavItem = { path: string; label: string; icon: string; hint?: string };
 
+// Vollständig: jede Seite, die ein Admin erreichen darf, ist hier direkt
+// anklickbar. Bewerten, Spiele und Nachrichten fehlten bis 16.08.2026 —
+// sie waren nur über die Mobil-Leiste oder direkte URL erreichbar.
 const DIRECT_ITEMS: NavItem[] = [
-  { path: '/dashboard', label: 'Tafel',     icon: '📺' },
-  { path: '/planner',   label: 'Planner',   icon: '🧖' },
-  { path: '/aufgieser', label: 'Aufgießer', icon: '🌟' },
-  { path: '/feed',      label: 'Feed',      icon: '📸' },
-  { path: '/members',   label: 'Galerie',   icon: '👥' },
-  { path: '/admin',     label: 'Admin',     icon: '⚙️' },
+  { path: '/dashboard', label: 'Tafel',       icon: '📺' },
+  { path: '/planner',   label: 'Planner',     icon: '🧖' },
+  { path: '/bewerten',  label: 'Bewerten',    icon: '📝' },
+  { path: '/aufgieser', label: 'Aufgießer',   icon: '🌟' },
+  { path: '/feed',      label: 'Feed',        icon: '📸' },
+  { path: '/spiele',    label: 'Spiele',      icon: '🎮' },
+  { path: '/dm',        label: 'Nachrichten', icon: '✉️' },
+  { path: '/members',   label: 'Galerie',     icon: '👥' },
+  { path: '/admin',     label: 'Admin',       icon: '⚙️' },
 ];
 
 // Spezial-Sichten — alle mit ?preview=<rolle> damit der Admin die Sicht
@@ -51,10 +57,14 @@ export function AdminQuickNav({ variant = 'pills' }: AdminQuickNavProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // Direkte Items: optional Postfach einfügen wenn Account
+  // Direkte Items: optional Postfach direkt vor „Admin" einfügen.
+  // Vorher stand hier ein festes splice(5, …) — das hing an der Länge der
+  // Liste und wäre beim Erweitern still an der falschen Stelle gelandet.
   const directItems: NavItem[] = [...DIRECT_ITEMS];
   if (emailAccount.data) {
-    directItems.splice(5, 0, { path: '/postfach', label: 'Postfach', icon: '📬' });
+    const adminIdx = directItems.findIndex((i) => i.path === '/admin');
+    directItems.splice(adminIdx < 0 ? directItems.length : adminIdx, 0,
+      { path: '/postfach', label: 'Postfach', icon: '📬' });
   }
 
   // Vorschau-Items: eigenes Profil hinten anhängen

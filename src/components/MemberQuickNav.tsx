@@ -22,6 +22,11 @@ export function MemberQuickNav({ myMemberId }: Props) {
   // Nicht-Aufgießer-Vereinsmitglied = Unterstützer
   const isSupporter = !gast && !staff && me.data?.role === 'member' && !isAufgieserMember;
 
+  // Regel (Vorgabe 16.08.2026): die obere Leiste zeigt JEDE Seite, die diese
+  // Rolle erreichen darf — sie ist die vollständige Navigation, die untere
+  // Mobil-Leiste nur ein Auszug daraus (dort ist Platz für fünf Einträge).
+  // Vorher fehlten Spiele und Nachrichten oben komplett, und Gäste kamen
+  // weder in die Hilfe noch in ihr eigenes Profil.
   const items: { path: string; label: string; icon: string }[] = [];
   if (gast) {
     items.push({ path: '/gast', label: 'Mein Bereich', icon: '🏡' });
@@ -30,25 +35,35 @@ export function MemberQuickNav({ myMemberId }: Props) {
   } else if (isSupporter) {
     items.push({ path: '/unterstuetzer', label: 'Helfen', icon: '🤝' });
   }
-  items.push({ path: '/dashboard', label: 'Tafel', icon: '📺' });
+  // CP-Verantwortliche starten auf /cp, hatten aber keinen Weg zurück dorthin.
+  if (me.data?.is_personal_planer) {
+    items.push({ path: '/cp', label: 'Dienstplan', icon: '🛠️' });
+  }
+  // Die Tafel ist das 85"-Display im Vereinsraum, keine Seite zum Anklicken.
+  // Für Gäste bewusst nicht verlinkt (Vorgabe 16.08.2026).
+  if (!gast) {
+    items.push({ path: '/dashboard', label: 'Tafel', icon: '📺' });
+  }
   if (!gast && !isSupporter && !staff) {
     items.push({ path: '/planner', label: 'Planner', icon: '🧖' });
-    items.push({ path: '/members', label: 'Galerie', icon: '👥' });
   }
-  if (isSupporter || staff) {
+  // /bewerten ist für jede eingeloggte Rolle erreichbar (RequireAuth sperrt
+  // nur /planner, /members und /postfach) — also gehört es auch für alle
+  // in die Leiste.
+  items.push({ path: '/bewerten', label: 'Bewerten', icon: '📝' });
+  if (!gast) {
     items.push({ path: '/members', label: 'Galerie', icon: '👥' });
   }
   items.push({ path: '/aufgieser', label: 'Aufgießer', icon: '🌟' });
   items.push({ path: '/feed', label: 'Feed', icon: '📸' });
+  items.push({ path: '/spiele', label: 'Spiele', icon: '🎮' });
+  items.push({ path: '/dm', label: 'Nachrichten', icon: '✉️' });
   if (emailAccount.data && !gast) {
     items.push({ path: '/postfach', label: 'Postfach', icon: '📬' });
   }
-  // Hilfe und Profil nur für Mitglieder — Gäste haben alles in /gast
-  if (!gast) {
-    items.push({ path: '/hilfe', label: 'Hilfe', icon: '📖' });
-    if (myMemberId) {
-      items.push({ path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' });
-    }
+  items.push({ path: '/hilfe', label: 'Hilfe', icon: '📖' });
+  if (myMemberId) {
+    items.push({ path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' });
   }
 
   return (

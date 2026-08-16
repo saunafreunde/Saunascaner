@@ -355,7 +355,7 @@ export function renderWelcomeEmail(vars: {
     </p>
     ${button(vars.loginLink, '🚪 Zur App')}
     <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:${COLORS.textSecondary};">
-      Im Saunascaner kannst du Aufgüsse planen, am WM-Tipspiel teilnehmen, deine Stamm-Slots verwalten und vieles mehr. Schau gerne erstmal in der Mitglieder-Galerie vorbei!
+      In der App kannst du Aufgüsse planen, deine Stamm-Slots verwalten, Aufgüsse bewerten und siehst jederzeit, wer wann gießt. Schau gerne erstmal in der Mitglieder-Galerie vorbei!
     </p>
   `;
   const html = wrap(`Willkommen bei ${orgName}`, body, vars.brand);

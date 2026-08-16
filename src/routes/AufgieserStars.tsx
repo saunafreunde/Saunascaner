@@ -7,13 +7,31 @@ import { PageBackground } from '@/components/PageBackground';
 
 type SortMode = 'fans' | 'aufguss' | 'rating' | 'name';
 
+/** Ab so vielen gehaltenen Aufgüssen erscheint jemand zum Kennenlernen. */
+const MIN_GEHALTEN = 10;
+
 export default function AufgieserStars() {
   const stars = useAufgieserStars();
   const me = useCurrentMember();
   const [filter, setFilter] = useState<StarSpecialty | 'all'>('all');
   const [sort, setSort] = useState<SortMode>('fans');
 
-  const data = stars.data ?? [];
+  const alle = stars.data ?? [];
+
+  // Wer hier zum Kennenlernen steht (Vorgabe 16.08.2026):
+  //  • nur ECHTE Aufgießer — ein Admin ohne is_aufgieser gehört nicht dazu,
+  //    die RPC liefert ihn aber mit (sie speist auch die Namensauflösung auf
+  //    den Aufguss-Karten und die Profilseiten, darf also nicht filtern);
+  //  • erst ab MIN_GEHALTEN tatsächlich gehaltenen Aufgüssen — geplante
+  //    zählen nicht, sonst steht hier jemand, den noch niemand erlebt hat.
+  // Die eigene Karte oben ist davon ausgenommen: seine eigene sieht jeder.
+  const data = useMemo(
+    () => alle.filter((s) =>
+      (s.is_aufgieser || s.role === 'guest_aufgieser')
+      && (s.gehaltene_aufguesse ?? 0) >= MIN_GEHALTEN
+    ),
+    [alle]
+  );
 
   const filtered = useMemo(() => {
     const f = filter === 'all' ? data : data.filter((s) => (s.specialties ?? []).includes(filter));
@@ -28,7 +46,7 @@ export default function AufgieserStars() {
   }, [data, filter, sort]);
 
   const myStar = me.data?.is_aufgieser || me.data?.role === 'admin' || me.data?.role === 'guest_aufgieser'
-    ? data.find((s) => s.id === me.data?.id)
+    ? alle.find((s) => s.id === me.data?.id)
     : undefined;
 
   return (
@@ -36,7 +54,7 @@ export default function AufgieserStars() {
       <header className="sticky top-0 z-30 mx-auto w-full max-w-[1400px] flex items-center gap-3 bg-forest-950/85 backdrop-blur-xl px-4 py-3 ring-1 ring-forest-800/40">
         <Link to="/me" className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-sm text-forest-200 hover:bg-forest-800/80">← Zurück</Link>
         <h1 className="flex-1 truncate text-xl font-semibold text-forest-100">🌟 Unsere Aufgießer</h1>
-        <MemberQuickNav />
+        <MemberQuickNav myMemberId={me.data?.id ?? null} />
       </header>
 
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 space-y-6">

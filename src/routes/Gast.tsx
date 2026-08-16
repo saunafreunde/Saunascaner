@@ -257,9 +257,6 @@ export default function Gast() {
               <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90">
                 📅 Heute in der Sauna ({todayAufgusse.length})
               </h2>
-              <Link to="/dashboard" className="text-xs text-forest-400 hover:text-amber-300 underline">
-                Zur Tafel →
-              </Link>
             </div>
             <ul className="space-y-2">
               {todayAufgusse.map((i) => {
@@ -329,10 +326,13 @@ export default function Gast() {
               <div className="mt-1 text-xs font-semibold text-forest-100">Spiele</div>
               <div className="text-[10px] text-forest-400">14 Games</div>
             </Link>
-            <Link to="/dashboard" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
-              <div className="text-2xl">📺</div>
-              <div className="mt-1 text-xs font-semibold text-forest-100">Tafel</div>
-              <div className="text-[10px] text-forest-400">aktueller Plan</div>
+            {/* Die Tafel ist das Display im Vereinsraum, keine Gast-Seite —
+                Kachel bewusst entfernt (Vorgabe 16.08.2026). Was heute läuft,
+                steht ohnehin weiter oben in „Heute in der Sauna". */}
+            <Link to="/dm" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
+              <div className="text-2xl">✉️</div>
+              <div className="mt-1 text-xs font-semibold text-forest-100">Nachrichten</div>
+              <div className="text-[10px] text-forest-400">an Aufgießer</div>
             </Link>
             <Link to="/hilfe" className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4 text-center hover:ring-amber-500/40 transition">
               <div className="text-2xl">📖</div>

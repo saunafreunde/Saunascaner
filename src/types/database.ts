@@ -66,6 +66,8 @@ export type AufgieserStar = {
   is_aufgieser: boolean;
   home_group: string | null;
   total_aufguss: number;
+  /** Nur bereits gehaltene Aufgüsse (end_time < now). Migration 0136. */
+  gehaltene_aufguesse: number;
   fan_count: number;
   avg_rating: number | null;
 };
