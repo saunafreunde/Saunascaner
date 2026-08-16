@@ -5023,7 +5023,26 @@ export function useMarkWishFulfilled() {
 // ─── Mini-Insta-Feed (Migration 0052) ─────────────────────────────────────
 export type FeedReactionType = 'fire' | 'water' | 'leaf' | 'crown' | 'theater';
 
-export type FeedPostKind = 'photo' | 'game_achievement' | 'game_win' | 'vereins_highscore';
+export type FeedPostKind =
+  | 'photo'
+  | 'game_achievement'
+  | 'game_win'
+  | 'vereins_highscore'
+  | 'wochenrueckblick';
+
+// Inhalt von feed_posts.meta bei post_kind = 'wochenrueckblick' (Migr. 0140).
+// Öle und Besonderheiten stehen als IDs drin — die Namen kommen aus
+// OIL_BY_ID / ATTR_BY_ID, damit es dafür nur eine Wahrheit gibt.
+export type WochenrueckblickMeta = {
+  von: string;   // YYYY-MM-DD, Montag
+  bis: string;   // YYYY-MM-DD, Sonntag
+  aufguesse: number;
+  team: number;
+  saunen: number;
+  aufgiesser: { name: string; anzahl: number }[];
+  oele: { id: string; anzahl: number }[];
+  attribute: { id: string; anzahl: number }[];
+};
 
 export type FeedPost = {
   id: string;
