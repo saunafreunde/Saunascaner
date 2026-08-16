@@ -443,9 +443,9 @@ function zeichneBahn(
   ctx.stroke();
 }
 
-/** Deterministischer Zufall für die Textur — dieselbe Strecke sieht auf jedem
- *  Gerät gleich aus (Geister fahren über denselben Boden). */
-function mulberry32(seed: number): () => number {
+/** Deterministischer Zufall für Textur und Deko — dieselbe Strecke sieht auf
+ *  jedem Gerät gleich aus (Geister fahren über denselben Boden). */
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;

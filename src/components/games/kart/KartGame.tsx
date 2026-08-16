@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCurrentMember } from '@/lib/api';
 import {
-  STRECKEN, STRECKE_BY_ID, TEX_SIZE, bauStreckenWelt,
+  STRECKEN, STRECKE_BY_ID, TEX_SIZE, bauStreckenWelt, mulberry32,
   M_WIESE, M_BAHN, M_TURBO, M_BREMS, M_RAMPE, M_SCHULTER,
   type KartStrecke, type StreckenWelt,
 } from '@/lib/kart/strecken';
@@ -782,14 +782,19 @@ function starteRennen(opts: {
   // ─── Rendering ─────────────────────────────────────────────────────────
   const cos = Math.cos, sin = Math.sin;
 
-  // Streckenrand-Tannen als Billboards: DIE Tiefen- und Tempo-Referenz, die
-  // dem Boden allein fehlt — erst wenn Objekte am Rand vorbeiziehen, liest
-  // das Auge Geschwindigkeit. Positionen einmal berechnet; um die
-  // Abkürzungs-Einmündungen bleibt eine Lücke, sonst wäre der Geheimpfad
-  // zugestellt.
-  const tannen: { x: number; y: number; gross: boolean }[] = [];
+  // ── Streckenrand-Ausstattung (Kreativ-Runde 16.08.2026) ────────────────
+  // Nach dem Rezept der Klassiker (Out-Run-Rhythmik, SMK-Sparsamkeit bei den
+  // Typen): ein dominanter Füller in Größenvarianten, Cluster mit bewussten
+  // Atem-Lücken, Laternen-Paare als Kurven-Telegraph, ein Anker pro
+  // Streckenviertel, Zuschauer NUR als Cluster an Start/Ziel — und das
+  // Ziel-Tor als größter Sprite des Spiels. Alles deterministisch geseedet.
+  type Deko = { x: number; y: number; name: string; wh: number };
+  const deko: Deko[] = [];
+  const tanneKlein = bauTanne(false);
+  const tanneGross = bauTanne(true);
   {
     const n = linie.length;
+    const rnd = mulberry32(strecke.id === 'kelo_kurve' ? 0x5eed1 : 0x5eed2);
     const gesperrt = new Set<number>();
     for (const ab of strecke.abkuerzungen) {
       for (let o = -14; o <= 14; o++) {
@@ -797,21 +802,100 @@ function starteRennen(opts: {
         gesperrt.add(((ab.bis + o) % n + n) % n);
       }
     }
-    for (let i = 0; i < n; i += 14) {
-      if (gesperrt.has(i)) continue;
-      const p = linie[i];
-      const seite = (i / 14) % 2 === 0 ? 1 : -1;
+    const leg = (idx: number, seite: number, abstand: number, name: string, wh: number) => {
+      const p = linie[((idx % n) + n) % n];
       const qx = -Math.sin(p.winkel) * seite, qy = Math.cos(p.winkel) * seite;
-      const abstand = strecke.breite + 44 + ((i * 13) % 3) * 7;
-      tannen.push({
-        x: p.x + qx * abstand,
-        y: p.y + qy * abstand,
-        gross: (i * 7) % 3 !== 0,
-      });
+      deko.push({ x: p.x + qx * abstand, y: p.y + qy * abstand, name, wh });
+    };
+    // tanne-1 (der schmale Schnitt-Splitter aus dem Sheet) ist aussortiert —
+    // vier saubere Varianten tragen den Wald, tanne-5 übernimmt die
+    // Hochschlank-Rolle.
+    const TANNEN: [string, number][] = [
+      ['tanne-2', 145], ['tanne-3', 118], ['tanne-4', 78], ['tanne-5', 160],
+    ];
+
+    // Grundtakt Wald: pro Seite etwa alle 5–7 Indizes eine Tanne in einem von
+    // zwei Bändern; alle ~110 Indizes ein Dickicht (3 gestaffelte Bäume),
+    // danach eine bewusste Lücke — der „Atem" der Strecke.
+    for (const seite of [1, -1]) {
+      let i = Math.floor(rnd() * 6);
+      while (i < n) {
+        if (!gesperrt.has(i)) {
+          const dickicht = (i % 110) < 12;
+          const anzahl = dickicht ? 3 : 1;
+          for (let k = 0; k < anzahl; k++) {
+            const [name, wh] = TANNEN[Math.floor(rnd() * TANNEN.length)];
+            const band = k === 0 && rnd() < 0.55
+              ? strecke.breite + 40 + rnd() * 26        // Mittel-Band: wächst groß
+              : strecke.breite + 85 + rnd() * 45;       // Hinten: Silhouette
+            leg(i + k * 3, seite, band, name, wh);
+          }
+          if (dickicht) { i += 16 + Math.floor(rnd() * 4); continue; } // Atem-Lücke
+        }
+        i += 5 + Math.floor(rnd() * 3);
+      }
     }
+
+    // Kurven-Telegraph: wo die Strecke in den nächsten ~15 Indizes stark
+    // dreht, stehen 25 Indizes VORHER Laternen-Paare dicht an der Bande.
+    for (let i = 0; i < n; i += 5) {
+      let drehung = 0;
+      for (let k = 0; k < 15; k++) {
+        const a = linie[(i + k) % n].winkel, b = linie[(i + k + 1) % n].winkel;
+        let d = b - a;
+        if (d > Math.PI) d -= Math.PI * 2;
+        if (d < -Math.PI) d += Math.PI * 2;
+        drehung += Math.abs(d);
+      }
+      if (drehung > 0.55) {
+        const ort = ((i - 25) % n + n) % n;
+        if (!gesperrt.has(ort)) {
+          leg(ort, 1, strecke.breite + 34, 'laterne', 46);
+          leg(ort, -1, strecke.breite + 34, 'laterne', 46);
+        }
+      }
+    }
+
+    // Farbtupfer und Requisiten im Grundrhythmus.
+    for (let i = 33; i < n; i += 57) {
+      if (!gesperrt.has(i)) leg(i, rnd() < 0.5 ? 1 : -1, strecke.breite + 46 + rnd() * 20, 'fels', 34);
+    }
+    leg(150, 1, strecke.breite + 38, 'wegweiser', 52);
+    leg(430, -1, strecke.breite + 38, 'kuebel', 26);
+
+    // Anker pro Streckenviertel — die Wiedererkennung der Runde. Die
+    // Hütten-Runde (Blockhaus-Passage) bekommt mehr Gebautes, die Waldrunde
+    // bleibt Wald mit einem Hof.
+    const istDorf = strecke.id === 'blockhaus_passage';
+    leg(90, -1, strecke.breite + 95, 'blockhaus', 130);
+    leg(270, 1, strecke.breite + 70, 'holzstapel', 55);
+    if (istDorf) {
+      leg(450, -1, strecke.breite + 75, 'saunafass', 60);
+      leg(600, 1, strecke.breite + 95, 'blockhaus', 130);
+    } else {
+      leg(520, 1, strecke.breite + 80, 'saunafass', 60);
+    }
+
+    // Zuschauer-Cluster an der Zielgeraden — beidseitig, gestaffelt.
+    const GAESTE = ['gast-1', 'gast-2', 'gast-3', 'gast-4'];
+    for (const seite of [1, -1]) {
+      for (let k = 0; k < 3; k++) {
+        leg(n - 14 + k * 5, seite, strecke.breite + 36 + k * 6,
+          GAESTE[Math.floor(rnd() * GAESTE.length)], 38);
+      }
+    }
+
+    // Das Ziel-Tor: mittig ÜBER der Bahn, kurz hinter der Linie — der größte
+    // Sprite des Spiels, aus maximaler Distanz als „Heimat" der Runde lesbar.
+    leg(4, 1, 0, 'torbogen', 125);
   }
-  const tanneKlein = bauTanne(false);
-  const tanneGross = bauTanne(true);
+
+  function dekoSprite(name: string): CanvasImageSource | null {
+    const bild = assets.deko[name as keyof typeof assets.deko];
+    if (bild) return bild;
+    if (name.startsWith('tanne')) return name === 'tanne-4' ? tanneKlein : tanneGross;
+    return null;
+  }
 
   function zeichne() {
     // Die KAMERA hinkt dem Lenken minimal hinterher — der Trick, der Mode-7
@@ -883,29 +967,48 @@ function starteRennen(opts: {
     ctx.save();
     ctx.translate(shX, shY);
 
-    // ── Billboards: Tannen, Stämme, Geister — EIN sortierter Durchlauf ────
+    // ── Billboards: Tannen, Deko, Stämme, Geister — EIN sortierter Durchlauf ─
     // Ohne Tiefensortierung stünde ein ferner Geist VOR einer nahen Tanne;
     // gesammelt wird als Zeichen-Closure, gemalt von hinten nach vorn.
+    //
+    // WICHTIG (Fix 16.08., zweiter Anlauf): Billboards skalieren nach ihrer
+    // WELT-HÖHE ungedeckelt mit 1/Tiefe — genau wie der Boden. Der frühere
+    // Skala-Deckel ließ Bäume beim Heranfahren „einfrieren", während der
+    // Boden weiterraste: exakt der Bruch, der das Bild unecht machte. Jetzt
+    // wächst eine Tanne beim Passieren über den Bildschirmrand hinaus und
+    // zieht seitlich vorbei; die Nah-Ebene liegt bei 6 Einheiten, weit hinten
+    // blenden Objekte weich ein statt aufzuploppen.
     const billboards: { tiefe: number; mal: () => void }[] = [];
     const projiziere = (wx2: number, wy2: number) => {
       const dxw = wx2 - kx, dyw = wy2 - ky;
       const tiefe = dxw * fx + dyw * fy;
-      if (tiefe < KAM_ABSTAND * 0.5 || tiefe > 640) return null;
+      if (tiefe < 6 || tiefe > 640) return null;
       const quer = dxw * rx + dyw * ry;
       return {
         tiefe,
+        alpha: tiefe > 560 ? (640 - tiefe) / 80 : 1,
         sx: W / 2 + (quer * FOKAL) / tiefe,
         sy: HORIZONT + (st.kamHoehe * FOKAL) / tiefe,
       };
     };
 
-    for (const t of tannen) {
-      const p = projiziere(t.x, t.y);
+    for (const d of deko) {
+      const sprite = dekoSprite(d.name);
+      if (!sprite) continue;
+      const p = projiziere(d.x, d.y);
       if (!p) continue;
-      const sprite = t.gross ? tanneGross : tanneKlein;
-      const skala = Math.min(2.2, 60 / p.tiefe * 4.4);
+      // Skalierung nach WELT-Höhe, Seitenverhältnis aus dem Sprite selbst.
+      // Deckel erst WEIT über Bildschirmhöhe — nicht wahrnehmbar (das Objekt
+      // ragt dann längst über alle Ränder), begrenzt nur die Zeichenlast.
+      const natB = (sprite as HTMLImageElement).naturalWidth ?? (sprite as HTMLCanvasElement).width;
+      const natH = (sprite as HTMLImageElement).naturalHeight ?? (sprite as HTMLCanvasElement).height;
+      const hPx = Math.min(H * 3, (d.wh * FOKAL) / p.tiefe);
+      const bPx = hPx * (natB / Math.max(1, natH));
+      if (p.sx + bPx / 2 < -30 || p.sx - bPx / 2 > W + 30) continue;
       billboards.push({ tiefe: p.tiefe, mal: () => {
-        ctx.drawImage(sprite, p.sx - 22 * skala, p.sy - 56 * skala, 44 * skala, 60 * skala);
+        ctx.globalAlpha = p.alpha;
+        ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
+        ctx.globalAlpha = 1;
       } });
     }
 
@@ -914,7 +1017,7 @@ function starteRennen(opts: {
         const s = stammPosition(si, st.zeitMs);
         const p = projiziere(s.x, s.y);
         if (!p) continue;
-        const skala = Math.min(1.4, 46 / p.tiefe * 3.6);
+        const skala = (26 * FOKAL) / p.tiefe / 56; // Stamm ≈ 26 Welteinheiten
         billboards.push({ tiefe: p.tiefe, mal: () => zeichneStamm(ctx, stammSprite, p.sx, p.sy, skala, s.quer / 9) });
       }
       for (let gi = 0; gi < geister.length; gi++) {
@@ -923,11 +1026,15 @@ function starteRennen(opts: {
         if (!gp) continue;
         const p = projiziere(gp.x, gp.y);
         if (!p) continue;
-        const skala = Math.min(1.15, 46 / p.tiefe * 3.2);
+        // Kart ≈ 20 Welteinheiten hoch — dieselbe Formel wie der Rest der
+        // Welt, damit ein Geist neben dem Spieler dessen Größe hat.
+        const skala = Math.min(8, (20 * FOKAL) / p.tiefe / 76);
         billboards.push({ tiefe: p.tiefe, mal: () => {
+          ctx.globalAlpha = p.alpha;
           zeichneFahrer(ctx, geistPosen[gi], p.sx, p.sy, skala, gp.lenk, true);
+          ctx.globalAlpha = 1;
           if (p.tiefe < 240) {
-            ctx.font = 'bold 9px system-ui';
+            ctx.font = `bold ${Math.max(8, Math.min(13, 9 * skala + 4))}px system-ui`;
             ctx.textAlign = 'center';
             ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.fillText(geist.name, p.sx, p.sy - 34 * skala);

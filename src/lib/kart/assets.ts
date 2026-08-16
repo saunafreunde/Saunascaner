@@ -20,6 +20,17 @@ export interface SchlittenPosen {
   rechts: CanvasImageSource | null;
 }
 
+/** Die Streckenrand-Deko der Kreativ-Runde (16.08.2026) — aus Sprite-Sheets
+ *  geschnitten. Jeder Eintrag darf fehlen; Tannen fallen dann auf die
+ *  gezeichnete Fassung zurück, alles andere bleibt einfach weg. */
+export const DEKO_NAMEN = [
+  'tanne-1', 'tanne-2', 'tanne-3', 'tanne-4', 'tanne-5',
+  'wegweiser', 'kuebel', 'laterne', 'fels',
+  'gast-1', 'gast-2', 'gast-3', 'gast-4',
+  'torbogen', 'blockhaus', 'holzstapel', 'saunafass',
+] as const;
+export type DekoName = typeof DEKO_NAMEN[number];
+
 export interface KartAssets {
   /** Drei Skins [creme, rost, blau] — Zuordnung per Member-Hash, damit
    *  Geister verschiedener Mitglieder verschieden aussehen. */
@@ -29,6 +40,7 @@ export interface KartAssets {
   panorama: CanvasImageSource | null;
   /** Der rollende Baumstamm — Fallback ist eine gezeichnete Walze. */
   stamm: CanvasImageSource | null;
+  deko: Partial<Record<DekoName, CanvasImageSource | null>>;
 }
 
 const SKINS = ['creme', 'rost', 'blau'];
@@ -59,11 +71,19 @@ export function ladeKartAssets(): Promise<KartAssets> {
       ladeBild('/kart/panorama.jpg'),
       ladeBild('/kart/stamm.png'),
     ]);
+    const dekoBilder = await Promise.all(
+      DEKO_NAMEN.map((n) => ladeBild(`/kart/deko/${n}.png`)),
+    );
+    const deko: Partial<Record<DekoName, CanvasImageSource | null>> = {};
+    DEKO_NAMEN.forEach((n, i) => {
+      deko[n] = dekoBilder[i] ? entgruenen(dekoBilder[i]!) : null;
+    });
     return {
       schlitten: posen,
       boden: { kelo_kurve: holz, blockhaus_passage: wald },
       panorama: pano,
       stamm: stamm ? entgruenen(stamm) : null,
+      deko,
     };
   })();
   return cache;
