@@ -551,7 +551,6 @@ const BANJA_ATTR: InfusionAttribute = 'banja';
   - Saisonal-Auto: snow, xmas-lights, xmas-gifts, xmas-tree, sparkles, pumpkins, ghosts, bats, spiders, easter-eggs, easter-bunny, blossoms, butterflies, parasols, dragonflies, autumn-leaves
   - Atmosphäre (manuell): rain, fog, night
   - Toggle-Wrapper: holzfaeller, reh, playground, schwarzwald-heim (Default off)
-  - Demo: welcome-qr (riesiger QR-Code-Overlay für Welcome-Tour)
   - 12 Theme-Presets (Standard, Winter, Weihnachten, Silvester, Fasching, Ostern, Frühling, Sommer-Fest, Herbst, Halloween, Nacht, Wald lebt)
 - **Effect-Registry** (`src/components/stage/effects/index.ts`, 16 one-shot Effekte, Pure-CSS Inline-SVG):
   - fireworks (15s, 480 Partikel), monster-scare (5s + Screen-Shake), confetti, balloons, lightning, rocket, birthday, shooting-star, bat-swarm, ufo, tornado, rainbow, snowstorm, explosion, unicorn, music-notes
@@ -815,7 +814,6 @@ Für Staff mit `is_personal_planer=true`:
 |---|---|---|
 | `/` | public | RootEntry — leitet eingeloggt zur Rollen-Route, sonst Gäste-App |
 | `/dashboard` | public | TV-Tafel (16:9 fest, 85"-Display) |
-| `/tour` | public | Welcome-Tour mit 8 Scroll-Snap-Sektionen |
 | `/willkommen` | public | 3. Tablet im Gäste-Bereich (anonyme Landing mit Neu/Registriert-Buttons) |
 | `/bewerten` | RequireAuth | Liste der ratable Aufgüsse |
 | `/scanner` | public | QR-Scanner-Tablet am Eingang |

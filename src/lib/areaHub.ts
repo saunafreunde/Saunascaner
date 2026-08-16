@@ -29,7 +29,6 @@ export const NO_AREA_HUB_PATHS = [
   '/login',
   '/forgot',
   '/reset-password',
-  '/tour',
   '/datenschutz',
   '/m/',
 ];
@@ -102,10 +101,6 @@ const ITEM_CP: AreaItem = {
   path: '/cp', emoji: '🛠️', title: 'CP-Verantwortung',
   blurb: 'Schichtplan, Anwesenheits-Export und Ratings', isHome: true,
 };
-const ITEM_TOUR: AreaItem = {
-  path: '/tour', emoji: '🎉', title: 'Welcome-Tour',
-  blurb: 'Kurze App-Vorstellung in 8 Bildschirmen',
-};
 
 // ─── Profil-Item (dynamisch wegen myMemberId) ──────────────────────────────
 
@@ -167,7 +162,7 @@ export function areaHubItemsForRole(
   if (isGast(member)) {
     return [
       ITEM_GAST, ITEM_AUFGIESER, ITEM_FEED, ITEM_SPIELE, ITEM_DM,
-      ITEM_DASHBOARD, ITEM_TOUR, myProfile, ITEM_HILFE,
+      myProfile, ITEM_HILFE,
     ];
   }
   // Aufgießer (member + is_aufgieser oder guest_aufgieser)

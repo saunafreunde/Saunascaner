@@ -67,7 +67,7 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 17 Tabs. Du springst direkt rei
 - [📋 Abfragen erstellen](/admin#polls)
 - [🤝 Helfer-Aufgaben verwalten](/admin#tasks)
 - [🏆 WM-Spielplan + Ergebnisse](/admin#wm)
-- [🎭 **Bühne** — TV-Tafel steuern (Themes, Effekte, Welcome-QR)](/admin#stage) ⭐ neu
+- [🎭 **Bühne** — TV-Tafel steuern (Themes, Effekte)](/admin#stage)
 
 **🎨 Setup**
 - [🎨 Branding (Logo, Farben, org_name)](/admin#branding)
@@ -86,7 +86,6 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 17 Tabs. Du springst direkt rei
 | 📱 Tablet „Eingecheckt" | Bestätigung nach Check-in (15s Auto-Logout), Hinweis aufs Bewerten in der App | [/checkin/rate](/checkin/rate) ⭐ angepasst |
 | 📱 **Willkommens-Tablet** | 3. Tablet im Gäste-Bereich: Neu-hier? / Schon-registriert? | [/willkommen](/willkommen) ⭐ neu |
 | 📱 Öl-Raum-Tablet | Aufgießer-Tools — läuft anonym, Long-Press zum Entsperren | [/oil-room](/oil-room) |
-| 🎉 Welcome-Tour | Für Mitglieder-Präsentationen (8 Scroll-Sektionen, mit QR-Code-Overlay auf der Tafel) | [/tour](/tour) |
 
 ---
 
@@ -1409,20 +1408,6 @@ Ab **21:00 Uhr** zeigt die Tafel **nicht mehr** die aktuellen Aufgüsse, sondern
 
 Container-Queries (`cqh`) sorgen dafür, dass alles auf einen Bildschirm passt — kein Scrollen auf dem TV. Ab Mitternacht startet die Tafel automatisch in den neuen Tag.
 
-### Welcome-Tour für Mitglieder-Präsentation (`/tour`)
-
-Für Vereins-Vorstellungen gibt es eine eigene **Welcome-Tour** (`/tour`, public ohne Login). 8 vertikale Scroll-Snap-Sektionen erklären die App:
-1. Hero mit Schnee-Effekt
-2. Aufguss-Tafel
-3. Bewerten & Sterne
-4. Feed & Fotos
-5. Badges & WM-Tipspiel
-6. Bühne
-7. Welche Rolle bist du? — 5 Karten mit „Probier's"-Direktlinks
-8. Call-to-Action „Jetzt mitmachen"
-
-**Im Vereinsraum:** Admin aktiviert die Scene **📢 Willkommens-QR (Tour)** im Bühne-Tab — auf der TV-Tafel erscheint ein riesiger QR-Code mit „🎉 Willkommen! Scan mit deinem Handy für eine kurze Tour". Alle scannen mit eigenem Handy und scrollen durch die Tour.
-
 ---
 
 ## 19. Telegram-Bot
@@ -1991,7 +1976,7 @@ Manche Mitglieder sind nicht App-affin und finden über die Bottom-Nav nur ihren
 
 ### Wo er NICHT auftaucht
 
-Auf Pages ohne Bottom-Nav (z.B. TV-Tafel `/dashboard`, Tablet-Routes `/checkin*`, `/oil-room`, Welcome-Tour `/tour`, Auth-Seiten) — gleiche Ausschluss-Liste wie `NO_BOTTOM_NAV_PATHS`.
+Auf Pages ohne Bottom-Nav (z.B. TV-Tafel `/dashboard`, Tablet-Routes `/checkin*`, `/oil-room`, Auth-Seiten) — gleiche Ausschluss-Liste wie `NO_BOTTOM_NAV_PATHS`.
 
 ---
 

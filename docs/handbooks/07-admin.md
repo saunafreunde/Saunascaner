@@ -90,7 +90,6 @@ Toggle-Wrapper (Default off):
 - holzfaeller, reh, playground, schwarzwald-heim
 
 Demo:
-- welcome-qr (riesiger QR-Code für Welcome-Tour)
 
 ### Theme-Presets (12 One-Click)
 Standard, Winter, Weihnachten, Silvester, Fasching, Ostern, Frühling, Sommer-Fest, Herbst, Halloween, Nacht-Modus, Wald lebt.
@@ -211,12 +210,6 @@ Zusätzlich zu Standard-Push:
 1. `/admin#stage` → Theme „🎃 Halloween" → aktiviert pumpkins + ghosts + bats + spiders Layer
 2. Manuell trigger: 🎃 monster-scare alle 2h für Schreck-Effekte
 3. Atmosphäre: night-Layer aktivieren
-
-**Welcome-Tour für neue Mitglieder**:
-1. `/admin#stage` → Toggle „welcome-qr" Scene aktivieren
-2. Tafel zeigt riesigen QR-Code mit Link zu `/tour`
-3. Neue Mitglieder scannen → 8 Scroll-Snap-Sektionen mit App-Funktionen
-4. Toggle aus wenn Tour vorbei
 
 ## Was du immer im Auge behalten solltest
 

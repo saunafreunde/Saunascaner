@@ -44,7 +44,6 @@ export const SCENE_REGISTRY: Record<string, SceneMeta> = {
 
   // ── Demo / Präsentation ──
   // Riesiger QR-Code für Mitglieder-Tour. Nur on-demand aktivieren.
-  'welcome-qr': { id: 'welcome-qr', label: 'Willkommens-QR (Tour)', emoji: '📢', defaultSeason: null, component: lazy(() => import('./WelcomeTourQrScene')) },
 
   // Spiele-Champions oben auf der Tafel. Nur on-demand aktivieren (z.B. bei Spiele-Vereinsabenden).
   'games-hall-of-fame': { id: 'games-hall-of-fame', label: 'Spiele Hall of Fame', emoji: '🏆', defaultSeason: null, component: lazy(() => import('./GamesHallOfFameScene')) },

@@ -12,13 +12,12 @@ import { AppReloadWatcher } from '@/components/AppReloadWatcher';
 import { ErrorBoundary, TafelErrorFallback } from '@/components/ErrorBoundary';
 import { useAutoCheckin } from '@/hooks/useAutoCheckin';
 
-// Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows + Welcome-Tour
+// Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows
 const NO_BOTTOM_NAV_PATHS = [
   '/dashboard', '/scanner', '/oil-room',
   '/willkommen',
   '/checkin', '/checkin/signup', '/checkin/rate',
   '/gast-signup', '/login', '/forgot', '/reset-password',
-  '/tour',
   '/panel',
   '/datenschutz',
   '/m/',
@@ -68,7 +67,6 @@ const AufgieserStars  = lazy(() => import('@/routes/AufgieserStars'));
 const StarProfile     = lazy(() => import('@/routes/StarProfile'));
 const Feed            = lazy(() => import('@/routes/Feed'));
 const Bewerten        = lazy(() => import('@/routes/Bewerten'));
-const Tour            = lazy(() => import('@/routes/Tour'));
 const Games           = lazy(() => import('@/routes/Games'));
 const GameSolo        = lazy(() => import('@/routes/GameSolo'));
 const GameMatch       = lazy(() => import('@/routes/GameMatch'));
@@ -118,7 +116,6 @@ export default function App() {
         <Route path="/aufgieser/:memberId"   element={<RequireAuth><StarProfile /></RequireAuth>} />
         <Route path="/feed"                  element={<RequireAuth><Feed /></RequireAuth>} />
         <Route path="/bewerten"              element={<RequireAuth><Bewerten /></RequireAuth>} />
-        <Route path="/tour"                  element={<Tour />} />
         <Route path="/spiele"                element={<RequireAuth><Games /></RequireAuth>} />
         <Route path="/spiele/solo/:kind"     element={<RequireAuth><GameSolo /></RequireAuth>} />
         <Route path="/spiele/match/:matchId" element={<RequireAuth><GameMatch /></RequireAuth>} />
