@@ -39,7 +39,7 @@ type NotenKey = (typeof KATEGORIEN)[number]['key'];
 const FEHLER: Record<string, string> = {
   stunde_schon_bewertet: 'Für diese Stunde hast du schon einen Aufguss bewertet.',
   nicht_von_heute: 'Am Tablet kannst du nur die Aufgüsse von heute bewerten — ältere gehen in der App.',
-  eigener_aufguss: 'Deinen eigenen Aufguss kannst du nicht bewerten.',
+  eigener_aufguss: 'Bei diesem Aufguss hast du selbst gewedelt — den kannst du nicht bewerten.',
   noch_nicht_zu_ende: 'Der Aufguss läuft noch.',
   nicht_anwesend_gewesen: 'Für diesen Tag ist kein Check-in hinterlegt.',
   pin_unbekannt: 'Der PIN stimmt nicht mehr. Bitte neu eintippen.',

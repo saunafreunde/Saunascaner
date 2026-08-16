@@ -33,7 +33,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   rating_window_expired: 'Das Bewertungsfenster (bis Folgetag 12:00 Uhr) ist abgelaufen.',
   rating_window_expired_aufgieser: 'Das 3-Stunden-Fenster für Aufgießer ist abgelaufen.',
   infusion_not_finished: 'Dieser Aufguss läuft noch.',
-  self_rating_not_allowed: 'Du kannst deinen eigenen Aufguss nicht bewerten.',
+  self_rating_not_allowed: 'Bei diesem Aufguss hast du selbst gewedelt — den kannst du nicht bewerten.',
   infusion_not_found: 'Aufguss nicht gefunden.',
 };
 

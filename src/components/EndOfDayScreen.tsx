@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Infusion } from '@/types/database';
-import type { MeisterDirectoryEntry } from '@/lib/api';
+import { useCoAufgieser, type MeisterDirectoryEntry } from '@/lib/api';
 import { Avatar } from '@/components/Avatar';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
@@ -46,18 +46,38 @@ export function EndOfDayScreen({
     });
   }, [infusions]);
 
+  // Eigener Query statt Prop: erspart es, die Liste durch die ganze
+  // Tafel-Aufrufkette durchzureichen.
+  const coAufgieser = useCoAufgieser(
+    useMemo(() => todayInfs.map((i) => i.id), [todayInfs]),
+  ).data ?? [];
+
+  // Bei einem Team-Aufguss zählt jeder Beteiligte einzeln (Migr. 0141) —
+  // ein Aufguss, aber drei Leute, die gewedelt haben.
   const meisterStats = useMemo(() => {
+    const coJeAufguss = new Map<string, string[]>();
+    for (const c of coAufgieser) {
+      const bisher = coJeAufguss.get(c.infusion_id);
+      if (bisher) bisher.push(c.member_id);
+      else coJeAufguss.set(c.infusion_id, [c.member_id]);
+    }
+
     const map = new Map<string, { count: number; entry: MeisterDirectoryEntry }>();
     for (const i of todayInfs) {
-      if (!i.saunameister_id) continue;
-      const entry = meisterDir.find((m) => m.id === i.saunameister_id);
-      if (!entry) continue;
-      const cur = map.get(entry.id) ?? { count: 0, entry };
-      cur.count += 1;
-      map.set(entry.id, cur);
+      const beteiligte = new Set<string>();
+      if (i.saunameister_id) beteiligte.add(i.saunameister_id);
+      for (const id of coJeAufguss.get(i.id) ?? []) beteiligte.add(id);
+
+      for (const memberId of beteiligte) {
+        const entry = meisterDir.find((m) => m.id === memberId);
+        if (!entry) continue;
+        const cur = map.get(entry.id) ?? { count: 0, entry };
+        cur.count += 1;
+        map.set(entry.id, cur);
+      }
     }
     return [...map.values()].sort((a, b) => b.count - a.count).slice(0, MAX_MEISTER_AVATARS);
-  }, [todayInfs, meisterDir]);
+  }, [todayInfs, meisterDir, coAufgieser]);
 
   const topOils = useMemo(() => {
     const m = new Map<string, number>();

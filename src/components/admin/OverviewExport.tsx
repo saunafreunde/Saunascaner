@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useInfusionsRange, useMeisterDirectory } from '@/lib/api';
+import { useCoAufgieser, useInfusionsRange, useMeisterDirectory } from '@/lib/api';
 import { aggregateOverview } from '@/lib/overviewStats';
 import { generateEndOfDayPdf, shareEndOfDayPdf, downloadBlob, type EndOfDayPdfData } from '@/lib/endOfDayPdf';
 
@@ -96,10 +96,12 @@ export function OverviewExport() {
   const range = useMemo(() => periodRange(period, offset), [period, offset]);
   const infs = useInfusionsRange(range.from, range.to);
   const meisterDir = useMeisterDirectory();
+  // Mitwedler zu genau diesen Aufgüssen — sie zählen seit 0141 mit.
+  const coAufgieser = useCoAufgieser(useMemo(() => (infs.data ?? []).map((i) => i.id), [infs.data]));
 
   const agg = useMemo(
-    () => aggregateOverview(infs.data ?? [], meisterDir.data ?? []),
-    [infs.data, meisterDir.data]
+    () => aggregateOverview(infs.data ?? [], meisterDir.data ?? [], coAufgieser.data ?? []),
+    [infs.data, meisterDir.data, coAufgieser.data]
   );
 
   const pdfData: EndOfDayPdfData = {
