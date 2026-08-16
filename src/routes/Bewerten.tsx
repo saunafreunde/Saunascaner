@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { differenceInMinutes } from 'date-fns';
 import {
   useRatableInfusions, useMeisterDirectory, useSaunas, useCurrentMember,
   type RatableInfusion,
 } from '@/lib/api';
-import { isAufgieser } from '@/lib/roles';
+import { isAufgieser, meinBereichPfad } from '@/lib/roles';
+import { DampfRueckkehr } from '@/components/DampfRueckkehr';
+import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { RatingForm } from '@/components/RatingForm';
 import { fmtClock } from '@/lib/time';
 import { lookupMemberName } from '@/lib/memberDisplay';
@@ -30,28 +33,47 @@ export default function Bewerten() {
 
   return (
     <div className="bg-schwarzwald-soft min-h-screen text-slate-100 pb-24">
-      <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-4">
-        <h1 className="text-xl font-bold text-forest-100">⭐ Aufgüsse bewerten</h1>
-        <p className="text-xs text-forest-300/70 mt-0.5">
-          {isAufgieser(me.data)
-            ? 'Deine bewertbaren Aufgüsse — bis 3 Stunden nach Aufguss-Ende.'
-            : 'Deine besuchten Aufgüsse — möglich bis am Folgetag 12:00 Uhr.'}
-        </p>
+      {/* Die untere Leiste ist lg:hidden — auf dem Desktop hatte diese Seite
+          damit ÜBERHAUPT keine Navigation, auch mit offenen Bewertungen.
+          Deshalb hier dieselbe Kopfzeile wie überall sonst. */}
+      <header className="border-b border-forest-800/40 bg-forest-950/95 backdrop-blur px-4 py-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-forest-100">⭐ Aufgüsse bewerten</h1>
+          <p className="text-xs text-forest-300/70 mt-0.5">
+            {isAufgieser(me.data)
+              ? 'Deine bewertbaren Aufgüsse — bis 3 Stunden nach Aufguss-Ende.'
+              : 'Deine besuchten Aufgüsse — möglich bis am Folgetag 12:00 Uhr.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to={meinBereichPfad(me.data)}
+            className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-sm text-forest-200 ring-1 ring-forest-800/50 hover:bg-forest-800"
+          >
+            ← Mein Bereich
+          </Link>
+          <MemberQuickNav myMemberId={me.data?.id ?? null} />
+        </div>
       </header>
 
       <div className="mx-auto max-w-2xl p-4">
         {list.isLoading ? (
           <p className="text-center text-sm text-forest-400 py-12">Lade…</p>
         ) : pending.length === 0 ? (
+          // Sackgasse: dieser Bildschirm hat keine Kopfzeile und keinen
+          // Zurück-Knopf. Statt einen dazuzustellen, zieht zwei Sekunden lang
+          // Dampf darüber und bringt einen zurück in den eigenen Bereich.
           <div className="text-center py-16 px-6">
             <div className="text-6xl mb-4">✅</div>
             <p className="text-base text-forest-200 font-semibold mb-1">
               Alles bewertet — danke!
             </p>
             <p className="text-sm text-forest-400 max-w-xs mx-auto">
-              Sobald du wieder an einem Aufguss teilnimmst und einscannst,
-              kannst du hier eine Bewertung abgeben.
+              Sobald du wieder an einem Aufguss teilnimmst und am Tablet deinen
+              PIN eintippst, kannst du hier bewerten.
             </p>
+            <p className="mt-6 text-xs text-forest-500">Zurück zu deinem Bereich …</p>
+            <DampfRueckkehr ziel={meinBereichPfad(me.data)} />
           </div>
         ) : (
           <section className="rounded-2xl bg-gradient-to-br from-amber-900/15 via-forest-950/85 to-forest-950/85 ring-1 ring-amber-500/30 p-5">

@@ -1599,3 +1599,55 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   .oel-ruhe { animation: none; opacity: 0.8; }
   .oel-mahnung { animation: none; box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.3); }
 }
+
+/* ─── Dampf-Rückkehr (dampf-*) ────────────────────────────────────────────
+   Sackgassen-Bildschirme (z. B. „Alles bewertet — danke!") haben weder
+   Kopfzeile noch Zurück-Knopf. Statt einen Knopf danebenzusetzen, zieht
+   2 Sekunden lang Wasserdampf über das Bild — und danach ist man wieder in
+   seinem Bereich. Der Dampf IST die Anzeige, dass gleich etwas passiert.
+
+   Nur transform/opacity, damit es auf der GPU läuft: die App rendert auch
+   auf einem Wandtablet, das nicht ins Schwitzen kommen soll. */
+@keyframes dampf-schwade {
+  0%   { transform: translate3d(-30%, 22%, 0) scale(0.75); opacity: 0; }
+  35%  { opacity: 0.85; }
+  70%  { opacity: 0.7; }
+  100% { transform: translate3d(30%, -34%, 0) scale(1.5); opacity: 0; }
+}
+@keyframes dampf-schleier {
+  0%   { opacity: 0; }
+  55%  { opacity: 0.72; }
+  100% { opacity: 0.96; }
+}
+
+.dampf-buehne {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* Der Schleier zieht am Ende zu — so ist der Sprung kein harter Schnitt. */
+.dampf-schleier {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 60%, rgba(226, 240, 230, 0.55), rgba(210, 230, 216, 0.9));
+  animation: dampf-schleier 2s cubic-bezier(0.4, 0, 0.7, 1) forwards;
+}
+.dampf-schwade {
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.42) 42%, rgba(255, 255, 255, 0) 70%);
+  filter: blur(14px);
+  will-change: transform, opacity;
+  animation: dampf-schwade 2s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Ohne Bewegung: nur sanft aufhellen. Der Rücksprung passiert trotzdem —
+     er hängt am Timer, nicht an der Animation. */
+  .dampf-schwade { display: none; }
+  .dampf-schleier { animation: dampf-schleier 2s linear forwards; }
+}

@@ -56,6 +56,19 @@ export function isGast(m?: Member | null): boolean {
 // eine Follow-Beziehung (member_follows), keine Rolle.
 // Das SQL-Pendant is_fan_or_higher() wurde durch is_approved_account() ersetzt.
 
+/** „Mein Bereich" dieser Rolle — dieselbe Verteilung wie RootEntry in App.tsx.
+ *  Wird gebraucht, wenn eine Seite jemanden zurückschicken soll, ohne zu
+ *  wissen, wo er hergekommen ist (z. B. [[DampfRueckkehr]]). */
+export function meinBereichPfad(m?: Member | null): string {
+  if (!m) return '/';
+  if (m.role === 'admin') return '/planner';
+  // 'fan' wird seit 0132 nicht mehr vergeben, ein Altbestand gehört zu /gast.
+  if (m.role === 'gast' || m.role === 'fan') return '/gast';
+  if (m.role === 'staff') return m.is_personal_planer ? '/cp' : '/mitarbeiter';
+  if (m.role === 'member' && !m.is_aufgieser) return '/unterstuetzer';
+  return '/planner';
+}
+
 /** Vereinsmitglied (Verein-zugehörig). false für Staff und Gast. */
 export function isVereinsMitglied(m?: Member | null): boolean {
   if (!m) return false;
