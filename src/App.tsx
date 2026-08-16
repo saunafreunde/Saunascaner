@@ -69,6 +69,7 @@ const Bewerten        = lazy(() => import('@/routes/Bewerten'));
 const Games           = lazy(() => import('@/routes/Games'));
 const GameSolo        = lazy(() => import('@/routes/GameSolo'));
 const GameMatch       = lazy(() => import('@/routes/GameMatch'));
+const GameKart        = lazy(() => import('@/routes/GameKart'));
 const Dm              = lazy(() => import('@/routes/Dm'));
 const DmConversation  = lazy(() => import('@/routes/DmConversation'));
 const AnwesenheitsPanel = lazy(() => import('@/routes/AnwesenheitsPanel'));
@@ -118,6 +119,7 @@ export default function App() {
         <Route path="/spiele"                element={<RequireAuth><Games /></RequireAuth>} />
         <Route path="/spiele/solo/:kind"     element={<RequireAuth><GameSolo /></RequireAuth>} />
         <Route path="/spiele/match/:matchId" element={<RequireAuth><GameMatch /></RequireAuth>} />
+        <Route path="/spiele/kart"           element={<RequireAuth><GameKart /></RequireAuth>} />
         <Route path="/dm"                    element={<RequireAuth><Dm /></RequireAuth>} />
         <Route path="/dm/:conversationId"    element={<RequireAuth><DmConversation /></RequireAuth>} />
         {/* /panel — anonymer Desktop-Hub für Anwesenheit, PW-geschützt (SaunaPano!) */}

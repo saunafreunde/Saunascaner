@@ -79,6 +79,9 @@ export function GameHub() {
             </ul>
           )}
 
+          {/* Das Flaggschiff — bewusst über den sechs Kacheln, volle Breite */}
+          <KartKachel />
+
           {/* Die sechs Kacheln — das Herz des Hubs */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {GAME_IDS.map((k) => (
@@ -254,6 +257,37 @@ function WochenKrone() {
       </span>
       <span className="ml-auto font-bold tabular-nums text-amber-300">{t.score}</span>
     </div>
+  );
+}
+
+/** Das Flaggschiff: Sauna-Kart. Läuft außerhalb der Registry (Zeiten statt
+ *  Punkte, eigene kart_ghosts-Tabelle) — deshalb eine eigene, breite Kachel. */
+function KartKachel() {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate('/spiele/kart')}
+      className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-forest-800/90 via-forest-900/80 to-forest-950 p-4 text-left ring-1 ring-amber-500/30 transition active:scale-[0.99]"
+      style={{ touchAction: 'manipulation' }}
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-4xl" aria-hidden>🛷</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-black text-forest-50">Sauna-Kart</span>
+          <span className="block text-xs text-forest-300">
+            Schlitten-Rennen durch den Schwarzwald — fahr gegen die Geister der anderen.
+          </span>
+        </span>
+        <span className="rounded-full bg-amber-500/20 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-300">
+          Neu
+        </span>
+      </div>
+      <div className="mt-2 flex items-center gap-3 text-[11px] text-forest-400">
+        <span>⏱ 1–2 Min pro Fahrt</span>
+        <span>👻 Geister-Duell</span>
+        <span>🏁 2 Strecken</span>
+      </div>
+    </button>
   );
 }
 
