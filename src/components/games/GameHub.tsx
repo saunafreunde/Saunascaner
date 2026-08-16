@@ -267,8 +267,14 @@ function KartKachel() {
   return (
     <button
       onClick={() => navigate('/spiele/kart')}
-      className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-forest-800/90 via-forest-900/80 to-forest-950 p-4 text-left ring-1 ring-amber-500/30 transition active:scale-[0.99]"
-      style={{ touchAction: 'manipulation' }}
+      className="relative w-full overflow-hidden rounded-2xl bg-forest-950 bg-cover bg-center p-4 text-left ring-1 ring-amber-500/30 transition active:scale-[0.99]"
+      style={{
+        touchAction: 'manipulation',
+        // fal.ai-Motiv (16.08.2026) hinter einem Verlauf, der links Platz für
+        // den Text lässt. Lädt das Bild nicht, trägt der Verlauf allein.
+        backgroundImage:
+          'linear-gradient(90deg, rgba(8,18,12,0.94) 0%, rgba(8,18,12,0.72) 55%, rgba(8,18,12,0.35) 100%), url(/kart/kachel.jpg)',
+      }}
     >
       <div className="flex items-center gap-3">
         <span className="text-4xl" aria-hidden>🛷</span>
@@ -291,7 +297,34 @@ function KartKachel() {
   );
 }
 
-/** Eine Spiel-Kachel: Emoji, Name, ehrliche Dauer, Bestwert-Kronenzeile. */
+/** fal.ai-Icons der sechs Spiele (16.08.2026). Lädt eines nicht, springt per
+ *  onError das Emoji ein — kein kaputtes Bild-Symbol auf der Kachel. */
+const SPIEL_ICONS: Partial<Record<GameKind, string>> = {
+  snake: '/spiele/icon-snake.png',
+  memory: '/spiele/icon-memory.png',
+  g2048: '/spiele/icon-2048.png',
+  tetris: '/spiele/icon-tetris.png',
+  connect4: '/spiele/icon-connect4.png',
+  chess: '/spiele/icon-chess.png',
+};
+
+function SpielIcon({ kind, emoji }: { kind: GameKind; emoji: string }) {
+  const [kaputt, setKaputt] = useState(false);
+  const pfad = SPIEL_ICONS[kind];
+  if (!pfad || kaputt) return <span className="text-3xl" aria-hidden>{emoji}</span>;
+  return (
+    <img
+      src={pfad}
+      alt=""
+      aria-hidden
+      draggable={false}
+      onError={() => setKaputt(true)}
+      className="h-10 w-10 object-contain"
+    />
+  );
+}
+
+/** Eine Spiel-Kachel: Icon, Name, ehrliche Dauer, Bestwert-Kronenzeile. */
 function SpielKachel({ kind, aktiv, onOeffnen }: {
   kind: GameKind; aktiv: boolean; onOeffnen: () => void;
 }) {
@@ -309,7 +342,7 @@ function SpielKachel({ kind, aktiv, onOeffnen }: {
       style={{ touchAction: 'manipulation' }}
     >
       <div className="flex items-start justify-between gap-1">
-        <span className="text-3xl" aria-hidden>{meta.emoji}</span>
+        <SpielIcon kind={kind} emoji={meta.emoji} />
         <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
           istSolo ? 'bg-forest-950/60 text-forest-400' : 'bg-amber-500/15 text-amber-300'
         }`}>

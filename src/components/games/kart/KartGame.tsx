@@ -6,6 +6,7 @@ import {
   STRECKEN, STRECKE_BY_ID, TEX_SIZE, bauStreckenWelt,
   type KartStrecke, type StreckenWelt,
 } from '@/lib/kart/strecken';
+import { ladeKartAssets, skinFuer, type KartAssets } from '@/lib/kart/assets';
 
 // ─── Sauna-Kart ──────────────────────────────────────────────────────────────
 // Mode-7-Rennen im Stil der 16-Bit-Ära: der Boden ist eine perspektivisch
@@ -121,23 +122,38 @@ function StreckenKarte({ strecke, meineId, onWahl }: {
   strecke: KartStrecke; meineId: string | null; onWahl: (id: string) => void;
 }) {
   const top = useTopGhosts(strecke.id);
+  const [bildKaputt, setBildKaputt] = useState(false);
   const beste = top.data?.[0];
   const meine = top.data?.find((g) => g.member_id === meineId);
   return (
     <button
       onClick={() => onWahl(strecke.id)}
-      className="w-full rounded-2xl bg-forest-900/60 p-4 text-left ring-1 ring-forest-800/50 hover:bg-forest-900/80 transition active:scale-[0.99]"
+      className="w-full rounded-2xl bg-forest-900/60 p-3 text-left ring-1 ring-forest-800/50 hover:bg-forest-900/80 transition active:scale-[0.99]"
       style={{ touchAction: 'manipulation' }}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-bold text-forest-100">{strecke.name}</span>
-        <span className="text-[11px] text-forest-400">{strecke.runden} Runden</span>
-      </div>
-      <div className="mt-1.5 flex items-center justify-between text-xs">
-        <span className="text-amber-200/90">
-          {beste ? <>👑 {beste.name} · {fmtZeit(beste.zeit_ms)}</> : 'Noch kein Streckenrekord — fahr ihn.'}
-        </span>
-        {meine && <span className="text-forest-300 tabular-nums">Du: {fmtZeit(meine.zeit_ms)}</span>}
+      <div className="flex items-center gap-3">
+        {!bildKaputt && (
+          <img
+            src={`/kart/vorschau-${strecke.id}.jpg`}
+            alt=""
+            aria-hidden
+            draggable={false}
+            onError={() => setBildKaputt(true)}
+            className="h-16 w-24 shrink-0 rounded-lg object-cover ring-1 ring-forest-700/50"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-bold text-forest-100">{strecke.name}</span>
+            <span className="text-[11px] text-forest-400">{strecke.runden} Runden</span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 text-xs">
+            <span className="text-amber-200/90">
+              {beste ? <>👑 {beste.name} · {fmtZeit(beste.zeit_ms)}</> : 'Noch kein Streckenrekord — fahr ihn.'}
+            </span>
+            {meine && <span className="text-forest-300 tabular-nums">Du: {fmtZeit(meine.zeit_ms)}</span>}
+          </div>
+        </div>
       </div>
     </button>
   );
@@ -158,8 +174,20 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
   const neustartRef = useRef(0);
   const [neustart, setNeustart] = useState(0);
 
-  // Die Welt (Textur + Maske) einmal pro Strecke bauen — teuer, deshalb memo.
-  const welt = useMemo(() => bauStreckenWelt(strecke), [strecke]);
+  // Erst die fal.ai-Grafiken laden (mit Timeout + Fallback), DANN die Welt
+  // bauen — die Bahn-Textur wird beim Bau eingebacken. Der Lader liefert nie
+  // einen Fehler; ohne Bilder entsteht die programmatische Fassung.
+  const [assets, setAssets] = useState<KartAssets | null>(null);
+  useEffect(() => {
+    let lebt = true;
+    ladeKartAssets().then((a) => { if (lebt) setAssets(a); });
+    return () => { lebt = false; };
+  }, []);
+
+  const welt = useMemo(
+    () => (assets ? bauStreckenWelt(strecke, assets.boden[strecke.id]) : null),
+    [strecke, assets],
+  );
 
   // Geister der Top-Fahrer (ohne den eigenen — gegen sich selbst zu fahren
   // wäre doppelt demoralisierend), maximal drei fürs Bild.
@@ -172,9 +200,10 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !welt || !assets) return;
     const stop = starteRennen({
-      canvas, welt, geister,
+      canvas, welt, geister, assets,
+      spielerSkin: skinFuer(me.data?.id, 3),
       onHud: (h) => setHud(h),
       onPhase: (p) => setPhase(p),
       onZiel: (zeitMs, samples) => {
@@ -187,7 +216,7 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
     // top.data absichtlich NICHT in den Deps: die Geister eines laufenden
     // Rennens sollen nicht mitten in der Kurve ausgetauscht werden.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [welt, geister, neustart]);
+  }, [welt, geister, assets, neustart]);
 
   return (
     <div className="mx-auto max-w-md p-3">
@@ -204,11 +233,17 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
       </div>
 
       <div className="relative overflow-hidden rounded-2xl ring-1 ring-forest-700/50 shadow-2xl shadow-black/60 select-none">
+        {!welt && (
+          <div className="grid place-items-center text-forest-300 text-sm"
+            style={{ aspectRatio: `${W}/${H}` }}>
+            Lade Strecke…
+          </div>
+        )}
         <canvas
           ref={canvasRef}
           width={W}
           height={H}
-          className="block w-full"
+          className={welt ? 'block w-full' : 'hidden'}
           style={{ imageRendering: 'pixelated', touchAction: 'none', aspectRatio: `${W}/${H}` }}
           aria-label="Sauna-Kart — Daumen links oder rechts auf das Bild lenkt"
         />
@@ -280,11 +315,13 @@ function starteRennen(opts: {
   canvas: HTMLCanvasElement;
   welt: StreckenWelt;
   geister: TopGhost[];
+  assets: KartAssets;
+  spielerSkin: number;
   onHud: (h: { zeit: number; runde: number; countdown: number }) => void;
   onPhase: (p: Phase) => void;
   onZiel: (zeitMs: number, samples: GhostSamples) => void;
 }): () => void {
-  const { canvas, welt, geister, onHud, onPhase, onZiel } = opts;
+  const { canvas, welt, geister, assets, spielerSkin, onHud, onPhase, onZiel } = opts;
   const ctx = canvas.getContext('2d', { alpha: false })!;
   const { strecke, maske, linie } = welt;
 
@@ -295,7 +332,31 @@ function starteRennen(opts: {
   const bildDaten = new Uint32Array(bild.data.buffer);
   const WALD = packFarbe(16, 34, 20);
 
-  const panorama = bauPanorama();
+  // Panorama. Mit fal.ai-Bild füllt der Himmel den KOMPLETTEN Bereich über
+  // dem Horizont: das Bild wird auf Horizont-Höhe skaliert und einmal
+  // GESPIEGELT danebengelegt — die Naht existiert dadurch konstruktionsbedingt
+  // nicht, egal wie unsauber die Bildränder kacheln. Ohne Bild bleibt der
+  // alte Weg: Verlauf + programmatische Silhouette (60px-Streifen).
+  const panoVollbild = !!assets.panorama;
+  const panorama = (() => {
+    if (!assets.panorama) return bauPanorama();
+    const img = assets.panorama as HTMLImageElement;
+    const b = Math.max(W, Math.round((img.width as number ?? W) * (HORIZONT / (img.height as number ?? HORIZONT))));
+    const c = document.createElement('canvas');
+    c.width = b * 2; c.height = HORIZONT;
+    const g2 = c.getContext('2d')!;
+    g2.drawImage(img, 0, 0, b, HORIZONT);
+    g2.save();
+    g2.translate(b * 2, 0);
+    g2.scale(-1, 1);
+    g2.drawImage(img, 0, 0, b, HORIZONT);
+    g2.restore();
+    return c;
+  })();
+
+  // Sprites je Skin — null = programmatische Zeichnung.
+  const spielerSprite = assets.schlitten[spielerSkin] ?? null;
+  const geistSprites = geister.map((g) => assets.schlitten[skinFuer(g.member_id, 3)] ?? null);
 
   // ─── Zustand ───────────────────────────────────────────────────────────
   const start = linie[0];
@@ -432,16 +493,24 @@ function starteRennen(opts: {
 
   function zeichne() {
     // Himmel + Panorama (scrollt mit der Blickrichtung).
-    const g = ctx.createLinearGradient(0, 0, 0, HORIZONT);
-    g.addColorStop(0, '#0e1a2b');
-    g.addColorStop(0.7, '#27425f');
-    g.addColorStop(1, '#4e6a83');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, HORIZONT);
     const panX = Math.floor(((st.richtung / (Math.PI * 2)) % 1 + 1) * panorama.width) % panorama.width;
-    ctx.drawImage(panorama, panX, 0, Math.min(panorama.width - panX, W), 60, 0, HORIZONT - 60, Math.min(panorama.width - panX, W), 60);
-    if (panorama.width - panX < W) {
-      ctx.drawImage(panorama, 0, 0, W - (panorama.width - panX), 60, panorama.width - panX, HORIZONT - 60, W - (panorama.width - panX), 60);
+    if (panoVollbild) {
+      const teil = Math.min(panorama.width - panX, W);
+      ctx.drawImage(panorama, panX, 0, teil, HORIZONT, 0, 0, teil, HORIZONT);
+      if (teil < W) {
+        ctx.drawImage(panorama, 0, 0, W - teil, HORIZONT, teil, 0, W - teil, HORIZONT);
+      }
+    } else {
+      const g = ctx.createLinearGradient(0, 0, 0, HORIZONT);
+      g.addColorStop(0, '#0e1a2b');
+      g.addColorStop(0.7, '#27425f');
+      g.addColorStop(1, '#4e6a83');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, HORIZONT);
+      ctx.drawImage(panorama, panX, 0, Math.min(panorama.width - panX, W), 60, 0, HORIZONT - 60, Math.min(panorama.width - panX, W), 60);
+      if (panorama.width - panX < W) {
+        ctx.drawImage(panorama, 0, 0, W - (panorama.width - panX), 60, panorama.width - panX, HORIZONT - 60, W - (panorama.width - panX), 60);
+      }
     }
 
     // Kamera hinter dem Kart.
@@ -472,7 +541,8 @@ function starteRennen(opts: {
 
     // Geister — hinter dem Spieler-Sprite gezeichnet, durchscheinend.
     if (st.countdownMs <= 0 && !st.fertig) {
-      for (const geist of geister) {
+      for (let gi = 0; gi < geister.length; gi++) {
+        const geist = geister[gi];
         const p = geistPosition(geist.samples!, st.zeitMs);
         if (!p) continue;
         const dxw = p.x - kx, dyw = p.y - ky;
@@ -482,7 +552,7 @@ function starteRennen(opts: {
         const sy = HORIZONT + (KAM_HOEHE * FOKAL) / tiefe;
         const sx = W / 2 + (quer * FOKAL) / tiefe;
         const skala = Math.min(1.15, 46 / tiefe * 3.2);
-        zeichneSchlitten(ctx, sx, sy, skala, 0, true);
+        zeichneFahrer(ctx, geistSprites[gi], sx, sy, skala, 0, true);
         if (tiefe < 240) {
           ctx.font = 'bold 9px system-ui';
           ctx.textAlign = 'center';
@@ -493,7 +563,7 @@ function starteRennen(opts: {
     }
 
     // Spieler-Kart, fest im unteren Drittel; Neigung folgt dem Lenken.
-    zeichneSchlitten(ctx, W / 2, H - 58, 1.15, st.lenken, false);
+    zeichneFahrer(ctx, spielerSprite, W / 2, H - 58, 1.15, st.lenken, false);
   }
 
   raf = requestAnimationFrame(schritt);
@@ -516,6 +586,31 @@ function geistPosition(s: GhostSamples, zeitMs: number): { x: number; y: number 
   const f = idx - i0;
   const a = s.pts[i0], b = s.pts[i0 + 1];
   return { x: (a[0] + (b[0] - a[0]) * f) / 10, y: (a[1] + (b[1] - a[1]) * f) / 10 };
+}
+
+/** Fahrer zeichnen: fal.ai-Sprite wenn geladen, sonst die Canvas-Pfade.
+ *  Beide Wege teilen Position, Skala, Lenk-Neigung und Geist-Transparenz —
+ *  auf einem Gerät ohne Bilder sieht das Rennen nur schlichter aus, nie
+ *  anders in der Physik. */
+function zeichneFahrer(
+  ctx: CanvasRenderingContext2D,
+  sprite: CanvasImageSource | null,
+  x: number, y: number, skala: number, lean: number, geist: boolean,
+) {
+  if (!sprite) {
+    zeichneSchlitten(ctx, x, y, skala, lean, geist);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(skala, skala);
+  ctx.rotate(lean * 0.14);
+  ctx.globalAlpha = geist ? 0.45 : 1;
+  // Kein zusätzlicher Schatten: das fal.ai-Sprite bringt seinen eigenen
+  // Boden-Tupfer mit — ein zweiter darunter sah wie ein Druckfehler aus.
+  // 76×76-Box, Unterkante knapp unterm Ankerpunkt (wie die Pfad-Fassung).
+  ctx.drawImage(sprite, -38, -62, 76, 76);
+  ctx.restore();
 }
 
 /** Der Saunatuch-Schlitten — Rückansicht, reine Canvas-Pfade.

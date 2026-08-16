@@ -112,7 +112,12 @@ export interface StreckenWelt {
   linie: { x: number; y: number; winkel: number }[];
 }
 
-export function bauStreckenWelt(strecke: KartStrecke): StreckenWelt {
+export function bauStreckenWelt(
+  strecke: KartStrecke,
+  /** Optionale Bahn-Textur (fal.ai, 16.08.2026). Fehlt sie, wird die Bahn
+   *  wie zuvor programmatisch gezeichnet — das Spiel hängt an keinem Asset. */
+  bodenTextur?: CanvasImageSource | null,
+): StreckenWelt {
   const linie = abtasten(strecke, 720);
 
   const textur = document.createElement('canvas');
@@ -141,21 +146,39 @@ export function bauStreckenWelt(strecke: KartStrecke): StreckenWelt {
   }
 
   // Bahn: erst die helle Bande (breiter Strich), dann die Fahrbahn darüber —
-  // übrig bleibt ein Saum auf beiden Seiten.
+  // übrig bleibt ein Saum auf beiden Seiten. Liegt eine Textur vor, wird die
+  // Fahrbahn mit ihr als Muster gestrichen (0,25-fach skaliert → ~256px-
+  // Kachelung, fein genug für den Mode-7-Blick).
   zeichneBahn(ctx, linie, strecke.breite + 8, strecke.bande);
-  zeichneBahn(ctx, linie, strecke.breite, strecke.bahn);
+  let mitTextur = false;
+  if (bodenTextur) {
+    const muster = ctx.createPattern(bodenTextur, 'repeat');
+    if (muster) {
+      if ('setTransform' in muster) {
+        muster.setTransform(new DOMMatrix().scale(0.25));
+      }
+      zeichneBahn(ctx, linie, strecke.breite, muster);
+      mitTextur = true;
+    }
+  }
+  if (!mitTextur) {
+    zeichneBahn(ctx, linie, strecke.breite, strecke.bahn);
+  }
 
   // Steg-Fugen: Querstriche in Fahrtrichtung — geben im Mode-7-Blick das
-  // Geschwindigkeitsgefühl, das eine glatte Fläche nicht erzeugt.
-  ctx.strokeStyle = 'rgba(60,40,25,0.4)';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < linie.length; i += 8) {
-    const p = linie[i];
-    const qx = Math.cos(p.winkel + Math.PI / 2), qy = Math.sin(p.winkel + Math.PI / 2);
-    ctx.beginPath();
-    ctx.moveTo(p.x - qx * strecke.breite, p.y - qy * strecke.breite);
-    ctx.lineTo(p.x + qx * strecke.breite, p.y + qy * strecke.breite);
-    ctx.stroke();
+  // Geschwindigkeitsgefühl, das eine glatte Fläche nicht erzeugt. Mit echter
+  // Textur übernimmt deren Maserung diese Aufgabe.
+  if (!mitTextur) {
+    ctx.strokeStyle = 'rgba(60,40,25,0.4)';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < linie.length; i += 8) {
+      const p = linie[i];
+      const qx = Math.cos(p.winkel + Math.PI / 2), qy = Math.sin(p.winkel + Math.PI / 2);
+      ctx.beginPath();
+      ctx.moveTo(p.x - qx * strecke.breite, p.y - qy * strecke.breite);
+      ctx.lineTo(p.x + qx * strecke.breite, p.y + qy * strecke.breite);
+      ctx.stroke();
+    }
   }
 
   // Ziellinie am Startpunkt: Schachbrett quer über die Bahn.
@@ -217,7 +240,7 @@ function zeichneBahn(
   ctx: CanvasRenderingContext2D,
   linie: { x: number; y: number }[],
   halbbreite: number,
-  farbe: string,
+  farbe: string | CanvasPattern,
 ) {
   ctx.strokeStyle = farbe;
   ctx.lineWidth = halbbreite * 2;
