@@ -774,6 +774,8 @@ export type Member = {
   default_mood_oils: string[];
   // Auto-Check-in via WLAN (Migration 0108+0109) — opt-in pro Mitglied
   auto_checkin_enabled: boolean;
+  // Darf mir ein Gast schreiben? (Migration 0133) — Voreinstellung true.
+  dm_von_gaesten: boolean;
   created_at: string;
 };
 
@@ -5630,5 +5632,120 @@ export function useMyAromaRecipes(memberId: string | null | undefined) {
       return (data ?? []) as Array<AromaRecipe & { approved: boolean; approved_at: string | null }>;
     },
     staleTime: 60_000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DUFT-WÜNSCHE + NACHRICHTEN-OPT-OUT (Migration 0133)
+// Der Wunsch hängt an einem konkreten kommenden Aufguss, nicht an einer Person
+// — dadurch landet er dort, wo er brauchbar ist: im Öl-Raum.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AufgussWunsch = {
+  id: string;
+  infusion_id: string;
+  oil_key: string;
+  notiz: string | null;
+  status: 'offen' | 'erfuellt' | 'abgelehnt';
+  created_at: string;
+  infusion_start: string;
+  infusion_title: string | null;
+  sauna_name: string | null;
+};
+
+export type MeinWunsch = AufgussWunsch & { aufgieser_name: string | null };
+export type WunschAnMich = AufgussWunsch & { gast_id: string; gast_name: string };
+export type OelraumWunsch = { infusion_id: string; oil_key: string; notiz: string | null };
+
+/** Nachrichten von Gästen an/aus — Self-Write nur über SECDEF-RPC. */
+export function useSetMyDmVonGaesten() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (wert: boolean) => {
+      const { error } = await need().rpc('set_my_dm_von_gaesten', { p_wert: wert });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['member'] });
+      qc.invalidateQueries({ queryKey: ['members'] });
+    },
+  });
+}
+
+export function useCreateWunsch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { infusionId: string; oilKey: string; notiz?: string }) => {
+      const { data, error } = await need().rpc('create_wunsch', {
+        p_infusion_id: p.infusionId,
+        p_oil_key: p.oilKey,
+        p_notiz: p.notiz ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meine-wuensche'] });
+      qc.invalidateQueries({ queryKey: ['oelraum-wuensche'] });
+    },
+  });
+}
+
+export function useResolveWunsch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { wunschId: string; status: 'erfuellt' | 'abgelehnt' }) => {
+      const { error } = await need().rpc('resolve_wunsch', {
+        p_wunsch_id: p.wunschId,
+        p_status: p.status,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wuensche-an-mich'] });
+      qc.invalidateQueries({ queryKey: ['meine-wuensche'] });
+      qc.invalidateQueries({ queryKey: ['oelraum-wuensche'] });
+    },
+  });
+}
+
+export function useMyWuensche() {
+  return useQuery({
+    queryKey: ['meine-wuensche'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_my_wuensche');
+      if (error) throw error;
+      return (data ?? []) as MeinWunsch[];
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useWuenscheAnMich(enabled = true) {
+  return useQuery({
+    queryKey: ['wuensche-an-mich'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_wuensche_fuer_meine_aufguesse');
+      if (error) throw error;
+      return (data ?? []) as WunschAnMich[];
+    },
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+/** Öl-Raum-Tablet: anonym abrufbar, bewusst OHNE Namen. */
+export function useOelraumWuensche(stunden = 6) {
+  return useQuery({
+    queryKey: ['oelraum-wuensche', stunden],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_oelraum_wuensche', { p_stunden: stunden });
+      if (error) throw error;
+      return (data ?? []) as OelraumWunsch[];
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
   });
 }

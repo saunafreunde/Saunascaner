@@ -41,9 +41,9 @@ export function FollowButton({ memberId, compact = false }: FollowButtonProps) {
         onClick={toggle}
         disabled={busy}
         className={`${baseClass} bg-forest-900/70 text-forest-200 ring-forest-700/60 hover:bg-red-900/40 hover:text-red-200 hover:ring-red-700/60 disabled:opacity-50`}
-        aria-label="Entfolgen"
+        aria-label="Kein Fan mehr sein"
       >
-        {busy ? '…' : '✓ Folge ich'}
+        {busy ? '…' : '✓ Ich bin Fan'}
       </button>
     );
   }
@@ -54,9 +54,9 @@ export function FollowButton({ memberId, compact = false }: FollowButtonProps) {
       onClick={toggle}
       disabled={busy}
       className={`${baseClass} bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 ring-amber-400/60 shadow-amber-900/30 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50`}
-      aria-label="Folgen"
+      aria-label="Fan werden"
     >
-      {busy ? '…' : '🌟 Folgen'}
+      {busy ? '…' : '🌟 Fan werden'}
     </button>
   );
 }

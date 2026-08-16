@@ -19,6 +19,7 @@ import { PushPermission } from '@/components/PushPermission';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { PendingRatingsBlock } from '@/components/PendingRatingsBlock';
 import { GastLiveNow } from '@/components/gast/GastLiveNow';
+import { DuftWunsch } from '@/components/gast/DuftWunsch';
 import { VereinsNews } from '@/components/gast/VereinsNews';
 import { AromaRezepte } from '@/components/gast/AromaRezepte';
 import { isAdmin, isGast } from '@/lib/roles';
@@ -153,6 +154,13 @@ export default function Gast() {
             gewandert: den PIN braucht man am Tablet, nicht in der App. */}
         <PendingRatingsBlock />
 
+        {/* Duft-Wunsch für einen kommenden Aufguss (0133) */}
+        <DuftWunsch
+          infusions={infusions.data ?? []}
+          saunaName={(id) => saunaById.get(id)?.name ?? 'Sauna'}
+          meisterName={meisterName}
+        />
+
         {/* Begrüßungs-Block für brandneue Gäste */}
         {isReallyGast && followedStars.length === 0 && !previewMode && (
           <section className="rounded-3xl bg-gradient-to-br from-amber-900/30 via-forest-950/85 to-forest-950/85 ring-1 ring-amber-500/30 p-6 backdrop-blur">
@@ -177,7 +185,7 @@ export default function Gast() {
           <section>
             <div className="flex items-end justify-between gap-3 mb-3">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90">
-                ❤️ Deine Favoriten ({followedStars.length})
+                ❤️ Deine Aufgießer ({followedStars.length})
               </h2>
               <Link to="/aufgieser" className="text-xs text-forest-400 hover:text-amber-300 underline">
                 Mehr entdecken →
@@ -201,7 +209,7 @@ export default function Gast() {
         {upcomingFromFavorites.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
-              🔥 Wann deine Favoriten gießen
+              🔥 Wann deine Aufgießer gießen
             </h2>
             <ul className="space-y-2">
               {upcomingFromFavorites.map((i) => {

@@ -19,8 +19,9 @@ import {
   useCurrentMember, useMember, useMemberStats,
   useAttendanceStreak,
   useFavoriteOils, useSignatureInfusion, useSetMotto, useSetMyNameplate,
-  useSetMyAutoCheckin,
+  useSetMyAutoCheckin, useSetMyDmVonGaesten,
 } from '@/lib/api';
+import { isAufgieser } from '@/lib/roles';
 import { OIL_BY_ID } from '@/lib/oils';
 import { FORMEN, DEKOS, FARBEN, nameplateAus, type NameplateConfig } from '@/lib/nameplates';
 import { Nameplate } from '@/components/Nameplate';
@@ -309,6 +310,10 @@ export default function Profile() {
         {/* Sauna-Tablet-PIN (nur eigenes Profil) */}
         {isMyself && <MyCheckinPinCard />}
         {isMyself && me.data && <AutoCheckinToggleCard enabled={me.data.auto_checkin_enabled} />}
+        {/* Nur für Aufgießer relevant — nur die bekommen ungefragt Post von Gästen. */}
+        {isMyself && me.data && isAufgieser(me.data) && (
+          <GastNachrichtenToggleCard enabled={me.data.dm_von_gaesten} />
+        )}
 
         {/* Auszeichnungen */}
         <div className="rounded-2xl bg-forest-950/60 ring-1 ring-violet-700/30 p-5">
@@ -400,6 +405,53 @@ function AutoCheckinToggleCard({ enabled }: { enabled: boolean }) {
           className={`relative shrink-0 w-12 h-7 rounded-full transition ${enabled ? 'bg-emerald-500' : 'bg-forest-800'} ${busy ? 'opacity-50' : ''}`}
           aria-pressed={enabled}
           aria-label="Auto-Check-in aktivieren oder deaktivieren"
+        >
+          <span className={`absolute top-1 transition-all w-5 h-5 rounded-full bg-white shadow ${enabled ? 'left-6' : 'left-1'}`} />
+        </button>
+      </div>
+      {err && <p className="text-xs text-rose-300 mt-2">{err}</p>}
+    </div>
+  );
+}
+
+// Nachrichten von Gästen an/aus (Migration 0133).
+//
+// Der Nachrichten-Knopf ist seit 0133 auch auf dem Aufgießer-Star-Profil
+// sichtbar — dort, wo Gäste tatsächlich landen. Wer das nicht will, stellt
+// es hier ab, BEVOR es das erste Mal jemand zu weit treibt. Bestehende
+// Gespräche laufen weiter; der Schalter verhindert nur neue.
+function GastNachrichtenToggleCard({ enabled }: { enabled: boolean }) {
+  const setDm = useSetMyDmVonGaesten();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function onToggle(next: boolean) {
+    setBusy(true); setErr(null);
+    try { await setDm.mutateAsync(next); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="rounded-2xl bg-forest-950/60 ring-1 ring-forest-800/40 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">✉️</span>
+            <h3 className="text-forest-100 font-semibold">Nachrichten von Gästen</h3>
+          </div>
+          <p className="text-xs text-forest-400 mt-1 leading-relaxed">
+            Wenn aktiv: Gäste können dir aus deinem Aufgießer-Profil heraus schreiben —
+            etwa um sich für einen Aufguss zu bedanken oder etwas zu fragen.
+            {' '}Schaltest du es ab, können nur noch Vereinsmitglieder neue Gespräche mit dir
+            beginnen. Bereits laufende Gespräche bleiben in beiden Fällen bestehen.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onToggle(!enabled)}
+          className={`relative shrink-0 w-12 h-7 rounded-full transition ${enabled ? 'bg-emerald-500' : 'bg-forest-800'} ${busy ? 'opacity-50' : ''}`}
+          aria-pressed={enabled}
+          aria-label="Nachrichten von Gästen erlauben oder abstellen"
         >
           <span className={`absolute top-1 transition-all w-5 h-5 rounded-full bg-white shadow ${enabled ? 'left-6' : 'left-1'}`} />
         </button>

@@ -8,6 +8,8 @@ import {
   SPECIALTY_LABELS, STAR_SPECIALTIES, type StarSpecialty,
 } from '@/lib/api';
 import { StarTradingCard } from '@/components/StarTradingCard';
+import { DmButton } from '@/components/DmButton';
+import { WuenscheAnMich } from '@/components/WuenscheAnMich';
 import { Avatar } from '@/components/Avatar';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { PageBackground } from '@/components/PageBackground';
@@ -92,6 +94,14 @@ export default function StarProfile() {
             size="full"
             showFollow={!isMe}
           />
+          {/* Nachricht schreiben — ändert keine Berechtigung, macht nur eine
+              vorhandene sichtbar (es gab genau EINE DM in der ganzen App). */}
+          {!isMe && <DmButton memberId={star.id} name={star.name} />}
+
+          {/* Wünsche an die eigenen Aufgüsse — zusammen mit den Fans darunter
+              ist das die Seite, auf der ein Aufgießer sein Publikum sieht. */}
+          {isMe && <WuenscheAnMich />}
+
           {isMe && (fans.data?.length ?? 0) > 0 && (
             <div className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-amber-400/90 mb-3">
