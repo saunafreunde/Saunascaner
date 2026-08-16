@@ -11,16 +11,27 @@
 // Der Check ist billig (einmal pro Laden) und bei bereits transparenten
 // Bildern ein No-op.
 
+/** Die drei Blickrichtungen eines Skins. `links`/`rechts` sind die
+ *  Lenk-Posen der Rallye-Runde — fehlen sie, kippt die Engine die
+ *  Geradeaus-Pose wie zuvor per Rotation. */
+export interface SchlittenPosen {
+  gerade: CanvasImageSource | null;
+  links: CanvasImageSource | null;
+  rechts: CanvasImageSource | null;
+}
+
 export interface KartAssets {
   /** Drei Skins [creme, rost, blau] — Zuordnung per Member-Hash, damit
    *  Geister verschiedener Mitglieder verschieden aussehen. */
-  schlitten: (CanvasImageSource | null)[];
+  schlitten: SchlittenPosen[];
   /** Bahn-Textur je Strecke (kelo → Holzsteg, blockhaus → Waldweg). */
   boden: Record<string, CanvasImageSource | null>;
   panorama: CanvasImageSource | null;
+  /** Der rollende Baumstamm — Fallback ist eine gezeichnete Walze. */
+  stamm: CanvasImageSource | null;
 }
 
-const SCHLITTEN_PFADE = ['/kart/schlitten-creme.png', '/kart/schlitten-rost.png', '/kart/schlitten-blau.png'];
+const SKINS = ['creme', 'rost', 'blau'];
 const BODEN_PFADE: Record<string, string> = {
   kelo_kurve: '/kart/boden-holzsteg.jpg',
   blockhaus_passage: '/kart/boden-waldweg.jpg',
@@ -30,16 +41,29 @@ let cache: Promise<KartAssets> | null = null;
 
 export function ladeKartAssets(): Promise<KartAssets> {
   cache ??= (async () => {
-    const [creme, rost, blau, holz, wald, pano] = await Promise.all([
-      ...SCHLITTEN_PFADE.map((p) => ladeBild(p)),
+    const posen = await Promise.all(SKINS.map(async (skin) => {
+      const [gerade, links, rechts] = await Promise.all([
+        ladeBild(`/kart/schlitten-${skin}.png`),
+        ladeBild(`/kart/schlitten-${skin}-links.png`),
+        ladeBild(`/kart/schlitten-${skin}-rechts.png`),
+      ]);
+      return {
+        gerade: gerade ? entgruenen(gerade) : null,
+        links: links ? entgruenen(links) : null,
+        rechts: rechts ? entgruenen(rechts) : null,
+      };
+    }));
+    const [holz, wald, pano, stamm] = await Promise.all([
       ladeBild(BODEN_PFADE.kelo_kurve),
       ladeBild(BODEN_PFADE.blockhaus_passage),
       ladeBild('/kart/panorama.jpg'),
+      ladeBild('/kart/stamm.png'),
     ]);
     return {
-      schlitten: [creme, rost, blau].map((b) => (b ? entgruenen(b) : null)),
+      schlitten: posen,
       boden: { kelo_kurve: holz, blockhaus_passage: wald },
       panorama: pano,
+      stamm: stamm ? entgruenen(stamm) : null,
     };
   })();
   return cache;

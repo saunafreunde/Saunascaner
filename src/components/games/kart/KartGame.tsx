@@ -4,9 +4,10 @@ import { supabase } from '@/lib/supabase';
 import { useCurrentMember } from '@/lib/api';
 import {
   STRECKEN, STRECKE_BY_ID, TEX_SIZE, bauStreckenWelt,
+  M_BAHN, M_TURBO, M_BREMS, M_RAMPE,
   type KartStrecke, type StreckenWelt,
 } from '@/lib/kart/strecken';
-import { ladeKartAssets, skinFuer, type KartAssets } from '@/lib/kart/assets';
+import { ladeKartAssets, skinFuer, type KartAssets, type SchlittenPosen } from '@/lib/kart/assets';
 
 // ─── Sauna-Kart ──────────────────────────────────────────────────────────────
 // Mode-7-Rennen im Stil der 16-Bit-Ära: der Boden ist eine perspektivisch
@@ -41,6 +42,21 @@ const LENKRATE = 2.6;             // rad/s bei voller Fahrt
 
 const GHOST_DT = 100;             // Aufzeichnungs-Takt in ms
 const MAX_LAUFZEIT_MS = 480_000;  // danach gilt die Fahrt als aufgegeben
+
+// ─── Rallye-Elemente (16.08.2026) ────────────────────────────────────────────
+// ALLES hier ist eine pure Funktion von Rennzeit + Strecke — kein Zufall.
+// Nur so bleibt das Geister-Modell fair: der Rekordhalter hatte exakt
+// dieselben Stämme, Turbos und Pfützen vor der Nase.
+const TURBO_FAKTOR = 1.6;         // Höchsttempo im Boost
+const TURBO_DAUER_S = 2.0;
+const BREMS_FAKTOR = 0.5;         // Pfütze: halbes Tempo
+const FLUG_DAUER_S = 0.65;        // Sprungdauer ab Rampe
+const FLUG_MIN_TEMPO = 0.62;      // unter 62 % vom Maximum hebt nichts ab
+const FLUG_HOEHE = 46;            // Scheitel in Bildpixeln
+const STAMM_RADIUS = 15;          // Kollisionsradius in Welteinheiten
+const STAMM_TREFFER_FAKTOR = 0.3; // Resttempo nach Einschlag
+const TAUMEL_S = 0.7;             // Sekunden Schlingern nach Treffer
+const SCHONFRIST_S = 1.2;         // Unverwundbarkeit nach Treffer
 
 type GhostSamples = { v: 1; dt: number; pts: [number, number, number][] };
 
@@ -303,7 +319,9 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
       </div>
 
       <p className="mt-2 text-center text-xs text-forest-400">
-        Daumen links = links lenken · Daumen rechts = rechts · abseits der Bahn wird's zäh
+        Daumen links/rechts lenkt · Pfeile = Turbo · Rampe springt über die Pfütze ·
+        rollenden Stämmen ausweichen! Tacho: <span className="text-amber-300">Fahrt</span> ·{' '}
+        <span className="text-rose-300">gebremst</span> · <span className="text-cyan-300">Turbo</span>
       </p>
     </div>
   );
@@ -354,15 +372,17 @@ function starteRennen(opts: {
     return c;
   })();
 
-  // Sprites je Skin — null = programmatische Zeichnung.
-  const spielerSprite = assets.schlitten[spielerSkin] ?? null;
-  const geistSprites = geister.map((g) => assets.schlitten[skinFuer(g.member_id, 3)] ?? null);
+  // Sprites je Skin (drei Posen) — null = programmatische Zeichnung.
+  const spielerPosen = assets.schlitten[spielerSkin] ?? null;
+  const geistPosen = geister.map((g) => assets.schlitten[skinFuer(g.member_id, 3)] ?? null);
+  const stammSprite = assets.stamm;
 
   // ─── Zustand ───────────────────────────────────────────────────────────
   const start = linie[0];
   const st = {
     x: start.x, y: start.y, richtung: start.winkel, v: 0,
     lenken: 0,
+    lenkGlatt: 0,            // geglätteter Lenkwert für Pose + Kamera
     countdownMs: 3000,
     zeitMs: 0,
     letzterIdx: 0,
@@ -371,6 +391,13 @@ function starteRennen(opts: {
     fertig: false,
     samples: [] as [number, number, number][],
     naechsteProbe: 0,
+    // Rallye-Zustand
+    turboRestS: 0,
+    flugRestS: 0,
+    taumelRestS: 0,
+    schonfristS: 0,
+    gebremst: false,         // fürs Tacho: gerade Pfütze/Wiese/Taumel?
+    letzterMaskenWert: M_BAHN,
   };
 
   // ─── Eingabe: Daumen-Hälften + Pfeiltasten ─────────────────────────────
@@ -428,19 +455,76 @@ function starteRennen(opts: {
     raf = requestAnimationFrame(schritt);
   }
 
+  /** Position eines Stamms zur Rennzeit t — Dreieckswelle quer zur Bahn.
+   *  Pure Funktion: gleicher Zeitpunkt = gleiche Position, in jedem Lauf. */
+  function stammPosition(planIdx: number, zeitMs: number): { x: number; y: number; quer: number } {
+    const plan = strecke.staemme[planIdx];
+    const p = linie[plan.idx];
+    const u = ((zeitMs / plan.periodeMs + plan.phase) % 1 + 1) % 1;
+    const dreieck = 4 * Math.abs(u - 0.5) - 1; // 1 → -1 → 1
+    const amp = strecke.breite + 26;
+    const qx = -Math.sin(p.winkel), qy = Math.cos(p.winkel);
+    const quer = dreieck * amp;
+    return { x: p.x + qx * quer, y: p.y + qy * quer, quer };
+  }
+
   function simuliere(dt: number) {
     st.zeitMs += dt * 1000;
 
-    // Oberfläche unterm Kart entscheidet die Höchstgeschwindigkeit.
+    // Zeitgeber der Rallye-Elemente.
+    st.turboRestS = Math.max(0, st.turboRestS - dt);
+    st.flugRestS = Math.max(0, st.flugRestS - dt);
+    st.taumelRestS = Math.max(0, st.taumelRestS - dt);
+    st.schonfristS = Math.max(0, st.schonfristS - dt);
+
+    // Oberfläche unterm Kart — in der Luft zählt sie nicht (wer springt,
+    // fliegt über Pfütze und Wiese hinweg).
     const mx = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(st.x)));
     const my = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(st.y)));
-    const aufBahn = maske[my * TEX_SIZE + mx] === 1;
-    const vmax = aufBahn ? V_MAX : V_MAX_WIESE;
+    const wert = maske[my * TEX_SIZE + mx];
+    const fliegt = st.flugRestS > 0;
+
+    let vmax = wert >= M_BAHN ? V_MAX : V_MAX_WIESE;
+    st.gebremst = false;
+    if (!fliegt) {
+      if (wert === M_TURBO) st.turboRestS = TURBO_DAUER_S;
+      if (wert === M_BREMS) { vmax *= BREMS_FAKTOR; st.gebremst = true; }
+      if (wert < M_BAHN) st.gebremst = true;
+      // Rampe: nur die Vorderkante zündet (Wert-Wechsel auf M_RAMPE), sonst
+      // würde jeder Frame auf der Rampe neu abheben.
+      if (wert === M_RAMPE && st.letzterMaskenWert !== M_RAMPE && st.v > FLUG_MIN_TEMPO * V_MAX) {
+        st.flugRestS = FLUG_DAUER_S;
+      }
+    }
+    st.letzterMaskenWert = wert;
+    if (st.turboRestS > 0) vmax *= TURBO_FAKTOR;
+    if (st.taumelRestS > 0) { vmax *= 0.75; st.gebremst = true; }
 
     st.v += (vmax - st.v) * Math.min(1, BESCHL * dt);
-    st.richtung += st.lenken * LENKRATE * Math.min(1, st.v / V_MAX) * dt;
+
+    // Lenken: in der Luft wirkungslos, im Taumel halbiert plus Schlingern.
+    let lenkEingabe = fliegt ? 0 : st.lenken;
+    if (st.taumelRestS > 0) {
+      lenkEingabe = lenkEingabe * 0.5 + Math.sin(st.zeitMs / 40) * 0.5;
+    }
+    st.richtung += lenkEingabe * LENKRATE * Math.min(1, st.v / V_MAX) * dt;
+    st.lenkGlatt += (st.lenken - st.lenkGlatt) * Math.min(1, 9 * dt);
     st.x += Math.cos(st.richtung) * st.v * dt;
     st.y += Math.sin(st.richtung) * st.v * dt;
+
+    // Stämme: Kollision nur am Boden und außerhalb der Schonfrist.
+    if (!fliegt && st.schonfristS <= 0) {
+      for (let si = 0; si < strecke.staemme.length; si++) {
+        const s = stammPosition(si, st.zeitMs);
+        const dx = s.x - st.x, dy = s.y - st.y;
+        if (dx * dx + dy * dy < STAMM_RADIUS * STAMM_RADIUS) {
+          st.v *= STAMM_TREFFER_FAKTOR;
+          st.taumelRestS = TAUMEL_S;
+          st.schonfristS = SCHONFRIST_S;
+          break;
+        }
+      }
+    }
 
     // Weltrand: sanft zurückschieben statt hart stoppen.
     st.x = Math.max(8, Math.min(TEX_SIZE - 8, st.x));
@@ -492,8 +576,13 @@ function starteRennen(opts: {
   const cos = Math.cos, sin = Math.sin;
 
   function zeichne() {
+    // Die KAMERA hinkt dem Lenken minimal hinterher — der Trick, der Mode-7
+    // „echt" anfühlen lässt: das Bild schwenkt weich, während die Physik
+    // exakt bleibt.
+    const rh = st.richtung - st.lenkGlatt * 0.09;
+
     // Himmel + Panorama (scrollt mit der Blickrichtung).
-    const panX = Math.floor(((st.richtung / (Math.PI * 2)) % 1 + 1) * panorama.width) % panorama.width;
+    const panX = Math.floor(((rh / (Math.PI * 2)) % 1 + 1) * panorama.width) % panorama.width;
     if (panoVollbild) {
       const teil = Math.min(panorama.width - panX, W);
       ctx.drawImage(panorama, panX, 0, teil, HORIZONT, 0, 0, teil, HORIZONT);
@@ -513,10 +602,10 @@ function starteRennen(opts: {
       }
     }
 
-    // Kamera hinter dem Kart.
-    const kx = st.x - cos(st.richtung) * KAM_ABSTAND;
-    const ky = st.y - sin(st.richtung) * KAM_ABSTAND;
-    const fx = cos(st.richtung), fy = sin(st.richtung);
+    // Kamera hinter dem Kart — mit der verzögerten Blickrichtung.
+    const kx = st.x - cos(rh) * KAM_ABSTAND;
+    const ky = st.y - sin(rh) * KAM_ABSTAND;
+    const fx = cos(rh), fy = sin(rh);
     const rx = -fy, ry = fx;
 
     // Boden: pro Bildzeile eine Distanz, pro Pixel ein Textur-Sample.
@@ -539,6 +628,21 @@ function starteRennen(opts: {
     }
     ctx.putImageData(bild, 0, HORIZONT);
 
+    // Rollende Stämme — Billboards, deterministisch aus der Rennzeit.
+    if (st.countdownMs <= 0 && !st.fertig) {
+      for (let si = 0; si < strecke.staemme.length; si++) {
+        const s = stammPosition(si, st.zeitMs);
+        const dxw = s.x - kx, dyw = s.y - ky;
+        const tiefe = dxw * fx + dyw * fy;
+        if (tiefe < KAM_ABSTAND * 0.5 || tiefe > 620) continue;
+        const quer = dxw * rx + dyw * ry;
+        const sy = HORIZONT + (KAM_HOEHE * FOKAL) / tiefe;
+        const sx = W / 2 + (quer * FOKAL) / tiefe;
+        const skala = Math.min(1.4, 46 / tiefe * 3.6);
+        zeichneStamm(ctx, stammSprite, sx, sy, skala, s.quer / 9);
+      }
+    }
+
     // Geister — hinter dem Spieler-Sprite gezeichnet, durchscheinend.
     if (st.countdownMs <= 0 && !st.fertig) {
       for (let gi = 0; gi < geister.length; gi++) {
@@ -552,7 +656,7 @@ function starteRennen(opts: {
         const sy = HORIZONT + (KAM_HOEHE * FOKAL) / tiefe;
         const sx = W / 2 + (quer * FOKAL) / tiefe;
         const skala = Math.min(1.15, 46 / tiefe * 3.2);
-        zeichneFahrer(ctx, geistSprites[gi], sx, sy, skala, 0, true);
+        zeichneFahrer(ctx, geistPosen[gi], sx, sy, skala, p.lenk, true);
         if (tiefe < 240) {
           ctx.font = 'bold 9px system-ui';
           ctx.textAlign = 'center';
@@ -562,8 +666,21 @@ function starteRennen(opts: {
       }
     }
 
-    // Spieler-Kart, fest im unteren Drittel; Neigung folgt dem Lenken.
-    zeichneFahrer(ctx, spielerSprite, W / 2, H - 58, 1.15, st.lenken, false);
+    // Spieler-Kart: rutscht beim Lenken leicht zur Kurveninnenseite und hebt
+    // im Sprung ab — der Schatten bleibt dabei am Boden, DAS verkauft die Höhe.
+    const flugAnteil = st.flugRestS > 0 ? st.flugRestS / FLUG_DAUER_S : 0;
+    const hoehe = flugAnteil > 0 ? FLUG_HOEHE * 4 * flugAnteil * (1 - flugAnteil) : 0;
+    const spielerX = W / 2 + st.lenkGlatt * 16;
+    if (hoehe > 2) {
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.beginPath();
+      ctx.ellipse(spielerX, H - 46, 24 * (1 - hoehe / (FLUG_HOEHE * 2.2)), 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    zeichneFahrer(ctx, spielerPosen, spielerX, H - 58 - hoehe, 1.15, st.lenkGlatt, false);
+
+    // Farb-Tacho unten rechts: Füllung = Tempo, Farbe = Zustand.
+    zeichneTacho(ctx, st.v, st.turboRestS > 0, st.gebremst);
   }
 
   raf = requestAnimationFrame(schritt);
@@ -578,33 +695,108 @@ function starteRennen(opts: {
   };
 }
 
-/** Lineare Interpolation in der Geister-Aufzeichnung. */
-function geistPosition(s: GhostSamples, zeitMs: number): { x: number; y: number } | null {
+/** Lineare Interpolation in der Geister-Aufzeichnung. `lenk` (-1…1) wird aus
+ *  der Drehrate der aufgezeichneten Blickrichtung geschätzt — damit legen
+ *  sich auch die Geister mit der richtigen Pose in die Kurve. */
+function geistPosition(s: GhostSamples, zeitMs: number): { x: number; y: number; lenk: number } | null {
   const idx = zeitMs / s.dt;
   const i0 = Math.floor(idx);
   if (i0 >= s.pts.length - 1) return null;  // Geist ist im Ziel — er verschwindet
   const f = idx - i0;
   const a = s.pts[i0], b = s.pts[i0 + 1];
-  return { x: (a[0] + (b[0] - a[0]) * f) / 10, y: (a[1] + (b[1] - a[1]) * f) / 10 };
+  let dh = (b[2] - a[2]) / 100;              // rad pro Sample
+  if (dh > Math.PI) dh -= Math.PI * 2;
+  if (dh < -Math.PI) dh += Math.PI * 2;
+  const drehRate = dh / (s.dt / 1000);       // rad/s
+  return {
+    x: (a[0] + (b[0] - a[0]) * f) / 10,
+    y: (a[1] + (b[1] - a[1]) * f) / 10,
+    lenk: Math.max(-1, Math.min(1, drehRate / LENKRATE)),
+  };
 }
 
-/** Fahrer zeichnen: fal.ai-Sprite wenn geladen, sonst die Canvas-Pfade.
- *  Beide Wege teilen Position, Skala, Lenk-Neigung und Geist-Transparenz —
- *  auf einem Gerät ohne Bilder sieht das Rennen nur schlichter aus, nie
- *  anders in der Physik. */
-function zeichneFahrer(
+/** Rollender Baumstamm: Sprite dreht sich mit dem zurückgelegten Querweg —
+ *  ohne Sprite eine gezeichnete Walze mit Jahresringen. */
+function zeichneStamm(
   ctx: CanvasRenderingContext2D,
   sprite: CanvasImageSource | null,
+  x: number, y: number, skala: number, rollwinkel: number,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(skala, skala);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(0, 8, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
+  if (sprite) {
+    // Ein liegender Stamm rollt um seine LÄNGSACHSE — die Silhouette bleibt
+    // stehen, nur ein leichtes Ruckeln verrät die Bewegung. Volle Rotation
+    // sähe aus wie ein Propeller.
+    ctx.rotate(Math.sin(rollwinkel) * 0.07);
+    ctx.drawImage(sprite, -32, -32, 64, 64);
+  } else {
+    ctx.rotate(rollwinkel);
+    ctx.fillStyle = '#6b4a2e';
+    ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8a6540';
+    ctx.lineWidth = 3;
+    for (const r of [6, 12, 17]) { ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  ctx.restore();
+}
+
+/** Der Farb-Tacho (unten rechts im Bild, Canvas statt React — 60 fps):
+ *  Füllbogen = Tempo, Farbe = Zustand. Bernstein fährt, Rot bremst
+ *  (Wiese, Pfütze, Taumel), Cyan ist Turbo — man sieht auf einen Blick,
+ *  WARUM man gerade schnell oder langsam ist. */
+function zeichneTacho(ctx: CanvasRenderingContext2D, v: number, turbo: boolean, gebremst: boolean) {
+  const cx = W - 44, cy = H - 36, r = 26;
+  const von = Math.PI * 0.75, bis = Math.PI * 2.25;
+  const anteil = Math.min(1, v / (V_MAX * TURBO_FAKTOR));
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.lineWidth = 9;
+  ctx.beginPath(); ctx.arc(cx, cy, r, von, bis); ctx.stroke();
+  ctx.strokeStyle = turbo ? '#4be3d8' : gebremst ? '#e5484d' : '#e8b34b';
+  ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(cx, cy, r, von, von + (bis - von) * anteil); ctx.stroke();
+  if (turbo) {
+    // Turbo pulsiert als äußerer Ring — Puls aus dem Tempo-Anteil, kein Timer.
+    ctx.strokeStyle = 'rgba(75,227,216,0.35)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 7, von, bis); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Fahrer zeichnen: fal.ai-Posen wenn geladen, sonst die Canvas-Pfade.
+ *
+ *  Die Pose folgt dem GEGLÄTTETEN Lenkwert (Rallye-Runde 16.08.2026):
+ *  ab |0,3| wechselt das Sprite auf die eingelegte Kurven-Pose, dazu bleibt
+ *  eine Rest-Rotation — zusammen liest sich das als echtes Einlenken statt
+ *  als gekipptes Standbild. Unter der Schwelle und beim Fehlen der Pose
+ *  greift die Geradeaus-Fassung mit Rotation (kein Flackern an der Schwelle,
+ *  weil der Lenkwert selbst schon träge ist). */
+function zeichneFahrer(
+  ctx: CanvasRenderingContext2D,
+  posen: SchlittenPosen | null,
   x: number, y: number, skala: number, lean: number, geist: boolean,
 ) {
+  const sprite = !posen ? null
+    : lean < -0.3 && posen.links ? posen.links
+      : lean > 0.3 && posen.rechts ? posen.rechts
+        : posen.gerade;
   if (!sprite) {
     zeichneSchlitten(ctx, x, y, skala, lean, geist);
     return;
   }
+  const hatPose = (lean < -0.3 && sprite === posen!.links) || (lean > 0.3 && sprite === posen!.rechts);
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(skala, skala);
-  ctx.rotate(lean * 0.14);
+  // Mit Kurven-Pose reicht eine kleine Rest-Rotation; ohne sie trägt die
+  // Rotation den ganzen Effekt.
+  ctx.rotate(lean * (hatPose ? 0.06 : 0.14));
   ctx.globalAlpha = geist ? 0.45 : 1;
   // Kein zusätzlicher Schatten: das fal.ai-Sprite bringt seinen eigenen
   // Boden-Tupfer mit — ein zweiter darunter sah wie ein Druckfehler aus.

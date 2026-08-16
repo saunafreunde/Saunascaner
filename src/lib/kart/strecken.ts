@@ -12,6 +12,33 @@
 // Importfrei bis auf nichts — dieselbe Regel wie bei den Katalog-Dateien:
 // Engine und Renderer dürfen hierauf bauen, ohne api.ts oder React zu sehen.
 
+/** Werte der Oberflächen-Maske. Seit der Rallye-Runde (16.08.2026) mehrwertig —
+ *  die Physik liest daraus, WAS unter den Kufen liegt, nicht nur OB Bahn. */
+export const M_WIESE = 0;
+export const M_BAHN = 1;
+export const M_TURBO = 2;
+export const M_BREMS = 3;
+export const M_RAMPE = 4;
+export const M_PFAD = 5;   // geheime Abkürzung: fahrbar, schmal, ohne Bande
+
+export type FeldTyp = 'turbo' | 'brems' | 'rampe';
+
+/** Ein Bodenfeld auf der Bahn: beginnt bei Mittellinien-Index `idx` und läuft
+ *  `laenge` Indizes weit (720er-Abtastung). */
+export interface StreckenFeld { typ: FeldTyp; idx: number; laenge: number; }
+
+/** Rollender Baumstamm: pendelt quer über die Bahn bei `idx`. Die Position ist
+ *  eine PURE Funktion der Rennzeit (Periode + Phase) — deshalb hatte der Geist
+ *  bei seiner Rekordfahrt exakt dieselben Stämme vor der Nase. Zufall würde
+ *  das Geister-Modell zerstören. */
+export interface StammPlan { idx: number; periodeMs: number; phase: number; }
+
+/** Geheime Abkürzung: Sehne von Mittellinien-Index `von` nach `bis`. Bewusst
+ *  als SEHNE über eine konvexe Kurve — dann wandert der nächste Mittellinien-
+ *  Punkt beim Durchfahren kontinuierlich mit und die Runden-Zählung braucht
+ *  keinen Sonderfall. */
+export interface Abkuerzung { von: number; bis: number; }
+
 export interface KartStrecke {
   id: string;
   name: string;
@@ -26,6 +53,9 @@ export interface KartStrecke {
   wiese: string;
   bahn: string;
   bande: string;
+  felder: StreckenFeld[];
+  staemme: StammPlan[];
+  abkuerzungen: Abkuerzung[];
 }
 
 export const STRECKEN: KartStrecke[] = [
@@ -44,6 +74,19 @@ export const STRECKEN: KartStrecke[] = [
     wiese: '#2f4a2c',
     bahn: '#8a6b4d',
     bande: '#d8cdb8',
+    // Dramaturgie der Runde: Turbo auf der langen Ost-Gerade, dann Rampe →
+    // Pfütze (wer springt, fliegt drüber), zweiter Turbo vor Start/Ziel.
+    felder: [
+      { typ: 'turbo', idx: 90, laenge: 14 },
+      { typ: 'rampe', idx: 296, laenge: 8 },
+      { typ: 'brems', idx: 316, laenge: 14 },
+      { typ: 'turbo', idx: 560, laenge: 14 },
+    ],
+    staemme: [
+      { idx: 210, periodeMs: 5200, phase: 0.15 },
+      { idx: 470, periodeMs: 6400, phase: 0.6 },
+    ],
+    abkuerzungen: [{ von: 386, bis: 470 }],
   },
   {
     id: 'blockhaus_passage',
@@ -61,6 +104,18 @@ export const STRECKEN: KartStrecke[] = [
     wiese: '#2c4433',
     bahn: '#7d6247',
     bande: '#cfc5ae',
+    felder: [
+      { typ: 'turbo', idx: 150, laenge: 14 },
+      { typ: 'rampe', idx: 424, laenge: 8 },
+      { typ: 'brems', idx: 444, laenge: 14 },
+      { typ: 'turbo', idx: 620, laenge: 14 },
+    ],
+    staemme: [
+      { idx: 250, periodeMs: 4800, phase: 0.0 },
+      { idx: 530, periodeMs: 5800, phase: 0.45 },
+      { idx: 680, periodeMs: 7000, phase: 0.8 },
+    ],
+    abkuerzungen: [{ von: 62, bis: 140 }],
   },
 ];
 
@@ -181,6 +236,71 @@ export function bauStreckenWelt(
     }
   }
 
+  // Geheime Abkürzungen ZUERST (unter Feldern/Ziellinie): ein schmaler, dunkler
+  // Trampelpfad als Sehne — bewusst unauffällig, fast Wiesenfarbe. Die
+  // Tarnung besorgen ein paar Baum-Tupfer über den Einmündungen.
+  for (const ab of strecke.abkuerzungen) {
+    const a = linie[ab.von], b = linie[ab.bis];
+    ctx.strokeStyle = 'rgba(58,72,48,0.9)';
+    ctx.lineWidth = 34;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.strokeStyle = 'rgba(96,84,58,0.55)';
+    ctx.lineWidth = 22;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.fillStyle = 'rgba(10,40,16,0.55)';
+    for (const p of [a, b]) {
+      ctx.beginPath(); ctx.arc(p.x + 12, p.y - 10, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x - 10, p.y + 12, 7, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Bodenfelder in die Textur malen — die Maske bekommt dieselbe Geometrie
+  // unten beim Stempeln.
+  for (const feld of strecke.felder) {
+    const n = linie.length;
+    if (feld.typ === 'turbo') {
+      // Drei Winkel-Pfeile in Fahrtrichtung.
+      ctx.strokeStyle = '#6fd8e8';
+      ctx.lineWidth = 7;
+      ctx.lineCap = 'round';
+      for (let k = 0; k < 3; k++) {
+        const p = linie[(feld.idx + 2 + k * 5) % n];
+        const fx = Math.cos(p.winkel), fy = Math.sin(p.winkel);
+        const qx = -fy, qy = fx;
+        ctx.beginPath();
+        ctx.moveTo(p.x - qx * 16 - fx * 10, p.y - qy * 16 - fy * 10);
+        ctx.lineTo(p.x + fx * 10, p.y + fy * 10);
+        ctx.lineTo(p.x + qx * 16 - fx * 10, p.y + qy * 16 - fy * 10);
+        ctx.stroke();
+      }
+    } else if (feld.typ === 'brems') {
+      // Dampfende Aufguss-Pfütze.
+      const p = linie[(feld.idx + Math.floor(feld.laenge / 2)) % n];
+      ctx.fillStyle = 'rgba(92,140,168,0.8)';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, strecke.breite * 0.85, strecke.breite * 0.6, p.winkel, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(210,228,238,0.5)';
+      for (let k = 0; k < 4; k++) {
+        const q = linie[(feld.idx + 2 + k * 3) % n];
+        ctx.beginPath(); ctx.arc(q.x + (k % 2 ? 8 : -8), q.y + (k % 2 ? -6 : 6), 4, 0, Math.PI * 2); ctx.fill();
+      }
+    } else {
+      // Sprungrampe: helle Querplanken mit dunkler Absprungkante.
+      for (let k = 0; k <= feld.laenge; k += 2) {
+        const p = linie[(feld.idx + k) % n];
+        const qx = Math.cos(p.winkel + Math.PI / 2), qy = Math.sin(p.winkel + Math.PI / 2);
+        ctx.strokeStyle = k >= feld.laenge - 1 ? '#3a2c1c' : '#d8b06a';
+        ctx.lineWidth = k >= feld.laenge - 1 ? 5 : 7;
+        ctx.beginPath();
+        ctx.moveTo(p.x - qx * strecke.breite * 0.8, p.y - qy * strecke.breite * 0.8);
+        ctx.lineTo(p.x + qx * strecke.breite * 0.8, p.y + qy * strecke.breite * 0.8);
+        ctx.stroke();
+      }
+    }
+  }
+
   // Ziellinie am Startpunkt: Schachbrett quer über die Bahn.
   const s0 = linie[0];
   const qx = Math.cos(s0.winkel + Math.PI / 2), qy = Math.sin(s0.winkel + Math.PI / 2);
@@ -230,6 +350,43 @@ export function bauStreckenWelt(
       const i0 = y * TEX_SIZE + x;
       maske[i0] = drin; maske[i0 + 1] = drin;
       maske[i0 + TEX_SIZE] = drin; maske[i0 + TEX_SIZE + 1] = drin;
+    }
+  }
+
+  // Bodenfelder in die Maske stempeln — dieselbe Geometrie wie die Bemalung
+  // oben. Nur dort, wo schon Bahn ist: ein Turbo-Pfeil, der auf die Wiese
+  // ausfranst, würde die Wiese schneller machen als die Bahn.
+  const stempel = (cx: number, cy: number, r: number, wert: number, nurBahn: boolean) => {
+    const r2s = r * r;
+    const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(TEX_SIZE - 1, Math.ceil(cx + r));
+    const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(TEX_SIZE - 1, Math.ceil(cy + r));
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        const dx = xx - cx, dy = yy - cy;
+        if (dx * dx + dy * dy > r2s) continue;
+        const i = yy * TEX_SIZE + xx;
+        if (!nurBahn || maske[i] >= M_BAHN) maske[i] = wert;
+      }
+    }
+  };
+
+  const nLinie = linie.length;
+  for (const feld of strecke.felder) {
+    const wert = feld.typ === 'turbo' ? M_TURBO : feld.typ === 'brems' ? M_BREMS : M_RAMPE;
+    for (let k = 0; k <= feld.laenge; k++) {
+      const p = linie[(feld.idx + k) % nLinie];
+      stempel(p.x, p.y, strecke.breite * 0.85, wert, true);
+    }
+  }
+
+  // Abkürzungen: schmaler fahrbarer Pfad (M_PFAD) entlang der Sehne.
+  for (const ab of strecke.abkuerzungen) {
+    const a = linie[ab.von], b = linie[ab.bis];
+    const schritte = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6);
+    for (let k = 0; k <= schritte; k++) {
+      const t = k / schritte;
+      const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+      stempel(x, y, 17, M_PFAD, false);
     }
   }
 
