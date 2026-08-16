@@ -59,7 +59,7 @@ export function HandbookTab() {
   }
 
   function whatsappUrl(): string {
-    const text = `📖 *${orgName} — Mitglieder-Handbuch*\n\nLiebe Saunafreunde, hier ist das komplette Handbuch zu unserer App:\n\n🌲 ${handbookUrl}\n\nAlle Funktionen — Anmelden, Aufgüsse planen, WM-Tipspiel, Kalender-Abo und mehr.`;
+    const text = `📖 *${orgName} — Handbuch*\n\nLiebe Saunafreunde, hier ist das Handbuch zu unserer App:\n\n🌲 ${handbookUrl}\n\nJeder sieht dort automatisch die Fassung, die zu seiner Rolle passt — Anmelden, Aufgüsse planen, bewerten, Kalender-Abo und mehr.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
@@ -71,9 +71,12 @@ export function HandbookTab() {
   return (
     <div className="space-y-5 pb-12">
       <section className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-forest-950/40 p-5 ring-1 ring-amber-500/30">
-        <h1 className="text-lg font-bold text-amber-100">📖 Mitglieder-Handbuch</h1>
+        <h1 className="text-lg font-bold text-amber-100">📖 Handbuch</h1>
         <p className="mt-1 text-sm text-forest-200/85">
-          Das komplette Handbuch (16 Kapitel) erklärt allen Mitgliedern, wie sie die App nutzen — von Anmelden bis Notfall-Alarm.
+          Seit 16.08.2026 gibt es <strong className="text-amber-200">je Rolle eine eigene Fassung</strong>.
+          Der Link unten ist für alle derselbe — wer ihn öffnet, sieht automatisch
+          sein Handbuch: ein Gast die Gast-Kapitel, ein Aufgießer die Planung,
+          du als Admin alles. Du musst also nichts auseinandersortieren.
         </p>
         <p className="mt-3 text-xs text-forest-300/70">
           <strong className="text-amber-200">Live-URL:</strong>{' '}

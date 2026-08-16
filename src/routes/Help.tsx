@@ -8,14 +8,22 @@ import { useCurrentMember } from '@/lib/api';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
-import { HANDBOOK_MARKDOWN, extractToc } from '@/lib/handbook';
+import {
+  extractToc, handbuchFuer, handbuchRolleFuer, ROLLEN_LABEL,
+} from '@/lib/handbuch';
 
 export default function Help() {
   const { signOut } = useAuth();
   const me = useCurrentMember();
   const isAdmin = me.data?.role === 'admin';
 
-  const toc = useMemo(() => extractToc(HANDBOOK_MARKDOWN), []);
+  // Jede Rolle liest ihre eigene Fassung (16.08.2026). Vorher bekam ein Gast
+  // dasselbe 33-Kapitel-Werk wie ein Admin — inklusive Planner-Regeln,
+  // Admin-Tabs und TV-Tafel-Aufbau, also lauter Dinge hinter Türen, die für
+  // ihn verschlossen sind.
+  const rolle = handbuchRolleFuer(me.data);
+  const markdown = useMemo(() => handbuchFuer(rolle), [rolle]);
+  const toc = useMemo(() => extractToc(markdown), [markdown]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileTocOpen, setMobileTocOpen] = useState(false);
 
@@ -51,8 +59,10 @@ export default function Help() {
               ←
             </Link>
             <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-semibold text-forest-100 leading-tight truncate">📖 Mitglieder-Handbuch</h1>
-              <p className="text-[10px] sm:text-xs text-forest-400 truncate">Alle Funktionen der App auf einen Blick</p>
+              <h1 className="text-sm sm:text-base font-semibold text-forest-100 leading-tight truncate">📖 Handbuch</h1>
+              <p className="text-[10px] sm:text-xs text-forest-400 truncate">
+                Deine Fassung als {ROLLEN_LABEL[rolle]}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -143,7 +153,7 @@ export default function Help() {
               },
             }}
           >
-            {HANDBOOK_MARKDOWN}
+            {markdown}
           </ReactMarkdown>
         </article>
       </div>
