@@ -11,7 +11,10 @@ export type EndOfDayPdfData = {
   todayLabel: string;             // z.B. "Donnerstag, 23. Mai"
   totalAufguesse: number;
   teamCount: number;
-  meisters: { name: string; saunaName: string | null; count: number }[];
+  // `sammelposten` markiert Zeilen, die keine Person sind („Nicht
+  // zugeordnet", „Übertragungsfehler"). Sie erscheinen in der Liste, zählen
+  // aber nicht als Aufgießer.
+  meisters: { name: string; saunaName: string | null; count: number; sammelposten?: boolean }[];
   topOils: { name: string; emoji: string; number: number; count: number }[];
   topAttrs: { label: string; emoji: string; count: number }[];
   orgName?: string;               // Default "Saunafreunde Schwarzwald e.V."
@@ -84,7 +87,8 @@ export function generateEndOfDayPdf(data: EndOfDayPdfData): Blob {
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLORS.TEXT_MUTED);
-  const subInfo = `${data.meisters.length} ${data.meisters.length === 1 ? 'Aufgießer' : 'Aufgießer'}${data.teamCount > 0 ? ` · ${data.teamCount} Team-Aufguss${data.teamCount === 1 ? '' : 'e'}` : ''}`;
+  const anzahlAufgiesser = data.meisters.filter((m) => !m.sammelposten).length;
+  const subInfo = `${anzahlAufgiesser} Aufgießer${data.teamCount > 0 ? ` · ${data.teamCount} Team-Aufguss${data.teamCount === 1 ? '' : 'e'}` : ''}`;
   doc.text(subInfo, PAGE_MARGIN + leftCardW / 2, cardY + 46, { align: 'center' });
 
   // ─── Aufgießer-Liste rechts daneben ─────────────────────────────────

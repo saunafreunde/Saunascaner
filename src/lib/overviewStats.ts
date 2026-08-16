@@ -27,8 +27,24 @@ export function aggregateOverview(
   meisterDir: MeisterDirectoryEntry[],
   coEintraege: { infusion_id: string; member_id: string }[] = [],
 ): OverviewAggregate {
-  // Personal-Fallback-Aufgüsse zählen nicht als echte Aufgießer-Leistung.
-  const infs = infusions.filter((i) => !i.is_personal_fallback);
+  // Der interne Export zählt ALLE Aufgüsse — auch die ohne zuordenbare
+  // Person (Vorgabe 16.08.2026). Vorher fielen die Personal-Aufgüsse hier
+  // heraus und die Gesamtzahl war stillschweigend zu niedrig.
+  //
+  // Nicht zuordenbare Aufgüsse landen in zwei Sammelposten am Ende der
+  // Aufgießer-Liste, getrennt gehalten, weil sie Verschiedenes bedeuten:
+  //   • „Nicht zugeordnet"   — vom Personal gehalten, normaler Betrieb
+  //   • „Übertragungsfehler" — Person fehlt, obwohl sie da sein müsste
+  //     (z. B. weil ein Mitglied gelöscht wurde); ein Datenproblem, das
+  //     sichtbar bleiben soll, statt in einer Sammelzahl zu verschwinden.
+  //
+  // Feed und TV-Tafel bleiben davon unberührt: dort zählt weiterhin nur,
+  // was einer Person gehört.
+  const infs = infusions;
+  const personalAufguesse = infs.filter((i) => i.is_personal_fallback).length;
+  const ohneZuordnung = infs.filter(
+    (i) => !i.is_personal_fallback && !i.saunameister_id,
+  ).length;
 
   // Mitwedler je Aufguss, damit die Zählung unten nicht für jeden Aufguss
   // die ganze Liste durchsuchen muss.
@@ -56,10 +72,24 @@ export function aggregateOverview(
       mMap.set(entry.id, cur);
     }
   }
-  const meisters = [...mMap.values()]
+  const meisters: OverviewAggregate['meisters'] = [...mMap.values()]
     .sort((a, b) => b.count - a.count)
     .slice(0, MAX_MEISTERS)
     .map(({ entry, count }) => ({ name: entry.name, saunaName: entry.sauna_name, count }));
+
+  // Sammelposten ans Ende, nicht in die Sortierung: „Nicht zugeordnet" hat
+  // oft mehr Aufgüsse als jede einzelne Person und würde die Bestenliste
+  // sonst anführen.
+  if (personalAufguesse > 0) {
+    meisters.push({
+      name: 'Nicht zugeordnet', saunaName: null, count: personalAufguesse, sammelposten: true,
+    });
+  }
+  if (ohneZuordnung > 0) {
+    meisters.push({
+      name: 'Übertragungsfehler', saunaName: null, count: ohneZuordnung, sammelposten: true,
+    });
+  }
 
   // ── Öle ──
   const oMap = new Map<string, number>();
