@@ -49,14 +49,21 @@ export class KartSound {
     } catch { /* Audio ist Kür, nie Pflicht */ }
   }
 
-  /** Jeden Frame: Tempo-Anteil 0…1 steuert Tonhöhe + Lautstärke. */
+  /** Jeden Frame: Tempo-Anteil 0…1 steuert Tonhöhe + Lautstärke.
+   *
+   *  Mit GANGSCHALTUNG (Dynamik-Runde): drei virtuelle Gänge — die Tonhöhe
+   *  steigt innerhalb eines Gangs steil an und fällt beim Hochschalten kurz
+   *  ab. Ein linear steigender Dauerton klingt nach Staubsauger; das
+   *  Auf-und-Ab ist der Klang von „es geht vorwärts". */
   motor(anteil: number, turbo: boolean) {
     if (!this.ctx || !this.motorA || !this.motorB || !this.motorGain || !this.filter) return;
-    const f = 55 + anteil * 95 + (turbo ? 30 : 0);
+    const gang = Math.min(2, Math.floor(anteil * 3));
+    const imGang = Math.min(1, anteil * 3 - gang);
+    const f = 56 + gang * 16 + imGang * 74 + (turbo ? 34 : 0);
     const t = this.ctx.currentTime;
-    this.motorA.frequency.setTargetAtTime(f, t, 0.08);
-    this.motorB.frequency.setTargetAtTime(f * 1.013, t, 0.08);
-    this.filter.frequency.setTargetAtTime(240 + anteil * 520, t, 0.1);
+    this.motorA.frequency.setTargetAtTime(f, t, 0.07);
+    this.motorB.frequency.setTargetAtTime(f * 1.013, t, 0.07);
+    this.filter.frequency.setTargetAtTime(240 + anteil * 560 + (turbo ? 180 : 0), t, 0.1);
     this.motorGain.gain.setTargetAtTime(0.05 + anteil * 0.06, t, 0.1);
   }
 

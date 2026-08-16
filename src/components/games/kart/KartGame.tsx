@@ -448,6 +448,9 @@ function starteRennen(opts: {
     driftLadungS: 0,         // wie lange der aktuelle Drift schon steht
     miniTurboRestS: 0,
     kamHoehe: KAM_HOEHE,     // Kamera senkt sich im Boost (FOV-Kick-Ersatz)
+    // Dynamik-Runde: rein Visuelles — beeinflusst NIE die Physik.
+    blitzRestS: 0,           // weißer Doppel-Frame beim Boost-Zünden
+    partikel: [] as { x: number; y: number; vx: number; vy: number; lebenS: number; maxS: number; art: 'staub' | 'gras' | 'dampf' | 'funke' }[],
     bannerText: '',
     bannerRestS: 0,
     rueckstandS: null as number | null,  // Sekunden auf den 👑-Geist (+ = hinten)
@@ -693,8 +696,42 @@ function starteRennen(opts: {
       }
     }
 
+    // ── Dynamik-Schicht: Partikel + Blitz (rein visuell) ─────────────────
+    st.blitzRestS = Math.max(0, st.blitzRestS - dt);
+    const drift = Math.abs(wrapWinkel(st.richtung - st.fahrWinkel));
+    const spawn = (art: 'staub' | 'gras' | 'dampf' | 'funke', anzahl: number, streu: number, vyBasis: number) => {
+      for (let k = 0; k < anzahl && st.partikel.length < 90; k++) {
+        // Pseudozufall aus der Rennzeit — konsistent, ohne Math.random.
+        const r1 = Math.sin(st.zeitMs * 0.031 + k * 7.3) * 0.5 + 0.5;
+        const r2 = Math.sin(st.zeitMs * 0.017 + k * 3.1) * 0.5 + 0.5;
+        st.partikel.push({
+          x: (r1 - 0.5) * streu,
+          y: 6 + r2 * 6,
+          vx: (r1 - 0.5) * 40 - st.lenkGlatt * 30,
+          vy: vyBasis + r2 * 40,
+          lebenS: 0, maxS: art === 'funke' ? 0.3 : 0.55,
+          art,
+        });
+      }
+    };
+    if (!fliegt) {
+      if (drift > 0.12 && st.v > 0.5 * V_MAX) spawn('staub', 2, 30, 60);
+      if (wert === M_SCHULTER || wert === M_WIESE) spawn('gras', 2, 26, 70);
+      if (st.turboRestS > 0 || st.miniTurboRestS > 0) spawn('dampf', 2, 18, 90);
+      if (beruehrt) spawn('funke', 2, 20, 30);
+    }
+    if (flogVorher && st.flugRestS <= 0) spawn('staub', 8, 44, 50);
+    if (st.turboRestS > TURBO_DAUER_S - dt * 2) st.blitzRestS = 0.08; // frisch gezündet
+    for (let i = st.partikel.length - 1; i >= 0; i--) {
+      const p = st.partikel[i];
+      p.lebenS += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.lebenS >= p.maxS) st.partikel.splice(i, 1);
+    }
+
     // Motor-Klang folgt dem Tempo.
-    sound.motor(Math.min(1, st.v / (V_MAX * TURBO_FAKTOR)), st.turboRestS > 0);
+    sound.motor(Math.min(1, st.v / (V_MAX * TURBO_FAKTOR)), st.turboRestS > 0 || st.miniTurboRestS > 0);
 
     // Live-Rückstand auf den 👑-Geist: dessen Fortschritt wird wie der eigene
     // über eine Fenster-Suche verfolgt, die Differenz in Sekunden übersetzt.
@@ -788,7 +825,7 @@ function starteRennen(opts: {
   // Atem-Lücken, Laternen-Paare als Kurven-Telegraph, ein Anker pro
   // Streckenviertel, Zuschauer NUR als Cluster an Start/Ziel — und das
   // Ziel-Tor als größter Sprite des Spiels. Alles deterministisch geseedet.
-  type Deko = { x: number; y: number; name: string; wh: number };
+  type Deko = { x: number; y: number; name: string; wh: number; phase: number };
   const deko: Deko[] = [];
   const tanneKlein = bauTanne(false);
   const tanneGross = bauTanne(true);
@@ -805,7 +842,10 @@ function starteRennen(opts: {
     const leg = (idx: number, seite: number, abstand: number, name: string, wh: number) => {
       const p = linie[((idx % n) + n) % n];
       const qx = -Math.sin(p.winkel) * seite, qy = Math.cos(p.winkel) * seite;
-      deko.push({ x: p.x + qx * abstand, y: p.y + qy * abstand, name, wh });
+      const x = p.x + qx * abstand, y = p.y + qy * abstand;
+      // Animations-Phase aus der Position — jedes Objekt bewegt sich in
+      // seinem eigenen Takt, aber auf jedem Gerät identisch.
+      deko.push({ x, y, name, wh, phase: ((x * 13 + y * 7) % 97) / 97 * Math.PI * 2 });
     };
     // tanne-1 (der schmale Schnitt-Splitter aus dem Sheet) ist aussortiert —
     // vier saubere Varianten tragen den Wald, tanne-5 übernimmt die
@@ -915,8 +955,9 @@ function starteRennen(opts: {
     ctx.save();
     ctx.translate(shX, shY);
 
-    // Himmel + Panorama (scrollt mit der Blickrichtung).
-    const panX = Math.floor(((rh / (Math.PI * 2)) % 1 + 1) * panorama.width) % panorama.width;
+    // Himmel + Panorama: scrollt mit der Blickrichtung UND driftet ganz
+    // langsam von selbst — ein stehender Himmel wirkt wie eine Fototapete.
+    const panX = Math.floor((((rh / (Math.PI * 2)) % 1 + 1) * panorama.width + st.zeitMs * 0.006)) % panorama.width;
     if (panoVollbild) {
       const teil = Math.min(panorama.width - panX, W);
       ctx.drawImage(panorama, panX, 0, teil, HORIZONT, 0, 0, teil, HORIZONT);
@@ -933,6 +974,24 @@ function starteRennen(opts: {
       ctx.drawImage(panorama, panX, 0, Math.min(panorama.width - panX, W), 60, 0, HORIZONT - 60, Math.min(panorama.width - panX, W), 60);
       if (panorama.width - panX < W) {
         ctx.drawImage(panorama, 0, 0, W - (panorama.width - panX), 60, panorama.width - panX, HORIZONT - 60, W - (panorama.width - panX), 60);
+      }
+    }
+
+    // Vogelschwarm: alle ~24 s kreuzt eine Kette Silhouetten den Himmel —
+    // deterministisch aus der Rennzeit, vier Sekunden Auftritt.
+    {
+      const zyklus = 24000;
+      const t = (st.zeitMs % zyklus) / 4000; // 0..1 während der ersten 4 s
+      if (t < 1) {
+        ctx.fillStyle = 'rgba(20,28,24,0.8)';
+        for (let vk = 0; vk < 5; vk++) {
+          const vx2 = W + 30 - t * (W + 70) - vk * 16;
+          const vy2 = 34 + Math.floor(st.zeitMs / zyklus) % 3 * 18 + Math.sin(t * 9 + vk) * 5 + vk * 3;
+          ctx.beginPath();
+          ctx.arc(vx2 - 3, vy2, 3, Math.PI * 1.1, Math.PI * 1.9);
+          ctx.arc(vx2 + 3, vy2, 3, Math.PI * 1.1, Math.PI * 1.9);
+          ctx.fill();
+        }
       }
     }
 
@@ -1005,9 +1064,51 @@ function starteRennen(opts: {
       const hPx = Math.min(H * 3, (d.wh * FOKAL) / p.tiefe);
       const bPx = hPx * (natB / Math.max(1, natH));
       if (p.sx + bPx / 2 < -30 || p.sx - bPx / 2 > W + 30) continue;
+      // Dynamik-Runde: die Welt BEWEGT sich. Jede Bewegung hängt an
+      // Rennzeit + Objekt-Phase — auf jedem Gerät identisch, nie in der Physik.
       billboards.push({ tiefe: p.tiefe, mal: () => {
         ctx.globalAlpha = p.alpha;
-        ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
+        if (d.name.startsWith('tanne')) {
+          // Wind: winziges Schwanken um den Fußpunkt.
+          ctx.save();
+          ctx.translate(p.sx, p.sy);
+          ctx.rotate(Math.sin(st.zeitMs * 0.0009 + d.phase) * 0.016);
+          ctx.drawImage(sprite, -bPx / 2, -hPx, bPx, hPx);
+          ctx.restore();
+        } else if (d.name.startsWith('gast')) {
+          // Jubel: Hüpfen im eigenen Takt, an der Zielgeraden wird gefeiert.
+          const hop = Math.abs(Math.sin(st.zeitMs * 0.005 + d.phase)) * hPx * 0.06;
+          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx - hop, bPx, hPx);
+        } else if (d.name === 'laterne') {
+          // Warmes, flackerndes Glühen hinter der Laterne.
+          const glut = 0.22 + 0.1 * Math.sin(st.zeitMs * 0.02 + d.phase) + 0.05 * Math.sin(st.zeitMs * 0.047 + d.phase * 2);
+          const gy = p.sy - hPx * 0.72;
+          const gr = hPx * 0.5;
+          const grad = ctx.createRadialGradient(p.sx, gy, 0, p.sx, gy, gr);
+          grad.addColorStop(0, `rgba(255,190,90,${Math.max(0, glut).toFixed(3)})`);
+          grad.addColorStop(1, 'rgba(255,190,90,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(p.sx - gr, gy - gr, gr * 2, gr * 2);
+          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
+        } else if (d.name === 'blockhaus' || d.name === 'saunafass') {
+          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
+          // Schornstein-Rauch: drei aufsteigende, wachsende, verblassende Tupfer.
+          const schX = p.sx + (d.name === 'blockhaus' ? -bPx * 0.18 : bPx * 0.22);
+          for (let rk = 0; rk < 3; rk++) {
+            const rt = ((st.zeitMs * 0.00035 + d.phase / 6 + rk / 3) % 1);
+            ctx.fillStyle = `rgba(226,222,214,${(0.3 * (1 - rt)).toFixed(3)})`;
+            ctx.beginPath();
+            ctx.arc(
+              schX + Math.sin(rt * 5 + d.phase) * hPx * 0.05,
+              p.sy - hPx * 0.98 - rt * hPx * 0.5,
+              hPx * (0.035 + rt * 0.075),
+              0, Math.PI * 2,
+            );
+            ctx.fill();
+          }
+        } else {
+          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
+        }
         ctx.globalAlpha = 1;
       } });
     }
@@ -1059,6 +1160,22 @@ function starteRennen(opts: {
       ctx.ellipse(spielerX, H - 46, 24 * (1 - hoehe / (FLUG_HOEHE * 2.2)), 6, 0, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // Partikel UNTER dem Spieler-Sprite: Drift-Staub, Wiesen-Grün,
+    // Turbo-Dampf, Banden-Funken — die Spur erzählt, was gerade passiert.
+    for (const pt of st.partikel) {
+      const rest = 1 - pt.lebenS / pt.maxS;
+      ctx.fillStyle =
+        pt.art === 'staub' ? `rgba(196,176,148,${(0.5 * rest).toFixed(3)})`
+          : pt.art === 'gras' ? `rgba(96,138,84,${(0.55 * rest).toFixed(3)})`
+            : pt.art === 'dampf' ? `rgba(240,244,248,${(0.45 * rest).toFixed(3)})`
+              : `rgba(255,170,70,${(0.8 * rest).toFixed(3)})`;
+      const gr = pt.art === 'funke' ? 2 : 3 + (1 - rest) * 5;
+      ctx.beginPath();
+      ctx.arc(spielerX + pt.x, H - 52 + pt.y - hoehe * 0.2, gr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     zeichneFahrer(ctx, spielerPosen, spielerX, H - 58 - hoehe, 1.15, st.lenkGlatt + drift * 1.4, false);
 
     // Turbo-Speedlines an den Rändern — Position deterministisch aus der Zeit.
@@ -1087,6 +1204,12 @@ function starteRennen(opts: {
       ctx.textAlign = 'center';
       ctx.fillText(st.bannerText, W / 2, H * 0.26 + 23);
       ctx.globalAlpha = 1;
+    }
+
+    // Weißer Blitz beim Boost-Zünden — zwei Frames Belohnung.
+    if (st.blitzRestS > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${(st.blitzRestS / 0.08 * 0.4).toFixed(3)})`;
+      ctx.fillRect(-8, -8, W + 16, H + 16);
     }
 
     ctx.restore(); // Shake endet — HUD steht stabil
