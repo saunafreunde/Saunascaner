@@ -247,6 +247,28 @@ function WochenrueckblickCard({ post }: { post: FeedPost }) {
         </div>
       )}
 
+      {/* Wochen-Krönung (Migr. 0144): je Spiel der Wochenbeste. Ersetzt die
+          früheren Einzel-Posts pro persönlichem Bestwert — EIN Auftritt pro
+          Woche, dafür mit Krone. */}
+      {(m.spiele ?? []).length > 0 && (
+        <div className="mt-4">
+          <div className="text-[10px] uppercase tracking-wider text-forest-400 mb-1.5">
+            Spiele-Könige der Woche
+          </div>
+          <ul className="space-y-1">
+            {(m.spiele ?? []).map((s) => (
+              <li key={s.kind} className="flex items-center gap-2 text-xs">
+                <span aria-hidden>{s.emoji}</span>
+                <span className="w-20 shrink-0 truncate text-forest-300">{s.label}</span>
+                <span aria-hidden>👑</span>
+                <span className="min-w-0 flex-1 truncate text-forest-100">{s.name}</span>
+                <span className="shrink-0 font-bold tabular-nums text-amber-200">{s.score}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {attribute.length > 0 && (
         <div className="mt-3">
           <div className="text-[10px] uppercase tracking-wider text-forest-400 mb-1.5">

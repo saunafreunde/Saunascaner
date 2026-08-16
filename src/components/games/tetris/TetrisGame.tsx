@@ -228,11 +228,22 @@ export default function TetrisGame() {
     });
   }
 
-  // Wisch-Steuerung (Mobile): ←→ verschiebt, ↓ Hard-Drop, ↑/Tap = drehen
+  function softDrop() {
+    setPiece((p) => {
+      if (collides(board, p, 0, 1)) return p;
+      setScore((s) => s + 1);
+      return { ...p, y: p.y + 1 };
+    });
+  }
+
+  // Wisch-Steuerung (16.08.2026): ↓ ist jetzt SOFT-Drop. Vorher setzte ein
+  // versehentlicher Wisch nach unten den Stein sofort und unwiderruflich ab —
+  // eine destruktive Aktion darf nicht auf der am leichtesten versehentlich
+  // ausgelösten Geste liegen. Hard-Drop gibt es nur noch als bewussten Knopf.
   const swipe = useSwipe({
     onSwipeLeft:  () => softMove(-1),
     onSwipeRight: () => softMove(1),
-    onSwipeDown:  () => hardDrop(),
+    onSwipeDown:  () => softDrop(),
     onSwipeUp:    () => rotateBtn(),
     onTap:        () => rotateBtn(),
   });
@@ -252,9 +263,12 @@ export default function TetrisGame() {
         style={{
           ...swipe.style,
           gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
-          maxWidth: 360,
+          // Das Brett ist doppelt so hoch wie breit (10×20). Die Breite hängt
+          // deshalb an der VIEWPORT-HÖHE: bei festen 360px war das Brett 720px
+          // hoch und schob die Bedienung unter den Fold (Audit 16.08.2026).
+          maxWidth: 'min(320px, 34dvh)',
         }}
-        aria-label="Spielfeld — wische ↔ um zu bewegen, ↓ für Hard-Drop, ↑ oder Tap dreht"
+        aria-label="Spielfeld — wische ↔ um zu bewegen, ↓ eine Reihe tiefer, ↑ oder Tap dreht"
       >
         {displayBoard.flatMap((row, y) =>
           row.map((cell, x) => (
@@ -266,27 +280,29 @@ export default function TetrisGame() {
         )}
       </div>
 
-      {/* Touch-Controls (Mobile) */}
-      <div className="mt-4 grid grid-cols-4 gap-2 select-none">
-        <button onClick={() => softMove(-1)} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">⬅</button>
-        <button onClick={rotateBtn} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">↻</button>
-        <button onClick={() => softMove(1)} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">➡</button>
-        <button onClick={hardDrop} className="rounded-xl bg-amber-500/80 py-3 text-xl font-bold text-forest-950 active:bg-amber-400">⬇⬇</button>
-      </div>
-
-      <div className="mt-3 flex gap-2 justify-center">
+      {/* Nur noch die Knöpfe, die eine Geste NICHT ersetzt: der bewusste
+          Hard-Drop (destruktiv → nie auf einer Wischgeste) und Pause/Neu.
+          Das Bewegen/Drehen-Kreuz ist raus — Swipe deckt alles ab. */}
+      <div className="mt-3 flex gap-2 justify-center select-none">
+        <button onClick={hardDrop} disabled={gameOver || paused}
+          className="rounded-xl bg-amber-500/80 px-6 py-2.5 text-sm font-bold text-forest-950 active:bg-amber-400 disabled:opacity-40"
+          style={{ touchAction: 'manipulation' }}>
+          ⬇⬇ Absetzen
+        </button>
         <button onClick={() => setPaused((v) => !v)} disabled={gameOver}
-          className="rounded-xl bg-forest-900/60 px-4 py-2 text-sm text-forest-200 ring-1 ring-forest-700/50 disabled:opacity-50">
+          className="rounded-xl bg-forest-900/60 px-4 py-2.5 text-sm text-forest-200 ring-1 ring-forest-700/50 disabled:opacity-40"
+          style={{ touchAction: 'manipulation' }}>
           {paused ? '▶ Weiter' : '⏸ Pause'}
         </button>
         <button onClick={reset}
-          className="rounded-xl bg-forest-900/60 px-4 py-2 text-sm text-forest-200 ring-1 ring-forest-700/50">
+          className="rounded-xl bg-forest-900/60 px-4 py-2.5 text-sm text-forest-200 ring-1 ring-forest-700/50"
+          style={{ touchAction: 'manipulation' }}>
           ↺ Neu
         </button>
       </div>
 
       <div className="mt-3 text-xs text-forest-400 text-center">
-        Wische auf Spielfeld · ↔ bewegt · ↓ Hard-Drop · ↑/Tap dreht · Tastatur: ← → ↑ ↓ X Leertaste P
+        Wischen: ↔ bewegt · ↓ eine Reihe tiefer · ↑ oder Tipp dreht
       </div>
 
       {gameOver && (

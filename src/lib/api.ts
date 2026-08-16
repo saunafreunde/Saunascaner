@@ -5042,6 +5042,9 @@ export type WochenrueckblickMeta = {
   aufgiesser: { name: string; anzahl: number }[];
   oele: { id: string; anzahl: number }[];
   attribute: { id: string; anzahl: number }[];
+  /** Wochenbeste je Spiel (Migration 0144) — die Wochen-Krönung. Ältere
+   *  Rückblicke haben das Feld nicht, die Karte lässt die Sektion dann weg. */
+  spiele?: { kind: string; label: string; emoji: string; name: string; score: number }[];
 };
 
 export type FeedPost = {

@@ -12,7 +12,8 @@ export default function GameMatch() {
   const label = m ? GAME_LABELS[m.kind] : null;
 
   return (
-    <PageBackground page="planner" className="min-h-screen">
+    // overscroll-none: siehe GameSolo — keine Browser-Gesten über einer Partie.
+    <PageBackground page="planner" className="min-h-screen overscroll-none">
       <header className="sticky top-0 z-30 border-b border-forest-800/40 bg-forest-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 py-2.5 sm:py-3">
           <div className="flex items-center gap-3">

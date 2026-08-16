@@ -14,7 +14,10 @@ export default function GameSolo() {
   const Game = meta.component;
 
   return (
-    <PageBackground page="planner" className="min-h-screen">
+    // overscroll-none: Pull-to-Refresh mitten in der Partie hat auf iOS/Android
+    // die laufende Runde weggeworfen — auf einer Spielroute gibt es keinen
+    // Grund für die Browser-Geste (Audit 16.08.2026).
+    <PageBackground page="planner" className="min-h-screen overscroll-none">
       <header className="sticky top-0 z-30 border-b border-forest-800/40 bg-forest-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 py-2.5 sm:py-3">
           <div className="flex items-center gap-3">
