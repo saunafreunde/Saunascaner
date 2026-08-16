@@ -13,7 +13,6 @@ const ACTION_GROUPS: Record<string, { label: string; icon: string; prefix: strin
   all:      { label: 'Alle',          icon: '📋',  prefix: '' },
   member:   { label: 'Mitglieder',    icon: '👥',  prefix: 'member.' },
   infusion: { label: 'Aufgüsse',      icon: '🔥',  prefix: 'infusion.' },
-  fan:      { label: 'Fan-Anträge',   icon: '🤝',  prefix: 'fan.' },
   news:     { label: 'News',          icon: '📣',  prefix: 'news.' },
   recipe:   { label: 'Rezepte',       icon: '🌿',  prefix: 'recipe.' },
   evac:     { label: 'Notfall',       icon: '🚨',  prefix: 'evacuation.' },

@@ -50,29 +50,16 @@ export function isGast(m?: Member | null): boolean {
   return m?.role === 'gast';
 }
 
-/** Förderndes Mitglied: zahlt Beitrag, bekommt Premium-Vorteile (News, Aroma-Rezepte, Ausweis),
- * aber keine Mitwirkungs-Pflicht und kein Stimmrecht. Zwischen Gast und Aktiv-Mitglied. */
-export function isFan(m?: Member | null): boolean {
-  return m?.role === 'fan';
-}
-
-/** Hat Premium-Berechtigungen (Fan oder höher) — für News-Feed, Aroma-Rezepte, etc. */
-export function isFanOrHigher(m?: Member | null): boolean {
-  if (!m) return false;
-  return ['fan', 'member', 'guest_aufgieser', 'staff', 'admin'].includes(m.role);
-}
-
-/** Beitragszeitraum läuft demnächst ab (< 28 Tage) — für Erinnerungs-UI. */
-export function isPaidMembershipExpiringSoon(m?: Member | null): boolean {
-  if (!m?.paid_until) return false;
-  const days = Math.ceil((new Date(m.paid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  return days >= 0 && days <= 28;
-}
+// isFan / isFanOrHigher / isPaidMembershipExpiringSoon sind mit 0132 entfallen.
+// Die Rolle 'fan' (zahlender Förderer) wird nicht mehr vergeben — „Fan" heißt
+// in dieser App ab jetzt ausschließlich „Fan eines Aufgießers", und das ist
+// eine Follow-Beziehung (member_follows), keine Rolle.
+// Das SQL-Pendant is_fan_or_higher() wurde durch is_approved_account() ersetzt.
 
 /** Vereinsmitglied (Verein-zugehörig). false für Staff und Gast. */
 export function isVereinsMitglied(m?: Member | null): boolean {
   if (!m) return false;
-  return m.role !== 'staff' && m.role !== 'gast';
+  return m.role !== 'staff' && m.role !== 'gast' && m.role !== 'fan';
 }
 
 export function roleLabel(m?: Member | null): string {
@@ -81,7 +68,9 @@ export function roleLabel(m?: Member | null): string {
   if (m.role === 'guest_aufgieser') return 'Gast-Aufgießer';
   if (m.role === 'staff') return m.is_personal_planer ? 'CP-Verantwortlicher' : 'Personal';
   if (m.role === 'gast') return 'Gast';
-  if (m.role === 'fan') return 'Fan';
+  // Altbestand: seit 0132 wird 'fan' nicht mehr vergeben. Bewusst sichtbar
+  // beschriftet, damit ein übrig gebliebener Datensatz auffällt.
+  if (m.role === 'fan') return 'Förderer (alt)';
   if (m.is_aufgieser) return 'Aufgießer';
   return 'Mitglied';
 }

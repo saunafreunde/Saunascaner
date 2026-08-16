@@ -18,8 +18,9 @@ import { GastProfileHeader } from '@/components/GastProfileHeader';
 import { PushPermission } from '@/components/PushPermission';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { PendingRatingsBlock } from '@/components/PendingRatingsBlock';
-import { FanUpgradeCTA } from '@/components/gast/FanUpgradeCTA';
 import { GastLiveNow } from '@/components/gast/GastLiveNow';
+import { VereinsNews } from '@/components/gast/VereinsNews';
+import { AromaRezepte } from '@/components/gast/AromaRezepte';
 import { isAdmin, isGast } from '@/lib/roles';
 import { lookupMemberName } from '@/lib/memberDisplay';
 import { fmtClock, berlinYmd } from '@/lib/time';
@@ -146,11 +147,11 @@ export default function Gast() {
           followedIds={followedIds}
         />
 
-        {/* Noch zu bewertende Aufgüsse (vom letzten Sauna-Tag) */}
+        {/* Noch zu bewertende Aufgüsse (vom letzten Sauna-Tag).
+            Steht bewusst weit oben — das ist die eine Sache, die zeitlich
+            abläuft (Folgetag 12 Uhr). Die PIN-Karte ist dafür nach unten
+            gewandert: den PIN braucht man am Tablet, nicht in der App. */}
         <PendingRatingsBlock />
-
-        {/* Eigener Checkin-PIN für Tablet */}
-        <MyCheckinPinCard />
 
         {/* Begrüßungs-Block für brandneue Gäste */}
         {isReallyGast && followedStars.length === 0 && !previewMode && (
@@ -333,14 +334,18 @@ export default function Gast() {
           </div>
         </section>
 
+        {/* Vereins-News und Aroma-Rezepte — lagen bis 0132 hinter der Rolle
+            'fan'. Beide Komponenten rendern nichts, solange nichts da ist. */}
+        <VereinsNews />
+        <AromaRezepte />
+
         {/* ── Mein Sauna-Jahr: Stats · Aktivität · Erfolge ── */}
         {me.data && <MemberStatsCard memberId={me.data.id} />}
         {me.data && <MemberAttendanceChart memberId={me.data.id} />}
         {me.data && <MemberAchievementsGallery memberId={me.data.id} />}
 
-        {/* Fan-Upgrade-CTA — milestone-getriggert (≥5 Bewertungen oder ≥3 Sauna-Tage).
-            Zeigt auch Status-Card wenn Antrag schon läuft. Echte Gäste only. */}
-        <FanUpgradeCTA />
+        {/* Eigener Checkin-PIN fürs Tablet am Eingang */}
+        <MyCheckinPinCard />
 
         {/* Benachrichtigungen — Push-Aktivierung */}
         {me.data && (

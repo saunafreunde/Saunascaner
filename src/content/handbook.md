@@ -8,7 +8,7 @@
 > **Neu seit 22.05.2026**: Mobile-2-Spalten-Planner-Layout · 4-Farben-Slot-System (🔴 belegt · 🟢 frei · 🟠 gesperrt · 🟣 mein Aufguss) · „🔥 Heute geplant"-Hero · ♨️ **Banja-Ritual** (seit 08.08.2026 frei planbar: 2 h in jeder Sauna zu jeder Zeit, 90 Min um 19 Uhr, danach 1 h Ruhephase).
 >
 > **Schnellzugriff zu Rollen-Handbüchern** (kompakte Anleitungen je Rolle):
-> [👋 Gast](/hilfe#gast) · [🤝 Fan](/hilfe#fan) · [🤝 Unterstützer](/hilfe#unterstuetzer) · [🧖 Aufgießer](/hilfe#aufgieser) · [👨‍🍳 Personal](/hilfe#personal) · [🛠️ CP](/hilfe#cp) · [⚙️ Admin](/hilfe#admin)
+> [👋 Gast](/hilfe#gast) · [🤝 Unterstützer](/hilfe#unterstuetzer) · [🧖 Aufgießer](/hilfe#aufgieser) · [👨‍🍳 Personal](/hilfe#personal) · [🛠️ CP](/hilfe#cp) · [⚙️ Admin](/hilfe#admin)
 
 ---
 
@@ -35,7 +35,6 @@ Klicke auf einen Direkt-Link, um direkt zur Funktion in der App zu springen.
 | Rolle | Default-Bereich | Direkt-Sprung |
 |---|---|---|
 | 👋 Gast | Gast-Bereich mit PIN, Stats, Badges, Fan-Antrag | [/gast](/gast) |
-| 🤝 **Fan / Förderer** | News-Feed, Aroma-Rezepte, Fan-Ausweis | [/fan](/fan) |
 | 🤝 Helfer / Unterstützer | Helfer-Aufgaben + Verein-Galerie | [/unterstuetzer](/unterstuetzer) |
 | 🧖 Aufgießer | Aufguss-Planner (6 Tage voraus) | [/planner](/planner) |
 | 👨‍🍳 Personal | Mitarbeiter-Bereich + Personal-Fallback | [/mitarbeiter](/mitarbeiter) |
@@ -102,7 +101,7 @@ Die Admin-Hauptseite hat 5 Gruppen mit insgesamt 17 Tabs. Du springst direkt rei
 **Teil B — Pro Rolle**
 
 5. [👋 Als Gast](#5--als-gast)
-6. [🤝 Als Fan / Förderer](#6--als-fan--f%C3%B6rderer) ⭐ neu
+6. [🤝 Fan eines Aufgießers](#6--fan-eines-aufgie%C3%9Fers)
 7. [🤝 Als Helfer / Unterstützer](#7--als-helfer--unterst%C3%BCtzer)
 8. [🧖 Als Aufgießer / 🌍 Gast-Aufgießer](#8--als-aufgie%C3%9Fer---als-gast-aufgie%C3%9Fer)
 9. [👨‍🍳 Als Personal](#9--als-personal)
@@ -310,7 +309,6 @@ Als Admin kannst du jede Rollen-Seite mit `?preview=<rolle>` testen — z.B.:
 | Symbol | Rolle | Default-Bereich | Hauptrechte |
 |---|---|---|---|
 | 👋 | **Gast** | `/gast` | Sauna besuchen, Aufgüsse bewerten, Feed lesen, Lieblings-Aufgießer folgen. **Kostenlos, kein Verein-Status.** |
-| 🤝 | **Fan / Förderer** | `/fan` | Passives Vereinsmitglied — zahlt Jahresbeitrag, bekommt **Vereins-News + Aroma-Rezepte + Fan-Ausweis**. Keine Mitwirkungs-Pflicht, kein Stimmrecht. |
 | 🤝 | **Helfer / Unterstützer** (Aktiv-Mitglied) | `/unterstuetzer` | Alles vom Fan + Helfer-Aufgaben annehmen, Mitglieder-Galerie, Postfach, **Stimmrecht**. Vereinsbegriff: **„Helfer"** — URL-Pfad: `/unterstuetzer`. |
 | 🧖 | **Aufgießer** | `/planner` | Alles vom Unterstützer + Aufgüsse planen (2 Wochen voraus), Team-Aufgüsse, Atelier, Stamm-Slot, Urlaub, Notfall-Alarm, **Aroma-Rezepte einreichen** |
 | 🌍 | **Gast-Aufgießer** | `/planner` | Wie Aufgießer — aber **4 Wochen voraus planbar** und sichtbar mit „🌍 Gast" + Landesgruppe |
@@ -318,7 +316,7 @@ Als Admin kannst du jede Rollen-Seite mit `?preview=<rolle>` testen — z.B.:
 | 🛠️ | **CP-Verantwortlicher** | `/cp` | Alles vom Personal + Schichtplanung, Anwesenheits-Export (CSV), anonyme Bewertungs-Übersicht (ohne Aufgießer-Namen) |
 | ⚙️ | **Admin** | `/planner` | Alles + 17 Verwaltungs-Tabs unter `/admin` (Saunas, Presence, Recurring, Members, Invitations, Shared-Email, Stats, Auswertungen, Activity, News, Aroma, Feed, Polls, Tasks, WM, Stage, Branding, Colors, Oils, Handbook, System) |
 
-**Conversion-Pyramide:** 👋 Gast → 🤝 Fan (Self-Antrag) → ✅ Helfer (Bewerbung) → 🧖 Aufgießer (Schulung + Vereinsbeschluss). Der Aufgießer-Pfad ist bewusst hochschwellig — das schützt die Kunstform.
+**Conversion-Pyramide:** 👋 Gast → ✅ Helfer (Bewerbung) → 🧖 Aufgießer (Schulung + Vereinsbeschluss). Der Aufgießer-Pfad ist bewusst hochschwellig — das schützt die Kunstform.
 
 Deine Rolle siehst du oben im Header neben deinem Avatar.
 
@@ -351,9 +349,8 @@ Du bist Gast — herzlich willkommen! Der Gast-Bereich ist **kein abgespeckter M
 │ ⭐ Deine Favoriten (3):                          │
 │    [Christoph 🧖] [Bernd 🧖] [Stephanie 🧖]      │
 ├──────────────────────────────────────────────────┤
-│ 🤝 Werde Fan unserer Saunameister                │  ← ab 5 Bewertungen
-│    📣 News · 🌿 Rezepte · 🏅 Fan-Ausweis         │     (Milestone-Trigger)
-│                          [🤝 Fan-Antrag stellen] │
+│ 📣 Aus dem Verein · 🌿 Aroma-Rezepte             │  ← für alle mit Zugang
+│ 🔢 Dein PIN fürs Tablet                          │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -492,91 +489,25 @@ Du gefällst dem Verein und möchtest dauerhaft dabei sein? Sprich einen ⚙️ 
 
 ---
 
-## 6. 🤝 Als Fan / Förderer
+## 6. 🤝 Fan eines Aufgießers
 
-**Default-Bereich:** [/fan](/fan)
+> Die frühere Rolle **„Fan / Förderer"** gibt es seit dem 16.08.2026 nicht mehr. Sie hatte nie ein einziges Mitglied, und das Wort war doppelt belegt. „Fan" heißt in dieser App jetzt genau eine Sache: **Fan eines Aufgießers**.
 
-> Du bist Sauna-Gast, willst aber näher dran sein — ohne dich zu verpflichten? Das **Förderndes Mitglied** ist der saubere Zwischenschritt zwischen Gast und Aktiv-Mitglied.
+### Wie du Fan wirst
 
-### So sieht dein Bereich aus
+Geh auf [Aufgießer](/aufgieser), such dir jemanden aus und tipp auf **Fan werden**. Fertig — kein Antrag, keine Freigabe, kein Beitrag.
 
-```
-┌─ Hallo Fan {Dein Name} 🤝 ─────── Förderer · Saunafreunde ─┐
-├────────────────────────────────────────────────────────────┤
-│ [Avatar]  Stefan B.    motto: „Saunameister-Fan seit 2026" │
-├────────────────────────────────────────────────────────────┤
-│ 🏅 Förderer-Status                       [🏅 Fan-Ausweis] │
-│ Förderer-Mitgliedschaft gültig bis 31.12.2026              │
-│ Fan seit 17.05.2026                                        │
-├────────────────────────────────────────────────────────────┤
-│ 📣 Aus dem Verein                  exklusiv für Förderer  │
-│  📌 Sommerfest am 21.06.2026 — Anmeldung läuft!            │
-│  ────────────────────────────────────────                  │
-│  Neue Sauna-Aufgüsse jeden Freitag mit Christoph           │
-│  ────────────────────────────────────────                  │
-│  Putz-Aktion am 12.06.2026 — Helfer willkommen             │
-├────────────────────────────────────────────────────────────┤
-│ 🌿 Aroma-Rezepte unserer Saunameister                     │
-│  ┌──────────────────┐ ┌──────────────────┐                │
-│  │ Birkenwald-Frische│ │ Eukalyptus-Power │                │
-│  │ • Birke · 5 Tr.   │ │ • Eukalyptus · 7 │                │
-│  │ • Limette · 3 Tr. │ │ • Pfefferminze   │                │
-│  │ 🌡️ 90°C · finnisch│ │ 🌡️ 80°C · bio    │                │
-│  │ — Christoph W.    │ │ — Bernd K.       │                │
-│  └──────────────────┘ └──────────────────┘                │
-├────────────────────────────────────────────────────────────┤
-│ ⏳ Pending-Ratings · 🆔 PIN · 📊 Stats · 🏅 Badges        │
-├────────────────────────────────────────────────────────────┤
-│ ▸ Datenschutz & Account-Löschung                           │
-└────────────────────────────────────────────────────────────┘
-```
+Was du davon hast:
 
-**Schnellzugriff:** [Mein Fan-Bereich](/fan) · [Aufgießer](/aufgieser) · [Mini-Feed](/feed) · [WM-Tipps](/wm)
+- 🔔 **Push, sobald dein Aufgießer einen Aufguss plant** — du verpasst keinen mehr.
+- ❤️ Deine Aufgießer stehen oben in deinem Bereich, mit ihren nächsten Terminen.
+- ✉️ Du kannst ihnen **schreiben** — direkt vom Profil aus.
 
-### Was ist ein Fan?
+Und der Aufgießer sieht, wie viele Fans er hat. Das ist der eigentliche Punkt: Aufgießen ist Bühnenarbeit, und eine Bühne ohne sichtbares Publikum ist ein trauriger Ort.
 
-**Fan** (auch: Förderndes Mitglied, Förderer) ist eine **passive Mitgliedschaft**. Du zahlst einen Jahresbeitrag und bekommst dafür Premium-Vorteile in der App — aber:
+### Vereins-News und Aroma-Rezepte
 
-- **Keine Mitwirkungs-Pflicht** (kein Helferdienst, keine Sitzungen, keine Vereinsarbeit)
-- **Kein Stimmrecht** in der Mitgliederversammlung
-- **Keine Verpflichtung zum Aufgießen** — Aufgießer-Werden ist eine eigene Vereinsentscheidung mit Schulung und Vorstandsbeschluss
-
-Du bist **Fan unserer Kunstform** — du unterstützt finanziell und bist im Inner-Circle dabei.
-
-### Wie wirst du Fan?
-
-1. **Voraussetzung:** Du bist schon engagierter Gast — mindestens **5 Aufgüsse bewertet** ODER **3 Sauna-Tage besucht**. (Bei brandneuen Gästen erscheint die CTA noch nicht.)
-2. Im Gast-Bereich erscheint die Card **„🤝 Werde Fan unserer Saunameister"** automatisch.
-3. Klick auf **„Fan-Antrag stellen"** → Mini-Formular mit Anschrift (für Beitragsrechnung) und optional IBAN (für SEPA-Lastschrift) ausfüllen.
-4. DSGVO-Consent akzeptieren → Antrag absenden.
-5. Admin bekommt eine Push-Benachrichtigung und prüft deinen Antrag.
-6. Nach Eingang deiner ersten Beitragszahlung schaltet der Admin dich frei und setzt den Beitragszeitraum (z.B. „bezahlt bis 31.12.2026").
-7. Du landest automatisch im neuen Bereich `/fan` 🎉
-
-Falls dein Antrag abgelehnt wird, siehst du den Grund und kannst nach Klärung erneut beantragen.
-
-### Was bekommst du als Fan?
-
-- 📣 **Vereins-News-Feed** — exklusive Ankündigungen zu Events, Aktionen, Hinter-Kulissen-Stories. Push-Benachrichtigung bei jeder neuen News.
-- 🌿 **Aroma-Rezepte unserer Saunameister** — Original-Mischungen direkt aus dem Öl-Raum, mit Zutaten, Temperatur-Empfehlung und Anleitung. Wird vom Saunameister eingereicht und vom Admin freigegeben.
-- 🏅 **Digitaler Fan-Ausweis (PDF)** — personalisiert mit deiner Mitgliedsnummer und Vereinslogo, jederzeit herunterladbar aus dem Fan-Bereich.
-- 🔔 **Push für Vereins-News** zusätzlich zu den Favoriten-Aufgüssen.
-- + alle Features vom Gast bleiben erhalten (Bewertungen, Favoriten, Stats, Badges, PIN, Tablet-Check-in)
-
-### Beitragszeitraum, Erinnerung & Karenz
-
-Im Fan-Bereich siehst du oben die **Beitrags-Status-Card** mit dem `paid_until`-Datum.
-
-- **4 Wochen vor Ablauf** bekommst du eine **Erinnerungs-Push**: „Dein Beitrag läuft am DD.MM ab — bitte überweisen."
-- **Nach Ablauf** hast du **30 Tage Karenz** — Status bleibt Fan, du bekommst alles weiterhin.
-- **Nach 30 Tagen Karenz** wirst du **automatisch wieder zum Gast** zurückgestuft. Deine Daten (Bewertungen, Favoriten, Badges) bleiben erhalten — nur die Premium-Vorteile (News, Rezepte, Ausweis) sind weg.
-- Wenn du wieder Fan werden willst, stellst du einfach einen neuen Antrag.
-
-### GDPR — Recht auf Vergessen
-
-Im Fan-Bereich unten findest du den Abschnitt **„Datenschutz & Account-Löschung"** (ausklappbar). Mit einem Klick kannst du deinen kompletten Account löschen — Profil, Bewertungen, Favoriten, Badges, Beitragshistorie, Feed-Beiträge. Es bleibt nichts zurück.
-
-**Wichtig:** Bereits gezahlte Beiträge werden nicht erstattet. Wenn du nur den nächsten Beitrag nicht mehr zahlen willst, lass den Beitragszeitraum einfach ablaufen — dann landest du nach 30 Tagen automatisch wieder als Gast in der App, ohne dass du etwas tun musst.
+Beides lag früher hinter der Fan-Rolle. Es steht jetzt für **alle mit einem Zugang** in deinem Bereich unter [/gast](/gast) — Ankündigungen des Vereins und die Original-Mischungen unserer Saunameister mit Zutaten, Temperatur und Anleitung.
 
 ### Wenn du mehr willst: 🧖 Aufgießer werden
 

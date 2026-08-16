@@ -5351,114 +5351,11 @@ export type FollowNetworkRow = { kind: 'star' | 'fan'; member_id: string; name: 
 export const useStatsFollowerNetwork = (limit = 8) => simpleStat<FollowNetworkRow[]>('follower-network', 'stats_follower_network', { p_limit: limit });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FAN-UPGRADE (Migration 0061) — Förderndes Mitglied
-// Conversion-Pfad: Gast → Fan via Self-Antrag + Admin-Approve.
+// Der Fan-Upgrade-Zweig (Migration 0061) ist mit 0132 entfallen: die Rolle
+// 'fan' wird nicht mehr vergeben, es gab in Produktion nie einen einzigen
+// Antrag und nie einen Fan. Die DB-Funktionen bleiben vorerst bestehen,
+// haben aber keinen Aufrufer mehr.
 // ─────────────────────────────────────────────────────────────────────────────
-
-export type FanAddress = {
-  street?: string;
-  zip?: string;
-  city?: string;
-  country?: string;
-};
-
-export type PendingFanUpgrade = {
-  request_id: string;
-  member_id: string;
-  member_name: string;
-  member_email: string | null;
-  member_role: MemberRole;
-  address: FanAddress;
-  iban: string | null;
-  requested_at: string;
-  member_signup_at: string;
-  member_rating_count: number;
-};
-
-export type MyFanUpgradeStatus = {
-  request_id: string;
-  status: 'pending' | 'approved' | 'rejected';
-  requested_at: string;
-  decided_at: string | null;
-  rejection_reason: string | null;
-};
-
-export function useRequestFanUpgrade() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (p: { address: FanAddress; iban?: string | null }) => {
-      const { data, error } = await need().rpc('request_fan_upgrade', {
-        p_address: p.address,
-        p_iban: p.iban ?? null,
-      });
-      if (error) throw error;
-      return data as string;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['fan-upgrade-status'] });
-      qc.invalidateQueries({ queryKey: ['fan-upgrades-pending'] });
-    },
-  });
-}
-
-export function useMyFanUpgradeStatus() {
-  return useQuery({
-    queryKey: ['fan-upgrade-status'],
-    queryFn: async () => {
-      const { data, error } = await need().rpc('my_fan_upgrade_status');
-      if (error) throw error;
-      const rows = (data ?? []) as MyFanUpgradeStatus[];
-      return rows[0] ?? null;
-    },
-    staleTime: 30_000,
-  });
-}
-
-export function usePendingFanUpgrades() {
-  return useQuery({
-    queryKey: ['fan-upgrades-pending'],
-    queryFn: async () => {
-      const { data, error } = await need().rpc('list_pending_fan_upgrades');
-      if (error) throw error;
-      return (data ?? []) as PendingFanUpgrade[];
-    },
-    staleTime: 30_000,
-  });
-}
-
-export function useApproveFan() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (p: { request_id: string; paid_until: string }) => {
-      const { error } = await need().rpc('approve_fan', {
-        p_request_id: p.request_id,
-        p_paid_until: p.paid_until,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['fan-upgrades-pending'] });
-      qc.invalidateQueries({ queryKey: ['members'] });
-      qc.invalidateQueries({ queryKey: ['member'] });
-    },
-  });
-}
-
-export function useRejectFan() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (p: { request_id: string; reason?: string }) => {
-      const { error } = await need().rpc('reject_fan', {
-        p_request_id: p.request_id,
-        p_reason: p.reason ?? null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['fan-upgrades-pending'] });
-    },
-  });
-}
 
 export function useSetMemberPaidUntil() {
   const qc = useQueryClient();
@@ -5488,7 +5385,7 @@ export type OrgNews = {
   published_at: string;
   expires_at: string | null;
   cover_image_url: string | null;
-  target_min_role: 'gast' | 'fan' | 'member';
+  target_min_role: 'gast' | 'member';
   created_by_name: string | null;
 };
 

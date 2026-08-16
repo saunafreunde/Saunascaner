@@ -73,7 +73,7 @@ Profil → ganz unten → **„Konto löschen"**. Per RPC `delete_my_gast_accoun
 
 | Aktuelle Rolle | Was du werden kannst | Wie |
 |---|---|---|
-| 👋 Gast | 🤝 Fan / Förderer | Profil → „Fan werden" → Bezahl-Workflow → Admin-Approval |
+| 👋 Gast | ✅ Helfer / Aktiv-Mitglied | Admin stuft hoch (Profil, Favoriten und Badges bleiben erhalten) |
 | 👋 Gast | 🤝 Mitglied | Admin lädt dich via Einladungs-Link ein |
 | 👋 Gast | 🌍 Gast-Aufgießer | Admin setzt deine Rolle auf `guest_aufgieser` |
 

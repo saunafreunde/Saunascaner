@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useCurrentMember, useMyEmailAccount, useRatableInfusions, useUnreadDmsCount } from '@/lib/api';
 import { useActiveMatchesForMe } from '@/lib/games';
-import { isAdmin, isAufgieser, isFan, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
+import { isAdmin, isAufgieser, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
 
 // Bottom-Nav fixed unten, nur auf Mobile (`lg:hidden`).
 // Pro Rolle 5 Haupt-Routen. Mit Safe-Area-Padding (iOS-Notch, Android-Gesture-Bar).
@@ -50,11 +50,11 @@ function useSmartSlot(memberId: string | null): NavItem {
 }
 
 function navItemsForRole(opts: {
-  admin: boolean; gast: boolean; fan: boolean; staff: boolean; cp: boolean;
+  admin: boolean; gast: boolean; staff: boolean; cp: boolean;
   aufgieser: boolean; helfer: boolean; myMemberId: string | null;
   smart: NavItem;
 }): NavItem[] {
-  const { admin, gast, fan, staff, cp, aufgieser, helfer, myMemberId, smart } = opts;
+  const { admin, gast, staff, cp, aufgieser, helfer, myMemberId, smart } = opts;
   const profile: NavItem = myMemberId
     ? { path: `/profile/${myMemberId}`, label: 'Profil', icon: '🪪' }
     : { path: '/login', label: 'Login', icon: '🔑' };
@@ -71,15 +71,6 @@ function navItemsForRole(opts: {
   if (gast) {
     return [
       { path: '/gast',      label: 'Bereich',   icon: '👋' },
-      smart,
-      { path: '/aufgieser', label: 'Aufgießer', icon: '🌟' },
-      { path: '/feed',      label: 'Feed',      icon: '📸' },
-      profile,
-    ];
-  }
-  if (fan) {
-    return [
-      { path: '/fan',       label: 'Bereich',   icon: '🤝' },
       smart,
       { path: '/aufgieser', label: 'Aufgießer', icon: '🌟' },
       { path: '/feed',      label: 'Feed',      icon: '📸' },
@@ -153,13 +144,10 @@ export function MobileBottomNav() {
   const items = navItemsForRole({
     admin: isAdmin(m),
     gast: isGast(m),
-    fan: isFan(m),
     cp: isStaff(m) && isPersonalPlaner(m),
     staff: isStaff(m) && !isPersonalPlaner(m),
     aufgieser: isAufgieser(m) && !isStaff(m),
-    // Fan ist zwar Vereinsmitglied im Sinne von isVereinsMitglied(),
-    // aber gehört in den Fan-Bereich, nicht zu den Helfern → explizit ausschließen.
-    helfer: isVereinsMitglied(m) && !isFan(m) && !isAufgieser(m) && !isStaff(m),
+    helfer: isVereinsMitglied(m) && !isAufgieser(m) && !isStaff(m),
     myMemberId: m.id ?? null,
     smart,
   });

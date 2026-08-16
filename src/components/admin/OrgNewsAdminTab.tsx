@@ -13,7 +13,7 @@ export function OrgNewsAdminTab() {
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [target, setTarget] = useState<OrgNews['target_min_role']>('fan');
+  const [target, setTarget] = useState<OrgNews['target_min_role']>('gast');
   const [pinned, setPinned] = useState(false);
   const [expiresAt, setExpiresAt] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function OrgNewsAdminTab() {
         pinned,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
       });
-      setTitle(''); setBody(''); setTarget('fan'); setPinned(false); setExpiresAt('');
+      setTitle(''); setBody(''); setTarget('gast'); setPinned(false); setExpiresAt('');
       setShowForm(false);
     } catch (err) {
       setError((err as Error).message);
@@ -93,8 +93,7 @@ export function OrgNewsAdminTab() {
                   onChange={(e) => setTarget(e.target.value as OrgNews['target_min_role'])}
                   className="mt-1 w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-100 ring-1 ring-forest-700/50"
                 >
-                  <option value="gast">👋 Gäste & höher (öffentlich)</option>
-                  <option value="fan">🤝 Fans & höher (Premium)</option>
+                  <option value="gast">👋 Alle mit Zugang (auch Gäste)</option>
                   <option value="member">✅ Aktiv-Mitglieder & höher (intern)</option>
                 </select>
               </label>
@@ -154,7 +153,7 @@ export function OrgNewsAdminTab() {
                   <h4 className="text-sm font-semibold text-forest-100">
                     {n.pinned && '📌 '}{n.title}
                     <span className="ml-2 text-[10px] text-forest-400">
-                      [{n.target_min_role === 'gast' ? '👋 öffentlich' : n.target_min_role === 'fan' ? '🤝 Fans+' : '✅ Mitglieder+'}]
+                      [{n.target_min_role === 'gast' ? '👋 alle' : '✅ Mitglieder+'}]
                     </span>
                   </h4>
                   <div className="flex items-center gap-2">

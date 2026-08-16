@@ -1,5 +1,5 @@
 import type { Member } from '@/lib/api';
-import { isAdmin, isAufgieser, isFan, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
+import { isAdmin, isAufgieser, isGast, isPersonalPlaner, isStaff, isVereinsMitglied } from '@/lib/roles';
 
 // Sitemap-artiger Bereich-Hub am Ende jeder Mitglieder-Seite.
 // Zentraler Catalog aller Routen + Predicates pro Rolle.
@@ -90,10 +90,6 @@ const ITEM_GAST: AreaItem = {
   path: '/gast', emoji: '👋', title: 'Mein Bereich',
   blurb: 'Persönlicher Gast-Hub mit Stats und PIN', isHome: true,
 };
-const ITEM_FAN: AreaItem = {
-  path: '/fan', emoji: '🤝', title: 'Fan-Bereich',
-  blurb: 'News, Aroma-Rezepte und Fan-Ausweis', isHome: true,
-};
 const ITEM_UNTERSTUETZER: AreaItem = {
   path: '/unterstuetzer', emoji: '🤝', title: 'Helfer-Aufgaben',
   blurb: 'Offene Vereins-Aufgaben übernehmen', isHome: true,
@@ -174,14 +170,6 @@ export function areaHubItemsForRole(
       ITEM_DASHBOARD, ITEM_TOUR, myProfile, ITEM_HILFE,
     ];
   }
-  // Fan
-  if (isFan(member)) {
-    return [
-      ITEM_FAN, ITEM_AUFGIESER, ITEM_FEED, ITEM_SPIELE, ITEM_DM,
-      ITEM_DASHBOARD, myProfile, ITEM_HILFE,
-    ];
-  }
-
   // Aufgießer (member + is_aufgieser oder guest_aufgieser)
   if (isAufgieser(member)) {
     return [

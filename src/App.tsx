@@ -55,7 +55,6 @@ const MagicEntry      = lazy(() => import('@/routes/MagicEntry'));
 const GastSignup      = lazy(() => import('@/routes/GastSignup'));
 const Datenschutz     = lazy(() => import('@/routes/Datenschutz'));
 const GastHome        = lazy(() => import('@/routes/Gast'));
-const FanHome         = lazy(() => import('@/routes/Fan'));
 const CheckinPin      = lazy(() => import('@/routes/CheckinPin'));
 const CheckinSignup   = lazy(() => import('@/routes/CheckinSignup'));
 const CheckinRate     = lazy(() => import('@/routes/CheckinRate'));
@@ -107,7 +106,9 @@ export default function App() {
         <Route path="/postfach"          element={<RequireAuth><Postfach /></RequireAuth>} />
         <Route path="/hilfe"             element={<RequireAuth><Help /></RequireAuth>} />
         <Route path="/gast"                  element={<RequireAuth><GastHome /></RequireAuth>} />
-        <Route path="/fan"                   element={<RequireAuth><FanHome /></RequireAuth>} />
+        {/* /fan gibt es seit 0132 nicht mehr — alte Lesezeichen und Mail-Links
+            sollen trotzdem irgendwo landen statt im 404. */}
+        <Route path="/fan"                   element={<Navigate to="/gast" replace />} />
         <Route path="/unterstuetzer"         element={<RequireAuth><Unterstuetzer /></RequireAuth>} />
         <Route path="/mitarbeiter"           element={<RequireAuth><Mitarbeiter /></RequireAuth>} />
         <Route path="/cp"                    element={<RequireAuth><Cp /></RequireAuth>} />
@@ -167,11 +168,12 @@ function RootEntry() {
   if (user && !ready) return <Splash />;
   if (user && member.isLoading) return <Splash />;
 
-  // Eingeloggte Gäste → eigener Bereich /gast
-  if (user && member.data?.role === 'gast') return <Navigate to="/gast" replace />;
-
-  // Eingeloggte Fans (Förderer) → eigener Bereich /fan
-  if (user && member.data?.role === 'fan') return <Navigate to="/fan" replace />;
+  // Eingeloggte Gäste → eigener Bereich /gast.
+  // Die Rolle 'fan' wird seit 0132 nicht mehr vergeben; sollte doch noch ein
+  // Altbestand auftauchen, landet er hier ebenfalls richtig.
+  if (user && (member.data?.role === 'gast' || member.data?.role === 'fan')) {
+    return <Navigate to="/gast" replace />;
+  }
 
   // CP-Verantwortlicher (Staff + is_personal_planer) → /cp als Default
   if (user && member.data?.role === 'staff' && member.data.is_personal_planer) {
@@ -193,7 +195,7 @@ function RootEntry() {
   return <Guest />;
 }
 
-// Pfade die Gäste UND Fans nicht erreichen dürfen (Aktiv-Mitglieder-only)
+// Pfade die Gäste nicht erreichen dürfen (Aktiv-Mitglieder-only)
 const GAST_BLOCKED_PATHS = ['/planner', '/members', '/postfach'];
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -204,22 +206,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!ready || (user && member.isLoading)) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   if (member.data && !member.data.approved) return <PendingApproval />;
-  // Gäste haben keinen Zugriff auf interne Mitglieder-Routen — Redirect zum Gäste-Bereich
-  if (member.data?.role === 'gast' && GAST_BLOCKED_PATHS.some((p) => loc.pathname.startsWith(p))) {
+  // Gäste haben keinen Zugriff auf interne Mitglieder-Routen — Redirect zum Gäste-Bereich.
+  // 'fan' wird seit 0132 nicht mehr vergeben, wird hier aber wie 'gast' behandelt,
+  // damit ein etwaiger Altbestand nicht in einer Sackgasse landet.
+  if ((member.data?.role === 'gast' || member.data?.role === 'fan')
+      && GAST_BLOCKED_PATHS.some((p) => loc.pathname.startsWith(p))) {
     return <Navigate to="/gast" replace />;
-  }
-  // Fans haben die gleichen Blockaden wie Gäste (kein Planner/Members/Postfach), aber eigenen Bereich
-  if (member.data?.role === 'fan' && GAST_BLOCKED_PATHS.some((p) => loc.pathname.startsWith(p))) {
-    return <Navigate to="/fan" replace />;
-  }
-  // Fan-Bereich nur für Fan+ — Gast darf nicht (Premium-Content). Member+ dürfen lesen (Read-Only Vorschau).
-  if (loc.pathname.startsWith('/fan')
-      && member.data?.role === 'gast') {
-    return <Navigate to="/gast" replace />;
-  }
-  // Echte Gäste sollten nicht im Fan-Bereich landen, echte Fans nicht im Gast-Bereich
-  if (loc.pathname.startsWith('/gast') && member.data?.role === 'fan') {
-    return <Navigate to="/fan" replace />;
   }
   // Nicht-Aufgießer-Mitglieder gehören in den Unterstützer-Bereich, nicht in /planner
   if (

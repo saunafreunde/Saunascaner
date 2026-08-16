@@ -9,7 +9,6 @@ Diese Handbücher sind **rollen-spezifisch** und fokussieren nur das was du als 
 | Rolle | Default-Bereich | Handbuch |
 |---|---|---|
 | 👋 **Gast** | `/gast` | [01-gast.md](./01-gast.md) |
-| 🤝 **Fan / Förderer** | `/fan` | [02-fan.md](./02-fan.md) |
 | 🤝 **Helfer / Unterstützer** | `/unterstuetzer` | [03-mitglied-unterstuetzer.md](./03-mitglied-unterstuetzer.md) |
 | 🧖 **Aufgießer** (+ Gast-Aufgießer) | `/planner` | [04-aufgieser.md](./04-aufgieser.md) |
 | 👨‍🍳 **Personal / Staff** | `/mitarbeiter` | [05-personal.md](./05-personal.md) |
