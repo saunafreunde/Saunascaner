@@ -1,17 +1,19 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useCurrentMember, useMembersDirectory } from '@/lib/api';
 import {
   useActiveMatchesForMe, useOpenMatches, useJoinOpenMatch, useChallenge,
   useGameLeaderboard, type GameKind,
 } from '@/lib/games';
-import { GAME_LABELS, GAME_REGISTRY } from './registry';
+import { GAME_LABELS, GAME_REGISTRY, GAME_IDS } from './registry';
 import { Avatar } from '@/components/Avatar';
 import { LeaderboardSection } from './LeaderboardSection';
 
-// Alle in der Registry registrierten Spiele anzeigen (Phase 1 + 1.5 + 2 = 14).
-// Nicht-implementierte Kinds (kein Registry-Eintrag) werden automatisch ausgeblendet.
-const ACTIVE_KINDS: GameKind[] = (Object.keys(GAME_REGISTRY) as GameKind[]);
+// Der Spiele-Hub nach der Neubewertung vom 16.08.2026: EIN Screen ohne
+// Scrollen — sechs Kacheln mit ehrlicher Dauer-Angabe, darüber genau eine
+// Kontext-Zeile. Vorher: 14 Breitkarten in einer Spalte, ein „Phase 1"-Text
+// aus der Entwicklungszeit und window.location.href-Navigation, die die PWA
+// jedes Mal komplett neu lud.
 
 type HubTab = 'play' | 'leaderboard';
 
@@ -21,132 +23,143 @@ export function GameHub() {
   const activeQ = useActiveMatchesForMe();
   const openQ = useOpenMatches();
   const join = useJoinOpenMatch();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<HubTab>('play');
+  // Welche PvP-Kachel gerade ihr Start-Panel zeigt (Duell-Spiele starten
+  // nicht sofort — erst Gegner wählen oder offen warten).
+  const [pvpOffen, setPvpOffen] = useState<GameKind | null>(null);
+  const [joinFehler, setJoinFehler] = useState<string | null>(null);
 
   const active = activeQ.data ?? [];
   const open = openQ.data ?? [];
-  const yourTurnCount = active.filter((m) => m.my_turn).length;
+  const dran = active.filter((m) => m.my_turn);
 
   return (
-    <div className="mx-auto max-w-3xl p-4 space-y-6">
-      <header className="rounded-2xl bg-gradient-to-br from-forest-900/80 to-forest-950/90 p-6 ring-1 ring-forest-700/50 shadow-2xl shadow-black/40">
-        <h1 className="text-2xl font-bold text-forest-100">🎮 Spiele</h1>
-        <p className="mt-1 text-sm text-forest-300">
-          Spiel allein um Highscores oder fordere andere heraus. Phase 1: Tetris, Vier Gewinnt, Schach.
-        </p>
-        {yourTurnCount > 0 && (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-500/20 px-3 py-1.5 ring-1 ring-amber-500/40 text-amber-200 text-sm">
-            🔔 Du bist in {yourTurnCount} Match{yourTurnCount > 1 ? 'es' : ''} dran
-          </div>
-        )}
-      </header>
+    <div className="mx-auto max-w-3xl p-4 space-y-4">
+      {/* Genau EINE Kontext-Zeile — das Wichtigste zuerst, keine Prosa. */}
+      {dran.length > 0 ? (
+        <Link
+          to={`/spiele/match/${dran[0].match_id}`}
+          className="flex items-center gap-2 rounded-xl bg-amber-500/20 px-3 py-2.5 ring-1 ring-amber-500/40 text-amber-200 text-sm font-semibold"
+        >
+          🔔 Du bist dran{dran[0].opponent_name ? ` gegen ${dran[0].opponent_name}` : ''}
+          {dran.length > 1 && ` (+${dran.length - 1} weitere)`}
+          <span className="ml-auto" aria-hidden>→</span>
+        </Link>
+      ) : (
+        <WochenKrone />
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/40">
-        <button
-          onClick={() => setTab('play')}
-          className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-            tab === 'play' ? 'bg-forest-700/80 text-forest-100' : 'text-forest-400 hover:text-forest-200'
-          }`}
-        >
-          🎮 Spielen
-        </button>
-        <button
-          onClick={() => setTab('leaderboard')}
-          className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-            tab === 'leaderboard' ? 'bg-forest-700/80 text-forest-100' : 'text-forest-400 hover:text-forest-200'
-          }`}
-        >
-          🏆 Bestenliste
-        </button>
+        {([['play', '🎮 Spielen'], ['leaderboard', '🏆 Bestenliste']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              tab === id ? 'bg-forest-700/80 text-forest-100' : 'text-forest-400'
+            }`}
+            style={{ touchAction: 'manipulation' }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {tab === 'leaderboard' ? (
         <LeaderboardSection />
       ) : (
         <>
-          {/* Aktive Matches */}
+          {/* Laufende Matches — kompakt, nur wenn vorhanden */}
           {active.length > 0 && (
-            <section>
-              <h2 className="mb-2 text-sm font-semibold text-forest-300 uppercase tracking-wider">Deine Matches</h2>
-              <ul className="space-y-2">
-                {active.map((m) => {
-                  const meta = GAME_LABELS[m.kind];
-                  const isPending = m.status === 'pending';
-                  return (
-                    <li key={m.match_id}>
-                      <Link to={`/spiele/match/${m.match_id}`}
-                        className={`flex items-center gap-3 rounded-xl p-3 ring-1 transition ${
-                          m.my_turn ? 'bg-amber-500/15 ring-amber-500/40 hover:bg-amber-500/25' :
-                          isPending ? 'bg-blue-500/10 ring-blue-500/30 hover:bg-blue-500/20' :
-                          'bg-forest-900/50 ring-forest-800/50 hover:bg-forest-900/70'
-                        }`}>
-                        <div className="text-2xl">{meta.emoji}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-forest-100 truncate">{meta.label}</div>
-                          <div className="text-xs text-forest-400 truncate">
-                            {isPending ? 'Warte auf Gegner' : `vs. ${m.opponent_name ?? '?'}`}
-                          </div>
-                        </div>
-                        {m.my_turn && <span className="text-xs font-bold text-amber-300">Du bist dran →</span>}
-                        {isPending && <span className="text-xs text-blue-300">Offen</span>}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
+            <ul className="space-y-1.5">
+              {active.map((m) => {
+                const meta = GAME_LABELS[m.kind];
+                const wartet = m.status === 'pending';
+                return (
+                  <li key={m.match_id}>
+                    <Link to={`/spiele/match/${m.match_id}`}
+                      className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ring-1 transition ${
+                        m.my_turn ? 'bg-amber-500/15 ring-amber-500/40'
+                          : wartet ? 'bg-forest-900/40 ring-forest-800/40'
+                            : 'bg-forest-900/50 ring-forest-800/50'
+                      }`}>
+                      <span className="text-lg" aria-hidden>{meta.emoji}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-forest-100">
+                        {meta.label}
+                        <span className="text-forest-400">
+                          {wartet ? ' — wartet auf Gegner' : ` — vs. ${m.opponent_name ?? '?'}`}
+                        </span>
+                      </span>
+                      {m.my_turn && <span className="text-xs font-bold text-amber-300">dran →</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           )}
 
-          {/* Solo-Spiele */}
-          <section>
-            <h2 className="mb-2 text-sm font-semibold text-forest-300 uppercase tracking-wider">Solo</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {ACTIVE_KINDS.filter((k) => GAME_REGISTRY[k]?.mode === 'solo').map((k) => (
-                <SoloCard key={k} kind={k} />
-              ))}
-            </div>
-          </section>
+          {/* Die sechs Kacheln — das Herz des Hubs */}
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {GAME_IDS.map((k) => (
+              <SpielKachel
+                key={k}
+                kind={k}
+                aktiv={pvpOffen === k}
+                onOeffnen={() => {
+                  const meta = GAME_REGISTRY[k]!;
+                  if (meta.mode === 'solo') navigate(`/spiele/solo/${k}`);
+                  else setPvpOffen((v) => (v === k ? null : k));
+                }}
+              />
+            ))}
+          </div>
 
-          {/* Live PvP + Async */}
-          <section>
-            <h2 className="mb-2 text-sm font-semibold text-forest-300 uppercase tracking-wider">Gegeneinander</h2>
-            <div className="grid grid-cols-1 gap-3">
-              {ACTIVE_KINDS.filter((k) => GAME_REGISTRY[k]?.mode !== 'solo').map((k) => {
-                const meta = GAME_REGISTRY[k]!;
-                return <PvPLauncher key={k} kind={k} label={meta.label} emoji={meta.emoji} short={meta.short} myId={myId} />;
-              })}
-            </div>
-          </section>
+          {/* Start-Panel für das gewählte Duell-Spiel */}
+          {pvpOffen && (
+            <PvPStart
+              kind={pvpOffen}
+              myId={myId}
+              onZu={() => setPvpOffen(null)}
+            />
+          )}
 
-          {/* Offene Lobby */}
-          {open.length > 0 && (
+          {/* Offene Tische anderer */}
+          {open.some((o) => o.challenger_id !== myId) && (
             <section>
-              <h2 className="mb-2 text-sm font-semibold text-forest-300 uppercase tracking-wider">Offene Tische</h2>
-              <ul className="space-y-2">
-                {open.map((o) => {
-                  if (o.challenger_id === myId) return null;
-                  return (
-                    <li key={o.match_id}
-                      className="flex items-center gap-3 rounded-xl bg-forest-900/50 p-3 ring-1 ring-forest-800/50">
-                      <div className="text-2xl">{GAME_LABELS[o.kind].emoji}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-forest-100">{GAME_LABELS[o.kind].label}</div>
-                        <div className="text-xs text-forest-400 truncate">{o.challenger_name} wartet</div>
-                      </div>
-                      <button
-                        onClick={async () => {
+              <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-forest-400">
+                Offene Tische
+              </h2>
+              {joinFehler && (
+                <p className="mb-2 rounded-lg bg-rose-500/15 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-500/30">
+                  {joinFehler}
+                </p>
+              )}
+              <ul className="space-y-1.5">
+                {open.filter((o) => o.challenger_id !== myId).map((o) => (
+                  <li key={o.match_id}
+                    className="flex items-center gap-2.5 rounded-xl bg-forest-900/50 px-3 py-2 ring-1 ring-forest-800/50">
+                    <span className="text-lg" aria-hidden>{GAME_LABELS[o.kind].emoji}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-forest-100">
+                      {GAME_LABELS[o.kind].label}
+                      <span className="text-forest-400"> — {o.challenger_name} wartet</span>
+                    </span>
+                    <button
+                      onClick={async () => {
+                        setJoinFehler(null);
+                        try {
                           await join.mutateAsync(o.match_id);
-                          window.location.href = `/spiele/match/${o.match_id}`;
-                        }}
-                        disabled={join.isPending}
-                        className="rounded-lg bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-forest-950 hover:bg-emerald-400 disabled:opacity-50"
-                      >
-                        Beitreten
-                      </button>
-                    </li>
-                  );
-                })}
+                          navigate(`/spiele/match/${o.match_id}`);
+                        } catch (e) { setJoinFehler((e as Error).message); }
+                      }}
+                      disabled={join.isPending}
+                      className="rounded-lg bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-forest-950 disabled:opacity-50"
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      Beitreten
+                    </button>
+                  </li>
+                ))}
               </ul>
             </section>
           )}
@@ -156,96 +169,142 @@ export function GameHub() {
   );
 }
 
-// Solo-Karte mit Mini-Leaderboard-Top-1 ("👑 Stefan · 14.230")
-function SoloCard({ kind }: { kind: GameKind }) {
-  const meta = GAME_REGISTRY[kind]!;
-  const top = useGameLeaderboard(kind, 'all');
+/** Kontext-Zeile, wenn kein Match wartet: der aktuelle König des
+ *  meistgespielten Spiels. Ab Stufe 2 wird daraus die Wochen-Krone. */
+function WochenKrone() {
+  const top = useGameLeaderboard('snake', 'all');
   const t = top.data?.[0];
+  if (!t) return null;
   return (
-    <Link to={`/spiele/solo/${kind}`}
-      className="block rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50 hover:bg-forest-900/80 transition">
-      <div className="flex items-start gap-3">
-        <div className="text-3xl">{meta.emoji}</div>
-        <div className="flex-1 min-w-0">
-          <div className="text-forest-100 font-semibold">{meta.label}</div>
-          <div className="text-xs text-forest-400 mt-0.5">{meta.short}</div>
-        </div>
-      </div>
-      {t && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/10 px-2 py-1.5 ring-1 ring-amber-500/30">
-          <span className="text-base">👑</span>
-          <span className="text-xs text-amber-200 truncate flex-1">{t.name}</span>
-          <span className="text-sm font-bold text-amber-300 tabular-nums">{t.score}</span>
-        </div>
-      )}
-    </Link>
+    <div className="flex items-center gap-2 rounded-xl bg-forest-900/50 px-3 py-2.5 ring-1 ring-forest-800/50 text-sm text-forest-200">
+      <span aria-hidden>👑</span>
+      <span className="min-w-0 truncate">
+        Snake-König: <span className="font-semibold text-forest-100">{t.name}</span>
+      </span>
+      <span className="ml-auto font-bold tabular-nums text-amber-300">{t.score}</span>
+    </div>
   );
 }
 
-function PvPLauncher({ kind, label, emoji, short, myId }:
-  { kind: GameKind; label: string; emoji: string; short: string; myId: string | null }
-) {
-  const [showOpponent, setShowOpponent] = useState(false);
+/** Eine Spiel-Kachel: Emoji, Name, ehrliche Dauer, Bestwert-Kronenzeile. */
+function SpielKachel({ kind, aktiv, onOeffnen }: {
+  kind: GameKind; aktiv: boolean; onOeffnen: () => void;
+}) {
+  const meta = GAME_REGISTRY[kind]!;
+  const top = useGameLeaderboard(kind, 'all');
+  const t = top.data?.[0];
+  const istSolo = meta.mode === 'solo';
+  return (
+    <button
+      onClick={onOeffnen}
+      className={`rounded-2xl p-3.5 text-left ring-1 transition active:scale-[0.98] ${
+        aktiv ? 'bg-forest-800/80 ring-amber-500/50'
+          : 'bg-forest-900/60 ring-forest-800/50 hover:bg-forest-900/80'
+      }`}
+      style={{ touchAction: 'manipulation' }}
+    >
+      <div className="flex items-start justify-between gap-1">
+        <span className="text-3xl" aria-hidden>{meta.emoji}</span>
+        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+          istSolo ? 'bg-forest-950/60 text-forest-400' : 'bg-amber-500/15 text-amber-300'
+        }`}>
+          {istSolo ? 'Solo' : meta.mode === 'live' ? 'Duell' : 'Fernduell'}
+        </span>
+      </div>
+      <div className="mt-1.5 font-semibold text-forest-100">{meta.label}</div>
+      <div className="text-[11px] text-forest-400">⏱ {meta.dauer}</div>
+      {t ? (
+        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-amber-200/90">
+          <span aria-hidden>👑</span>
+          <span className="min-w-0 truncate">{t.name}</span>
+          <span className="ml-auto font-bold tabular-nums">{t.score}</span>
+        </div>
+      ) : (
+        <div className="mt-1.5 text-[11px] text-forest-500">Noch keine Bestzeit — sei du es.</div>
+      )}
+    </button>
+  );
+}
+
+/** Start-Panel eines Duell-Spiels: offen warten oder gezielt herausfordern.
+ *  Fehler erscheinen als Text im Panel — alert() unterbrach die PWA modal
+ *  und wirkte wie ein Absturz. */
+function PvPStart({ kind, myId, onZu }: {
+  kind: GameKind; myId: string | null; onZu: () => void;
+}) {
+  const meta = GAME_REGISTRY[kind]!;
+  const navigate = useNavigate();
   const challenge = useChallenge();
   const members = useMembersDirectory();
-  const candidates = (members.data ?? []).filter((m) => m.id !== myId);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const kandidaten = (members.data ?? []).filter((m) => m.id !== myId);
 
-  async function startOpenLobby() {
-    const { supabase } = await import('@/lib/supabase');
-    if (!supabase) return;
-    const { data, error } = await supabase.rpc('games_create_match', { p_kind: kind, p_opponent: null });
-    if (error) { alert(error.message); return; }
-    window.location.href = `/spiele/match/${data}`;
+  async function offenWarten() {
+    setFehler(null); setBusy(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      if (!supabase) throw new Error('Keine Verbindung.');
+      const { data, error } = await supabase.rpc('games_create_match', { p_kind: kind, p_opponent: null });
+      if (error) throw error;
+      navigate(`/spiele/match/${data}`);
+    } catch (e) { setFehler((e as Error).message); }
+    finally { setBusy(false); }
   }
 
-  async function startChallenge(opponentId: string) {
+  async function herausfordern(gegnerId: string) {
+    setFehler(null);
     try {
-      const matchId = await challenge.mutateAsync({ opponent: opponentId, kind });
-      window.location.href = `/spiele/match/${matchId}`;
-    } catch (e) {
-      alert((e as Error).message);
-    }
+      const matchId = await challenge.mutateAsync({ opponent: gegnerId, kind });
+      navigate(`/spiele/match/${matchId}`);
+    } catch (e) { setFehler((e as Error).message); }
   }
 
   return (
-    <div className="rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50">
-      <div className="flex items-start gap-3">
-        <div className="text-3xl">{emoji}</div>
-        <div className="flex-1 min-w-0">
-          <div className="text-forest-100 font-semibold">{label}</div>
-          <div className="text-xs text-forest-400 mt-0.5">{short}</div>
-        </div>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={startOpenLobby}
-          className="flex-1 rounded-xl bg-forest-800/80 px-3 py-2 text-sm text-forest-100 hover:bg-forest-700 ring-1 ring-forest-700/50"
-        >
-          🪑 Offen warten
-        </button>
-        <button
-          onClick={() => setShowOpponent((v) => !v)}
-          className="flex-1 rounded-xl bg-amber-500/80 px-3 py-2 text-sm font-bold text-forest-950 hover:bg-amber-400"
-        >
-          ⚔ Herausfordern
+    <section className="rounded-2xl bg-forest-900/70 p-4 ring-1 ring-amber-500/30">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-forest-100">
+          <span aria-hidden className="mr-1">{meta.emoji}</span>{meta.label} starten
+        </h2>
+        <button onClick={onZu} className="rounded-lg px-2 py-1 text-xs text-forest-400"
+          style={{ touchAction: 'manipulation' }}>
+          schließen
         </button>
       </div>
-      {showOpponent && (
-        <div className="mt-3 max-h-48 overflow-y-auto rounded-xl bg-forest-950/60 p-2 ring-1 ring-forest-800/40">
-          {candidates.length === 0 && <div className="text-xs text-forest-400 p-2">Keine Gegner verfügbar.</div>}
-          {candidates.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => startChallenge(m.id)}
-              disabled={challenge.isPending}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-forest-200 hover:bg-forest-900/70 disabled:opacity-50"
-            >
-              <Avatar avatarPath={m.avatar_path} name={m.name} size="xs" />
-              <span className="truncate">{m.name}</span>
-            </button>
-          ))}
-        </div>
+
+      <button
+        onClick={offenWarten}
+        disabled={busy}
+        className="mt-3 w-full rounded-xl bg-forest-800/80 px-3 py-2.5 text-sm text-forest-100 ring-1 ring-forest-700/50 disabled:opacity-50"
+        style={{ touchAction: 'manipulation' }}
+      >
+        🪑 Offen warten — wer zuerst beitritt, spielt
+      </button>
+
+      <p className="mt-3 mb-1.5 text-xs font-semibold uppercase tracking-wider text-forest-400">
+        Oder direkt herausfordern
+      </p>
+      <div className="max-h-44 space-y-0.5 overflow-y-auto rounded-xl bg-forest-950/60 p-1.5 ring-1 ring-forest-800/40">
+        {kandidaten.length === 0 && <p className="p-2 text-xs text-forest-400">Keine Gegner verfügbar.</p>}
+        {kandidaten.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => herausfordern(m.id)}
+            disabled={challenge.isPending}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-forest-200 active:bg-forest-900/70 disabled:opacity-50"
+            style={{ touchAction: 'manipulation' }}
+          >
+            <Avatar avatarPath={m.avatar_path} name={m.name} size="xs" />
+            <span className="truncate">{m.name}</span>
+          </button>
+        ))}
+      </div>
+
+      {fehler && (
+        <p className="mt-2 rounded-lg bg-rose-500/15 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-500/30">
+          {fehler}
+        </p>
       )}
-    </div>
+    </section>
   );
 }

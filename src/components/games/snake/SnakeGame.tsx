@@ -24,6 +24,10 @@ const DELTA: Record<Dir, Pt> = {
 
 const OPPOSITE: Record<Dir, Dir> = { U: 'D', D: 'U', L: 'R', R: 'L' };
 
+function dirPfeil(d: Dir): string {
+  return d === 'U' ? '↑' : d === 'D' ? '↓' : d === 'L' ? '←' : '→';
+}
+
 function randEmpty(snake: Pt[]): Pt {
   while (true) {
     const p = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
@@ -136,13 +140,15 @@ export default function SnakeGame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Wisch-Steuerung (Mobile): 4 Richtungen auf Spielfeld
+  // Wisch-Steuerung: die EINZIGE Touch-Bedienung (Leitlinie 16.08.2026 —
+  // Richtungsspiele ausschließlich per Swipe, kein On-Screen-Steuerkreuz).
+  // Tap pausiert bewusst NICHT mehr: ein versehentlicher Tipp mitten im Lauf
+  // fror das Spiel ein und wirkte wie ein Hänger. Pause ist ein Knopf.
   const swipe = useSwipe({
     onSwipeUp:    () => turn('U'),
     onSwipeDown:  () => turn('D'),
     onSwipeLeft:  () => turn('L'),
     onSwipeRight: () => turn('R'),
-    onTap:        () => setPaused((v) => !v),
   });
 
   function reset() {
@@ -201,31 +207,24 @@ export default function SnakeGame() {
         )}
       </div>
 
-      {/* Touch-Controls */}
-      <div className="mt-4 grid grid-cols-3 gap-2 max-w-[200px] mx-auto select-none">
-        <div />
-        <button onClick={() => turn('U')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">⬆</button>
-        <div />
-        <button onClick={() => turn('L')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">⬅</button>
-        <button onClick={() => setPaused((v) => !v)} disabled={gameOver}
-          className="rounded-xl bg-amber-500/70 py-3 text-xl text-forest-950 active:bg-amber-400 disabled:opacity-50">
-          {paused ? '▶' : '⏸'}
-        </button>
-        <button onClick={() => turn('R')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">➡</button>
-        <div />
-        <button onClick={() => turn('D')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">⬇</button>
-        <div />
-      </div>
-
+      {/* Das Steuerkreuz ist weg (16.08.2026): es war zur Swipe-Geste komplett
+          redundant und schob mit ~180px das Spielfeld an die Fold-Grenze.
+          Übrig bleiben zwei ehrliche Knöpfe. */}
       <div className="mt-3 flex gap-2 justify-center">
+        <button onClick={() => setPaused((v) => !v)} disabled={gameOver}
+          className="rounded-xl bg-forest-900/60 px-5 py-2.5 text-sm font-semibold text-forest-100 ring-1 ring-forest-700/50 active:bg-forest-800 disabled:opacity-40"
+          style={{ touchAction: 'manipulation' }}>
+          {paused ? '▶ Weiter' : '⏸ Pause'}
+        </button>
         <button onClick={reset}
-          className="rounded-xl bg-forest-900/60 px-4 py-2 text-sm text-forest-200 ring-1 ring-forest-700/50">
+          className="rounded-xl bg-forest-900/60 px-5 py-2.5 text-sm text-forest-200 ring-1 ring-forest-700/50 active:bg-forest-800"
+          style={{ touchAction: 'manipulation' }}>
           ↺ Neu
         </button>
       </div>
 
       <div className="mt-3 text-xs text-forest-400 text-center">
-        Wische auf das Spielfeld · Pfeiltasten · P = Pause · Aktuell: {dir}
+        Wische auf dem Spielfeld — die Schlange folgt. <span aria-hidden>{dirPfeil(dir)}</span>
       </div>
 
       {gameOver && (

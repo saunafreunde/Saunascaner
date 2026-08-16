@@ -30,7 +30,7 @@ export default function GameMatch() {
       {!matchQ.isLoading && !m && <div className="text-center text-rose-300 p-8">Match nicht gefunden.</div>}
       {m && !meta && (
         <div className="text-center text-amber-300 p-8">
-          Spiel-Typ „{m.kind}" ist in dieser Version noch nicht verfügbar.
+          Dieses Spiel wird nicht mehr angeboten — das Match bleibt gespeichert.
         </div>
       )}
       {m && meta && (

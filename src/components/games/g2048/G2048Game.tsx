@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSubmitScore } from '@/lib/games';
+import { useSwipe } from '@/hooks/useSwipe';
 
 // 2048: 4×4 Grid, Swipe → merge gleicher Zahlen → Score steigt mit jeder Fusion.
 // Score = Summe aller Merge-Werte. Game Over wenn kein Move möglich.
@@ -134,7 +135,6 @@ export default function G2048Game() {
   const [startedAt] = useState(() => Date.now());
   const submitScore = useSubmitScore();
   const submittedRef = useRef(false);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const doMove = useCallback((dir: Dir) => {
     if (gameOver) return;
@@ -177,22 +177,15 @@ export default function G2048Game() {
     return () => window.removeEventListener('keydown', onKey);
   }, [doMove]);
 
-  function onTouchStart(e: React.TouchEvent) {
-    const t = e.touches[0];
-    touchStartRef.current = { x: t.clientX, y: t.clientY };
-  }
-  function onTouchEnd(e: React.TouchEvent) {
-    if (!touchStartRef.current) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartRef.current.x;
-    const dy = t.clientY - touchStartRef.current.y;
-    const absX = Math.abs(dx), absY = Math.abs(dy);
-    const threshold = 30;
-    if (Math.max(absX, absY) < threshold) return;
-    if (absX > absY) doMove(dx > 0 ? 'R' : 'L');
-    else doMove(dy > 0 ? 'D' : 'U');
-    touchStartRef.current = null;
-  }
+  // Zentraler useSwipe statt eigenem Touch-Code (16.08.2026): der eigene
+  // Handler hatte keinen Diagonal-Schutz — ein schräger Wisch löste immer
+  // IRGENDEINE Richtung aus, und bei 2048 ist ein Fehlzug unumkehrbar.
+  const swipe = useSwipe({
+    onSwipeLeft:  () => doMove('L'),
+    onSwipeRight: () => doMove('R'),
+    onSwipeUp:    () => doMove('U'),
+    onSwipeDown:  () => doMove('D'),
+  });
 
   function reset() {
     setBoard(initialBoard());
@@ -213,11 +206,10 @@ export default function G2048Game() {
       </div>
 
       <div
-        className="mx-auto grid gap-2 rounded-2xl bg-forest-950/90 p-3 ring-1 ring-forest-700/50 shadow-2xl shadow-black/60 touch-none select-none"
-        style={{ gridTemplateColumns: `repeat(${SIZE}, minmax(0, 1fr))`, maxWidth: 360 }}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        aria-label="2048-Spielfeld"
+        {...swipe}
+        className="mx-auto grid gap-2 rounded-2xl bg-forest-950/90 p-3 ring-1 ring-forest-700/50 shadow-2xl shadow-black/60 select-none"
+        style={{ ...swipe.style, gridTemplateColumns: `repeat(${SIZE}, minmax(0, 1fr))`, maxWidth: 360 }}
+        aria-label="2048-Spielfeld — wische in eine Richtung"
       >
         {board.flat().map((v, i) => (
           <div
@@ -231,21 +223,20 @@ export default function G2048Game() {
         ))}
       </div>
 
-      {/* Touch-Controls als Fallback */}
-      <div className="mt-4 grid grid-cols-3 gap-2 max-w-[200px] mx-auto select-none">
-        <div />
-        <button onClick={() => doMove('U')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">⬆</button>
-        <div />
-        <button onClick={() => doMove('L')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">⬅</button>
-        <button onClick={reset} className="rounded-xl bg-amber-500/70 py-3 text-lg text-forest-950 active:bg-amber-400">↺</button>
-        <button onClick={() => doMove('R')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">➡</button>
-        <div />
-        <button onClick={() => doMove('D')} className="rounded-xl bg-forest-900/80 py-3 text-2xl text-forest-100 active:bg-forest-700">⬇</button>
-        <div />
+      {/* Steuerkreuz weg (16.08.2026): es war redundant zur Swipe-Geste, und
+          der Reset-Knopf saß ausgerechnet in seiner Mitte — ein Daumen, der das
+          Kreuz blind bedient, hat dort ganze Partien weggeworfen. Neu starten
+          ist jetzt ein bewusster, abseits liegender Knopf. */}
+      <div className="mt-3 flex justify-center">
+        <button onClick={reset}
+          className="rounded-xl bg-forest-900/60 px-5 py-2.5 text-sm text-forest-200 ring-1 ring-forest-700/50 active:bg-forest-800"
+          style={{ touchAction: 'manipulation' }}>
+          ↺ Neu starten
+        </button>
       </div>
 
       <div className="mt-3 text-xs text-forest-400 text-center">
-        Pfeiltasten oder Wischen. Gleiche Zahlen verschmelzen — komm bis 2048!
+        Wische auf dem Spielfeld. Gleiche Zahlen verschmelzen — komm bis 2048!
       </div>
 
       {gameOver && (

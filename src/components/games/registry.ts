@@ -1,7 +1,20 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { GameKind, GameMode } from '@/lib/games';
 
-// Alle 14 Spiele aus Phase 1 + Phase 1.5 + Phase 2.
+// SECHS Spiele statt vierzehn — Neubewertung 16.08.2026.
+//
+// Die Nutzungsdaten waren eindeutig: 15 Partien seit Bestehen, alle im
+// Launch-Fenster 17.–21.05., von 4 der 43 Mitglieder. Zwölf Spiele hatten
+// NULL Partien. Ein Verein braucht keine 14 halben Spiele, sondern eine
+// Handvoll gute — gestrichen wurden (Komponenten bleiben im Repo, Daten und
+// Enums unangetastet, ein Registry-Eintrag holt jedes zurück):
+//   solitaire  14px-Tippflächen, teuerstes Touch-Redesign
+//   sudoku     10–30 Min ohne Spielstand — passt nie in eine Saunapause
+//   pong       Reflex-Vergleich über zwei Gerätezeiten + 3s-Polling: unfair
+//   rps        trivial, clientseitiger Zufall
+//   dice_duel  trivial, clientseitiger Zufall
+//   checkers_live/checkers_async/reversi  Dubletten zur Schach-Rolle
+//
 // Lazy-Loading hält das initiale Hub-Bundle minimal — schwere Spiele
 // (chess.js etc.) landen nur im jeweiligen Chunk.
 
@@ -11,6 +24,9 @@ export type GameMeta = {
   emoji: string;
   mode: GameMode;
   short: string;            // Kurzbeschreibung in der Hub-Karte
+  /** Ehrliche Partie-Dauer für die Hub-Kachel — die Währung im Sauna-Kontext
+   *  ist die Pause zwischen zwei Aufgüssen, nicht der Feature-Umfang. */
+  dauer: string;
   /**
    * SoloGame:  Komponente bekommt onFinish-Callback und ruft useSubmitScore selbst.
    * PvPGame:   Komponente bekommt matchId und nutzt useGameMatch/useMakeMove.
@@ -20,79 +36,45 @@ export type GameMeta = {
 
 export const GAME_REGISTRY: Partial<Record<GameKind, GameMeta>> = {
   // ─── Solo ──────────────────────────────────────────────────────────────
-  tetris: {
-    id: 'tetris', label: 'Tetris', emoji: '🧱', mode: 'solo',
-    short: 'Klassiker — staple Blöcke, räume Reihen ab.',
-    component: lazy(() => import('./tetris/TetrisGame')),
-  },
-  memory: {
-    id: 'memory', label: 'Memory', emoji: '🃏', mode: 'solo',
-    short: 'Karten-Paare finden — weniger Züge = mehr Punkte.',
-    component: lazy(() => import('./memory/MemoryGame')),
-  },
   snake: {
     id: 'snake', label: 'Snake', emoji: '🐍', mode: 'solo',
-    short: 'Wachse, weiche Wänden + dir selbst aus.',
+    short: 'Wische — die Schlange folgt deinem Daumen.',
+    dauer: '1–3 Min',
     component: lazy(() => import('./snake/SnakeGame')),
+  },
+  memory: {
+    id: 'memory', label: 'Memory', emoji: '🧠', mode: 'solo',
+    short: 'Paare finden — weniger Züge, mehr Punkte.',
+    dauer: '2–5 Min',
+    component: lazy(() => import('./memory/MemoryGame')),
   },
   g2048: {
     id: 'g2048', label: '2048', emoji: '🎯', mode: 'solo',
-    short: 'Wische, fusioniere gleiche Zahlen, komm bis 2048.',
+    short: 'Wische, fusioniere, komm bis 2048.',
+    dauer: '3–10 Min',
     component: lazy(() => import('./g2048/G2048Game')),
   },
-  solitaire: {
-    id: 'solitaire', label: 'Solitaire', emoji: '🃏', mode: 'solo',
-    short: 'Klondike — sortiere alle 52 Karten auf die Foundations.',
-    component: lazy(() => import('./solitaire/SolitaireGame')),
-  },
-  sudoku: {
-    id: 'sudoku', label: 'Sudoku', emoji: '🔢', mode: 'solo',
-    short: 'Klassisches 9×9-Sudoku — 1-9 in jeder Zeile, Spalte, Box.',
-    component: lazy(() => import('./sudoku/SudokuGame')),
+  tetris: {
+    id: 'tetris', label: 'Tetris', emoji: '🧱', mode: 'solo',
+    short: 'Staple Blöcke, räume Reihen ab.',
+    dauer: '3–10 Min',
+    component: lazy(() => import('./tetris/TetrisGame')),
   },
 
   // ─── Live PvP ──────────────────────────────────────────────────────────
   connect4: {
     id: 'connect4', label: 'Vier Gewinnt', emoji: '🔴', mode: 'live',
-    short: 'Live gegen Mitspieler*in — 4 in einer Reihe gewinnt.',
+    short: 'Das Bank-Duell — zu zweit, vier in einer Reihe.',
+    dauer: '1–3 Min',
     component: lazy(() => import('./connect4/Connect4Game')),
-  },
-  rps: {
-    id: 'rps', label: 'Schere-Stein-Papier', emoji: '🤜', mode: 'live',
-    short: 'Best of 3 — wer hat das bessere Bauchgefühl?',
-    component: lazy(() => import('./rps/RpsGame')),
-  },
-  dice_duel: {
-    id: 'dice_duel', label: 'Würfel-Duell', emoji: '🎲', mode: 'live',
-    short: '5 Runden — höchste Würfelsumme gewinnt.',
-    component: lazy(() => import('./dice/DiceDuelGame')),
-  },
-  checkers_live: {
-    id: 'checkers_live', label: 'Dame (live)', emoji: '⚫', mode: 'live',
-    short: 'Live-Dame — Schlagzwang + Mehrfach-Schläge.',
-    component: lazy(() => import('./checkers/CheckersGame')),
-  },
-  pong: {
-    id: 'pong', label: 'Pong (Reflex)', emoji: '🎮', mode: 'live',
-    short: 'Reflex-Duell — wer drückt schneller auf das Signal?',
-    component: lazy(() => import('./pong/PongGame')),
   },
 
   // ─── Async PvP ─────────────────────────────────────────────────────────
   chess: {
     id: 'chess', label: 'Schach', emoji: '♟️', mode: 'async',
-    short: 'Zieh wann du willst — Gegner kriegt eine Push-Nachricht.',
+    short: 'Das Fernduell — zieh, wann du willst.',
+    dauer: 'über Tage',
     component: lazy(() => import('./chess/ChessGame')),
-  },
-  checkers_async: {
-    id: 'checkers_async', label: 'Dame (async)', emoji: '⚫', mode: 'async',
-    short: 'Dame in Ruhe — zieh wann du willst.',
-    component: lazy(() => import('./checkers/CheckersGame')),
-  },
-  reversi: {
-    id: 'reversi', label: 'Reversi', emoji: '⭕', mode: 'async',
-    short: 'Othello — klemme Steine ein, drehe sie zu deiner Farbe.',
-    component: lazy(() => import('./reversi/ReversiGame')),
   },
 };
 
