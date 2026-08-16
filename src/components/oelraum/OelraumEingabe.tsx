@@ -3,6 +3,7 @@ import { addDays, isBefore, setHours, setMinutes } from 'date-fns';
 import type { Infusion, Sauna } from '@/types/database';
 import type { InfusionAttribute } from '@/lib/attributes';
 import { fmtClock, dayLabel } from '@/lib/time';
+import { displayMemberName } from '@/lib/memberDisplay';
 import { slotHoursForWeekday } from '@/lib/garantie';
 import { OIL_BY_ID, MAX_OIL_SLOTS, normalizeOilSlots, parseCustomOilId } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID } from '@/lib/schnaps';
@@ -324,7 +325,11 @@ export function OelraumEingabe({
                     onClick={() => setMeisterId(m.id)}
                     className="rounded-2xl bg-forest-600/20 px-4 py-4 text-left ring-2 ring-forest-500/40 transition hover:bg-forest-600/35 active:scale-[0.98]"
                   >
-                    <span className="block truncate text-base font-bold text-forest-50">{m.name}</span>
+                    {/* Selbst gewählter Aufguss-Name — das Tablet hängt im
+                        Öl-Raum, dort hat der Klarname nichts verloren. */}
+                    <span className="block truncate text-base font-bold text-forest-50">
+                      {displayMemberName(m, 'Aufgießer:in')}
+                    </span>
                     <span className={`mt-0.5 block text-[11px] ${da ? 'text-emerald-400' : 'text-forest-400/70'}`}>
                       {da ? '● ist eingecheckt' : '○ noch nicht eingecheckt'}
                     </span>
@@ -357,7 +362,7 @@ export function OelraumEingabe({
 
       <Kopf
         titel={bestehend ? 'Zutaten nachtragen' : 'Aufguss eintragen'}
-        unter={gewaehlt.name}
+        unter={displayMemberName(gewaehlt, 'Aufgießer:in')}
         onFertig={onFertig}
         rechts={!bestehend && (
           <button
@@ -375,7 +380,7 @@ export function OelraumEingabe({
             <p className="text-base font-bold text-emerald-100">✅ {erfolg.text}</p>
             {erfolg.eingecheckt && (
               <p className="mt-1 text-sm text-emerald-200/90">
-                <strong>{gewaehlt.name}</strong> ist damit auch als <strong>anwesend</strong> eingetragen —
+                <strong>{displayMemberName(gewaehlt, 'Aufgießer:in')}</strong> ist damit auch als <strong>anwesend</strong> eingetragen —
                 das zählt für Statistik, Bewertungen und die Evakuierungsliste.
               </p>
             )}

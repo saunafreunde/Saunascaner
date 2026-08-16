@@ -21,8 +21,13 @@ export function EvacuationOverlay({
   const presentQ = usePresentFull();
   const present = presentQ.data ?? [];
 
+  // Gäste stehen seit 16.08.2026 nicht mehr namentlich in den Spalten —
+  // sie werden getrennt gezählt (Vorgabe). Aus der GESAMTZAHL fallen sie
+  // bewusst NICHT raus: sie sind im Haus, und eine Evakuierungszahl, die
+  // Anwesende unterschlägt, wäre gefährlicher als eine Liste zu viel.
   const workers = present.filter((p) => p.is_worker);
-  const members = present.filter((p) => !p.is_worker);
+  const members = present.filter((p) => !p.is_worker && p.role !== 'gast');
+  const gaeste = present.filter((p) => !p.is_worker && p.role === 'gast');
   const familyTotal = present.reduce(
     (acc, p) => acc + (p.present_with_partner ? 1 : 0) + (p.present_children_count ?? 0),
     0,
@@ -81,9 +86,10 @@ export function EvacuationOverlay({
         </p>
 
         {/* STATISTIK */}
-        <div className="mt-2 grid w-full max-w-3xl grid-cols-1 sm:grid-cols-4 gap-2">
+        <div className="mt-2 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-5 gap-2">
           <StatTile icon="👨‍🍳" value={workers.length} label="Mitarbeiter" />
           <StatTile icon="🤝" value={members.length} label="Mitglieder" />
+          <StatTile icon="👋" value={gaeste.length} label="Gäste" />
           <StatTile icon="⭐" value={familyTotal} label="Angehörige" />
           <StatTile icon="👥" value={grandTotal} label="Gesamt" highlight />
         </div>
