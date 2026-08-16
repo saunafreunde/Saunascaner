@@ -14,12 +14,13 @@
 
 /** Werte der Oberflächen-Maske. Seit der Rallye-Runde (16.08.2026) mehrwertig —
  *  die Physik liest daraus, WAS unter den Kufen liegt, nicht nur OB Bahn. */
-export const M_WIESE = 0;
+export const M_WIESE = 0;  // seit der Banden-Runde: WAND — hier fährt niemand mehr
 export const M_BAHN = 1;
 export const M_TURBO = 2;
 export const M_BREMS = 3;
 export const M_RAMPE = 4;
 export const M_PFAD = 5;   // geheime Abkürzung: fahrbar, schmal, ohne Bande
+export const M_SCHULTER = 6; // schmaler Wiesenstreifen vor der Bande: fahrbar, zäh
 
 export type FeldTyp = 'turbo' | 'brems' | 'rampe';
 
@@ -200,11 +201,15 @@ export function bauStreckenWelt(
     ctx.beginPath(); ctx.arc(x, y, 5 + rnd() * 7, 0, Math.PI * 2); ctx.fill();
   }
 
-  // Bahn: erst die helle Bande (breiter Strich), dann die Fahrbahn darüber —
-  // übrig bleibt ein Saum auf beiden Seiten. Liegt eine Textur vor, wird die
-  // Fahrbahn mit ihr als Muster gestrichen (0,25-fach skaliert → ~256px-
-  // Kachelung, fein genug für den Mode-7-Blick).
-  zeichneBahn(ctx, linie, strecke.breite + 8, strecke.bande);
+  // Bande: Zuckerstangen-Randsteine (Banden-Runde 16.08.2026) — erst der helle
+  // Grundstrich, darüber rote Streifen im Wechsel, dann deckt die Fahrbahn die
+  // Mitte ab. Übrig bleibt der klassische rot-weiße Curb an beiden Rändern,
+  // und der markiert jetzt eine ECHTE Wand (Physik: M_WIESE = kein Durchkommen).
+  zeichneBahn(ctx, linie, strecke.breite + 9, strecke.bande);
+  ctx.save();
+  ctx.setLineDash([16, 16]);
+  zeichneBahn(ctx, linie, strecke.breite + 9, '#c23b34');
+  ctx.restore();
   let mitTextur = false;
   if (bodenTextur) {
     const muster = ctx.createPattern(bodenTextur, 'repeat');
@@ -387,6 +392,34 @@ export function bauStreckenWelt(
       const t = k / schritte;
       const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
       stempel(x, y, 17, M_PFAD, false);
+    }
+  }
+
+  // Wiesen-Schulter (Banden-Runde): ein ~22 Einheiten breiter zäher Streifen
+  // ZWISCHEN Bande und Wand — der Fahrfehler kostet Tempo, aber erst dahinter
+  // steht die Wand. Gestempelt wird nur, wo noch M_WIESE liegt, damit Bahn,
+  // Felder und Pfad unangetastet bleiben. Auch um den Pfad herum, sonst wäre
+  // die Abkürzung ein Tunnel mit unsichtbaren Wänden direkt an der Kante.
+  const schulterStempel = (cx: number, cy: number, r: number) => {
+    const r2s = r * r;
+    const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(TEX_SIZE - 1, Math.ceil(cx + r));
+    const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(TEX_SIZE - 1, Math.ceil(cy + r));
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        const dx = xx - cx, dy = yy - cy;
+        if (dx * dx + dy * dy > r2s) continue;
+        const i = yy * TEX_SIZE + xx;
+        if (maske[i] === M_WIESE) maske[i] = M_SCHULTER;
+      }
+    }
+  };
+  for (const p of linie) schulterStempel(p.x, p.y, strecke.breite + 30);
+  for (const ab of strecke.abkuerzungen) {
+    const a = linie[ab.von], b = linie[ab.bis];
+    const schritte = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6);
+    for (let k = 0; k <= schritte; k++) {
+      const t = k / schritte;
+      schulterStempel(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 34);
     }
   }
 

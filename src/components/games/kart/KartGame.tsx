@@ -4,10 +4,11 @@ import { supabase } from '@/lib/supabase';
 import { useCurrentMember } from '@/lib/api';
 import {
   STRECKEN, STRECKE_BY_ID, TEX_SIZE, bauStreckenWelt,
-  M_BAHN, M_TURBO, M_BREMS, M_RAMPE,
+  M_WIESE, M_BAHN, M_TURBO, M_BREMS, M_RAMPE, M_SCHULTER,
   type KartStrecke, type StreckenWelt,
 } from '@/lib/kart/strecken';
 import { ladeKartAssets, skinFuer, type KartAssets, type SchlittenPosen } from '@/lib/kart/assets';
+import { KartSound } from '@/lib/kart/sound';
 
 // ─── Sauna-Kart ──────────────────────────────────────────────────────────────
 // Mode-7-Rennen im Stil der 16-Bit-Ära: der Boden ist eine perspektivisch
@@ -28,8 +29,30 @@ const W = 360;                    // interne Auflösung — CSS skaliert hoch,
 const H = 480;                    // image-rendering: pixelated = Retro-Look
 const HORIZONT = Math.floor(H * 0.40);
 const FOKAL = 220;                // Projektions-Brennweite in Pixeln
-const KAM_HOEHE = 34;             // Kamera-Höhe in Welteinheiten
-const KAM_ABSTAND = 52;           // Kamera hinter dem Kart
+const KAM_HOEHE = 29;             // Kamera-Höhe — tiefer = der Boden rast mehr
+const KAM_ABSTAND = 50;           // Kamera hinter dem Kart
+
+// ─── Fahrmodell (Banden-Runde 16.08.2026) ────────────────────────────────────
+// Der Kern des neuen Fahrgefühls: Blickrichtung und BEWEGUNGSRICHTUNG sind
+// getrennt. Das Kart zeigt, wohin du willst — die Fahrt zieht mit Verzögerung
+// nach (Grip). In schnellen Kurven öffnet sich dadurch von selbst der
+// klassische Arcade-Drift, ohne eigene Drift-Taste.
+const GRIP_BAHN = 7.0;            // wie schnell die Fahrt der Nase folgt (1/s)
+const GRIP_GRAS = 3.2;            // auf der Schulter schmiert es
+const LENK_ATTACK = 6.0;          // Lenk-Eingabe baut sich auf (1/s) …
+const LENK_RELEASE = 10.0;        // … und löst sich schneller wieder
+// Wand-Regel nach SNES-Vorbild (Recherche 16.08.): streifender Kontakt
+// verzeiht (sanfter Schliff pro Frame), frontaler Einschlag bestraft einmalig
+// hart — aber NIE Vollstopp, der Fluss bricht sonst ab.
+const WAND_SCHLIFF = 0.965;       // pro Kontakt-Frame beim Entlangschrammen
+const WAND_FRONTAL = 0.55;        // einmalig beim frontalen Einschlag
+// Drift-Belohnung: wer eine lange Kurve sauber mit hängendem Heck zieht und
+// sie sauber ausleitet, bekommt einen Mini-Turbo — DIE Belohnungsschleife
+// jedes Kart-Racers (SNES-Regel dazu: Driften selbst kostet NIE Tempo).
+const DRIFT_SCHWELLE = 0.18;      // rad Nase-vs-Fahrt, ab hier „driftet" es
+const DRIFT_LADEZEIT_S = 0.9;     // so lange muss der Drift stehen
+const MINITURBO_S = 0.8;
+const MINITURBO_FAKTOR = 1.3;
 
 // Rundenlänge ≈ 2350 Welteinheiten (Kelo-Kurve). 130 u/s ergibt ~20 s pro
 // saubere Runde, mit Fehlern 25–35 s — zwei Runden passen damit genau in die
@@ -189,6 +212,8 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
   const [hud, setHud] = useState({ zeit: 0, runde: 1, countdown: 3 });
   const neustartRef = useRef(0);
   const [neustart, setNeustart] = useState(0);
+  const soundRef = useRef<KartSound | null>(null);
+  const [tonAn, setTonAn] = useState(true);
 
   // Erst die fal.ai-Grafiken laden (mit Timeout + Fallback), DANN die Welt
   // bauen — die Bahn-Textur wird beim Bau eingebacken. Der Lader liefert nie
@@ -217,7 +242,7 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !welt || !assets) return;
-    const stop = starteRennen({
+    const rennen = starteRennen({
       canvas, welt, geister, assets,
       spielerSkin: skinFuer(me.data?.id, 3),
       onHud: (h) => setHud(h),
@@ -228,7 +253,9 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
         submit.mutate({ strecke: strecke.id, zeit_ms: zeitMs, samples });
       },
     });
-    return stop;
+    rennen.sound.an = tonAn; // Stumm-Wunsch überlebt „Nochmal"
+    soundRef.current = rennen.sound;
+    return rennen.stop;
     // top.data absichtlich NICHT in den Deps: die Geister eines laufenden
     // Rennens sollen nicht mitten in der Kurve ausgetauscht werden.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,6 +295,20 @@ function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () =>
         <div className="pointer-events-none absolute left-2 top-2 rounded-lg bg-black/45 px-2 py-1 font-mono text-sm tabular-nums text-white">
           {fmtZeit(hud.zeit)}
         </div>
+
+        {/* Ton-Schalter — überlebt „Nochmal" */}
+        <button
+          onClick={() => {
+            const s = soundRef.current;
+            setTonAn(s ? s.toggle() : !tonAn);
+          }}
+          className="absolute right-2 top-2 rounded-lg bg-black/45 px-2 py-1 text-sm"
+          style={{ touchAction: 'manipulation' }}
+          title={tonAn ? 'Ton aus' : 'Ton an'}
+          aria-label={tonAn ? 'Ton ausschalten' : 'Ton einschalten'}
+        >
+          {tonAn ? '🔊' : '🔇'}
+        </button>
 
         {phase === 'countdown' && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -338,7 +379,7 @@ function starteRennen(opts: {
   onHud: (h: { zeit: number; runde: number; countdown: number }) => void;
   onPhase: (p: Phase) => void;
   onZiel: (zeitMs: number, samples: GhostSamples) => void;
-}): () => void {
+}): { sound: KartSound; stop: () => void } {
   const { canvas, welt, geister, assets, spielerSkin, onHud, onPhase, onZiel } = opts;
   const ctx = canvas.getContext('2d', { alpha: false })!;
   const { strecke, maske, linie } = welt;
@@ -381,7 +422,9 @@ function starteRennen(opts: {
   const start = linie[0];
   const st = {
     x: start.x, y: start.y, richtung: start.winkel, v: 0,
+    fahrWinkel: start.winkel, // Bewegungsrichtung — hinkt der Nase nach (Drift)
     lenken: 0,
+    lenkPhys: 0,             // geformte Lenk-Eingabe (Attack/Release)
     lenkGlatt: 0,            // geglätteter Lenkwert für Pose + Kamera
     countdownMs: 3000,
     zeitMs: 0,
@@ -398,7 +441,28 @@ function starteRennen(opts: {
     schonfristS: 0,
     gebremst: false,         // fürs Tacho: gerade Pfütze/Wiese/Taumel?
     letzterMaskenWert: M_BAHN,
+    // Banden-Runde
+    wandKontakt: false,
+    schuettelRest: 0,        // Screenshake-Amplitude in px, klingt ab
+    startBoostVergeben: false,
+    driftLadungS: 0,         // wie lange der aktuelle Drift schon steht
+    miniTurboRestS: 0,
+    kamHoehe: KAM_HOEHE,     // Kamera senkt sich im Boost (FOV-Kick-Ersatz)
+    bannerText: '',
+    bannerRestS: 0,
+    rueckstandS: null as number | null,  // Sekunden auf den 👑-Geist (+ = hinten)
+    g0Idx: 0,
+    g0Fort: 0,
   };
+
+  // Klang — entsteht erst bei der ersten Geste (iOS), Regler unten rechts.
+  const sound = new KartSound();
+
+  // Der beste Geist ist die Messlatte für die Live-Rückstandsanzeige.
+  const messlatte = geister[0]?.samples ? geister[0] : null;
+  const messlatteIdxProSek = messlatte
+    ? (linie.length * strecke.runden) / (messlatte.zeit_ms / 1000)
+    : 0;
 
   // ─── Eingabe: Daumen-Hälften + Pfeiltasten ─────────────────────────────
   const zeiger = new Map<number, -1 | 1>();
@@ -408,9 +472,18 @@ function starteRennen(opts: {
     st.lenken = Math.max(-1, Math.min(1, l));
   }
   function aufPointerDown(e: PointerEvent) {
+    sound.start(); // iOS: Audio braucht eine Geste — die erste ist der Daumen
     const r = canvas.getBoundingClientRect();
     zeiger.set(e.pointerId, e.clientX - r.left < r.width / 2 ? -1 : 1);
     lenkenAusZeigern();
+    // Start-Boost: wer GENAU beim „LOS!" tippt (Fenster ±0,3 s), bekommt
+    // 1,2 s Schub — der klassische Belohnungsmoment am Start.
+    if (!st.startBoostVergeben && st.countdownMs < 320 && st.countdownMs > -250) {
+      st.startBoostVergeben = true;
+      st.turboRestS = 1.2;
+      sound.turbo();
+      vibriere(15);
+    }
     canvas.setPointerCapture?.(e.pointerId);
     e.preventDefault();
   }
@@ -444,11 +517,16 @@ function starteRennen(opts: {
     vorher = jetzt;
 
     if (st.countdownMs > 0) {
+      const vorherSek = Math.ceil(st.countdownMs / 1000);
       st.countdownMs -= dt * 1000;
-      onHud({ zeit: 0, runde: st.runde, countdown: Math.ceil(Math.max(0, st.countdownMs / 1000)) });
-      if (st.countdownMs <= 0) onPhase('fahren');
+      const jetztSek = Math.ceil(Math.max(0, st.countdownMs / 1000));
+      if (jetztSek !== vorherSek) sound.countdown(jetztSek);
+      onHud({ zeit: 0, runde: st.runde, countdown: jetztSek });
+      if (st.countdownMs <= 0) { onPhase('fahren'); sound.countdown(0); }
     } else if (!st.fertig) {
       simuliere(dt);
+    } else {
+      sound.motorAus();
     }
 
     zeichne();
@@ -468,49 +546,135 @@ function starteRennen(opts: {
     return { x: p.x + qx * quer, y: p.y + qy * quer, quer };
   }
 
+  function maskeBei(x: number, y: number): number {
+    const mx = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(x)));
+    const my = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(y)));
+    return maske[my * TEX_SIZE + mx];
+  }
+
+  function wrapWinkel(w: number): number {
+    while (w > Math.PI) w -= Math.PI * 2;
+    while (w < -Math.PI) w += Math.PI * 2;
+    return w;
+  }
+
   function simuliere(dt: number) {
     st.zeitMs += dt * 1000;
 
     // Zeitgeber der Rallye-Elemente.
+    const flogVorher = st.flugRestS > 0;
     st.turboRestS = Math.max(0, st.turboRestS - dt);
     st.flugRestS = Math.max(0, st.flugRestS - dt);
     st.taumelRestS = Math.max(0, st.taumelRestS - dt);
     st.schonfristS = Math.max(0, st.schonfristS - dt);
+    st.bannerRestS = Math.max(0, st.bannerRestS - dt);
+    st.schuettelRest = Math.max(0, st.schuettelRest - dt * 9);
+    if (flogVorher && st.flugRestS <= 0) { sound.landung(); vibriere(12); st.schuettelRest = Math.max(st.schuettelRest, 2.5); }
 
     // Oberfläche unterm Kart — in der Luft zählt sie nicht (wer springt,
-    // fliegt über Pfütze und Wiese hinweg).
-    const mx = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(st.x)));
-    const my = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(st.y)));
-    const wert = maske[my * TEX_SIZE + mx];
+    // fliegt über Pfütze und Schulter hinweg).
+    const wert = maskeBei(st.x, st.y);
     const fliegt = st.flugRestS > 0;
 
-    let vmax = wert >= M_BAHN ? V_MAX : V_MAX_WIESE;
+    let vmax = wert >= M_BAHN && wert !== M_SCHULTER ? V_MAX : V_MAX_WIESE;
     st.gebremst = false;
     if (!fliegt) {
+      if (wert === M_TURBO && st.turboRestS < 0.4) { sound.turbo(); vibriere(10); }
       if (wert === M_TURBO) st.turboRestS = TURBO_DAUER_S;
       if (wert === M_BREMS) { vmax *= BREMS_FAKTOR; st.gebremst = true; }
-      if (wert < M_BAHN) st.gebremst = true;
+      if (wert === M_SCHULTER || wert === M_WIESE) st.gebremst = true;
       // Rampe: nur die Vorderkante zündet (Wert-Wechsel auf M_RAMPE), sonst
       // würde jeder Frame auf der Rampe neu abheben.
       if (wert === M_RAMPE && st.letzterMaskenWert !== M_RAMPE && st.v > FLUG_MIN_TEMPO * V_MAX) {
         st.flugRestS = FLUG_DAUER_S;
+        sound.sprung();
       }
     }
     st.letzterMaskenWert = wert;
+    st.miniTurboRestS = Math.max(0, st.miniTurboRestS - dt);
     if (st.turboRestS > 0) vmax *= TURBO_FAKTOR;
+    else if (st.miniTurboRestS > 0) vmax *= MINITURBO_FAKTOR;
     if (st.taumelRestS > 0) { vmax *= 0.75; st.gebremst = true; }
 
     st.v += (vmax - st.v) * Math.min(1, BESCHL * dt);
 
-    // Lenken: in der Luft wirkungslos, im Taumel halbiert plus Schlingern.
-    let lenkEingabe = fliegt ? 0 : st.lenken;
+    // ── Fahrmodell: Nase lenkt, Fahrt zieht nach (Banden-Runde) ──────────
+    // Die Lenk-EINGABE baut sich auf und löst sich wieder (Attack/Release) —
+    // ein Daumen ist ein Schalter, ein Lenkrad ist keiner.
+    let ziel = fliegt ? 0 : st.lenken;
     if (st.taumelRestS > 0) {
-      lenkEingabe = lenkEingabe * 0.5 + Math.sin(st.zeitMs / 40) * 0.5;
+      ziel = ziel * 0.5 + Math.sin(st.zeitMs / 40) * 0.5;
     }
-    st.richtung += lenkEingabe * LENKRATE * Math.min(1, st.v / V_MAX) * dt;
+    const rampe = Math.abs(ziel) > Math.abs(st.lenkPhys) ? LENK_ATTACK : LENK_RELEASE;
+    st.lenkPhys += (ziel - st.lenkPhys) * Math.min(1, rampe * dt);
+
+    // Lenkrate wächst mit dem Tempo — und fällt oberhalb von 80 % wieder
+    // leicht ab (Recherche: genau daraus entsteht das „bei Topspeed muss ich
+    // driften"-Gefühl, statt jede Kurve voll zu erwischen).
+    const tempoAnteil = Math.min(1, st.v / V_MAX);
+    let lenkKraft = LENKRATE * (0.35 + 0.65 * tempoAnteil);
+    if (tempoAnteil > 0.8) lenkKraft *= 1 - 0.25 * ((tempoAnteil - 0.8) / 0.2);
+    st.richtung += st.lenkPhys * lenkKraft * dt;
+
+    // Die Bewegungsrichtung folgt der Nase mit GRIP-Verzögerung — daraus
+    // entsteht der Drift. Der Grip lässt bei Tempo zusätzlich nach: schnelle
+    // Kurven schieben spürbar nach außen (Zentrifugal-Gefühl).
+    const gripBasis = fliegt ? 0.5 : (wert === M_SCHULTER || wert === M_WIESE) ? GRIP_GRAS : GRIP_BAHN;
+    const grip = gripBasis * (1 - 0.35 * tempoAnteil * (gripBasis === GRIP_BAHN ? 1 : 0));
+    st.fahrWinkel += wrapWinkel(st.richtung - st.fahrWinkel) * Math.min(1, grip * dt);
     st.lenkGlatt += (st.lenken - st.lenkGlatt) * Math.min(1, 9 * dt);
-    st.x += Math.cos(st.richtung) * st.v * dt;
-    st.y += Math.sin(st.richtung) * st.v * dt;
+
+    // Drift-Belohnung: langer sauberer Drift + sauberes Ausleiten = Mini-Turbo.
+    // Kostet nie Tempo (SNES-Regel), gibt nur — Skill wird belohnt, nie bestraft.
+    const driftBetrag = Math.abs(wrapWinkel(st.richtung - st.fahrWinkel));
+    if (!fliegt && driftBetrag > DRIFT_SCHWELLE && st.v > 0.55 * V_MAX) {
+      st.driftLadungS += dt;
+    } else {
+      if (st.driftLadungS >= DRIFT_LADEZEIT_S && driftBetrag < 0.07 && st.taumelRestS <= 0) {
+        st.miniTurboRestS = MINITURBO_S;
+        sound.turbo();
+        vibriere(12);
+      }
+      st.driftLadungS = 0;
+    }
+
+    // Kamera senkt sich im Schub — tiefer = der Boden rast mehr (FOV-Kick).
+    const kamZiel = (st.turboRestS > 0 || st.miniTurboRestS > 0) ? KAM_HOEHE * 0.86 : KAM_HOEHE;
+    st.kamHoehe += (kamZiel - st.kamHoehe) * Math.min(1, 6 * dt);
+
+    // Dezente Dauer-Vibration am Limit — unter der bewussten Schwelle, aber
+    // das Auge liest „Maschine am Anschlag".
+    if (tempoAnteil > 0.85 && st.schuettelRest < 0.9) st.schuettelRest = 0.9;
+
+    // ── Bewegung mit Bande: achsgetrennt, M_WIESE ist Wand ───────────────
+    // Statt hart zu stoppen, rutscht das Kart an der Bande entlang (die
+    // blockierte Achse fällt weg) und verliert pro Kontakt-Frame Tempo.
+    const nx = st.x + Math.cos(st.fahrWinkel) * st.v * dt;
+    const ny = st.y + Math.sin(st.fahrWinkel) * st.v * dt;
+    const hierWand = maskeBei(st.x, st.y) === M_WIESE; // z. B. Flug-Landung im Aus
+    let beruehrt = false;
+    if (fliegt || hierWand || maskeBei(nx, ny) !== M_WIESE) {
+      st.x = nx; st.y = ny;
+    } else if (maskeBei(nx, st.y) !== M_WIESE) {
+      st.x = nx; st.v *= WAND_SCHLIFF; beruehrt = true;   // streifend: schrammt
+    } else if (maskeBei(st.x, ny) !== M_WIESE) {
+      st.y = ny; st.v *= WAND_SCHLIFF; beruehrt = true;
+    } else {
+      // Frontal: einmalig hart, aber nur beim ERSTEN Kontakt-Frame — sonst
+      // multipliziert sich die Strafe über die Kontaktdauer ins Bodenlose.
+      if (!st.wandKontakt) st.v *= WAND_FRONTAL;
+      beruehrt = true;
+    }
+    if (beruehrt && !st.wandKontakt) {
+      sound.bande();
+      vibriere(20);
+      st.schuettelRest = Math.max(st.schuettelRest, 2);
+    }
+    st.wandKontakt = beruehrt;
+
+    // Weltrand: sanft zurückschieben statt hart stoppen.
+    st.x = Math.max(8, Math.min(TEX_SIZE - 8, st.x));
+    st.y = Math.max(8, Math.min(TEX_SIZE - 8, st.y));
 
     // Stämme: Kollision nur am Boden und außerhalb der Schonfrist.
     if (!fliegt && st.schonfristS <= 0) {
@@ -521,8 +685,39 @@ function starteRennen(opts: {
           st.v *= STAMM_TREFFER_FAKTOR;
           st.taumelRestS = TAUMEL_S;
           st.schonfristS = SCHONFRIST_S;
+          sound.treffer();
+          vibriere(40);
+          st.schuettelRest = 5;
           break;
         }
+      }
+    }
+
+    // Motor-Klang folgt dem Tempo.
+    sound.motor(Math.min(1, st.v / (V_MAX * TURBO_FAKTOR)), st.turboRestS > 0);
+
+    // Live-Rückstand auf den 👑-Geist: dessen Fortschritt wird wie der eigene
+    // über eine Fenster-Suche verfolgt, die Differenz in Sekunden übersetzt.
+    if (messlatte && messlatteIdxProSek > 0) {
+      const gp = geistPosition(messlatte.samples!, st.zeitMs);
+      if (gp) {
+        const n = linie.length;
+        let besterIdx = st.g0Idx, bester = Infinity;
+        for (let o = -20; o <= 45; o++) {
+          const i = ((st.g0Idx + o) % n + n) % n;
+          const p = linie[i];
+          const d = (p.x - gp.x) * (p.x - gp.x) + (p.y - gp.y) * (p.y - gp.y);
+          if (d < bester) { bester = d; besterIdx = i; }
+        }
+        let delta = besterIdx - st.g0Idx;
+        if (delta > n / 2) delta -= n;
+        if (delta < -n / 2) delta += n;
+        st.g0Fort += delta;
+        st.g0Idx = besterIdx;
+        st.rueckstandS = (st.g0Fort - st.fortschritt) / messlatteIdxProSek;
+      } else {
+        // Geist im Ziel: Rückstand einfrieren — die Zahl bleibt ehrlich.
+        st.rueckstandS = st.rueckstandS ?? null;
       }
     }
 
@@ -547,7 +742,16 @@ function starteRennen(opts: {
     st.fortschritt += delta;
     st.letzterIdx = besterIdx;
     const runde = Math.floor(st.fortschritt / n) + 1;
-    if (runde !== st.runde) st.runde = runde;
+    if (runde !== st.runde) {
+      st.runde = runde;
+      if (runde > 1 && runde <= strecke.runden) {
+        st.bannerText = runde === strecke.runden
+          ? `Runde ${runde}/${strecke.runden} — letzte Runde!`
+          : `Runde ${runde}/${strecke.runden}`;
+        st.bannerRestS = 1.6;
+        sound.countdown(1);
+      }
+    }
 
     // Geist aufzeichnen (10 Hz Spielzeit).
     if (st.zeitMs >= st.naechsteProbe && st.samples.length < 4800) {
@@ -562,6 +766,9 @@ function starteRennen(opts: {
     if (st.fortschritt >= n * strecke.runden) {
       st.fertig = true;
       onPhase('ziel');
+      sound.ziel();
+      sound.motorAus();
+      vibriere(30);
       onZiel(Math.round(st.zeitMs), { v: 1, dt: GHOST_DT, pts: st.samples });
     }
     if (st.zeitMs > MAX_LAUFZEIT_MS) {
@@ -575,11 +782,54 @@ function starteRennen(opts: {
   // ─── Rendering ─────────────────────────────────────────────────────────
   const cos = Math.cos, sin = Math.sin;
 
+  // Streckenrand-Tannen als Billboards: DIE Tiefen- und Tempo-Referenz, die
+  // dem Boden allein fehlt — erst wenn Objekte am Rand vorbeiziehen, liest
+  // das Auge Geschwindigkeit. Positionen einmal berechnet; um die
+  // Abkürzungs-Einmündungen bleibt eine Lücke, sonst wäre der Geheimpfad
+  // zugestellt.
+  const tannen: { x: number; y: number; gross: boolean }[] = [];
+  {
+    const n = linie.length;
+    const gesperrt = new Set<number>();
+    for (const ab of strecke.abkuerzungen) {
+      for (let o = -14; o <= 14; o++) {
+        gesperrt.add(((ab.von + o) % n + n) % n);
+        gesperrt.add(((ab.bis + o) % n + n) % n);
+      }
+    }
+    for (let i = 0; i < n; i += 14) {
+      if (gesperrt.has(i)) continue;
+      const p = linie[i];
+      const seite = (i / 14) % 2 === 0 ? 1 : -1;
+      const qx = -Math.sin(p.winkel) * seite, qy = Math.cos(p.winkel) * seite;
+      const abstand = strecke.breite + 44 + ((i * 13) % 3) * 7;
+      tannen.push({
+        x: p.x + qx * abstand,
+        y: p.y + qy * abstand,
+        gross: (i * 7) % 3 !== 0,
+      });
+    }
+  }
+  const tanneKlein = bauTanne(false);
+  const tanneGross = bauTanne(true);
+
   function zeichne() {
     // Die KAMERA hinkt dem Lenken minimal hinterher — der Trick, der Mode-7
     // „echt" anfühlen lässt: das Bild schwenkt weich, während die Physik
     // exakt bleibt.
     const rh = st.richtung - st.lenkGlatt * 0.09;
+
+    // Screenshake — deterministisch aus der Rennzeit (kein Math.random im
+    // Renderpfad), klingt in simuliere() ab. Schwarz hinterlegen, damit die
+    // verschobenen Ränder nicht den letzten Frame durchscheinen lassen.
+    const shX = Math.round(Math.sin(st.zeitMs * 0.9) * st.schuettelRest);
+    const shY = Math.round(Math.cos(st.zeitMs * 1.3) * st.schuettelRest * 0.7);
+    if (st.schuettelRest > 0.2) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.save();
+    ctx.translate(shX, shY);
 
     // Himmel + Panorama (scrollt mit der Blickrichtung).
     const panX = Math.floor(((rh / (Math.PI * 2)) % 1 + 1) * panorama.width) % panorama.width;
@@ -611,7 +861,7 @@ function starteRennen(opts: {
     // Boden: pro Bildzeile eine Distanz, pro Pixel ein Textur-Sample.
     let z = 0;
     for (let sy = 0; sy < H - HORIZONT; sy++) {
-      const dist = (KAM_HOEHE * FOKAL) / (sy + 1);
+      const dist = (st.kamHoehe * FOKAL) / (sy + 1);
       const cxw = kx + fx * dist;
       const cyw = ky + fy * dist;
       const schrittQuer = dist / FOKAL;
@@ -626,73 +876,175 @@ function starteRennen(opts: {
         wx += sxq; wy += syq;
       }
     }
-    ctx.putImageData(bild, 0, HORIZONT);
+    // putImageData ignoriert Transformationen — der Shake wandert deshalb
+    // direkt in die Zielkoordinaten.
+    ctx.restore();
+    ctx.putImageData(bild, shX, HORIZONT + shY);
+    ctx.save();
+    ctx.translate(shX, shY);
 
-    // Rollende Stämme — Billboards, deterministisch aus der Rennzeit.
+    // ── Billboards: Tannen, Stämme, Geister — EIN sortierter Durchlauf ────
+    // Ohne Tiefensortierung stünde ein ferner Geist VOR einer nahen Tanne;
+    // gesammelt wird als Zeichen-Closure, gemalt von hinten nach vorn.
+    const billboards: { tiefe: number; mal: () => void }[] = [];
+    const projiziere = (wx2: number, wy2: number) => {
+      const dxw = wx2 - kx, dyw = wy2 - ky;
+      const tiefe = dxw * fx + dyw * fy;
+      if (tiefe < KAM_ABSTAND * 0.5 || tiefe > 640) return null;
+      const quer = dxw * rx + dyw * ry;
+      return {
+        tiefe,
+        sx: W / 2 + (quer * FOKAL) / tiefe,
+        sy: HORIZONT + (st.kamHoehe * FOKAL) / tiefe,
+      };
+    };
+
+    for (const t of tannen) {
+      const p = projiziere(t.x, t.y);
+      if (!p) continue;
+      const sprite = t.gross ? tanneGross : tanneKlein;
+      const skala = Math.min(2.2, 60 / p.tiefe * 4.4);
+      billboards.push({ tiefe: p.tiefe, mal: () => {
+        ctx.drawImage(sprite, p.sx - 22 * skala, p.sy - 56 * skala, 44 * skala, 60 * skala);
+      } });
+    }
+
     if (st.countdownMs <= 0 && !st.fertig) {
       for (let si = 0; si < strecke.staemme.length; si++) {
         const s = stammPosition(si, st.zeitMs);
-        const dxw = s.x - kx, dyw = s.y - ky;
-        const tiefe = dxw * fx + dyw * fy;
-        if (tiefe < KAM_ABSTAND * 0.5 || tiefe > 620) continue;
-        const quer = dxw * rx + dyw * ry;
-        const sy = HORIZONT + (KAM_HOEHE * FOKAL) / tiefe;
-        const sx = W / 2 + (quer * FOKAL) / tiefe;
-        const skala = Math.min(1.4, 46 / tiefe * 3.6);
-        zeichneStamm(ctx, stammSprite, sx, sy, skala, s.quer / 9);
+        const p = projiziere(s.x, s.y);
+        if (!p) continue;
+        const skala = Math.min(1.4, 46 / p.tiefe * 3.6);
+        billboards.push({ tiefe: p.tiefe, mal: () => zeichneStamm(ctx, stammSprite, p.sx, p.sy, skala, s.quer / 9) });
       }
-    }
-
-    // Geister — hinter dem Spieler-Sprite gezeichnet, durchscheinend.
-    if (st.countdownMs <= 0 && !st.fertig) {
       for (let gi = 0; gi < geister.length; gi++) {
         const geist = geister[gi];
-        const p = geistPosition(geist.samples!, st.zeitMs);
+        const gp = geistPosition(geist.samples!, st.zeitMs);
+        if (!gp) continue;
+        const p = projiziere(gp.x, gp.y);
         if (!p) continue;
-        const dxw = p.x - kx, dyw = p.y - ky;
-        const tiefe = dxw * fx + dyw * fy;
-        if (tiefe < KAM_ABSTAND * 0.6 || tiefe > 620) continue;
-        const quer = dxw * rx + dyw * ry;
-        const sy = HORIZONT + (KAM_HOEHE * FOKAL) / tiefe;
-        const sx = W / 2 + (quer * FOKAL) / tiefe;
-        const skala = Math.min(1.15, 46 / tiefe * 3.2);
-        zeichneFahrer(ctx, geistPosen[gi], sx, sy, skala, p.lenk, true);
-        if (tiefe < 240) {
-          ctx.font = 'bold 9px system-ui';
-          ctx.textAlign = 'center';
-          ctx.fillStyle = 'rgba(255,255,255,0.75)';
-          ctx.fillText(geist.name, sx, sy - 34 * skala);
-        }
+        const skala = Math.min(1.15, 46 / p.tiefe * 3.2);
+        billboards.push({ tiefe: p.tiefe, mal: () => {
+          zeichneFahrer(ctx, geistPosen[gi], p.sx, p.sy, skala, gp.lenk, true);
+          if (p.tiefe < 240) {
+            ctx.font = 'bold 9px system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.fillText(geist.name, p.sx, p.sy - 34 * skala);
+          }
+        } });
       }
     }
 
-    // Spieler-Kart: rutscht beim Lenken leicht zur Kurveninnenseite und hebt
+    billboards.sort((a, b) => b.tiefe - a.tiefe);
+    for (const b of billboards) b.mal();
+
+    // Spieler-Kart: rutscht beim Lenken leicht zur Kurveninnenseite, dreht
+    // sich zusätzlich mit dem DRIFT-Winkel (Nase vs. Fahrtrichtung) und hebt
     // im Sprung ab — der Schatten bleibt dabei am Boden, DAS verkauft die Höhe.
     const flugAnteil = st.flugRestS > 0 ? st.flugRestS / FLUG_DAUER_S : 0;
     const hoehe = flugAnteil > 0 ? FLUG_HOEHE * 4 * flugAnteil * (1 - flugAnteil) : 0;
-    const spielerX = W / 2 + st.lenkGlatt * 16;
+    const drift = wrapWinkel(st.richtung - st.fahrWinkel);
+    const spielerX = W / 2 + st.lenkGlatt * 16 - drift * 26;
     if (hoehe > 2) {
       ctx.fillStyle = 'rgba(0,0,0,0.30)';
       ctx.beginPath();
       ctx.ellipse(spielerX, H - 46, 24 * (1 - hoehe / (FLUG_HOEHE * 2.2)), 6, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    zeichneFahrer(ctx, spielerPosen, spielerX, H - 58 - hoehe, 1.15, st.lenkGlatt, false);
+    zeichneFahrer(ctx, spielerPosen, spielerX, H - 58 - hoehe, 1.15, st.lenkGlatt + drift * 1.4, false);
+
+    // Turbo-Speedlines an den Rändern — Position deterministisch aus der Zeit.
+    if (st.turboRestS > 0) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 6; k++) {
+        const y0 = HORIZONT + ((st.zeitMs * (0.9 + k * 0.13) + k * 97) % (H - HORIZONT));
+        const seite = k % 2 === 0 ? 0 : W;
+        const richt = k % 2 === 0 ? 1 : -1;
+        ctx.beginPath();
+        ctx.moveTo(seite, y0);
+        ctx.lineTo(seite + richt * (26 + (k * 11) % 18), y0 + 10);
+        ctx.stroke();
+      }
+    }
+
+    // Runden-Banner (kurz, mittig, blendet aus).
+    if (st.bannerRestS > 0 && st.bannerText) {
+      const alpha = Math.min(1, st.bannerRestS / 0.4);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(W / 2 - 120, H * 0.26, 240, 34);
+      ctx.fillStyle = '#ffd76a';
+      ctx.font = 'bold 16px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(st.bannerText, W / 2, H * 0.26 + 23);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore(); // Shake endet — HUD steht stabil
+
+    // Live-Rückstand auf den 👑-Geist, unter der Uhr: rot = du liegst hinten,
+    // grün = du bist vorn. DER Motivator schlechthin im Geister-Rennen.
+    if (st.rueckstandS !== null && st.countdownMs <= 0 && !st.fertig) {
+      const r = st.rueckstandS;
+      const text = `👑 ${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(1).replace('.', ',')} s`;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(6, 30, 74, 18);
+      ctx.font = 'bold 11px system-ui';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = r >= 0 ? '#f87171' : '#4ade80';
+      ctx.fillText(text, 10, 43);
+    }
 
     // Farb-Tacho unten rechts: Füllung = Tempo, Farbe = Zustand.
     zeichneTacho(ctx, st.v, st.turboRestS > 0, st.gebremst);
   }
 
   raf = requestAnimationFrame(schritt);
-  return () => {
-    laeuft = false;
-    cancelAnimationFrame(raf);
-    canvas.removeEventListener('pointerdown', aufPointerDown);
-    canvas.removeEventListener('pointerup', aufPointerEnde);
-    canvas.removeEventListener('pointercancel', aufPointerEnde);
-    window.removeEventListener('keydown', tasteAb);
-    window.removeEventListener('keyup', tasteAuf);
+  return {
+    sound,
+    stop: () => {
+      laeuft = false;
+      cancelAnimationFrame(raf);
+      sound.stop();
+      canvas.removeEventListener('pointerdown', aufPointerDown);
+      canvas.removeEventListener('pointerup', aufPointerEnde);
+      canvas.removeEventListener('pointercancel', aufPointerEnde);
+      window.removeEventListener('keydown', tasteAb);
+      window.removeEventListener('keyup', tasteAuf);
+    },
   };
+}
+
+/** Haptik, wo verfügbar (Android-PWA; iOS ignoriert es stumm). */
+function vibriere(ms: number) {
+  try { navigator.vibrate?.(ms); } catch { /* egal */ }
+}
+
+/** Streckenrand-Tanne, einmal vorgerendert — zwei Größen, zwei Grüntöne. */
+function bauTanne(gross: boolean): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = 44; c.height = 60;
+  const g = c.getContext('2d')!;
+  const stammFarbe = '#4a341f';
+  const gruen = gross ? '#1d3a24' : '#27492c';
+  g.fillStyle = 'rgba(0,0,0,0.3)';
+  g.beginPath(); g.ellipse(22, 57, 14, 3.5, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = stammFarbe;
+  g.fillRect(19, 46, 6, 12);
+  g.fillStyle = gruen;
+  for (const [oben, breit, basis] of [[2, 12, 24], [12, 16, 36], [24, 20, 50]] as const) {
+    g.beginPath();
+    g.moveTo(22, oben);
+    g.lineTo(22 - breit, basis);
+    g.lineTo(22 + breit, basis);
+    g.closePath();
+    g.fill();
+  }
+  g.fillStyle = 'rgba(255,255,255,0.10)';
+  g.beginPath(); g.moveTo(22, 2); g.lineTo(22 + 9, 20); g.lineTo(22, 20); g.closePath(); g.fill();
+  return c;
 }
 
 /** Lineare Interpolation in der Geister-Aufzeichnung. `lenk` (-1…1) wird aus
