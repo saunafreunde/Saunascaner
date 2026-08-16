@@ -40,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '');
 
   if (action === 'pin-checkin') return handlePinCheckin(req, res, admin);
+  if (action === 'kiosk-rate') return handleKioskRate(req, res, admin);
   if (action === 'tablet-signup') return handleTabletSignup(req, res, admin);
   if (action === 'resend-access') return handleResendAccess(req, res, admin);
 
@@ -80,6 +81,20 @@ function getOrigin(req: VercelRequest): string {
 }
 
 // ─── PIN-Checkin am Sauna-Tablet ──────────────────────────────────────────
+//
+// ⚠️ Hier stand bis 16.08.2026 ein generateLink('magiclink') — das Tablet
+// wurde damit als die eingetippte Person ANGEMELDET. /checkin/rate lief
+// entsprechend mit einer echten Session auf einem öffentlich zugänglichen
+// Gerät: wer nicht auf den Auto-Logout wartete, sondern herumtippte, stand im
+// Profil, in den Direktnachrichten und in den Einstellungen einer fremden
+// Person. Ein 4-stelliger PIN öffnete das ganze Konto.
+//
+// Jetzt: der PIN ist nur noch Ausweis für zwei eng gefasste Vorgänge —
+// anwesend setzen und bewerten. Keine Session, kein Token, nichts, womit man
+// woanders hinkäme. Die zugehörigen RPCs sind ausschließlich für service_role
+// freigegeben und laufen deshalb nur über diesen Endpunkt, wo der
+// IP-Rate-Limiter oben greift. Anon-Zugriff würde bedeuten, dass man 9000
+// PIN-Möglichkeiten direkt über PostgREST durchprobieren kann.
 async function handlePinCheckin(
   req: VercelRequest,
   res: VercelResponse,
@@ -88,44 +103,69 @@ async function handlePinCheckin(
   const pin = String(req.body?.pin ?? '').trim();
   if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
 
-  const { data: rows, error: lookupErr } = await admin.rpc('lookup_gast_by_pin', { p_pin: pin });
-  if (lookupErr) return res.status(500).json({ error: lookupErr.message });
-  const m = Array.isArray(rows) ? rows[0] : null;
+  const { data: rows, error } = await admin.rpc('kiosk_checkin', { p_pin: pin });
+  if (error) {
+    if (error.message?.includes('pin_unbekannt')) {
+      return res.status(404).json({ error: 'pin_unknown' });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+  const m = Array.isArray(rows) ? rows[0] : rows;
   if (!m) return res.status(404).json({ error: 'pin_unknown' });
 
-  if (!m.email) return res.status(400).json({ error: 'no_email_on_member' });
-
-  // Anwesenheits-Event auslösen: is_present + last_scan_at via direkten Update,
-  // damit Trigger log_attendance_on_checkin + log_infusion_attendance_on_scan greifen
-  await admin
-    .from('members')
-    .update({ is_present: true, last_scan_at: new Date().toISOString() })
-    .eq('id', m.id);
-
-  const origin = getOrigin(req);
-  const redirectTo = `${origin}/checkin/rate`;
-
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-    type: 'magiclink',
-    email: m.email,
-    options: { redirectTo },
-  });
-  if (linkErr) return res.status(500).json({ error: linkErr.message });
-
-  const url = linkData?.properties?.action_link;
-  if (!url) return res.status(500).json({ error: 'no_action_link' });
-
-  const needsFamilyModal = !!(m.family_has_partner || (m.family_children_count ?? 0) > 0);
+  const bewertbar = await ladeBewertbar(admin, pin);
 
   return res.status(200).json({
-    url,
-    member_id: m.id,
     name: m.name,
-    role: m.role,
-    needs_family_modal: needsFamilyModal,
-    family_has_partner: !!m.family_has_partner,
-    family_children_count: m.family_children_count ?? 0,
+    war_schon_da: !!m.war_schon_da,
+    bewertbar,
   });
+}
+
+// ─── Bewerten am Tablet ───────────────────────────────────────────────────
+async function handleKioskRate(
+  req: VercelRequest,
+  res: VercelResponse,
+  admin: SupabaseClient,
+) {
+  const pin = String(req.body?.pin ?? '').trim();
+  if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
+
+  const b = req.body ?? {};
+  const note = (v: unknown) => {
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
+  };
+  const werte = {
+    p_chemie: note(b.chemie), p_luftbewegung: note(b.luftbewegung),
+    p_wedeltechnik: note(b.wedeltechnik), p_hitzeniveau: note(b.hitzeniveau),
+    p_musik: note(b.musik), p_duftentwicklung: note(b.duftentwicklung),
+  };
+  if (Object.values(werte).some((v) => v === null)) {
+    return res.status(400).json({ error: 'bewertung_unvollstaendig' });
+  }
+  if (!UUID_RE.test(String(b.infusion_id ?? ''))) {
+    return res.status(400).json({ error: 'invalid_infusion_id' });
+  }
+
+  const { data, error } = await admin.rpc('kiosk_submit_rating', {
+    p_pin: pin,
+    p_infusion_id: b.infusion_id,
+    ...werte,
+    p_comment: typeof b.comment === 'string' ? b.comment.slice(0, 500) : null,
+  });
+  if (error) return res.status(500).json({ error: error.message });
+  if (data !== 'ok') return res.status(400).json({ error: String(data) });
+
+  // Frische Liste zurückgeben — nach dem Speichern ist mindestens eine
+  // weitere Stunde blockiert, das soll die Oberfläche sofort zeigen.
+  return res.status(200).json({ ok: true, bewertbar: await ladeBewertbar(admin, pin) });
+}
+
+async function ladeBewertbar(admin: SupabaseClient, pin: string) {
+  const { data, error } = await admin.rpc('kiosk_ratable', { p_pin: pin });
+  if (error) return [];
+  return Array.isArray(data) ? data : [];
 }
 
 // ─── Schnell-Signup am Sauna-Tablet ───────────────────────────────────────

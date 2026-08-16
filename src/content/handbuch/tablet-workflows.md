@@ -11,14 +11,15 @@ QR-Code-Scanner am Eingang. Mitglied scannt seinen QR-Ausweis → automatisches 
 ### 🛢️ Öl-Raum — `/oil-room`
 Tablet im Öl-Raum. Läuft **anonym ohne Login** (Long-Press zum Entsperren statt PIN). Zeigt den aktuellen + nächsten Aufguss inkl. der vom Aufgießer gewählten Öle — Personal sieht sofort welche Flaschen rauszustellen sind. Aufguss anlegen/canceln direkt am Tablet via `create_infusion_kiosk` / `cancel_infusion_kiosk` RPCs.
 
-### 🔢 PIN-Check-In — `/checkin`
-Tablet am Eingang (Alternative zum QR-Scanner). PIN tippen → eingecheckt. Funktioniert für alle Rollen. Bei **Familien-Mitgliedern** öffnet sich nach Check-in das **„Wer ist heute dabei?"-Modal** (Partner-Checkbox + Kinder-Stepper).
+### 🔢 PIN-Check-in und Bewerten — `/checkin`
+Das Tablet am Eingang. PIN tippen → du giltst als anwesend und siehst sofort die Aufgüsse des Tages, die du bewerten kannst. Funktioniert für alle Rollen.
+
+**Der PIN meldet dich NICHT am Konto an.** Er ist nur der Ausweis für zwei Dinge: anwesend setzen und bewerten. Von hier kommt niemand ins Profil, in die Nachrichten oder in die Einstellungen — das Tablet steht schließlich öffentlich.
+
+Zum Bewerten kannst du jederzeit erneut den PIN eintippen. Nach jeder Bewertung zieht Dampf über den Bildschirm und das Tablet ist wieder frei. Bleibt jemand stehen, schließt sich der Bildschirm nach 45 Sekunden von selbst — ein Balken läuft dabei von grün nach rot, und der **RAUS**-Knopf beendet sofort.
 
 ### 🆕 Gast-Self-Sign-Up — `/checkin/signup`
-Wenn ein neuer PIN-Versuch fehlschlägt: System bietet Self-Sign-Up. Name + E-Mail + PIN → Account angelegt mit Rolle `gast`.
-
-### ✅ Tablet-Bestätigung nach Check-in — `/checkin/rate`
-**Wichtig geändert (Mai 2026):** Das Tablet bewertet **nicht mehr selbst**. Nach dem Auschecken zeigt die Seite nur noch eine grüne **„✅ Eingecheckt"**-Bestätigung mit dem Hinweis *„Bewerten in der eigenen App"*. Nach 15 Sekunden Auto-Logout. Das Familien-Modal bleibt — Bewerten läuft komplett über Kapitel 31.
+Für alle, die zum ersten Mal da sind. Name + E-Mail + Datenschutz → PIN erscheint sofort auf dem Schirm, die Zugangsdaten für die App kommen per Mail.
 
 ### 📱 Willkommens-Tablet im Gäste-Bereich — `/willkommen`
 **Neu:** Das **dritte Tablet** im Gäste-Bereich. Läuft anonym ohne Login. Zwei große Schwarzwald-Branding-Buttons:

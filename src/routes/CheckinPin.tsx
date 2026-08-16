@@ -2,16 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { KioskBewerten, type BewertbarerAufguss } from '@/components/kiosk/KioskBewerten';
 
-// /checkin — öffentliche Kiosk-URL, PIN-Pad für Sauna-Tablet.
-// Auto-Reset nach 5s Inaktivität. Bei korrekter PIN → Login + Redirect zu /checkin/rate.
+// /checkin — öffentliche Kiosk-URL, PIN-Pad für das Eingangs-Tablet.
+//
+// Der PIN meldet NICHT am Konto an (das tat er bis 16.08.2026). Er setzt die
+// Anwesenheit und öffnet die Bewertungs-Liste des Tages — beides über eng
+// gefasste Kiosk-RPCs, die nur der Server aufrufen darf. Es entsteht keine
+// Session; von hier kommt niemand ins Profil oder in die Nachrichten.
 export default function CheckinPin() {
   const nav = useNavigate();
   const brand = useBrandSettings();
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  const [sitzung, setSitzung] = useState<{
+    pin: string; name: string; warSchonDa: boolean; aufguesse: BewertbarerAufguss[];
+  } | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
@@ -66,20 +73,18 @@ export default function CheckinPin() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? 'PIN unbekannt');
 
-      setWelcomeName(data.name ?? 'Gast');
-      // Familien-Modal-Hinweis für /checkin/rate via sessionStorage
-      // (Magic-Link macht einen Full-Page-Reload, React-State geht verloren)
-      if (data.needs_family_modal) {
-        try {
-          sessionStorage.setItem('pending_family_modal', JSON.stringify({
-            name: data.name ?? 'Gast',
-            family_has_partner: !!data.family_has_partner,
-            family_children_count: data.family_children_count ?? 0,
-          }));
-        } catch { /* sessionStorage nicht verfügbar — nicht kritisch */ }
-      }
-      // Browser folgt dem Magic-Link → Session wird gesetzt → Redirect zu /checkin/rate
-      window.location.href = data.url;
+      // KEIN Login mehr. Bis 16.08.2026 stand hier ein Magic-Link, der das
+      // Tablet als diese Person angemeldet hat — auf einem öffentlich
+      // zugänglichen Gerät. Jetzt bleibt der PIN das, was er sein soll:
+      // ein Ausweis für Anwesenheit und Bewertung, mehr nicht.
+      setSitzung({
+        pin: currentPin,
+        name: data.name ?? 'Gast',
+        warSchonDa: !!data.war_schon_da,
+        aufguesse: data.bewertbar ?? [],
+      });
+      setPin('');
+      setBusy(false);
     } catch (e) {
       setError((e as Error).message);
       setPin('');
@@ -87,15 +92,22 @@ export default function CheckinPin() {
     }
   }
 
-  if (welcomeName) {
+  function zurueckZurPin() {
+    setSitzung(null);
+    setPin('');
+    setError(null);
+    resetIdleTimer();
+  }
+
+  if (sitzung) {
     return (
-      <div className="min-h-screen bg-schwarzwald-soft flex items-center justify-center p-6">
-        <div className="text-center">
-          <div className="text-8xl mb-4">👋</div>
-          <h1 className="text-4xl font-semibold text-forest-100">Willkommen, {welcomeName}!</h1>
-          <p className="mt-3 text-forest-300/80">Einen Moment…</p>
-        </div>
-      </div>
+      <KioskBewerten
+        pin={sitzung.pin}
+        name={sitzung.name}
+        warSchonDa={sitzung.warSchonDa}
+        aufguesse={sitzung.aufguesse}
+        onRaus={zurueckZurPin}
+      />
     );
   }
 

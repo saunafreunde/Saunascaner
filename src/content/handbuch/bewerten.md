@@ -1,23 +1,28 @@
-## ⭐ Aufgüsse bewerten (App-only)
+## ⭐ Aufgüsse bewerten
 
-**Pfad:** [/bewerten](/bewerten) · auch erreichbar über den Smart-Slot in der Bottom-Nav (Sterne-Icon)
+**Zwei Wege — such dir aus, was dir lieber ist:**
 
-> **Wichtig geändert (Mai 2026):** Bewerten läuft jetzt **ausschließlich in der eigenen App**. Das Tablet `/checkin/rate` bestätigt nur noch den Check-in — es nimmt **keine** Bewertungen mehr an.
+- **Am Tablet im Eingangsbereich:** PIN eintippen, Aufguss antippen, sechs Punkte vergeben, fertig. Danach zieht Dampf über den Bildschirm und das Tablet ist wieder frei für den Nächsten.
+- **In der App:** [/bewerten](/bewerten), in Ruhe von der Liege oder von zuhause aus.
 
-### Wer darf wann bewerten — zwei Zeitfenster
+### Eine Bewertung pro Stunde
 
-Damit echtes Echo möglich ist, aber niemand Wochen später noch nachträglich Sterne verteilt, gibt es zwei klare Fenster (in der DB als `is_aufgieser_for(uuid)`-SQL-Helper, gespiegelt von `submit_rating()` und `get_ratable_infusions()` — Frontend und Backend nutzen dieselbe Logik):
+Laufen um 17 Uhr drei Saunen gleichzeitig, warst du in **einer** davon — also zählt auch nur eine Bewertung für diese Stunde. Sobald du dich entschieden hast, sind die anderen Aufgüsse derselben Stunde grau. Ein Banja über zwei Stunden belegt entsprechend beide.
+
+Die übrigen Aufgüsse des Tages kannst du ganz normal bewerten.
+
+### Wer darf wann bewerten
 
 | Wer | Zeitfenster |
 |---|---|
-| 🧖 **Aufgießer** (die selbst gegossen haben, z.B. bei Team-Aufgüssen) | **3 Stunden** nach Aufguss-Ende |
-| 🤝 Alle anderen (Gast/Fan/Helfer/Personal/CP/Admin) | bis **Folgetag 12:00 Berlin** |
+| 🧖 **Aufgießer** (die selbst gegossen haben, z. B. bei Team-Aufgüssen) | **3 Stunden** nach Aufguss-Ende |
+| 🤝 Alle anderen | bis **Folgetag 12:00 Uhr** |
 
-Nach Ablauf des Fensters verschwindet der Aufguss aus deiner „Noch zu bewerten"-Liste.
+Am Tablet siehst du nur die Aufgüsse **von heute** — ältere bewertest du in der App, solange das Fenster noch offen ist.
 
-### Anti-Fake: Anwesenheit ist Pflicht
+### Anwesenheit ist Pflicht
 
-Du kannst **nur Aufgüsse bewerten, bei denen du tatsächlich da warst**. Das System prüft `attendance_events` am Aufguss-Tag — wer nicht eingecheckt war, sieht den Aufguss nicht in seiner Liste.
+Du kannst **nur Aufgüsse bewerten, bei denen du tatsächlich da warst**. Beim ersten PIN am Tablet giltst du als anwesend; ohne diesen Check-in erscheint kein Aufguss in deiner Liste. Sonst könnte jeder alles bewerten, ohne je in der Sauna gewesen zu sein.
 
 ### Push-Reminder
 

@@ -58,7 +58,6 @@ const Datenschutz     = lazy(() => import('@/routes/Datenschutz'));
 const GastHome        = lazy(() => import('@/routes/Gast'));
 const CheckinPin      = lazy(() => import('@/routes/CheckinPin'));
 const CheckinSignup   = lazy(() => import('@/routes/CheckinSignup'));
-const CheckinRate     = lazy(() => import('@/routes/CheckinRate'));
 const Willkommen      = lazy(() => import('@/routes/Willkommen'));
 const Unterstuetzer   = lazy(() => import('@/routes/Unterstuetzer'));
 const Mitarbeiter     = lazy(() => import('@/routes/Mitarbeiter'));
@@ -132,7 +131,10 @@ export default function App() {
         <Route path="/willkommen"     element={<Willkommen />} />
         <Route path="/checkin"        element={<CheckinPin />} />
         <Route path="/checkin/signup" element={<CheckinSignup />} />
-        <Route path="/checkin/rate"   element={<CheckinRate />} />
+        {/* /checkin/rate ist mit 0137 entfallen — das Tablet bewertet jetzt
+            direkt unter /checkin, ohne Anmeldung. Alte Lesezeichen und der
+            Tablet-Browser sollen trotzdem irgendwo landen. */}
+        <Route path="/checkin/rate"   element={<Navigate to="/checkin" replace />} />
         <Route path="/me"             element={<Navigate to="/planner" replace />} />
         <Route path="/m/:code"        element={<MagicEntry />} />
         <Route path="/dev"       element={<RequireAdmin><DevIndex /></RequireAdmin>} />

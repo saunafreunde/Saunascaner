@@ -14,18 +14,27 @@ import { useNavigate } from 'react-router-dom';
 // fühlt sich wie ein Absturz an.
 export function DampfRueckkehr({
   ziel,
+  onFertig,
   verzoegerungMs = 2000,
-}: { ziel: string; verzoegerungMs?: number }) {
+}: {
+  /** Route, auf die gesprungen wird. Entfällt, wenn onFertig gesetzt ist. */
+  ziel?: string;
+  /** Alternative zum Routenwechsel — z. B. am Kiosk, wo der Bildschirm nur
+   *  in seinen Ausgangszustand zurückfällt, ohne die Route zu verlassen. */
+  onFertig?: () => void;
+  verzoegerungMs?: number;
+}) {
   const nav = useNavigate();
 
   useEffect(() => {
     const t = window.setTimeout(() => {
+      if (onFertig) { onFertig(); return; }
       // replace: sonst wirft der Zurück-Knopf einen sofort wieder in die
       // Sackgasse, aus der wir gerade herausgeholt haben.
-      nav(ziel, { replace: true });
+      if (ziel) nav(ziel, { replace: true });
     }, verzoegerungMs);
     return () => window.clearTimeout(t);
-  }, [nav, ziel, verzoegerungMs]);
+  }, [nav, ziel, onFertig, verzoegerungMs]);
 
   return (
     <>

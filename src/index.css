@@ -1651,3 +1651,34 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   .dampf-schwade { display: none; }
   .dampf-schleier { animation: dampf-schleier 2s linear forwards; }
 }
+
+/* ─── Kiosk-Frist (kiosk-*) ───────────────────────────────────────────────
+   Das Eingangs-Tablet steht öffentlich. Bleibt jemand mitten im Bewerten
+   stehen und geht weg, darf der Nächste nicht dessen Namen und Aufgüsse
+   vorfinden. Ein Balken läuft von grün nach rot ab — sichtbar, ohne zu
+   drängen — und daneben steht ein RAUS-Knopf, damit niemand warten muss.
+   transform statt width: width würde bei jedem Frame das Layout neu rechnen. */
+@keyframes kiosk-frist {
+  0%   { transform: scaleX(1);    background-color: #22c55e; }
+  55%  {                          background-color: #eab308; }
+  80%  {                          background-color: #f97316; }
+  100% { transform: scaleX(0);    background-color: #ef4444; }
+}
+.kiosk-frist-bahn {
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.kiosk-frist-balken {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  will-change: transform;
+  animation: kiosk-frist var(--kiosk-frist-dauer, 45s) linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Der Balken darf nicht verschwinden — er ist die einzige Anzeige, wie viel
+     Zeit noch bleibt. Also kein Ausblenden, nur ohne weiche Bewegung. */
+  .kiosk-frist-balken { animation-timing-function: steps(20, end); }
+}

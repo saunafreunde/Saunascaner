@@ -28,7 +28,6 @@ Diese Seiten kann **jeder** ohne Anmeldung aufrufen — typisch für Tablets, TV
 | `/oil-room` | 🛢️ Öl-Raum-Tablet für Sauna-Steuerung |
 | `/checkin` | 🔢 PIN-Eingabe am Eingangs-Tablet |
 | `/checkin/signup` | 🆕 Profil-Setup nach erstem PIN-Check-in |
-| `/checkin/rate` | ⭐ Aufguss-Bewertung am Tablet nach Besuch |
 | `/gast-signup` | 👋 Selbst-Anmeldung für Gäste via QR-Code |
 | `/m/<code>` | 🔗 Magic-Entry (Einmal-Link aus QR-Code) |
 | `/login` · `/forgot` · `/reset-password` | 🔐 Auth-Seiten |
