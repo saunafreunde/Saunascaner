@@ -5749,3 +5749,38 @@ export function useOelraumWuensche(stunden = 6) {
     refetchIntervalInBackground: true,
   });
 }
+// ─── Admin: Zugangsdaten erneut schicken / PIN neu vergeben (0133 / 0135) ───
+
+export function useResendGastAccess() {
+  return useMutation({
+    mutationFn: async (memberId: string) => {
+      const { data: sess } = await need().auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error('nicht angemeldet');
+      const r = await fetch('/api/qr-signin?action=resend-access', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ member_id: memberId }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.error ?? 'Versand fehlgeschlagen');
+      return body as { ok: true; email: string };
+    },
+  });
+}
+
+/** Neuer System-PIN. Es gibt bewusst KEINEN frei waehlbaren PIN. */
+export function useAdminRotateCheckinPin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (memberId: string) => {
+      const { data, error } = await need().rpc('admin_rotate_checkin_pin', { p_member_id: memberId });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['member'] });
+    },
+  });
+}

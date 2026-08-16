@@ -8,6 +8,8 @@ import {
   type RegalKatalog, type RegalEintrag, type SammelEintrag,
 } from '@/lib/oelraumZutaten';
 import { HaltenKnopf } from '@/components/oelraum/HaltenKnopf';
+import { useOelraumWuensche } from '@/lib/api';
+import { oelName } from '@/components/gast/DuftWunsch';
 
 /** Die Wand-Anzeige im Öl-Raum — das „Head-Pad" (Vorgabe 14.08.2026).
  *
@@ -339,6 +341,11 @@ function MahnBand({
 
 function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
   const akzent = a.sauna?.accent_color ?? '#22c55e';
+  // Gast-Wünsche zu genau diesem Aufguss (0133). Der Hook läuft in jeder
+  // Karte, react-query bündelt das über den gleichen queryKey zu EINER
+  // Abfrage. Der RPC ist anon-fähig und liefert bewusst keine Namen.
+  const wuensche = useOelraumWuensche();
+  const meineWuensche = (wuensche.data ?? []).filter((w) => w.infusion_id === a.inf.id);
   return (
     <article
       className="rounded-2xl bg-slate-900/55 px-[1.4vw] py-[1.6vh] ring-1 ring-forest-900/70 backdrop-blur-[2px]"
@@ -402,6 +409,31 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
           Noch keine Zutaten eingetragen
         </p>
       ) : null}
+
+      {/* Gast-Wünsche zu diesem Aufguss. Steht direkt unter den Zutaten,
+          weil genau hier die Entscheidung fällt, was mit ans Regal geht.
+          Bewusst als Vorschlag markiert, nicht als Anweisung — was in den
+          Kübel kommt, entscheidet der Aufgießer. */}
+      {meineWuensche.length > 0 && (
+        <div className="mt-[1vh] rounded-xl bg-amber-500/10 px-2 py-[0.7vh] ring-1 ring-amber-400/30">
+          <p className="text-[clamp(0.55rem,1vw,0.75rem)] font-semibold uppercase tracking-wider text-amber-300/85">
+            Gäste wünschen sich
+          </p>
+          <ul className="mt-[0.4vh] space-y-[0.3vh]">
+            {meineWuensche.map((w, i) => (
+              <li
+                key={`${w.oil_key}-${i}`}
+                className="truncate text-[clamp(0.75rem,1.6vw,1.1rem)] font-bold text-amber-100"
+              >
+                🌿 {oelName(w.oil_key)}
+                {w.notiz && (
+                  <span className="ml-1 font-normal italic text-amber-200/70">— {w.notiz}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {a.besonderheiten.length > 0 && (
         <div className="mt-[0.9vh] flex flex-wrap gap-1">

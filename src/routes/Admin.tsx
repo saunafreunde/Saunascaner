@@ -37,6 +37,7 @@ import {
   useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
   useMyBadges,
   useScheduleSettings, useSetScheduleSettings,
+  useResendGastAccess, useAdminRotateCheckinPin,
   type PollAnswerType, type Member,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
@@ -460,6 +461,66 @@ function MemberBadgesRow({ memberId }: { memberId: string }) {
   );
 }
 
+// Zugangsdaten erneut schicken + PIN neu vergeben (0133 / 0135).
+//
+// Beide Fälle kommen aus dem Betrieb: die Anmelde-Mail landet im Spam, oder
+// ein PIN macht die Runde. Der PIN wird dabei weiterhin vom System erzeugt —
+// einen frei wählbaren PIN gibt es bewusst nicht, sonst steht die halbe
+// Sauna auf 1234 und der appweit eindeutige Pool bricht.
+function ZugangsdatenButtons({ member }: { member: Member }) {
+  const resend = useResendGastAccess();
+  const rotate = useAdminRotateCheckinPin();
+  const [meldung, setMeldung] = useState<string | null>(null);
+
+  async function mailen() {
+    setMeldung(null);
+    try {
+      const r = await resend.mutateAsync(member.id);
+      setMeldung(`✓ an ${r.email} geschickt`);
+    } catch (e) {
+      setMeldung(`Fehlgeschlagen: ${(e as Error).message}`);
+    }
+  }
+
+  async function pinNeu() {
+    if (!window.confirm(
+      `PIN von ${member.name} neu vergeben?\n\n` +
+      'Der alte PIN gilt danach nicht mehr — am Tablet und überall sonst.'
+    )) return;
+    setMeldung(null);
+    try {
+      const neu = await rotate.mutateAsync(member.id);
+      setMeldung(`✓ neuer PIN: ${neu}`);
+    } catch (e) {
+      setMeldung(`Fehlgeschlagen: ${(e as Error).message}`);
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={mailen}
+        disabled={resend.isPending || !member.email}
+        title={member.email ? 'App-Link, PIN und Passwort-Link erneut mailen' : 'Keine E-Mail hinterlegt'}
+        className="rounded-lg bg-forest-900/60 px-3 py-1.5 text-xs font-semibold text-forest-300 ring-1 ring-forest-700/40 hover:bg-forest-900 disabled:opacity-40"
+      >
+        {resend.isPending ? '…' : '✉️ Zugang'}
+      </button>
+      <button
+        onClick={pinNeu}
+        disabled={rotate.isPending}
+        title="Neuen Tablet-PIN erzeugen"
+        className="rounded-lg bg-forest-900/60 px-3 py-1.5 text-xs font-semibold text-forest-300 ring-1 ring-forest-700/40 hover:bg-forest-900 disabled:opacity-40"
+      >
+        {rotate.isPending ? '…' : '🔢 PIN neu'}
+      </button>
+      {meldung && (
+        <span className="self-center text-[11px] text-forest-300">{meldung}</span>
+      )}
+    </>
+  );
+}
+
 type MembersFilter =
   | 'all' | 'gast' | 'member' | 'aufgieser' | 'guest_aufgieser'
   | 'staff' | 'cp_planer' | 'admin' | 'revoked';
@@ -518,9 +579,6 @@ const ROLE_PRESETS: RolePreset[] = [
   { key: 'gast',            label: 'Gast',            icon: '👋',  role: 'gast',            is_aufgieser: false,
     hint: 'Sauna-Besucher, kostenlos, App-Light',
     btnClass: 'bg-sky-600/20 text-sky-100 ring-sky-500/40 hover:bg-sky-600/30' },
-  { key: 'fan',             label: 'Fan / Förderer',  icon: '🤝',  role: 'fan',             is_aufgieser: false,
-    hint: 'Zahlt Beitrag, bekommt News + Rezepte + Ausweis',
-    btnClass: 'bg-pink-500/20 text-pink-100 ring-pink-400/50 hover:bg-pink-500/30' },
   { key: 'member',          label: 'Mitglied/Helfer', icon: '✅',  role: 'member',          is_aufgieser: false,
     hint: 'Aktiv-Mitglied (Stimmrecht, Helfer-Aufgaben)',
     btnClass: 'bg-forest-700/40 text-forest-100 ring-forest-500/40 hover:bg-forest-700/60' },
@@ -872,6 +930,9 @@ function MembersTab() {
                       </button>
                     );
                   })()}
+                  {/* Zugangsdaten + PIN (0133/0135) — für den Fall, dass die
+                      Anmelde-Mail untergegangen ist oder ein PIN kursiert. */}
+                  <ZugangsdatenButtons member={m} />
                   {/* Rolle wechseln — öffnet Preset-Panel mit allen 6 Rollen */}
                   <button
                     onClick={() => setRoleEditId(roleEditId === m.id ? null : m.id)}

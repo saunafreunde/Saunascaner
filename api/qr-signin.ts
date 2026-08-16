@@ -5,6 +5,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { authenticate } from './_auth.js';
 import { getBrandSettings, logEmailSend, sendSystemMail } from './_email_helpers.js';
 import { renderGastAccessEmail } from './_email_templates.js';
 
@@ -40,6 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (action === 'pin-checkin') return handlePinCheckin(req, res, admin);
   if (action === 'tablet-signup') return handleTabletSignup(req, res, admin);
+  if (action === 'resend-access') return handleResendAccess(req, res, admin);
 
   // Default: Mitglieder-QR-Scanner mit UUID member_code
   const code = (req.body?.member_code ?? '').trim();
@@ -234,6 +236,44 @@ async function handleTabletSignup(
     email: cleanEmail,
     mailSent,
   });
+}
+
+// ─── Admin: Zugangsdaten erneut schicken ──────────────────────────────────
+// Für den Fall, dass die Mail bei der Anmeldung untergegangen ist oder im
+// Spam landete. Schickt PIN + frischen Passwort-Link an die hinterlegte
+// Adresse — die Adresse kommt aus der Datenbank, NICHT aus dem Request:
+// sonst wäre das ein Weg, sich fremde Zugangsdaten zuschicken zu lassen.
+async function handleResendAccess(
+  req: VercelRequest,
+  res: VercelResponse,
+  admin: SupabaseClient,
+) {
+  const auth = await authenticate(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+  if (auth.member.role !== 'admin') return res.status(403).json({ error: 'nur_admin' });
+
+  const memberId = String(req.body?.member_id ?? '').trim();
+  if (!UUID_RE.test(memberId)) return res.status(400).json({ error: 'invalid_member_id' });
+
+  const { data: m, error } = await admin
+    .from('members')
+    .select('id, name, email, checkin_pin, revoked_at')
+    .eq('id', memberId)
+    .maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!m || m.revoked_at) return res.status(404).json({ error: 'unknown_or_revoked' });
+  if (!m.email) return res.status(400).json({ error: 'no_email_on_member' });
+  if (!m.checkin_pin) return res.status(400).json({ error: 'no_pin_on_member' });
+
+  const ok = await sendGastAccessMail(admin, {
+    memberId: m.id,
+    email: m.email,
+    name: m.name,
+    pin: m.checkin_pin,
+    isReturning: true,
+  });
+  if (!ok) return res.status(502).json({ error: 'mail_failed' });
+  return res.status(200).json({ ok: true, email: m.email });
 }
 
 // is_present + last_scan_at wie beim PIN-Checkin setzen. last_scan_at ist
