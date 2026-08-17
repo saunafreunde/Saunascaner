@@ -24,6 +24,8 @@ import { OilWeighingTab } from '@/components/admin/OilWeighingTab';
 import { WifiSubnetsTab } from '@/components/admin/WifiSubnetsTab';
 import { AdminAvatarManager } from '@/components/admin/AdminAvatarManager';
 import { HolidaysTab } from '@/components/admin/HolidaysTab';
+import { GaesteTab } from '@/components/admin/GaesteTab';
+import { ZugangsdatenButtons } from '@/components/admin/ZugangsdatenButtons';
 import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { SAUNA_HEADER_IMAGES } from '@/lib/saunaHeaders';
@@ -37,7 +39,6 @@ import {
   useMyCustomAttrs, useAdminDeleteCustomAttr, useToggleCustomAttrsEnabled,
   useMyBadges,
   useScheduleSettings, useSetScheduleSettings,
-  useResendGastAccess, useAdminRotateCheckinPin,
   type PollAnswerType, type Member,
 } from '@/lib/api';
 import { ALL_BADGES } from '@/lib/badges';
@@ -47,11 +48,12 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'uebersichten' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays' | 'pw_setup' | 'infokarten';
+type Tab = 'saunas' | 'members' | 'gaeste' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'uebersichten' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays' | 'pw_setup' | 'infokarten';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:       { label: 'Saunen',       icon: '🔥' },
   members:      { label: 'Mitglieder',   icon: '👥' },
+  gaeste:       { label: 'Gäste',        icon: '👋' },
   invitations:  { label: 'Einladungen',  icon: '✉️' },
   recurring:    { label: 'Stamm-Slots',  icon: '📅' },
   presence:     { label: 'Anwesenheit',  icon: '🟢' },
@@ -84,7 +86,10 @@ type Group = 'operations' | 'members' | 'reports' | 'modules' | 'setup';
 
 const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = {
   operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring', 'availability'] },
-  members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'invitations', 'shared_email', 'pw_setup'] },
+  // 'gaeste' steht bewusst an zweiter Stelle, nicht an erster: switchGroup
+  // setzt beim Gruppenwechsel hart tabs[0], und Landeplatz der Gruppe
+  // „Mitglieder" soll die Mitgliederliste bleiben.
+  members:    { label: 'Mitglieder',  icon: '👥', tabs: ['members', 'gaeste', 'invitations', 'shared_email', 'pw_setup'] },
   reports:    { label: 'Auswertung',  icon: '📊', tabs: ['stats', 'auswertungen', 'uebersichten', 'activity'] },
   modules:    { label: 'Module',      icon: '📣', tabs: ['news', 'infokarten', 'aroma', 'feed', 'polls', 'tasks', 'stage'] },
   setup:      { label: 'Setup',       icon: '🎨', tabs: ['branding', 'colors', 'oils', 'oil_weighing', 'wifi', 'holidays', 'handbook'] },
@@ -231,6 +236,7 @@ export default function Admin() {
         </div>
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}
+        {tab === 'gaeste' && <GaesteTab />}
         {tab === 'availability' && <AvailabilityOverview />}
         {tab === 'invitations' && <InvitationsTab />}
         {tab === 'recurring' && <RecurringAdminTab />}
@@ -461,65 +467,9 @@ function MemberBadgesRow({ memberId }: { memberId: string }) {
   );
 }
 
-// Zugangsdaten erneut schicken + PIN neu vergeben (0133 / 0135).
-//
-// Beide Fälle kommen aus dem Betrieb: die Anmelde-Mail landet im Spam, oder
-// ein PIN macht die Runde. Der PIN wird dabei weiterhin vom System erzeugt —
-// einen frei wählbaren PIN gibt es bewusst nicht, sonst steht die halbe
-// Sauna auf 1234 und der appweit eindeutige Pool bricht.
-function ZugangsdatenButtons({ member }: { member: Member }) {
-  const resend = useResendGastAccess();
-  const rotate = useAdminRotateCheckinPin();
-  const [meldung, setMeldung] = useState<string | null>(null);
-
-  async function mailen() {
-    setMeldung(null);
-    try {
-      const r = await resend.mutateAsync(member.id);
-      setMeldung(`✓ an ${r.email} geschickt`);
-    } catch (e) {
-      setMeldung(`Fehlgeschlagen: ${(e as Error).message}`);
-    }
-  }
-
-  async function pinNeu() {
-    if (!window.confirm(
-      `PIN von ${member.name} neu vergeben?\n\n` +
-      'Der alte PIN gilt danach nicht mehr — am Tablet und überall sonst.'
-    )) return;
-    setMeldung(null);
-    try {
-      const neu = await rotate.mutateAsync(member.id);
-      setMeldung(`✓ neuer PIN: ${neu}`);
-    } catch (e) {
-      setMeldung(`Fehlgeschlagen: ${(e as Error).message}`);
-    }
-  }
-
-  return (
-    <>
-      <button
-        onClick={mailen}
-        disabled={resend.isPending || !member.email}
-        title={member.email ? 'App-Link, PIN und Passwort-Link erneut mailen' : 'Keine E-Mail hinterlegt'}
-        className="rounded-lg bg-forest-900/60 px-3 py-1.5 text-xs font-semibold text-forest-300 ring-1 ring-forest-700/40 hover:bg-forest-900 disabled:opacity-40"
-      >
-        {resend.isPending ? '…' : '✉️ Zugang'}
-      </button>
-      <button
-        onClick={pinNeu}
-        disabled={rotate.isPending}
-        title="Neuen Tablet-PIN erzeugen"
-        className="rounded-lg bg-forest-900/60 px-3 py-1.5 text-xs font-semibold text-forest-300 ring-1 ring-forest-700/40 hover:bg-forest-900 disabled:opacity-40"
-      >
-        {rotate.isPending ? '…' : '🔢 PIN neu'}
-      </button>
-      {meldung && (
-        <span className="self-center text-[11px] text-forest-300">{meldung}</span>
-      )}
-    </>
-  );
-}
+// ZugangsdatenButtons liegt seit dem Gäste-Reiter (0147) in
+// @/components/admin/ZugangsdatenButtons — beide Reiter brauchen die Knöpfe,
+// und ein Import quer zwischen hier und dem Tab wäre ein Import-Zyklus.
 
 type MembersFilter =
   | 'all' | 'gast' | 'member' | 'aufgieser' | 'guest_aufgieser'

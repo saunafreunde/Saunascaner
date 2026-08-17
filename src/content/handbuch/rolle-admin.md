@@ -19,7 +19,7 @@ Du hast Vollzugriff auf alle Bereiche und kannst über [/admin](/admin) die App 
 17 Tabs in 5 Gruppen — Direkt-Sprung zu jedem Tab:
 
 **🔥 Operations** [Saunen](/admin#saunas) · [Anwesenheit](/admin#presence) · [Stamm-Slots](/admin#recurring)
-**👥 Mitglieder** [Mitgliederliste](/admin#members) · [Einladungen](/admin#invitations) · [📧 Vereins-Postfach](/admin#shared_email)
+**👥 Mitglieder** [Mitgliederliste](/admin#members) · [Gäste](/admin#gaeste) · [Einladungen](/admin#invitations) · [📧 Vereins-Postfach](/admin#shared_email)
 **📊 Auswertung** [Statistik](/admin#stats) · [Auswertungen](/admin#auswertungen) · [📋 Aktivitäts-Log](/admin#activity)
 **📣 Module** [📣 News](/admin#news) · [🌿 Aroma-Rezepte](/admin#aroma) · [📸 Feed](/admin#feed) · [📋 Abfragen](/admin#polls) · [🤝 Aufgaben](/admin#tasks) · [🎭 Bühne](/admin#stage)
 **🎨 Setup** [Branding](/admin#branding) · [🎨 Farben](/admin#colors) · [🚫 Öle deaktivieren](/admin#oils) · [Handbuch](/admin#handbook) · [🧹 Cache-Reload](/admin#system)
@@ -101,6 +101,7 @@ Push geht **automatisch** an alle berechtigten Member (DB-Trigger).
 | 🟢 Anwesenheit | [/admin#presence](/admin#presence) | Live-Anwesenheit, manuelle Korrekturen |
 | 📅 Stamm-Slots | [/admin#recurring](/admin#recurring) | Recurring-Slot-Anträge freigeben |
 | 👥 Mitglieder | [/admin#members](/admin#members) | Rollen-Wechsel, Fan-Anträge, Sperren, Ausweise |
+| 👋 Gäste | [/admin#gaeste](/admin#gaeste) | Wer ist neu, wer kommt wieder, wer ist Karteileiche — plus Zugang mailen, PIN neu, zum Mitglied machen |
 | ✉️ Einladungen | [/admin#invitations](/admin#invitations) | 7 Rollen-Buttons für Einladungs-Versand |
 | 📊 Statistik | [/admin#stats](/admin#stats) | Aufguss-Stats pro Aufgießer/Monat |
 | 📈 Auswertungen | [/admin#auswertungen](/admin#auswertungen) | 20 Charts (Aufgießer/Aktivität/Aromen/Mitglieder/Bewertungen/Social) |

@@ -5771,6 +5771,50 @@ export function useOelraumWuensche(stunden = 6) {
     refetchIntervalInBackground: true,
   });
 }
+// ─── Admin: Gäste-Übersicht (0147) ──────────────────────────────────────────
+
+/** Eine Zeile der Gäste-Beobachtungsliste. `status` wird in SQL vergeben,
+ *  damit die Einstufung überall dieselbe ist — Schwellwerte stehen im
+ *  COMMENT der Funktion. */
+export type GastRow = {
+  id: string;
+  name: string;
+  sauna_name: string | null;
+  member_number: number | null;
+  email: string | null;
+  gast_seit: string;
+  herkunft: string;
+  besuchstage: number;
+  letzter_besuch: string | null;
+  bewertungen: number;
+  app_geoeffnet: boolean;
+  zuletzt_gesehen: string | null;
+  hat_pin: boolean;
+  revoked_at: string | null;
+  status: 'neu' | 'stammgast' | 'beobachten' | 'nie_da' | 'karteileiche' | 'mitglied_geworden';
+};
+
+/** Zwei Details, die nicht zufällig sind:
+ *
+ *  - Der Query-Key beginnt mit 'members', damit die bestehenden Mutationen
+ *    (Rolle ändern, löschen, PIN neu) den Reiter per Prefix-Match mit
+ *    auffrischen. So muss kein einziger vorhandener Hook angefasst werden.
+ *  - refetchInterval, weil der neue Gast an einem ANDEREN Gerät steht: er
+ *    meldet sich am Eingangs-Tablet an, während der Admin auf diese Liste
+ *    schaut. Ohne Polling erschiene er erst nach einem Reload. */
+export function useGaesteUebersicht() {
+  return useQuery({
+    queryKey: ['members', 'gaeste-uebersicht'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('list_gaeste_uebersicht');
+      if (error) throw error;
+      return (data ?? []) as GastRow[];
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
 // ─── Admin: Zugangsdaten erneut schicken / PIN neu vergeben (0133 / 0135) ───
 
 export function useResendGastAccess() {
