@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -10,6 +10,8 @@ import { KioskBewerten, type BewertbarerAufguss } from '@/components/kiosk/Kiosk
 // Anwesenheit und öffnet die Bewertungs-Liste des Tages — beides über eng
 // gefasste Kiosk-RPCs, die nur der Server aufrufen darf. Es entsteht keine
 // Session; von hier kommt niemand ins Profil oder in die Nachrichten.
+const FRIST_MS = 10_000;
+
 export default function CheckinPin() {
   const nav = useNavigate();
   const brand = useBrandSettings();
@@ -19,24 +21,22 @@ export default function CheckinPin() {
   const [sitzung, setSitzung] = useState<{
     pin: string; name: string; warSchonDa: boolean; aufguesse: BewertbarerAufguss[];
   } | null>(null);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Neuer Schlüssel = CSS-Animation des Frist-Balkens startet neu (Muster: KioskBewerten).
+  const [fristKey, setFristKey] = useState(0);
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
 
-  // Idle-Reset: nach 30s ohne Eingabe PIN zurücksetzen
-  const resetIdleTimer = () => {
-    if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => {
-      setPin('');
-      setError(null);
-    }, 30_000);
-  };
+  const fristNeu = () => setFristKey((k) => k + 1);
 
+  // Leerlauf am PIN-Pad: nach 10s ohne Tastendruck zurück zur Landing-Page.
+  // Läuft nur solange die nackte PIN-Eingabe zu sehen ist — sobald eingecheckt
+  // ist (sitzung gesetzt), übernimmt KioskBewerten seine eigene 45s-Frist.
   useEffect(() => {
-    resetIdleTimer();
-    return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
-  }, []);
+    if (sitzung) return;
+    const t = window.setTimeout(() => nav('/willkommen', { replace: true }), FRIST_MS);
+    return () => window.clearTimeout(t);
+  }, [fristKey, sitzung, nav]);
 
   // Beim Mounten: Falls noch eine Tablet-Session aktiv ist → ausloggen.
   // scope:'local' — nur das Tablet, NICHT die Tokens des Members auf anderen Geräten.
@@ -46,7 +46,7 @@ export default function CheckinPin() {
 
   const handleKey = (k: string) => {
     setError(null);
-    resetIdleTimer();
+    fristNeu();
     if (k === '⌫') return setPin((p) => p.slice(0, -1));
     if (k === 'C') return setPin('');
     if (pin.length >= 4) return;
@@ -124,6 +124,17 @@ export default function CheckinPin() {
           </h1>
           <p className="mt-1 text-center text-sm text-forest-300/80">
             Gib deinen 4-stelligen PIN ein
+          </p>
+
+          <div className="kiosk-frist-bahn mt-4" aria-hidden>
+            <div
+              key={fristKey}
+              className="kiosk-frist-balken"
+              style={{ ['--kiosk-frist-dauer' as string]: `${FRIST_MS}ms` }}
+            />
+          </div>
+          <p className="mt-1.5 text-center text-[11px] text-forest-600">
+            Der Bildschirm springt von selbst zurück. Jeder Tastendruck gibt wieder Zeit.
           </p>
 
           {/* PIN-Display */}

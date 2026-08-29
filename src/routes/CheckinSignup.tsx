@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
 
 // /checkin/signup — Schnell-Anmeldung am Tablet.
 // Name + Email + DSGVO → Backend erstellt Gast-Account, gibt PIN aus.
+const FRIST_MS = 10_000;
+
 export default function CheckinSignup() {
   const nav = useNavigate();
   const brand = useBrandSettings();
@@ -15,9 +17,22 @@ export default function CheckinSignup() {
   const [pinResult, setPinResult] = useState<
     { pin: string; name: string; existing: boolean; mailSent: boolean } | null
   >(null);
+  // Neuer Schlüssel = CSS-Animation des Frist-Balkens startet neu (Muster: KioskBewerten).
+  const [fristKey, setFristKey] = useState(0);
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
+
+  const fristNeu = () => setFristKey((k) => k + 1);
+
+  // Leerlauf im Formular: nach 10s ohne Eingabe zurück zur Landing-Page.
+  // Pausiert während einer laufenden Anmeldung (busy) und sobald der PIN
+  // angezeigt wird (pinResult) — der Gast soll den PIN in Ruhe lesen können.
+  useEffect(() => {
+    if (busy || pinResult) return;
+    const t = window.setTimeout(() => nav('/willkommen', { replace: true }), FRIST_MS);
+    return () => window.clearTimeout(t);
+  }, [fristKey, busy, pinResult, nav]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -122,13 +137,24 @@ export default function CheckinSignup() {
             Damit du Aufgüsse mitbewerten kannst — dauert 30 Sekunden.
           </p>
 
+          <div className="kiosk-frist-bahn mt-4" aria-hidden>
+            <div
+              key={fristKey}
+              className="kiosk-frist-balken"
+              style={{ ['--kiosk-frist-dauer' as string]: `${FRIST_MS}ms` }}
+            />
+          </div>
+          <p className="mt-1.5 text-center text-[11px] text-forest-600">
+            Der Bildschirm springt von selbst zurück. Jede Eingabe gibt wieder Zeit.
+          </p>
+
           <form onSubmit={submit} className="mt-5 space-y-4">
             <div>
               <label className="block text-xs font-medium text-forest-300 mb-1">Wie heißt du?</label>
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => { setName(e.target.value); fristNeu(); }}
                 placeholder="Vorname (oder Spitzname)"
                 className="w-full rounded-xl bg-forest-900/70 ring-1 ring-forest-700/60 px-4 py-3 text-forest-100 placeholder-forest-500 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
                 required
@@ -140,7 +166,7 @@ export default function CheckinSignup() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); fristNeu(); }}
                 placeholder="du@example.de"
                 className="w-full rounded-xl bg-forest-900/70 ring-1 ring-forest-700/60 px-4 py-3 text-forest-100 placeholder-forest-500 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
                 required
@@ -151,7 +177,7 @@ export default function CheckinSignup() {
               <input
                 type="checkbox"
                 checked={dsgvo}
-                onChange={(e) => setDsgvo(e.target.checked)}
+                onChange={(e) => { setDsgvo(e.target.checked); fristNeu(); }}
                 className="mt-0.5 h-4 w-4 rounded border-forest-600 bg-forest-900 text-amber-500"
               />
               <span>
