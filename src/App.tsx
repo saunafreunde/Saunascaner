@@ -11,6 +11,7 @@ import { AreaHubGate } from '@/components/AreaHubGate';
 import { AppReloadWatcher } from '@/components/AppReloadWatcher';
 import { ErrorBoundary, TafelErrorFallback } from '@/components/ErrorBoundary';
 import { useAutoCheckin } from '@/hooks/useAutoCheckin';
+import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows
 const NO_BOTTOM_NAV_PATHS = [
@@ -31,6 +32,25 @@ function BottomNavGate() {
   const { pathname } = useLocation();
   if (!shouldShowBottomNav(pathname)) return null;
   return <MobileBottomNav />;
+}
+
+// Eingangs-/Gäste-Tablet: /willkommen ⇄ /checkin ⇄ /checkin/signup sind EIN
+// durchgehender Kiosk-Bildschirm. useFullscreenLock() muss darum hier leben
+// statt in den einzelnen Routen-Komponenten — sonst verlässt der Hook beim
+// Unmount jeder Einzelseite das Vollbild und der nächste Tap muss es erst
+// wieder neu erzwingen (Vorbild für das Muster: OilRoom.tsx). Solange der
+// Pfad in der Liste bleibt, bleibt dieselbe Runner-Instanz gemountet.
+const KIOSK_FULLSCREEN_PATHS = ['/willkommen', '/checkin', '/checkin/signup'];
+
+function KioskFullscreenRunner() {
+  useFullscreenLock();
+  return null;
+}
+
+function KioskFullscreenGate() {
+  const { pathname } = useLocation();
+  if (!KIOSK_FULLSCREEN_PATHS.includes(pathname)) return null;
+  return <KioskFullscreenRunner />;
 }
 
 // Eager-loaded routes (für sofortige Verfügbarkeit)
@@ -145,6 +165,7 @@ export default function App() {
         <AreaHubGate />
       </div>
       <BottomNavGate />
+      <KioskFullscreenGate />
     </Suspense>
     </ErrorBoundary>
   );
