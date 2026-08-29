@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
+import { KioskBewerten, type BewertbarerAufguss } from '@/components/kiosk/KioskBewerten';
 
 // /checkin/signup — Schnell-Anmeldung am Tablet.
 // Name + Email + DSGVO → Backend erstellt Gast-Account, gibt PIN aus.
 const FRIST_MS = 10_000;
+// Auf der PIN-Anzeige länger als am Formular — der Gast muss die vier
+// Ziffern erst lesen (und sich ggf. merken), bevor der Bildschirm springt.
+const FRIST_PIN_MS = 20_000;
 
 export default function CheckinSignup() {
   const nav = useNavigate();
@@ -15,8 +19,11 @@ export default function CheckinSignup() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pinResult, setPinResult] = useState<
-    { pin: string; name: string; existing: boolean; mailSent: boolean } | null
+    { pin: string; name: string; existing: boolean; mailSent: boolean; bewertbar: BewertbarerAufguss[] } | null
   >(null);
+  // Direkt ins Bewerten springen, ohne den gerade erhaltenen PIN erneut
+  // eintippen zu müssen — der Server hat ihn uns schon mitgegeben.
+  const [bewerten, setBewerten] = useState(false);
   // Neuer Schlüssel = CSS-Animation des Frist-Balkens startet neu (Muster: KioskBewerten).
   const [fristKey, setFristKey] = useState(0);
 
@@ -24,15 +31,16 @@ export default function CheckinSignup() {
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
 
   const fristNeu = () => setFristKey((k) => k + 1);
+  const fristDauerMs = pinResult ? FRIST_PIN_MS : FRIST_MS;
 
-  // Leerlauf im Formular: nach 10s ohne Eingabe zurück zur Landing-Page.
-  // Pausiert während einer laufenden Anmeldung (busy) und sobald der PIN
-  // angezeigt wird (pinResult) — der Gast soll den PIN in Ruhe lesen können.
+  // Leerlauf: nach Ablauf zurück zur Landing-Page. Pausiert während einer
+  // laufenden Anmeldung (busy) und sobald direkt ins Bewerten gesprungen
+  // wurde — dort läuft KioskBewertens eigene 45s-Frist.
   useEffect(() => {
-    if (busy || pinResult) return;
-    const t = window.setTimeout(() => nav('/willkommen', { replace: true }), FRIST_MS);
+    if (busy || bewerten) return;
+    const t = window.setTimeout(() => nav('/willkommen', { replace: true }), fristDauerMs);
     return () => window.clearTimeout(t);
-  }, [fristKey, busy, pinResult, nav]);
+  }, [fristKey, busy, bewerten, fristDauerMs, nav]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +62,9 @@ export default function CheckinSignup() {
         name: data.name,
         existing: !!data.existing,
         mailSent: !!data.mailSent,
+        bewertbar: data.bewertbar ?? [],
       });
+      fristNeu();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -62,9 +72,24 @@ export default function CheckinSignup() {
     }
   }
 
+  if (pinResult && bewerten) {
+    return (
+      <KioskBewerten
+        pin={pinResult.pin}
+        name={pinResult.name}
+        warSchonDa={pinResult.existing}
+        aufguesse={pinResult.bewertbar}
+        onRaus={() => nav('/willkommen', { replace: true })}
+      />
+    );
+  }
+
   if (pinResult) {
     return (
-      <div className="min-h-screen bg-schwarzwald-soft flex items-center justify-center p-6">
+      <div
+        className="min-h-screen bg-schwarzwald-soft flex items-center justify-center p-6"
+        onPointerDown={fristNeu}
+      >
         <div className="max-w-md w-full">
           <div className="rounded-3xl bg-forest-950/85 ring-1 ring-amber-500/40 p-7 backdrop-blur text-center">
             <div className="text-6xl mb-3">{pinResult.existing ? '👋' : '🎉'}</div>
@@ -77,6 +102,17 @@ export default function CheckinSignup() {
               {pinResult.existing
                 ? 'Du hast bereits einen Account. Hier ist dein PIN:'
                 : 'Dein Konto ist aktiv. Notiere dir deinen PIN:'}
+            </p>
+
+            <div className="kiosk-frist-bahn mt-4" aria-hidden>
+              <div
+                key={fristKey}
+                className="kiosk-frist-balken"
+                style={{ ['--kiosk-frist-dauer' as string]: `${fristDauerMs}ms` }}
+              />
+            </div>
+            <p className="mt-1.5 text-center text-[11px] text-forest-600">
+              Der Bildschirm springt von selbst zurück. Jede Berührung gibt wieder Zeit.
             </p>
 
             <div className="mt-6 flex justify-center gap-3">
@@ -112,12 +148,20 @@ export default function CheckinSignup() {
               )}
             </div>
 
-            <button
-              onClick={() => nav('/checkin')}
-              className="mt-6 w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-3 font-semibold text-amber-950 hover:from-amber-400 hover:to-amber-500"
-            >
-              ✓ Verstanden, zurück zur Anmeldung
-            </button>
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                onClick={() => setBewerten(true)}
+                className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-3 font-semibold text-amber-950 hover:from-amber-400 hover:to-amber-500"
+              >
+                ⭐ Jetzt bewerten
+              </button>
+              <button
+                onClick={() => nav('/willkommen', { replace: true })}
+                className="w-full rounded-xl bg-forest-900/70 ring-1 ring-forest-700/50 px-4 py-3 text-sm font-semibold text-forest-200 hover:bg-forest-800"
+              >
+                Fertig — zurück zur Startseite
+              </button>
+            </div>
           </div>
         </div>
       </div>

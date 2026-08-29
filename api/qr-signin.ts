@@ -219,6 +219,7 @@ async function handleTabletSignup(
         name: memberRow.name,
         role: memberRow.role,
         mailSent,
+        bewertbar: await ladeBewertbar(admin, memberRow.checkin_pin),
       });
     }
   }
@@ -275,6 +276,7 @@ async function handleTabletSignup(
     name: cleanName,
     email: cleanEmail,
     mailSent,
+    bewertbar: await ladeBewertbar(admin, pin),
   });
 }
 
