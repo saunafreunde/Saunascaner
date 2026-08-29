@@ -125,7 +125,10 @@ export default function CheckinSignup() {
   }
 
   return (
-    <div className="min-h-screen bg-schwarzwald-soft flex items-center justify-center p-6">
+    <div
+      className="min-h-screen bg-schwarzwald-soft flex items-center justify-center p-6"
+      onPointerDown={fristNeu}
+    >
       <div className="max-w-md w-full">
         <div className="flex justify-center mb-6">
           <img src={logoUrl ?? '/icons/icon-512.png'} alt={orgName} className="h-20 w-auto rounded-2xl drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)]" />
