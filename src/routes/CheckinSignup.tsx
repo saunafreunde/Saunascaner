@@ -172,7 +172,7 @@ export default function CheckinSignup() {
                 {busy ? 'Anmelden…' : '🎉 Anmelden + PIN bekommen'}
               </button>
               <Link
-                to="/checkin"
+                to="/willkommen"
                 className="rounded-xl bg-forest-900/70 ring-1 ring-forest-700/50 px-4 py-3 text-sm text-forest-300 hover:bg-forest-800"
               >
                 Zurück
