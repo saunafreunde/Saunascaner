@@ -92,11 +92,11 @@ export default function CheckinPin() {
     }
   }
 
-  function zurueckZurPin() {
-    setSitzung(null);
-    setPin('');
-    setError(null);
-    resetIdleTimer();
+  // Nach Idle-Timeout oder abgeschlossener Bewertung geht es zurück zur
+  // Landing-Page (zwei Touch-Kacheln), nicht nur zur nackten PIN-Eingabe auf
+  // derselben Seite — /checkin wird ausschließlich von dort aus betreten.
+  function zurueckZuWillkommen() {
+    nav('/willkommen', { replace: true });
   }
 
   if (sitzung) {
@@ -106,7 +106,7 @@ export default function CheckinPin() {
         name={sitzung.name}
         warSchonDa={sitzung.warSchonDa}
         aufguesse={sitzung.aufguesse}
-        onRaus={zurueckZurPin}
+        onRaus={zurueckZuWillkommen}
       />
     );
   }
