@@ -1682,6 +1682,42 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   color: rgba(134, 168, 140, 0.75);
 }
 
+/* Foto der Kabine rechts neben den Ölen — dieselbe Sprache wie der Kopf der
+   TV-Tafel (SaunaTileColumn): 2:1-Kachel am rechten Rand, `cover`, und links
+   eine weiche Maske, die sie in die Karte hineinblendet statt sie mit einer
+   harten Kante danebenzustellen.
+
+   Die Breite entscheidet eine CONTAINER-Query, keine Media-Query: ob rechts
+   Platz ist, hängt an der Breite DIESER Karte, und die halbiert bzw. drittelt
+   sich, sobald zwei oder drei Saunen gleichzeitig aufgießen. Unter der Schwelle
+   fällt das Foto ersatzlos weg — die Öle sind der Grund, warum das Gerät hängt,
+   sie dürfen nie Breite an ein Dekorbild verlieren. */
+.oel-karte { container-type: inline-size; }
+
+.oel-karte-mitte {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(0.5rem, 1.2vw, 1.2rem);
+}
+
+.oel-kabine { display: none; }
+
+@container (min-width: 30rem) {
+  .oel-kabine {
+    display: block;
+    /* Knapp ein Drittel — durch die Maske ist davon rund ein Viertel voll
+       sichtbar, der Rest läuft weich aus. */
+    flex: 0 0 32%;
+    align-self: stretch;
+    min-height: clamp(4.5rem, 13vh, 8.5rem);
+    border-radius: 0.9rem;
+    background-size: cover;
+    background-position: center;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 26%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 26%);
+  }
+}
+
 /* ─── Dampf-Rückkehr (dampf-*) ────────────────────────────────────────────
    Sackgassen-Bildschirme (z. B. „Alles bewertet — danke!") haben weder
    Kopfzeile noch Zurück-Knopf. Statt einen Knopf danebenzusetzen, zieht

@@ -348,7 +348,7 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
   const meineWuensche = (wuensche.data ?? []).filter((w) => w.infusion_id === a.inf.id);
   return (
     <article
-      className="rounded-2xl bg-slate-900/55 px-[1.4vw] py-[1.6vh] ring-1 ring-forest-900/70 backdrop-blur-[2px]"
+      className="oel-karte rounded-2xl bg-slate-900/55 px-[1.4vw] py-[1.6vh] ring-1 ring-forest-900/70 backdrop-blur-[2px]"
       style={{ borderLeft: `4px solid ${akzent}` }}
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -377,41 +377,59 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
         {a.inf.title}
       </p>
 
-      {/* Die Öle DIESES Aufgusses — das Kernstück der Karte (Vorgabe
-          14.08.2026): jeder sieht, welcher Aufguss welche Öle hat, damit am
-          Regal nicht die falschen gegriffen werden. */}
-      {a.zutaten.length > 0 ? (
-        <Zutaten zutaten={a.zutaten} />
-      ) : a.status !== 'vollstaendig' ? (
-        <p className="mt-[1vh] text-[clamp(0.8rem,1.7vw,1.15rem)] font-bold text-rose-300">
-          Noch keine Zutaten eingetragen
-        </p>
-      ) : null}
+      {/* Zutaten links, Foto der Kabine rechts daneben.
+          Das Foto ist reine Wiedererkennung und darf den Ölen nie Breite
+          wegnehmen: es blendet sich per Container-Query erst ein, wenn die
+          Karte breit genug ist (bei zwei oder drei gleichzeitigen Saunen ist
+          sie das nicht). Deshalb Container-Query und nicht `vw` — es zählt
+          die Breite DIESER Karte, nicht die des Bildschirms. */}
+      <div className="oel-karte-mitte">
+        <div className="min-w-0 flex-1">
+          {/* Die Öle DIESES Aufgusses — das Kernstück der Karte (Vorgabe
+              14.08.2026): jeder sieht, welcher Aufguss welche Öle hat, damit am
+              Regal nicht die falschen gegriffen werden. */}
+          {a.zutaten.length > 0 ? (
+            <Zutaten zutaten={a.zutaten} />
+          ) : a.status !== 'vollstaendig' ? (
+            <p className="mt-[1vh] text-[clamp(0.8rem,1.7vw,1.15rem)] font-bold text-rose-300">
+              Noch keine Zutaten eingetragen
+            </p>
+          ) : null}
 
-      {/* Gast-Wünsche zu diesem Aufguss. Steht direkt unter den Zutaten,
-          weil genau hier die Entscheidung fällt, was mit ans Regal geht.
-          Bewusst als Vorschlag markiert, nicht als Anweisung — was in den
-          Kübel kommt, entscheidet der Aufgießer. */}
-      {meineWuensche.length > 0 && (
-        <div className="mt-[1vh] rounded-xl bg-amber-500/10 px-2 py-[0.7vh] ring-1 ring-amber-400/30">
-          <p className="text-[clamp(0.55rem,1vw,0.75rem)] font-semibold uppercase tracking-wider text-amber-300/85">
-            Gäste wünschen sich
-          </p>
-          <ul className="mt-[0.4vh] space-y-[0.3vh]">
-            {meineWuensche.map((w, i) => (
-              <li
-                key={`${w.oil_key}-${i}`}
-                className="truncate text-[clamp(0.75rem,1.6vw,1.1rem)] font-bold text-amber-100"
-              >
-                🌿 {oelName(w.oil_key)}
-                {w.notiz && (
-                  <span className="ml-1 font-normal italic text-amber-200/70">— {w.notiz}</span>
-                )}
-              </li>
-            ))}
-          </ul>
+          {/* Gast-Wünsche zu diesem Aufguss. Steht direkt unter den Zutaten,
+              weil genau hier die Entscheidung fällt, was mit ans Regal geht.
+              Bewusst als Vorschlag markiert, nicht als Anweisung — was in den
+              Kübel kommt, entscheidet der Aufgießer. */}
+          {meineWuensche.length > 0 && (
+            <div className="mt-[1vh] rounded-xl bg-amber-500/10 px-2 py-[0.7vh] ring-1 ring-amber-400/30">
+              <p className="text-[clamp(0.55rem,1vw,0.75rem)] font-semibold uppercase tracking-wider text-amber-300/85">
+                Gäste wünschen sich
+              </p>
+              <ul className="mt-[0.4vh] space-y-[0.3vh]">
+                {meineWuensche.map((w, i) => (
+                  <li
+                    key={`${w.oil_key}-${i}`}
+                    className="truncate text-[clamp(0.75rem,1.6vw,1.1rem)] font-bold text-amber-100"
+                  >
+                    🌿 {oelName(w.oil_key)}
+                    {w.notiz && (
+                      <span className="ml-1 font-normal italic text-amber-200/70">— {w.notiz}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-      )}
+
+        {a.sauna?.header_image && (
+          <div
+            aria-hidden
+            className="oel-kabine"
+            style={{ backgroundImage: `url(${JSON.stringify(a.sauna.header_image)})` }}
+          />
+        )}
+      </div>
 
       {a.besonderheiten.length > 0 && (
         <div className="mt-[0.9vh] flex flex-wrap gap-1">
