@@ -381,29 +381,7 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
           14.08.2026): jeder sieht, welcher Aufguss welche Öle hat, damit am
           Regal nicht die falschen gegriffen werden. */}
       {a.zutaten.length > 0 ? (
-        <ul className="mt-[1vh] space-y-[0.6vh]">
-          {a.zutaten.map((z) => (
-            <li key={z.key} className="flex items-center gap-2">
-              <span
-                className="grid h-[clamp(1.9rem,5vh,3.2rem)] w-[clamp(1.9rem,5vh,3.2rem)] shrink-0 place-items-center rounded-lg text-[clamp(1rem,2.7vh,1.8rem)] font-black tabular-nums leading-none"
-                style={{
-                  background: `${z.farbe}22`,
-                  color: z.nummer !== null ? z.farbe : undefined,
-                  boxShadow: `inset 0 0 0 2px ${z.farbe}66`,
-                }}
-              >
-                {z.nummer ?? <span aria-hidden>{z.emoji}</span>}
-              </span>
-              <span className="min-w-0 truncate text-[clamp(0.85rem,1.9vw,1.3rem)] font-bold text-slate-50">
-                {z.nummer !== null && <span aria-hidden className="mr-1">{z.emoji}</span>}
-                {z.name}
-              </span>
-              <span className="ml-auto shrink-0 text-[clamp(0.55rem,1vw,0.75rem)] uppercase tracking-wider text-forest-400/75">
-                {artLabel(z.art)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <Zutaten zutaten={a.zutaten} />
       ) : a.status !== 'vollstaendig' ? (
         <p className="mt-[1vh] text-[clamp(0.8rem,1.7vw,1.15rem)] font-bold text-rose-300">
           Noch keine Zutaten eingetragen
@@ -455,6 +433,79 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
 function artLabel(art: RegalEintrag['art']): string {
   return art === 'oel' ? 'Öl' : art === 'eigenes_oel' ? 'eigenes Öl'
     : art === 'sud' ? 'Sud' : art === 'raeucher' ? 'Räucherwerk' : 'Schnaps';
+}
+
+/** Die Zutaten einer Sauna-Karte, in zwei Blöcken.
+ *
+ *  Oben die Öle als ABLAUF — Runde 1, 2, 3 untereinander, durch einen Faden
+ *  verbunden. Bis zum 30.08.2026 standen sie nach Regalnummer sortiert da;
+ *  damit ging verloren, welches Öl in welchen Durchgang gehört, obwohl genau
+ *  das beim Planen eingestellt wird.
+ *
+ *  Darunter, abgesetzt, alles was zum ganzen Aufguss gehört statt zu einer
+ *  Runde: Sud, Räucherwerk, Schnaps. */
+function Zutaten({ zutaten }: { zutaten: RegalEintrag[] }) {
+  const oele = zutaten.filter((z) => z.runde !== null);
+  const zugaben = zutaten.filter((z) => z.runde === null);
+
+  return (
+    <div className="mt-[1.2vh]">
+      {oele.length > 0 && (
+        <ol className="oel-runden">
+          {oele.map((z) => (
+            <li key={z.key} className="oel-runde">
+              <span className="oel-runde-marke" title={`Runde ${z.runde}`}>{z.runde}</span>
+              <span
+                className="oel-flasche"
+                style={{
+                  background: `${z.farbe}1f`,
+                  color: z.nummer !== null ? z.farbe : undefined,
+                  boxShadow: `inset 0 0 0 2px ${z.farbe}5c`,
+                }}
+              >
+                {z.nummer ?? <span aria-hidden>{z.emoji}</span>}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="oel-name block truncate">
+                  {z.nummer !== null && <span aria-hidden className="mr-1.5 opacity-90">{z.emoji}</span>}
+                  {z.name}
+                </span>
+                <span className="oel-unterzeile block truncate">
+                  {z.nummer !== null ? `${artLabel(z.art)} · Regal ${z.nummer}` : artLabel(z.art)}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {zugaben.length > 0 && (
+        <ul
+          className={`space-y-[0.55vh] ${
+            oele.length > 0 ? 'mt-[1.1vh] border-t border-forest-800/50 pt-[1.1vh]' : ''
+          }`}
+        >
+          {zugaben.map((z) => (
+            <li key={z.key} className="flex items-center gap-[0.6vw]">
+              <span
+                aria-hidden
+                className="grid h-[clamp(1.5rem,3.6vh,2.3rem)] w-[clamp(1.5rem,3.6vh,2.3rem)] shrink-0 place-items-center rounded-lg text-[clamp(0.85rem,2.1vh,1.35rem)] leading-none"
+                style={{ background: `${z.farbe}1f`, boxShadow: `inset 0 0 0 2px ${z.farbe}4d` }}
+              >
+                {z.emoji}
+              </span>
+              <span className="min-w-0 truncate text-[clamp(0.78rem,1.7vw,1.15rem)] font-semibold text-slate-100">
+                {z.name}
+              </span>
+              <span className="ml-auto shrink-0 text-[clamp(0.55rem,1vw,0.75rem)] uppercase tracking-wider text-forest-400/75">
+                {artLabel(z.art)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 /** Ein Regal-Etikett im Sammel-Lauf. Steht IMMER dabei, für welche Sauna —

@@ -27,6 +27,11 @@ export interface RegalEintrag {
   /** Die Regalnummer. Nur die Standard-Öle haben eine — alles andere steht
    *  woanders und bekommt bewusst keine erfundene Nummer. */
   nummer: number | null;
+  /** Der Aufguss-Durchgang, 1-basiert. Nur Öle haben einen: `oils[0]` ist
+   *  Runde 1 (so bietet es der OilPicker an, so trägt es der Öl-Raum ein).
+   *  Sud, Räucherwerk und Schnaps gehören zum ganzen Aufguss, nicht zu einer
+   *  Runde — sie bleiben `null`. */
+  runde: number | null;
   emoji: string;
   name: string;
   farbe: string;
@@ -58,7 +63,17 @@ const GRUPPEN_RANG: Record<RegalArt, number> = {
 const FARBE_OEL = '#d9a441';
 const FARBE_SCHNAPS = '#b45309';
 
-/** Alle greifbaren Zutaten EINES Aufgusses, in Regal-Reihenfolge.
+/** Alle greifbaren Zutaten EINES Aufgusses.
+ *
+ *  Die Öle stehen in ihrer GEPLANTEN Reihenfolge, weil das die Reihenfolge der
+ *  Aufguss-Runden ist — `oils[0]` ist Runde 1. Sie nach Regalnummer zu
+ *  sortieren (so lief es bis zum 30.08.2026) hat genau die Information
+ *  zerstört, für die man im Öl-Raum steht: welches Öl im ersten, zweiten,
+ *  dritten Durchgang in den Kübel geht. Erst danach folgen Sud, Räucherwerk
+ *  und Schnaps — die gehören zum ganzen Aufguss und dürfen sortiert bleiben.
+ *
+ *  Der Sammel-Lauf (`sammelListe`) sortiert weiterhin nach Regal: dort geht es
+ *  um den Weg durchs Regal, nicht um den Ablauf im Saunaraum.
  *
  *  Bewusst ohne den „sein Stil"-Fallback der InfusionCard: der füllt leere
  *  Aufgüsse mit den Lieblingszutaten des Aufgießers auf. Auf der Tafel ist das
@@ -68,30 +83,34 @@ export function zutatenFuer(
   inf: { attributes?: readonly string[] | null; oils?: readonly (string | null)[] | null },
   katalog: RegalKatalog = LEERER_KATALOG,
 ): RegalEintrag[] {
+  const oele: RegalEintrag[] = [];
   const aus: RegalEintrag[] = [];
 
-  for (const roh of inf.oils ?? []) {
-    if (!roh) continue;
+  // Die Runde kommt aus dem INDEX, nicht aus der Ausgabeposition: wer Runde 2
+  // leer lässt und nur 1 und 3 belegt, soll auch „1" und „3" lesen.
+  (inf.oils ?? []).forEach((roh, i) => {
+    if (!roh) return;
+    const runde = i + 1;
     const eigeneId = parseCustomOilId(roh);
     if (eigeneId) {
       const e = katalog.eigeneOele.get(eigeneId);
       // Unbekannte UUID = das eigene Öl wurde gelöscht. Wir zeigen den Platz
       // trotzdem an, sonst verschwindet eine geplante Zutat lautlos.
-      aus.push({
-        key: `oel:${roh}`, art: 'eigenes_oel', nummer: null,
+      oele.push({
+        key: `oel:${roh}`, art: 'eigenes_oel', nummer: null, runde,
         emoji: e?.emoji ?? '🌿', name: e?.name ?? 'Eigenes Öl (gelöscht)',
         farbe: e?.color ?? FARBE_OEL,
       });
-      continue;
+      return;
     }
     const o = OIL_BY_ID[roh];
     if (o) {
-      aus.push({
-        key: `oel:${o.id}`, art: 'oel', nummer: o.number,
+      oele.push({
+        key: `oel:${o.id}`, art: 'oel', nummer: o.number, runde,
         emoji: o.emoji, name: o.name, farbe: FARBE_OEL,
       });
     }
-  }
+  });
 
   for (const attr of inf.attributes ?? []) {
     const krautId = parseSudAttr(attr);
@@ -100,7 +119,7 @@ export function zutatenFuer(
       if (k) {
         aus.push({
           key: `sud:${krautId}`, art: k.art === 'raeucher' ? 'raeucher' : 'sud',
-          nummer: null, emoji: k.emoji, name: k.name, farbe: k.color,
+          nummer: null, runde: null, emoji: k.emoji, name: k.name, farbe: k.color,
         });
       }
       continue;
@@ -110,7 +129,7 @@ export function zutatenFuer(
       const m = katalog.mixe.get(mixId);
       if (m) {
         aus.push({
-          key: `sudmix:${mixId}`, art: 'sud', nummer: null,
+          key: `sudmix:${mixId}`, art: 'sud', nummer: null, runde: null,
           emoji: m.emoji, name: m.name, farbe: m.color,
         });
       }
@@ -120,13 +139,13 @@ export function zutatenFuer(
     if (slug && SCHNAPS_BY_ID[slug]) {
       const s = SCHNAPS_BY_ID[slug];
       aus.push({
-        key: `schnaps:${slug}`, art: 'schnaps', nummer: null,
+        key: `schnaps:${slug}`, art: 'schnaps', nummer: null, runde: null,
         emoji: s.emoji, name: s.name, farbe: s.color ?? FARBE_SCHNAPS,
       });
     }
   }
 
-  return sortiere(aus);
+  return [...oele, ...sortiere(aus)];
 }
 
 /** Die Besonderheiten eines Aufgusses als beschriftete Pillen — Musik, Ritual,
@@ -184,7 +203,11 @@ export function sammelListe(zutatenProAufguss: readonly (readonly RegalEintrag[]
     for (const z of zutaten) {
       const da = nach.get(z.key);
       if (da) { if (!da.fuer.includes(i)) da.fuer.push(i); }
-      else nach.set(z.key, { ...z, fuer: [i] });
+      // `runde` fällt hier absichtlich weg: dasselbe Öl kann in der einen
+      // Sauna Runde 1 und in der anderen Runde 3 sein. Eine der beiden Zahlen
+      // stehen zu lassen, wäre schlicht falsch — die Runde steht auf den
+      // Sauna-Karten, hier zählt nur der Gang ans Regal.
+      else nach.set(z.key, { ...z, runde: null, fuer: [i] });
     }
   });
   return sortiere([...nach.values()]) as SammelEintrag[];
