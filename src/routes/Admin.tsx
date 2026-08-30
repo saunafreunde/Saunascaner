@@ -471,13 +471,16 @@ function MemberBadgesRow({ memberId }: { memberId: string }) {
 // @/components/admin/ZugangsdatenButtons — beide Reiter brauchen die Knöpfe,
 // und ein Import quer zwischen hier und dem Tab wäre ein Import-Zyklus.
 
+// Gäste kommen hier bewusst NICHT vor — sie leben vollständig im eigenen
+// Reiter (GaesteTab). Dort zeigt `list_gaeste_uebersicht` jeden `role='gast'`
+// ohne weitere Bedingung, gesperrte eingeschlossen: es fällt also niemand
+// aus der Verwaltung heraus, nur weil er hier fehlt.
 type MembersFilter =
-  | 'all' | 'gast' | 'member' | 'aufgieser' | 'guest_aufgieser'
+  | 'all' | 'member' | 'aufgieser' | 'guest_aufgieser'
   | 'staff' | 'cp_planer' | 'admin' | 'revoked';
 
 const MEMBER_FILTER_META: Record<MembersFilter, { label: string; icon: string }> = {
   all:             { label: 'Alle',           icon: '👥' },
-  gast:            { label: 'Gäste',          icon: '👋' },
   member:          { label: 'Mitglieder',     icon: '✅' },
   aufgieser:       { label: 'Aufgießer',      icon: '🧖' },
   guest_aufgieser: { label: 'Gast-Aufgießer', icon: '🌍' },
@@ -492,7 +495,6 @@ function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
   if (f === 'revoked') return !!m.revoked_at;
   if (m.revoked_at) return false;
   switch (f) {
-    case 'gast':            return m.role === 'gast';
     case 'member':          return m.role === 'member' && !m.is_aufgieser;
     case 'aufgieser':       return m.role === 'member' && m.is_aufgieser;
     case 'guest_aufgieser': return m.role === 'guest_aufgieser';
@@ -507,7 +509,7 @@ function memberMatchesFilter(m: Member, f: MembersFilter): boolean {
 // KPI-Reihenfolge in der Stats-Card (4×3-Raster, alle Rollen + Modifier-Flags sichtbar).
 // Conversion-Pyramide von links oben (niedrigschwellig) nach rechts unten (hochschwellig).
 const STATS_ORDER: MembersFilter[] = [
-  'gast', 'member',
+  'member',
   'aufgieser', 'guest_aufgieser', 'staff',
   'cp_planer', 'admin',
   'revoked',
@@ -582,7 +584,13 @@ function MembersTab() {
   // Welches Mitglied hat den Rollen-Selector gerade aufgeklappt? (member-id oder null)
   const [roleEditId, setRoleEditId] = useState<string | null>(null);
 
-  const allMembers = membersQ.data ?? [];
+  // Gäste hier herausfiltern und nicht erst in den Filtern: so stimmen
+  // Kopfzahl, Rollen-Verteilung und Liste automatisch überein. Sie stehen
+  // im Reiter „Gäste" (s. Kommentar bei MembersFilter).
+  const allMembers = useMemo(
+    () => (membersQ.data ?? []).filter((m) => m.role !== 'gast'),
+    [membersQ.data],
+  );
   const counts = useMemo(() => {
     const c = {} as Record<MembersFilter, number>;
     (Object.keys(MEMBER_FILTER_META) as MembersFilter[]).forEach((f) => {
