@@ -1718,6 +1718,70 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   }
 }
 
+/* Die Saunen der aktuellen Gruppe — wie sie zueinander stehen, entscheidet
+   die ORIENTIERUNG des Geräts, nicht seine Breite.
+
+   Quer: nebeneinander, eine Spalte je Sauna.
+   Hochkant: UNTEREINANDER, und jede Sauna bekommt denselben Anteil der Höhe
+   (bei dreien je ein Drittel). Das Gerät im Öl-Raum hängt seit 03.09.2026
+   hochkant (800×1340) — nebeneinander wären die Karten dort schmale Streifen
+   mit abgeschnittenen Ölnamen. Eine EINZELNE Sauna bleibt oben und nimmt
+   nur, was sie braucht: eine auf volle Höhe gezogene Karte wäre ein leerer
+   Kasten mit etwas Text in der Ecke. */
+.oel-gruppe {
+  display: grid;
+  gap: clamp(0.5rem, 1.2vw, 1.2rem);
+  grid-template-columns: repeat(var(--oel-saunen, 1), minmax(0, 1fr));
+}
+
+@media (orientation: portrait) {
+  .oel-gruppe {
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(0.5rem, 1.2vh, 1rem);
+  }
+  .oel-gruppe[data-mehrere] {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-rows: repeat(var(--oel-saunen, 1), minmax(0, 1fr));
+  }
+  .oel-gruppe[data-mehrere] .oel-karte {
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* Drei Karten in einer Bildschirmhöhe: Marken und Regalnummern etwas
+     kompakter, damit drei Runden samt Besonderheiten in ein Drittel passen.
+     Die Regalnummer bleibt trotzdem das Größte auf der Karte. */
+  .oel-gruppe[data-mehrere] .oel-runden {
+    --oel-marke: clamp(1.2rem, 2.4vh, 1.8rem);
+    --oel-luft: clamp(0.35rem, 0.7vh, 0.6rem);
+  }
+  .oel-gruppe[data-mehrere] .oel-flasche {
+    width: clamp(1.7rem, 3.2vh, 2.5rem);
+    height: clamp(1.7rem, 3.2vh, 2.5rem);
+    font-size: clamp(0.95rem, 1.8vh, 1.4rem);
+  }
+  .oel-gruppe[data-mehrere] .oel-karte {
+    padding-top: 1vh;
+    padding-bottom: 1vh;
+  }
+  .oel-gruppe[data-mehrere] .oel-kabine {
+    min-height: clamp(4rem, 9vh, 7rem);
+  }
+  /* Der Sammel-Lauf ist hochkant ein Band unter den Karten, kein Füller —
+     die Höhe gehört den Saunen. (Doppelte Klasse: schlägt Tailwinds
+     `flex-1` unabhängig von der Reihenfolge im Stylesheet.) Seine Etiketten
+     sind quer auf 1080 Zeilen ausgelegt; hochkant wären sie mit 7vh so groß
+     wie eine halbe Öl-Runde und drückten die Karten zusammen. */
+  .oel-sammel.oel-sammel { flex: 0 0 auto; margin-top: 1.2vh; }
+  .oel-sammel h2 { margin-bottom: 0.6vh; }
+  .oel-sammel .oel-etikett { padding: 0.6vh 1vw; gap: 0.7vw; }
+  .oel-sammel .oel-etikett-nr {
+    width: clamp(2rem, 4.2vh, 3rem);
+    height: clamp(2rem, 4.2vh, 3rem);
+    font-size: clamp(1rem, 2.2vh, 1.5rem);
+  }
+}
+
 /* ─── Dampf-Rückkehr (dampf-*) ────────────────────────────────────────────
    Sackgassen-Bildschirme (z. B. „Alles bewertet — danke!") haben weder
    Kopfzeile noch Zurück-Knopf. Statt einen Knopf danebenzusetzen, zieht

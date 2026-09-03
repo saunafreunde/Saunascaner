@@ -204,11 +204,14 @@ export function OelraumAnzeige({
         />
       )}
 
-      {/* Die Saunen der aktuellen Gruppe — jede Karte trägt IHRE Öle */}
+      {/* Die Saunen der aktuellen Gruppe — jede Karte trägt IHRE Öle.
+          Quer nebeneinander, hochkant untereinander mit gleichem Höhenanteil
+          (`.oel-gruppe` in index.css entscheidet nach Orientierung). */}
       {gruppe.length > 0 && (
         <div
-          className={`grid gap-[1.2vw] px-[3vw] ${gruppe.length > 1 ? '' : 'flex-1 min-h-0 content-start'}`}
-          style={{ gridTemplateColumns: `repeat(${Math.min(gruppe.length, 3)}, minmax(0, 1fr))` }}
+          className={`oel-gruppe px-[3vw] ${gruppe.length > 1 ? '' : 'flex-1 min-h-0 content-start'}`}
+          data-mehrere={gruppe.length > 1 ? '' : undefined}
+          style={{ '--oel-saunen': gruppe.length } as React.CSSProperties}
         >
           {gruppe.map((a) => <SaunaKarte key={a.inf.id} a={a} />)}
         </div>
@@ -218,7 +221,7 @@ export function OelraumAnzeige({
           welchem Aufguss gehören, steht auf den Karten; hier steht, was man
           beim einen Gang ans Regal zusammen mitnimmt. */}
       {gruppe.length > 1 && griff.length > 0 && (
-        <section className="mt-[2vh] flex-1 min-h-0 px-[3vw] pb-[1vh]">
+        <section className="oel-sammel mt-[2vh] flex-1 min-h-0 px-[3vw] pb-[1vh]">
           <h2 className="mb-[1.2vh] text-[clamp(0.7rem,1.5vw,1rem)] font-semibold uppercase tracking-[0.22em] text-amber-400/80">
             Einmal ans Regal
             <span className="ml-2 normal-case tracking-normal text-forest-400/70">
@@ -536,12 +539,13 @@ function Etikett({
 }) {
   return (
     <div
-      className="flex items-center gap-[0.9vw] rounded-2xl bg-slate-900/70 px-[1.2vw] py-[1.1vh] ring-1"
+      className="oel-etikett flex items-center gap-[0.9vw] rounded-2xl bg-slate-900/70 px-[1.2vw] py-[1.1vh] ring-1"
       style={{ boxShadow: `inset 0 0 0 1px ${z.farbe}44`, borderColor: 'transparent' }}
     >
+      {/* `oel-etikett-nr`: hochkant kompakter, siehe .oel-sammel in index.css */}
       {z.nummer !== null ? (
         <span
-          className="grid h-[clamp(2.6rem,7vh,4.4rem)] w-[clamp(2.6rem,7vh,4.4rem)] shrink-0 place-items-center rounded-xl text-[clamp(1.3rem,3.6vh,2.4rem)] font-black tabular-nums leading-none"
+          className="oel-etikett-nr grid h-[clamp(2.6rem,7vh,4.4rem)] w-[clamp(2.6rem,7vh,4.4rem)] shrink-0 place-items-center rounded-xl text-[clamp(1.3rem,3.6vh,2.4rem)] font-black tabular-nums leading-none"
           style={{ background: `${z.farbe}22`, color: z.farbe, boxShadow: `inset 0 0 0 2px ${z.farbe}66` }}
         >
           {z.nummer}
@@ -549,7 +553,7 @@ function Etikett({
       ) : (
         <span
           aria-hidden
-          className="grid h-[clamp(2.6rem,7vh,4.4rem)] w-[clamp(2.6rem,7vh,4.4rem)] shrink-0 place-items-center rounded-xl text-[clamp(1.3rem,3.6vh,2.2rem)] leading-none"
+          className="oel-etikett-nr grid h-[clamp(2.6rem,7vh,4.4rem)] w-[clamp(2.6rem,7vh,4.4rem)] shrink-0 place-items-center rounded-xl text-[clamp(1.3rem,3.6vh,2.2rem)] leading-none"
           style={{ background: `${z.farbe}22`, boxShadow: `inset 0 0 0 2px ${z.farbe}55` }}
         >
           {z.emoji}

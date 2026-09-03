@@ -3724,6 +3724,10 @@ export function useCountMemberRatings(memberId: string | null | undefined) {
 // ─── Storage helpers ──────────────────────────────────────────────────────
 export function publicAssetUrl(path: string | null | undefined): string | null {
   if (!path) return null;
+  // Mitgelieferte Bilder (public/…, z. B. die Öl-Raum-Vorlagen in
+  // src/lib/oelraumVorlagen.ts) stehen als absoluter Pfad in den Settings
+  // und brauchen keinen Umweg über den Storage-Bucket.
+  if (path.startsWith('/')) return path;
   const c = supabase;
   if (!c) return null;
   const { data } = c.storage.from('assets').getPublicUrl(path);
@@ -3832,6 +3836,9 @@ export async function uploadVideo(file: File, folder = 'info-karten'): Promise<s
 }
 
 export async function deleteAsset(path: string): Promise<void> {
+  // Mitgelieferte Bilder (absoluter Pfad, siehe publicAssetUrl) liegen nicht
+  // im Bucket — da gibt es nichts zu löschen, und ein Fehler wäre irreführend.
+  if (path.startsWith('/')) return;
   // Storage meldet Fehler im Response-Objekt, nicht per throw. Ohne diese
   // Prüfung scheiterte ein Löschen lautlos und die Datei blieb als Karteileiche
   // im Bucket — sichtbar wurde davon nie etwas.

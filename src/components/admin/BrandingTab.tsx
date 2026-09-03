@@ -9,6 +9,7 @@ import {
   type BrandSettings, type TileBg,
 } from '@/types/branding';
 import { AusschnittWaehler, aktivesFormat } from '@/components/admin/AusschnittWaehler';
+import { OELRAUM_VORLAGEN } from '@/lib/oelraumVorlagen';
 import type { Sauna } from '@/types/database';
 
 const SLOT_SIZE_HINTS = {
@@ -19,7 +20,7 @@ const SLOT_SIZE_HINTS = {
   badge_front: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
   badge_back: '85×54 mm Kreditkarten-Format (Hintergrund-Wash)',
   gallery: 'Querformat, gern 3:1 — füllt eine leere Kachel der TV-Tafel',
-  oelraum: 'Querformat 16:10 (~1280×800) — Vollbild des Tablets, wird dunkel überblendet',
+  oelraum: 'Hochformat 3:5 (~800×1340) — das Tablet hängt hochkant; Vollbild, wird dunkel überblendet',
 };
 
 export function BrandingTab() {
@@ -479,21 +480,65 @@ function OelraumSection({
   oelraum: BrandSettings['oelraum'];
   onChange: (o: BrandSettings['oelraum']) => void;
 }) {
+  // Eine mitgelieferte Vorlage übernehmen. Ein zuvor HOCHGELADENES Bild
+  // bliebe sonst als Karteileiche im Bucket — dasselbe Muster wie beim
+  // Überschreiben im AssetSlot. Vorlagen selbst rührt deleteAsset nicht an.
+  async function vorlageWaehlen(pfad: string) {
+    const alt = oelraum.hintergrund;
+    if (alt && alt !== pfad) { try { await deleteAsset(alt); } catch { /* Eintrag wechselt trotzdem */ } }
+    // Die Vorlagen sind bereits im Tablet-Format — der Ausschnitt fängt mittig an.
+    onChange({ ...oelraum, hintergrund: pfad, ausschnitt: { ...AUSSCHNITT_DEFAULT } });
+  }
+
   return (
     <Section
       icon="🧴"
       title="Öl-Raum-Tablet"
-      hint="Der Bildschirm im Öl-Raum. Steht nichts an, zeigt er nur euer Logo auf diesem Hintergrund. Steht etwas an, zeigt er pro Aufguss die Öle und Zutaten — und fordert fehlende ein."
+      hint="Der Bildschirm im Öl-Raum, hochkant an der Wand. Steht nichts an, zeigt er nur euer Logo auf diesem Hintergrund. Steht etwas an, zeigt er pro Aufguss die Öle und Zutaten — und fordert fehlende ein."
     >
       <div className="space-y-4">
-        <AssetSlot
-          label="Hintergrund"
-          sizeHint={SLOT_SIZE_HINTS.oelraum}
-          aspect="aspect-video"
-          folder="oelraum"
-          value={oelraum.hintergrund}
-          onChange={(v) => onChange({ ...oelraum, hintergrund: v })}
-        />
+        <div className="max-w-[11rem]">
+          <AssetSlot
+            label="Hintergrund"
+            sizeHint={SLOT_SIZE_HINTS.oelraum}
+            aspect="aspect-[3/5]"
+            folder="oelraum"
+            value={oelraum.hintergrund}
+            onChange={(v) => onChange({ ...oelraum, hintergrund: v })}
+          />
+        </div>
+
+        {/* Mitgelieferte Motive — damit das Tablet nicht auf nacktem Dunkel
+            hängt, bis jemand ein passendes Hochkant-Foto findet. */}
+        <div>
+          <p className="text-xs font-semibold text-forest-100">Oder eine Vorlage nehmen</p>
+          <p className="text-[10px] text-forest-400/80 leading-tight">
+            Sechs Motive im Tablet-Format. Antippen übernimmt — ein eigenes Foto lässt sich oben jederzeit hochladen.
+          </p>
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            {OELRAUM_VORLAGEN.map((v) => {
+              const aktiv = oelraum.hintergrund === v.pfad;
+              return (
+                <button
+                  key={v.pfad}
+                  type="button"
+                  title={v.stimmung}
+                  aria-pressed={aktiv}
+                  onClick={() => vorlageWaehlen(v.pfad)}
+                  className={`relative w-16 shrink-0 aspect-[3/5] overflow-hidden rounded-lg ring-2 transition ${
+                    aktiv ? 'ring-amber-400' : 'ring-forest-800/60 hover:ring-amber-500/50'
+                  }`}
+                >
+                  <img src={v.pfad} alt={v.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                  <span className="absolute inset-x-0 bottom-0 truncate bg-slate-950/70 px-1 py-0.5 text-[9px] font-semibold text-forest-100">
+                    {v.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {oelraum.hintergrund && (
           <AusschnittWaehler
             url={publicAssetUrl(oelraum.hintergrund) ?? ''}
