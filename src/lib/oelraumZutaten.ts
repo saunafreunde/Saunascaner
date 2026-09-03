@@ -72,9 +72,6 @@ const FARBE_SCHNAPS = '#b45309';
  *  dritten Durchgang in den Kübel geht. Erst danach folgen Sud, Räucherwerk
  *  und Schnaps — die gehören zum ganzen Aufguss und dürfen sortiert bleiben.
  *
- *  Der Sammel-Lauf (`sammelListe`) sortiert weiterhin nach Regal: dort geht es
- *  um den Weg durchs Regal, nicht um den Ablauf im Saunaraum.
- *
  *  Bewusst ohne den „sein Stil"-Fallback der InfusionCard: der füllt leere
  *  Aufgüsse mit den Lieblingszutaten des Aufgießers auf. Auf der Tafel ist das
  *  ein Gewinn, hier wäre es fatal — es würde genau den Fall unsichtbar machen,
@@ -182,33 +179,4 @@ function sortiere(liste: RegalEintrag[]): RegalEintrag[] {
     if (b.nummer !== null) return 1;
     return a.name.localeCompare(b.name, 'de');
   });
-}
-
-export interface SammelEintrag extends RegalEintrag {
-  /** Für welche der übergebenen Aufgüsse gebraucht (Index in der Eingabe).
-   *  Zwei gleichzeitige Saunen, die dasselbe Öl brauchen, ergeben EINEN
-   *  Eintrag mit zwei Einträgen hier — man holt die Flasche ja nur einmal. */
-  fuer: number[];
-}
-
-/** Die Griffliste: alles, was für die übergebenen Aufgüsse zusammen aus dem
- *  Regal muss — jede Zutat genau einmal, in Laufreihenfolge.
- *
- *  Das ist der eigentliche Zweck des Tablets. Bei zwei oder drei gleichzeitig
- *  aufgießenden Saunen läuft sonst jeder einzeln zum Regal und keiner weiß,
- *  ob die Flasche schon jemand in der Hand hat. */
-export function sammelListe(zutatenProAufguss: readonly (readonly RegalEintrag[])[]): SammelEintrag[] {
-  const nach = new Map<string, SammelEintrag>();
-  zutatenProAufguss.forEach((zutaten, i) => {
-    for (const z of zutaten) {
-      const da = nach.get(z.key);
-      if (da) { if (!da.fuer.includes(i)) da.fuer.push(i); }
-      // `runde` fällt hier absichtlich weg: dasselbe Öl kann in der einen
-      // Sauna Runde 1 und in der anderen Runde 3 sein. Eine der beiden Zahlen
-      // stehen zu lassen, wäre schlicht falsch — die Runde steht auf den
-      // Sauna-Karten, hier zählt nur der Gang ans Regal.
-      else nach.set(z.key, { ...z, runde: null, fuer: [i] });
-    }
-  });
-  return sortiere([...nach.values()]) as SammelEintrag[];
 }

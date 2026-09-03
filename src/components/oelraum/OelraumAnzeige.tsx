@@ -4,8 +4,8 @@ import type { OelraumSettings } from '@/types/branding';
 import { AusschnittBild } from '@/components/AusschnittBild';
 import { zutatenStatus, type ZutatenStatus } from '@/lib/aufgussRegeln';
 import {
-  zutatenFuer, besonderheitenFuer, sammelListe,
-  type RegalKatalog, type RegalEintrag, type SammelEintrag,
+  zutatenFuer, besonderheitenFuer,
+  type RegalKatalog, type RegalEintrag,
 } from '@/lib/oelraumZutaten';
 import { HaltenKnopf } from '@/components/oelraum/HaltenKnopf';
 import { useOelraumWuensche } from '@/lib/api';
@@ -16,9 +16,11 @@ import { oelName } from '@/components/gast/DuftWunsch';
  *  Sie beantwortet genau eine Frage: WELCHER Aufguss braucht WELCHE Öle?
  *  Deshalb trägt jede Sauna-Karte ihre eigenen Öle mit großer Regalnummer —
  *  damit am Regal niemand die falsche Flasche für die falsche Sauna greift.
- *  Nur wenn zwei oder drei Saunen ZUR SELBEN ZEIT starten, kommt darunter
- *  der Sammel-Lauf dazu: jede Zutat einmal, mit Sauna-Zuordnung, für den
- *  einen Gang ans Regal.
+ *  Bei zwei oder drei Saunen ZUR SELBEN ZEIT stehen die Karten hochkant
+ *  untereinander (quer nebeneinander). Einen zusammengefassten Sammel-Lauf
+ *  („Einmal ans Regal") gab es vom 14.08. bis 03.09.2026 — Christoph hat ihn
+ *  gestrichen: man steht beim Eiskugel-Machen ohnehin direkt vor dem Regal,
+ *  die zweite Liste hat nur verwirrt.
  *
  *  Bewegung: ausschließlich Pure-CSS, keine JS-Timer. Das Gerät läuft im
  *  Dauerbetrieb; der einzige Takt kommt von `now` (siehe OilRoom.tsx).
@@ -170,8 +172,6 @@ export function OelraumAnzeige({
   ].filter((a) => a.status !== 'vollstaendig');
   const dringend = fehlend.some((a) => a.minuten <= einstellungen.mahnung_ab_minuten);
 
-  const griff = sammelListe(gruppe.map((a) => a.zutaten));
-
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col">
       {hintergrund}
@@ -199,7 +199,7 @@ export function OelraumAnzeige({
         <MahnBand
           fehlend={fehlend}
           dringend={dringend}
-          alleinig={griff.length === 0}
+          alleinig={gruppe.every((a) => a.zutaten.length === 0)}
           onEintragen={onEintragen}
         />
       )}
@@ -215,25 +215,6 @@ export function OelraumAnzeige({
         >
           {gruppe.map((a) => <SaunaKarte key={a.inf.id} a={a} />)}
         </div>
-      )}
-
-      {/* Der Sammel-Lauf — NUR bei gleichzeitigen Saunen. Welche Öle zu
-          welchem Aufguss gehören, steht auf den Karten; hier steht, was man
-          beim einen Gang ans Regal zusammen mitnimmt. */}
-      {gruppe.length > 1 && griff.length > 0 && (
-        <section className="oel-sammel mt-[2vh] flex-1 min-h-0 px-[3vw] pb-[1vh]">
-          <h2 className="mb-[1.2vh] text-[clamp(0.7rem,1.5vw,1rem)] font-semibold uppercase tracking-[0.22em] text-amber-400/80">
-            Einmal ans Regal
-            <span className="ml-2 normal-case tracking-normal text-forest-400/70">
-              — alles für {gruppe.length} Saunen in einem Gang
-            </span>
-          </h2>
-          <div className="flex flex-wrap gap-[1vw]">
-            {griff.map((z) => (
-              <Etikett key={z.key} z={z} gruppe={gruppe} />
-            ))}
-          </div>
-        </section>
       )}
 
       {/* Was danach kommt */}
@@ -525,55 +506,6 @@ function Zutaten({ zutaten }: { zutaten: RegalEintrag[] }) {
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-/** Ein Regal-Etikett im Sammel-Lauf. Steht IMMER dabei, für welche Sauna —
- *  genau hier wurden sonst die falschen Flaschen gegriffen. */
-function Etikett({
-  z, gruppe,
-}: {
-  z: SammelEintrag;
-  gruppe: AnzeigeAufguss[];
-}) {
-  return (
-    <div
-      className="oel-etikett flex items-center gap-[0.9vw] rounded-2xl bg-slate-900/70 px-[1.2vw] py-[1.1vh] ring-1"
-      style={{ boxShadow: `inset 0 0 0 1px ${z.farbe}44`, borderColor: 'transparent' }}
-    >
-      {/* `oel-etikett-nr`: hochkant kompakter, siehe .oel-sammel in index.css */}
-      {z.nummer !== null ? (
-        <span
-          className="oel-etikett-nr grid h-[clamp(2.6rem,7vh,4.4rem)] w-[clamp(2.6rem,7vh,4.4rem)] shrink-0 place-items-center rounded-xl text-[clamp(1.3rem,3.6vh,2.4rem)] font-black tabular-nums leading-none"
-          style={{ background: `${z.farbe}22`, color: z.farbe, boxShadow: `inset 0 0 0 2px ${z.farbe}66` }}
-        >
-          {z.nummer}
-        </span>
-      ) : (
-        <span
-          aria-hidden
-          className="oel-etikett-nr grid h-[clamp(2.6rem,7vh,4.4rem)] w-[clamp(2.6rem,7vh,4.4rem)] shrink-0 place-items-center rounded-xl text-[clamp(1.3rem,3.6vh,2.2rem)] leading-none"
-          style={{ background: `${z.farbe}22`, boxShadow: `inset 0 0 0 2px ${z.farbe}55` }}
-        >
-          {z.emoji}
-        </span>
-      )}
-
-      <span className="min-w-0">
-        <span className="block truncate text-[clamp(0.85rem,1.9vw,1.35rem)] font-bold text-slate-50">
-          {z.nummer !== null && <span aria-hidden className="mr-1">{z.emoji}</span>}
-          {z.name}
-        </span>
-        <span className="block text-[clamp(0.58rem,1.1vw,0.8rem)] uppercase tracking-wider text-forest-400/75">
-          {artLabel(z.art)}
-          <span className="ml-1 normal-case tracking-normal text-forest-300/70">
-            · {z.fuer.length === gruppe.length
-              ? `alle ${gruppe.length} Saunen`
-              : z.fuer.map((i) => gruppe[i]?.sauna?.name ?? '?').join(' + ')}
-          </span>
-        </span>
-      </span>
     </div>
   );
 }
