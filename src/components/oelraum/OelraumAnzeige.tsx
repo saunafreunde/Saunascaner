@@ -116,6 +116,11 @@ export function OelraumAnzeige({
 
   // `key` auf der URL: wechselt das Motiv (Tageszeit), wird die Ebene neu
   // aufgebaut und blendet sich per CSS weich ein statt hart umzuspringen.
+  // Die Ebene liegt mit z-index -10 unter dem Inhalt — das setzt voraus, dass
+  // der Container `isolate` trägt (eigener Stacking-Context). Ohne das
+  // rutscht sie HINTER den bg-slate-950 des Containers und ist unsichtbar:
+  // genau so war es vom 14.08. bis 03.09.2026, nur fiel es nicht auf, weil
+  // bis dahin nie ein Hintergrund gesetzt war.
   const hintergrund = hintergrundUrl ? (
     <div key={hintergrundUrl} className="oel-hintergrund absolute inset-0 -z-10">
       <AusschnittBild url={hintergrundUrl} ausschnitt={einstellungen.ausschnitt} />
@@ -135,7 +140,7 @@ export function OelraumAnzeige({
   // trotzdem bedienbar.
   if (laufend.length === 0 && naechste.length === 0) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 flex flex-col items-center justify-center">
+      <div className="relative isolate min-h-screen w-full overflow-hidden bg-slate-950 flex flex-col items-center justify-center">
         {hintergrund}
         <HaltenKnopf
           onFertig={() => onEintragen()}
@@ -180,7 +185,7 @@ export function OelraumAnzeige({
   const dringend = fehlend.some((a) => a.minuten <= einstellungen.mahnung_ab_minuten);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col">
+    <div className="relative isolate min-h-screen w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col">
       {hintergrund}
 
       {/* Kopfzeile */}
