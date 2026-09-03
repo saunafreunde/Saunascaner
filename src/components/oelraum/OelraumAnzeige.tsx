@@ -114,8 +114,10 @@ export function OelraumAnzeige({
     return { laufend: laufendeListe, naechste: gruppe, danach: rest };
   }, [now, infusions, saunas, katalog, nameFuer, anwesend, einstellungen.vorlauf_stunden]);
 
+  // `key` auf der URL: wechselt das Motiv (Tageszeit), wird die Ebene neu
+  // aufgebaut und blendet sich per CSS weich ein statt hart umzuspringen.
   const hintergrund = hintergrundUrl ? (
-    <div className="absolute inset-0 -z-10">
+    <div key={hintergrundUrl} className="oel-hintergrund absolute inset-0 -z-10">
       <AusschnittBild url={hintergrundUrl} ausschnitt={einstellungen.ausschnitt} />
       <div className="absolute inset-0 bg-slate-950/72" />
     </div>

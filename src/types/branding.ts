@@ -129,6 +129,24 @@ export type OelraumSettings = {
    *  angemahnt werden — vorher steht der Hinweis ruhig da. Vorgabe Christoph
    *  (14.08.2026): 30 Minuten. */
   mahnung_ab_minuten: number;
+  /** Hintergrund nach Tageszeit (Vorgabe Christoph 03.09.2026). */
+  tageszeit: OelraumTageszeit;
+};
+
+/** Vier feste Phasen, je Phase ein Bild — oder null: dann gilt der
+ *  Standard-`hintergrund`. Die Stundengrenzen sind bewusst NICHT einstellbar
+ *  (vier Motive und ein Schalter reichen); sie stehen in
+ *  src/lib/oelraumTageszeit.ts, wo auch die Auswahl für „jetzt" liegt. */
+export type OelraumTageszeit = {
+  aktiv: boolean;
+  morgen: string | null;
+  mittag: string | null;
+  abend: string | null;
+  nacht: string | null;
+};
+
+export const TAGESZEIT_DEFAULT: OelraumTageszeit = {
+  aktiv: false, morgen: null, mittag: null, abend: null, nacht: null,
 };
 
 export const OELRAUM_DEFAULT: OelraumSettings = {
@@ -136,7 +154,17 @@ export const OELRAUM_DEFAULT: OelraumSettings = {
   ausschnitt: { ...AUSSCHNITT_DEFAULT },
   vorlauf_stunden: 3,
   mahnung_ab_minuten: 30,
+  tageszeit: { ...TAGESZEIT_DEFAULT },
 };
+
+function tageszeitAus(v: unknown): OelraumTageszeit {
+  const t = (v ?? {}) as Partial<OelraumTageszeit>;
+  const pfad = (p: unknown) => (typeof p === 'string' && p ? p : null);
+  return {
+    aktiv: t.aktiv === true,
+    morgen: pfad(t.morgen), mittag: pfad(t.mittag), abend: pfad(t.abend), nacht: pfad(t.nacht),
+  };
+}
 
 export function oelraumAus(v: unknown): OelraumSettings {
   const o = (v ?? {}) as Partial<OelraumSettings>;
@@ -147,6 +175,9 @@ export function oelraumAus(v: unknown): OelraumSettings {
     ausschnitt: ausschnittAus(o.ausschnitt),
     vorlauf_stunden: zahl(o.vorlauf_stunden, 1, 12, OELRAUM_DEFAULT.vorlauf_stunden),
     mahnung_ab_minuten: zahl(o.mahnung_ab_minuten, 15, 480, OELRAUM_DEFAULT.mahnung_ab_minuten),
+    // Neuer Schlüssel: hier UND in OELRAUM_DEFAULT — sonst ist er nach dem
+    // ersten Speichern weg (dasselbe Muster wie bei mergeBrandDefaults).
+    tageszeit: tageszeitAus(o.tageszeit),
   };
 }
 

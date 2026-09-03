@@ -10,6 +10,7 @@ import {
 } from '@/types/branding';
 import { AusschnittWaehler, aktivesFormat } from '@/components/admin/AusschnittWaehler';
 import { OELRAUM_VORLAGEN } from '@/lib/oelraumVorlagen';
+import { TAGESPHASEN, TAGESZEIT_VORSCHLAG } from '@/lib/oelraumTageszeit';
 import type { Sauna } from '@/types/database';
 
 const SLOT_SIZE_HINTS = {
@@ -483,11 +484,21 @@ function OelraumSection({
   // Eine mitgelieferte Vorlage übernehmen. Ein zuvor HOCHGELADENES Bild
   // bliebe sonst als Karteileiche im Bucket — dasselbe Muster wie beim
   // Überschreiben im AssetSlot. Vorlagen selbst rührt deleteAsset nicht an.
-  async function vorlageWaehlen(pfad: string) {
+  async function vorlageWaehlen(pfad: string | null) {
+    if (!pfad) return;
     const alt = oelraum.hintergrund;
     if (alt && alt !== pfad) { try { await deleteAsset(alt); } catch { /* Eintrag wechselt trotzdem */ } }
     // Die Vorlagen sind bereits im Tablet-Format — der Ausschnitt fängt mittig an.
     onChange({ ...oelraum, hintergrund: pfad, ausschnitt: { ...AUSSCHNITT_DEFAULT } });
+  }
+
+  const t = oelraum.tageszeit;
+  function tageszeitSchalten() {
+    if (t.aktiv) return onChange({ ...oelraum, tageszeit: { ...t, aktiv: false } });
+    // Beim ersten Einschalten die vier passenden Vorlagen vorbelegen — ein
+    // eingeschalteter Wechsel ohne Bilder sähe aus, als täte er nichts.
+    const leer = !t.morgen && !t.mittag && !t.abend && !t.nacht;
+    onChange({ ...oelraum, tageszeit: leer ? { ...TAGESZEIT_VORSCHLAG, aktiv: true } : { ...t, aktiv: true } });
   }
 
   return (
@@ -515,28 +526,7 @@ function OelraumSection({
           <p className="text-[10px] text-forest-400/80 leading-tight">
             Sechs Motive im Tablet-Format. Antippen übernimmt — ein eigenes Foto lässt sich oben jederzeit hochladen.
           </p>
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-            {OELRAUM_VORLAGEN.map((v) => {
-              const aktiv = oelraum.hintergrund === v.pfad;
-              return (
-                <button
-                  key={v.pfad}
-                  type="button"
-                  title={v.stimmung}
-                  aria-pressed={aktiv}
-                  onClick={() => vorlageWaehlen(v.pfad)}
-                  className={`relative w-16 shrink-0 aspect-[3/5] overflow-hidden rounded-lg ring-2 transition ${
-                    aktiv ? 'ring-amber-400' : 'ring-forest-800/60 hover:ring-amber-500/50'
-                  }`}
-                >
-                  <img src={v.pfad} alt={v.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-                  <span className="absolute inset-x-0 bottom-0 truncate bg-slate-950/70 px-1 py-0.5 text-[9px] font-semibold text-forest-100">
-                    {v.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <VorlagenLeiste wert={oelraum.hintergrund} onChange={vorlageWaehlen} />
         </div>
 
         {oelraum.hintergrund && (
@@ -547,6 +537,45 @@ function OelraumSection({
             onChange={(a) => onChange({ ...oelraum, ausschnitt: a })}
           />
         )}
+
+        {/* Nach Tageszeit: vier Phasen, je ein Motiv. „Standard" = der
+            Hintergrund oben. Der Ausschnitt gilt für alle — die Vorlagen sind
+            ohnehin im Tablet-Format. */}
+        <div className="rounded-xl bg-forest-900/40 p-3 ring-1 ring-forest-800/50">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-forest-100">Nach Tageszeit wechseln</p>
+              <p className="text-[10px] text-forest-400/80 leading-tight">
+                Morgens, mittags, abends und nachts je ein eigenes Motiv; der Wechsel blendet weich über.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={t.aktiv}
+              onClick={tageszeitSchalten}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold ring-1 transition ${
+                t.aktiv
+                  ? 'bg-amber-500/25 text-amber-100 ring-amber-400/60'
+                  : 'bg-forest-950/60 text-forest-300 ring-forest-700/60 hover:ring-amber-500/40'
+              }`}
+            >
+              {t.aktiv ? 'An' : 'Aus'}
+            </button>
+          </div>
+          {t.aktiv && TAGESPHASEN.map((p) => (
+            <div key={p.id} className="mt-3">
+              <p className="text-[11px] font-semibold text-forest-200">
+                {p.label} <span className="font-normal text-forest-400/80">· {p.hinweis}</span>
+              </p>
+              <VorlagenLeiste
+                wert={t[p.id]}
+                standard
+                onChange={(pfad) => onChange({ ...oelraum, tageszeit: { ...t, [p.id]: pfad } })}
+              />
+            </div>
+          ))}
+        </div>
 
         <Regler
           label="Vorlauf"
@@ -564,6 +593,50 @@ function OelraumSection({
         />
       </div>
     </Section>
+  );
+}
+
+/** Die mitgelieferten Öl-Raum-Motive zum Antippen. Mit `standard` steht
+ *  vorne eine Kachel „Standard" (= null: der allgemeine Hintergrund gilt). */
+function VorlagenLeiste({
+  wert, onChange, standard,
+}: {
+  wert: string | null;
+  onChange: (pfad: string | null) => void;
+  standard?: boolean;
+}) {
+  const kachel = (aktiv: boolean) =>
+    `relative w-16 shrink-0 aspect-[3/5] overflow-hidden rounded-lg ring-2 transition ${
+      aktiv ? 'ring-amber-400' : 'ring-forest-800/60 hover:ring-amber-500/50'
+    }`;
+  return (
+    <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+      {standard && (
+        <button
+          type="button"
+          aria-pressed={wert === null}
+          onClick={() => onChange(null)}
+          className={`${kachel(wert === null)} grid place-items-center bg-forest-950/70 text-[9px] font-semibold text-forest-300`}
+        >
+          Standard
+        </button>
+      )}
+      {OELRAUM_VORLAGEN.map((v) => (
+        <button
+          key={v.pfad}
+          type="button"
+          title={v.stimmung}
+          aria-pressed={wert === v.pfad}
+          onClick={() => onChange(v.pfad)}
+          className={kachel(wert === v.pfad)}
+        >
+          <img src={v.pfad} alt={v.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+          <span className="absolute inset-x-0 bottom-0 truncate bg-slate-950/70 px-1 py-0.5 text-[9px] font-semibold text-forest-100">
+            {v.name}
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 

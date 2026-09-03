@@ -11,6 +11,7 @@ import {
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 import { useNow } from '@/hooks/useNow';
 import type { RegalKatalog } from '@/lib/oelraumZutaten';
+import { oelraumHintergrundPfad } from '@/lib/oelraumTageszeit';
 import { OelraumAnzeige } from '@/components/oelraum/OelraumAnzeige';
 import { OelraumEingabe, type EingabeAuftrag } from '@/components/oelraum/OelraumEingabe';
 
@@ -314,7 +315,9 @@ export default function OilRoom() {
         anwesend={anwesend}
         einstellungen={brand.oelraum}
         logoUrl={brandAssetUrl(brand.logo.icon)}
-        hintergrundUrl={brandAssetUrl(brand.oelraum.hintergrund)}
+        // Nach Tageszeit, wenn eingeschaltet — `now` tickt ohnehin alle 10 s,
+        // der Phasenwechsel braucht keinen eigenen Timer.
+        hintergrundUrl={brandAssetUrl(oelraumHintergrundPfad(brand.oelraum, now))}
         onEintragen={oeffnen}
         fusszeile={fusszeile}
       />
