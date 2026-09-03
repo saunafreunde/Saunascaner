@@ -3002,7 +3002,11 @@ export type TvSettings = {
 };
 
 // ─── brand_settings (zentrale Vereins-Identität, Migration 0039) ────────
-export function useBrandSettings() {
+/** `poll`: für Dauer-Anzeigen (Öl-Raum-Tablet), die wochenlang gemountet
+ *  bleiben. Ohne Takt sähen sie eine im Admin geänderte Einstellung erst
+ *  beim nächsten Neuladen — so geschehen am 03.09.2026 mit dem
+ *  Tageszeit-Hintergrund. Normale Seiten laden beim Mount, das reicht. */
+export function useBrandSettings(opts?: { poll?: boolean }) {
   return useQuery({
     queryKey: ['brand-settings'],
     queryFn: async () => {
@@ -3014,6 +3018,7 @@ export function useBrandSettings() {
       if (error) throw error;
       return mergeBrandDefaults(data?.value as Partial<BrandSettings> | undefined);
     },
+    ...(opts?.poll ? { refetchInterval: 60_000, refetchIntervalInBackground: true } : {}),
   });
 }
 
@@ -3034,8 +3039,8 @@ export function useUpdateBrandSettings() {
 }
 
 /** Shortcut: Brand-Settings synchronisiert ohne Loading-State — Defaults wenn noch nicht geladen. */
-export function useBrandSync(): BrandSettings {
-  const q = useBrandSettings();
+export function useBrandSync(opts?: { poll?: boolean }): BrandSettings {
+  const q = useBrandSettings(opts);
   return q.data ?? defaultBrandSettings();
 }
 

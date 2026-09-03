@@ -66,7 +66,9 @@ export default function OilRoom() {
   const eigeneOeleQ = useAllCustomOils();
   const eigeneAttrsQ = useAllCustomAttrs();
   const holidaySet = useHolidaySet();
-  const brand = useBrandSync();
+  // Mit Takt: die Anzeige bleibt wochenlang gemountet, Admin-Änderungen
+  // (Hintergrund, Tageszeit, Vorlauf) müssen ohne Neuladen ankommen.
+  const brand = useBrandSync({ poll: true });
 
   const evacQ = useActiveEvacuation();
   const trigEvac = useTriggerEvacuation();

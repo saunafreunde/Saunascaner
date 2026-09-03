@@ -119,7 +119,12 @@ export function OelraumAnzeige({
   const hintergrund = hintergrundUrl ? (
     <div key={hintergrundUrl} className="oel-hintergrund absolute inset-0 -z-10">
       <AusschnittBild url={hintergrundUrl} ausschnitt={einstellungen.ausschnitt} />
-      <div className="absolute inset-0 bg-slate-950/72" />
+      {/* Verlauf statt flächiger 72 %: die mitgelieferten Motive sind selbst
+          schon dunkel, darunter war vom Bild nichts mehr zu erkennen
+          (Christoph 03.09.: „sehe keinen Hintergrund"). Oben und unten, wo
+          Kopfzeile und Fußzeile stehen, bleibt es dunkler; die Karten bringen
+          ihre eigene Abdunklung mit. */}
+      <div className="absolute inset-0 oel-hintergrund-schleier" />
     </div>
   ) : null;
 
