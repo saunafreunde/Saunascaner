@@ -7,6 +7,7 @@ import { Avatar } from '@/components/Avatar';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { OIL_BY_ID } from '@/lib/oils';
 import { generateEndOfDayPdf, shareEndOfDayPdf, downloadBlob, type EndOfDayPdfData } from '@/lib/endOfDayPdf';
+import { naechstesFest, festLabel, tageBis, FEST_ABLAUF } from '@/lib/saunafeste';
 
 /**
  * Tagesabschluss-Screen für die TV-Tafel.
@@ -45,6 +46,13 @@ export function EndOfDayScreen({
       return s >= today && s < tomorrow;
     });
   }, [infusions]);
+
+  // Das nächste Saunafest für die Einladung unten. `now` einmal festhalten:
+  // der Screen läuft eine Stunde, ein Datumswechsel mittendrin ist
+  // ausgeschlossen (20:15–21:15), und so bleibt die Anzeige stabil.
+  const now = useMemo(() => new Date(), []);
+  const naechstes = useMemo(() => naechstesFest(now), [now]);
+  const tage = naechstes ? tageBis(naechstes, now) : 0;
 
   // Eigener Query statt Prop: erspart es, die Liste durch die ganze
   // Tafel-Aufrufkette durchzureichen.
@@ -409,6 +417,44 @@ export function EndOfDayScreen({
           </ul>
         </div>
       </section>
+
+      {/* ─── EINLADUNG ZUM WIEDERKOMMEN ─────────────────────────────────
+          Der Abschluss-Screen ist der eine Moment, in dem Gäste in Ruhe auf
+          die Tafel schauen — beim Gehen, nicht beim Suchen nach dem nächsten
+          Aufguss. Genau hier gehört die Einladung zum nächsten Saunafest hin.
+          Sie verschwindet von selbst, wenn die Saison durch ist. */}
+      {naechstes && (
+        <div
+          className="flex-shrink-0 mt-2 flex items-center justify-center gap-3 rounded-2xl bg-amber-50 ring-1 ring-amber-300/70"
+          style={{ padding: 'clamp(5px, 1.1cqh, 12px) clamp(10px, 2cqh, 22px)' }}
+        >
+          <span aria-hidden style={{ fontSize: 'clamp(16px, 3.2cqh, 34px)' }}>🔥</span>
+          <div className="min-w-0">
+            <div
+              className="font-bold uppercase text-amber-700"
+              style={{ fontSize: 'clamp(8px, 1.3cqh, 13px)', letterSpacing: '0.16em' }}
+            >
+              {tage === 0 ? 'Heute war Saunafest'
+                : tage === 1 ? 'Morgen ist Saunafest'
+                  : tage <= 14 ? `Saunafest in ${tage} Tagen`
+                    : 'Nächstes Saunafest'}
+            </div>
+            <div
+              className="font-black text-slate-900 leading-tight"
+              style={{ fontSize: 'clamp(14px, 2.6cqh, 28px)' }}
+            >
+              {festLabel(naechstes, now)}
+              <span className="font-bold italic text-amber-700"> · „{naechstes.motto}“</span>
+            </div>
+            <div
+              className="font-semibold text-slate-600"
+              style={{ fontSize: 'clamp(9px, 1.5cqh, 15px)' }}
+            >
+              {FEST_ABLAUF.ganztags} · {FEST_ABLAUF.ab14} · {FEST_ABLAUF.ab17}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── FOOTER + SHARE-TOOLBAR ─────────────────────────────────── */}
       <footer className="flex-shrink-0 mt-2 flex flex-col items-center gap-2">
