@@ -3729,9 +3729,11 @@ export function useCountMemberRatings(memberId: string | null | undefined) {
 // ─── Storage helpers ──────────────────────────────────────────────────────
 export function publicAssetUrl(path: string | null | undefined): string | null {
   if (!path) return null;
-  // Mitgelieferte Bilder (public/…, z. B. die Öl-Raum-Vorlagen in
-  // src/lib/oelraumVorlagen.ts) stehen als absoluter Pfad in den Settings
-  // und brauchen keinen Umweg über den Storage-Bucket.
+  // Mitgelieferte Dateien (public/…) stehen als absoluter Pfad in den Settings
+  // und brauchen keinen Umweg über den Storage-Bucket: die Öl-Raum-Vorlagen in
+  // src/lib/oelraumVorlagen.ts und das Saunafest-Video unter /tafel/.
+  // Storage-Pfade sehen dagegen immer aus wie „info-karten/xyz.mp4" — ohne
+  // führenden Slash, deshalb kollidiert das nicht.
   if (path.startsWith('/')) return path;
   const c = supabase;
   if (!c) return null;
