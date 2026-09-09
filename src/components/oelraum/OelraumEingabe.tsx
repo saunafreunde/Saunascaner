@@ -9,7 +9,7 @@ import { OIL_BY_ID, MAX_OIL_SLOTS, normalizeOilSlots, parseCustomOilId } from '@
 import { SCHNAPS, SCHNAPS_BY_ID } from '@/lib/schnaps';
 import { RAEUCHER_ATTR, RAEUCHER_THEME, BANJA_ATTR } from '@/lib/aufgussTheme';
 import {
-  MIN_AUSWAHL, MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS,
+  MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS, fehltNoch,
   auswahlAnzahl as zaehleAuswahl, attrsPayload as baueAttrsPayload,
   zerlegeAttributes, pruefeAuswahl, type ZutatenAuswahl,
 } from '@/lib/aufgussRegeln';
@@ -186,6 +186,7 @@ export function OelraumEingabe({
   const auswahl: ZutatenAuswahl = { attrs, customAttrIds: eigeneAttrIds, oils, sudAuswahl, schnaps };
   const anzahl = zaehleAuswahl(auswahl);
   const voll = anzahl >= MAX_AUSWAHL;
+  const fehlt = fehltNoch(auswahl);
 
   function toggleAttr(a: InfusionAttribute) {
     setAttrs((v) => (v.includes(a) ? v.filter((x) => x !== a) : voll ? v : [...v, a]));
@@ -496,10 +497,16 @@ export function OelraumEingabe({
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm text-forest-300">Zutaten & Besonderheiten</span>
                 <span className={`text-sm font-bold tabular-nums ${
-                  anzahl < MIN_AUSWAHL ? 'text-amber-300' : voll ? 'text-rose-300' : 'text-forest-300'
+                  fehlt.oele > 0 || fehlt.besonderheiten > 0 ? 'text-amber-300'
+                    : voll ? 'text-rose-300' : 'text-forest-300'
                 }`}>
                   {anzahl}/{MAX_AUSWAHL}
-                  {anzahl < MIN_AUSWAHL && ` — noch ${MIN_AUSWAHL - anzahl} nötig`}
+                  {(fehlt.oele > 0 || fehlt.besonderheiten > 0) && ` — noch ${[
+                    fehlt.oele > 0 ? `${fehlt.oele} ${fehlt.oele === 1 ? 'Öl' : 'Öle'}` : null,
+                    fehlt.besonderheiten > 0
+                      ? `${fehlt.besonderheiten} ${fehlt.besonderheiten === 1 ? 'Besonderheit' : 'Besonderheiten'}`
+                      : null,
+                  ].filter(Boolean).join(' und ')} nötig`}
                 </span>
               </div>
 

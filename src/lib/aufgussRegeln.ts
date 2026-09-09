@@ -19,9 +19,21 @@ import { RAEUCHER_ATTR, BANJA_ATTR } from './aufgussTheme';
 
 // ─── Das Kontingent ───────────────────────────────────────────────────────────
 
-/** Mindestens so viele Dinge pro Aufguss — Öle, Besonderheiten und Sud
- *  zusammen. Ausgenommen ist nur das Banja (s. `pruefeAuswahl`). */
-export const MIN_AUSWAHL = 3;
+/** So viele Öle muss ein Aufguss tragen — alle drei Plätze belegt.
+ *
+ *  Ab 09.09.2026 (Vorgabe Christoph): vorher reichten 3 Dinge insgesamt, Öle
+ *  und Besonderheiten beliebig gemischt. Damit konnte ein Aufguss mit drei
+ *  Besonderheiten und null Ölen durchgehen — für den Ölraum und die Statistik
+ *  war er wertlos. */
+export const PFLICHT_OELE = MAX_OIL_SLOTS;
+
+/** Und so viele Besonderheiten dazu. Räuchern zählt als eine davon mit, weil
+ *  es ein ganz normales Attribut ist. */
+export const PFLICHT_BESONDERHEITEN = 2;
+
+/** Für Übergänge/Anzeigen: so viele Dinge hat ein vollständiger Aufguss
+ *  mindestens (3 Öle + 2 Besonderheiten). */
+export const MIN_AUSWAHL = PFLICHT_OELE + PFLICHT_BESONDERHEITEN;
 
 /** Höchstens so viele. 6 → 8 am 03.08.2026 auf Wunsch: zwei Details mehr pro
  *  Aufguss. Die Öle bleiben bei MAX_OIL_SLOTS (3), die zusätzlichen Plätze
@@ -117,12 +129,84 @@ export function zerlegeAttributes(
  *  setzt genau zwei Eigenschaften (banja + wenik), und das Ritual hat einen
  *  festen Charakter, dem man nicht künstlich eine dritte Zutat anhängen sollte.
  *  Die Obergrenze gilt auch fürs Banja. */
-export function pruefeAuswahl(a: ZutatenAuswahl): string | null {
-  const n = auswahlAnzahl(a);
-  const istBanja = (a.attrs as readonly string[]).includes(BANJA_ATTR);
-  if (n < MIN_AUSWAHL && !istBanja) {
-    return `Bitte mindestens ${MIN_AUSWAHL} Dinge waehlen - Oele und Besonderheiten zusammen (aktuell ${n}).`;
+/** Trägt der Aufguss etwas, das die Öle ersetzt?
+ *
+ *  Räuchern, Sud und Schnaps sind eigene Aufgussarten — dort ist der Duft
+ *  nicht das Öl, sondern das Räucherwerk, der Sud oder der Schnaps. Wer eine
+ *  davon wählt, muss keine drei Öle mehr dazulegen; er DARF aber (Vorgabe
+ *  Christoph 09.09.2026). Das Banja ist ganz ausgenommen: es ist eine Buchung
+ *  mit fester Form, keine Zusammenstellung. */
+export function ersetztOele(a: ZutatenAuswahl): boolean {
+  return (a.attrs as readonly string[]).includes(RAEUCHER_ATTR)
+    || a.sudAuswahl.length > 0
+    || !!a.schnaps;
+}
+
+/** Was diesem Aufguss noch zur Vollständigkeit fehlt — für Live-Anzeigen im
+ *  Formular. Beide Zahlen sind >= 0; {oele: 0, besonderheiten: 0} heißt fertig. */
+export function fehltNoch(a: ZutatenAuswahl): { oele: number; besonderheiten: number } {
+  if ((a.attrs as readonly string[]).includes(BANJA_ATTR)) {
+    return { oele: 0, besonderheiten: 0 };
   }
+  const oele = a.oils.filter(Boolean).length;
+  const besonderheiten = a.attrs.length + a.customAttrIds.length;
+  return {
+    oele: ersetztOele(a) ? 0 : Math.max(0, PFLICHT_OELE - oele),
+    besonderheiten: Math.max(0, PFLICHT_BESONDERHEITEN - besonderheiten),
+  };
+}
+
+/** Dasselbe wie `fehltNoch`, aber auf den ROHEN Datenbankfeldern.
+ *
+ *  Für bestehende Aufgüsse, die nur als `oils[]` + `attributes[]` vorliegen.
+ *  Bewusst NICHT über `zerlegeAttributes`: das braucht die Liste der eigenen
+ *  Buttons des Aufgießers, um UUIDs zuzuordnen — die hat der Aufrufer hier
+ *  nicht, und ohne sie fielen eigene Besonderheiten stillschweigend unter den
+ *  Tisch. Hier zählt schlicht alles als Besonderheit, was übrig bleibt,
+ *  nachdem Sud und Schnaps herausgerechnet sind. */
+export function fehltNochRoh(
+  oils: readonly (string | null)[] | null | undefined,
+  attributes: readonly string[] | null | undefined,
+): { oele: number; besonderheiten: number } {
+  const roh = attributes ?? [];
+  if (roh.includes(BANJA_ATTR)) return { oele: 0, besonderheiten: 0 };
+
+  const schnaps = schnapsFromAttributes(roh);
+  const sud = sudFromAttributes(roh);
+  const rest = stripSudAttrs(stripSchnapsAttrs(roh));
+  const hatSud = sud.kraeuter.length + sud.mixe.length > 0;
+  const ersetzt = rest.includes(RAEUCHER_ATTR) || hatSud || !!schnaps;
+
+  return {
+    oele: ersetzt ? 0 : Math.max(0, PFLICHT_OELE - (oils ?? []).filter(Boolean).length),
+    besonderheiten: Math.max(0, PFLICHT_BESONDERHEITEN - rest.length),
+  };
+}
+
+/** Kurz und menschlich: „3 Öle und 2 Besonderheiten" — oder `null`, wenn nichts fehlt. */
+export function fehltText(fehlt: { oele: number; besonderheiten: number }): string | null {
+  const teile: string[] = [];
+  if (fehlt.oele > 0) teile.push(`${fehlt.oele} ${fehlt.oele === 1 ? 'Öl' : 'Öle'}`);
+  if (fehlt.besonderheiten > 0) {
+    teile.push(`${fehlt.besonderheiten} ${fehlt.besonderheiten === 1 ? 'Besonderheit' : 'Besonderheiten'}`);
+  }
+  return teile.length ? teile.join(' und ') : null;
+}
+
+export function pruefeAuswahl(a: ZutatenAuswahl): string | null {
+  if ((a.attrs as readonly string[]).includes(BANJA_ATTR)) return null;
+
+  const fehlt = fehltNoch(a);
+  if (fehlt.oele > 0 || fehlt.besonderheiten > 0) {
+    const teile: string[] = [];
+    if (fehlt.oele > 0) teile.push(`${fehlt.oele} ${fehlt.oele === 1 ? 'Oel' : 'Oele'}`);
+    if (fehlt.besonderheiten > 0) {
+      teile.push(`${fehlt.besonderheiten} ${fehlt.besonderheiten === 1 ? 'Besonderheit' : 'Besonderheiten'}`);
+    }
+    return `Es fehlen noch ${teile.join(' und ')}. Pflicht sind ${PFLICHT_OELE} Oele und `
+      + `${PFLICHT_BESONDERHEITEN} Besonderheiten - bei Raeuchern, Sud und Schnaps entfaellt die Oel-Pflicht.`;
+  }
+  const n = auswahlAnzahl(a);
   if (n > MAX_AUSWAHL) {
     return `Hoechstens ${MAX_AUSWAHL} Dinge - Oele und Besonderheiten zusammen (aktuell ${n}).`;
   }

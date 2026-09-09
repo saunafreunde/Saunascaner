@@ -13,6 +13,7 @@ import {
   useMyCustomAttrs, useMyCustomOils, useSudKraeuter, useSudMixe, useSaunas,
 } from '@/lib/api';
 import { isAdmin as isAdminHelper } from '@/lib/roles';
+import { pruefeAuswahl } from '@/lib/aufgussRegeln';
 import OilPicker from '@/components/OilPicker';
 import { Portal } from '@/components/Portal';
 import type { Infusion } from '@/types/database';
@@ -129,6 +130,17 @@ export function EditInfusionModal({
     // bekäme cryptische Trigger-Message.
     if (attrs.includes('banja' as InfusionAttribute) && duration !== 90) {
       setErrorMsg('♨️ Banja-Ritual muss genau 90 Minuten dauern. Entweder Dauer auf 90 setzen oder das Banja-Attribut entfernen.');
+      return;
+    }
+    // Dieselbe Pflicht wie im Planer (3 Öle + 2 Besonderheiten, Öl-Pflicht
+    // entfällt bei Räuchern/Sud/Schnaps). Ohne diese Prüfung wäre der Dialog
+    // das Schlupfloch: aus der Nachpflege-Liste landet man genau hier, und
+    // ohne Prüfung liesse sich der Aufguss unverändert unvollständig speichern.
+    const kontingentFehler = pruefeAuswahl({
+      attrs, customAttrIds, oils, sudAuswahl, schnaps,
+    });
+    if (kontingentFehler) {
+      setErrorMsg(kontingentFehler);
       return;
     }
     try {

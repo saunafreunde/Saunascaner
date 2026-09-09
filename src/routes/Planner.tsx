@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
+import { UnvollstaendigeAufguesse } from '@/components/UnvollstaendigeAufguesse';
+import { EditInfusionModal } from '@/components/EditInfusionModal';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList, sendBadgeAnnouncement } from '@/lib/telegram';
@@ -16,7 +19,8 @@ import { SudPicker } from '@/components/SudPicker';
 // Das Kontingent und die Zerlegung liegen seit 14.08.2026 in einer eigenen
 // Datei, damit der Öl-Raum-Kiosk dieselben Regeln benutzt statt einer Kopie.
 import {
-  MIN_AUSWAHL, MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS,
+  MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS,
+  PFLICHT_OELE, PFLICHT_BESONDERHEITEN, fehltNoch,
   auswahlAnzahl as zaehleAuswahl, attrsPayload as baueAttrsPayload,
   zerlegeAttributes, pruefeAuswahl, type ZutatenAuswahl,
 } from '@/lib/aufgussRegeln';
@@ -472,6 +476,9 @@ export default function Planner() {
   const auswahl: ZutatenAuswahl = { attrs, customAttrIds, oils, sudAuswahl, schnaps };
   const auswahlAnzahl = zaehleAuswahl(auswahl);
   const auswahlVoll = auswahlAnzahl >= MAX_AUSWAHL;
+  const fehlt = fehltNoch(auswahl);
+  // Welcher Aufguss wird gerade über die Nachpflege-Liste bearbeitet?
+  const [nachpflege, setNachpflege] = useState<Infusion | null>(null);
   const attrsPayload = (): string[] => baueAttrsPayload(auswahl);
   // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
   // Bei nicht-Admins wird m.id verwendet (Backend lehnt fremde IDs eh ab).
@@ -1192,6 +1199,23 @@ export default function Planner() {
           )}
         </div>
 
+        {/* Nachpflege ganz oben, noch vor „Heute": ein Aufguss ohne Zutaten
+            fällt sonst erst am Aufgusstag auf, wenn im Ölraum nichts steht. */}
+        <UnvollstaendigeAufguesse
+          infusions={myInfusions}
+          saunaName={(id) => saunas.find((s) => s.id === id)?.name ?? '?'}
+          onNachpflegen={(inf) => setNachpflege(inf)}
+          onLoeschen={(inf) => {
+            const wann = format(new Date(inf.start_time), 'EEEE, d. MMMM HH:mm', { locale: de });
+            if (!window.confirm(
+              `Aufguss am ${wann} Uhr wirklich absagen und entfernen?\n\n`
+              + 'Der Slot wird wieder frei. Rückgängig machen geht nicht.',
+            )) return;
+            delInf.mutate(inf.id, { onError: (e) => window.alert((e as Error).message) });
+          }}
+          busy={delInf.isPending}
+        />
+
         {/* ══ ZONE: HEUTE — Tagesprogramm + Live-Status in EINER Zone ═══════
             (vorher: DailyOverview standalone hier + "Heute Live"-Zone weit
             unten NACH dem Formular — zusammengehörige Tages-Infos waren
@@ -1614,19 +1638,28 @@ export default function Planner() {
                   <div className="flex items-baseline justify-between gap-2">
                     <label className="text-xs text-forest-300">Besonderheiten</label>
                     {/* Laufender Zähler statt Fehlermeldung erst beim Absenden —
-                        die 3–6-Regel ist sonst unsichtbar, bis es zu spät ist. */}
+                        die Pflicht ist sonst unsichtbar, bis es zu spät ist.
+                        Zeigt getrennt, was noch fehlt: Öle und Besonderheiten
+                        sind seit 09.09.2026 zwei eigene Pflichten. */}
                     <span className={`text-[11px] tabular-nums ${
-                      auswahlAnzahl < MIN_AUSWAHL ? 'text-amber-300'
+                      fehlt.oele > 0 || fehlt.besonderheiten > 0 ? 'text-amber-300'
                         : auswahlVoll ? 'text-forest-400/70' : 'text-forest-300/70'
                     }`}>
                       {auswahlAnzahl}/{MAX_AUSWAHL} gewählt
-                      {auswahlAnzahl < MIN_AUSWAHL
-                        ? ` — noch ${MIN_AUSWAHL - auswahlAnzahl} nötig`
+                      {fehlt.oele > 0 || fehlt.besonderheiten > 0
+                        ? ` — noch ${[
+                          fehlt.oele > 0 ? `${fehlt.oele} ${fehlt.oele === 1 ? 'Öl' : 'Öle'}` : null,
+                          fehlt.besonderheiten > 0
+                            ? `${fehlt.besonderheiten} ${fehlt.besonderheiten === 1 ? 'Besonderheit' : 'Besonderheiten'}`
+                            : null,
+                        ].filter(Boolean).join(' und ')} nötig`
                         : auswahlVoll ? ' — voll' : ''}
                     </span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-forest-400/60">
-                    Öle und Besonderheiten zusammen: mindestens {MIN_AUSWAHL}, höchstens {MAX_AUSWAHL} — beliebig gemischt (Öle max. {MAX_OIL_SLOTS}).
+                    Pflicht: {PFLICHT_OELE} Öle und {PFLICHT_BESONDERHEITEN} Besonderheiten.
+                    Bei Räuchern, Sud und Schnaps entfällt die Öl-Pflicht — wählen darfst du sie trotzdem.
+                    Höchstens {MAX_AUSWAHL} Dinge zusammen.
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {/* hidden  = Kirschwasser/Haferpflaume/Räuchern — laufen über
@@ -2131,6 +2164,16 @@ export default function Planner() {
           </HubZone>
         )}
       </div>
+
+      {/* Nachpflegen aus der Liste ganz oben — derselbe Dialog wie im Atelier,
+          damit es nur eine Bearbeiten-Maske gibt. */}
+      {nachpflege && (
+        <EditInfusionModal
+          infusion={nachpflege}
+          onClose={() => setNachpflege(null)}
+          onSaved={() => setNachpflege(null)}
+        />
+      )}
     </PageBackground>
   );
 }
