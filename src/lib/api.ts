@@ -755,6 +755,10 @@ export type Member = {
   present_children_count: number;
   // Avatar-Lock (Migration 0111): nur Admin kann avatar_path ändern wenn true
   avatar_locked: boolean;
+  // Banja-Freigabe (Migration 0148): darf das Ritual anbieten und als
+  // einziger das Wort „Banja" im Aufguss-Titel führen. Gesetzt nur vom Admin;
+  // durchgesetzt wird es im DB-Trigger, nicht hier.
+  darf_banja: boolean;
   // Gast-Felder (Migration 0040)
   gast_referral_source: string | null;
   gast_consent_at: string | null;

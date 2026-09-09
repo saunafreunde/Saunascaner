@@ -1,4 +1,4 @@
-// api/ai.ts — Multi-Action AI-Endpoint (Anthropic Claude Haiku).
+// api/ai.ts — Multi-Action AI-Endpoint (ueber OpenRouter).
 //
 // Aktuelle Actions:
 //   POST /api/ai?action=suggest-title  { attributes: string[], oils: string[] }
@@ -9,19 +9,64 @@
 // Aufgrund Vercel-Hobby-12-Function-Limit gruppieren wir AI-Calls hier
 // statt jeweils einen eigenen Endpoint anzulegen.
 //
-// Env: ANTHROPIC_API_KEY (gleicher Anthropic-Account wie der Levando-
-// Mailbot — siehe Memory feedback_saunascaner_email.md).
+// Laeuft ueber OPENROUTER (Umstellung 09.09.2026, Vorgabe Christoph) — wie der
+// Levando-Hub, der denselben Weg geht. Ein Anbieter fuer alles: ein Key, ein
+// Konto, und das Modell laesst sich ohne Code-Aenderung wechseln.
+//
+// Env:
+//   OPENROUTER_API_KEY  (Pflicht)
+//   OPENROUTER_MODEL    (optional, sonst MODELL_VORGABE)
+//
+// Der frueher genutzte ANTHROPIC_API_KEY wird hier nicht mehr gelesen.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import Anthropic from '@anthropic-ai/sdk';
 
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (_client) return _client;
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error('ANTHROPIC_API_KEY nicht gesetzt (Vercel-Env-Variable fehlt).');
-  _client = new Anthropic({ apiKey: key });
-  return _client;
+/** Kurze, kreative Titel — dafuer reicht ein schnelles, guenstiges Modell.
+ *  Ueber OPENROUTER_MODEL jederzeit umstellbar, ohne Deploy. */
+const MODELL_VORGABE = 'anthropic/claude-haiku-4.5';
+
+/** Ein Chat-Aufruf an OpenRouter (OpenAI-kompatibles Format).
+ *  Gibt den reinen Text der Antwort zurueck. */
+async function openrouter(system: string, user: string, opts: {
+  maxTokens?: number; temperature?: number;
+} = {}): Promise<string> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error('OPENROUTER_API_KEY nicht gesetzt (Vercel-Env-Variable fehlt).');
+  const modell = process.env.OPENROUTER_MODEL || MODELL_VORGABE;
+
+  const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${key}`,
+      // OpenRouter bittet um beides; sie tauchen in der Nutzungsuebersicht auf
+      // und helfen, die Kosten dieser App von anderen zu trennen.
+      'HTTP-Referer': 'https://app.sauna-fds.de',
+      'X-Title': 'Saunafreunde Schwarzwald',
+    },
+    body: JSON.stringify({
+      model: modell,
+      max_tokens: opts.maxTokens ?? 400,
+      temperature: opts.temperature ?? 1.0,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`OpenRouter ${resp.status}: ${text.slice(0, 300)}`);
+  }
+  const data = await resp.json() as {
+    choices?: { message?: { content?: string } }[];
+    error?: { message?: string };
+  };
+  // OpenRouter meldet Modell-Fehler teils mit HTTP 200 und einem error-Feld —
+  // ohne diese Pruefung kaeme still ein leerer Titel heraus.
+  if (data.error) throw new Error(`OpenRouter: ${data.error.message ?? 'unbekannter Fehler'}`);
+  return data.choices?.[0]?.message?.content?.trim() ?? '';
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -32,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e) {
     // Verbessertes Logging 30.05.2026 — Name + Status + Stack damit der
     // Vercel-Log-Auszug aussagekräftig ist (vorher nur message → bei
-    // Anthropic-API-Fehler "Request failed with status code 401" o.ä.)
+    // OpenRouter-Fehler "Request failed with status code 401" o.ä.)
     const err = e as { message?: string; name?: string; status?: number; stack?: string };
     const msg = err?.message ?? String(e);
     console.error('[api/ai] error', action, {
@@ -144,12 +189,8 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
     .map((s, i) => `${i + 1}. ${s.id}: ${s.description}`)
     .join('\n');
 
-  const msg = await client().messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 400,
-    temperature: 1.0,  // maximale Variation
-    system:
-      'Du bist Aufguss-Meister im Saunaverein „Saunafreunde Schwarzwald". ' +
+  const raw = await openrouter(
+    'Du bist Aufguss-Meister im Saunaverein „Saunafreunde Schwarzwald". ' +
       'Erstelle GENAU 5 sehr unterschiedliche kreative deutsche Titel-Vorschläge ' +
       'für einen Sauna-Aufguss. Du bekommst alles, was ihn ausmacht: Öle, ' +
       'Sud-Kräuter, Räucherwerk, eine mögliche Schnaps-Sorte, die Besonderheiten ' +
@@ -164,19 +205,14 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       'Antworte AUSSCHLIESSLICH mit einem JSON-Array von 5 Strings, z.B. ' +
       '["Titel 1", "Titel 2", "Titel 3", "Titel 4", "Titel 5"]. ' +
       'Keine Erklärung, keine Markdown-Codeblöcke, kein Text außerhalb des Arrays.',
-    messages: [{
-      role: 'user',
-      content: beschreibung
-        // Ein Zufallswert pro Aufruf, damit "Neu wuerfeln" auch bei
-        // identischer Auswahl andere Titel bringt — ohne den liefert das
-        // Modell bei gleicher Eingabe sehr aehnliche Ergebnisse.
-        + '\n\n(Variation ' + String(body.variation ?? Date.now()).slice(-5)
-        + ' — bitte andere Bilder als beim letzten Mal.)',
-    }],
-  });
-
-  const block = msg.content[0];
-  const raw = block && block.type === 'text' ? block.text.trim() : '';
+    beschreibung
+      // Ein Zufallswert pro Aufruf, damit "Neu wuerfeln" auch bei identischer
+      // Auswahl andere Titel bringt — ohne den liefert das Modell bei gleicher
+      // Eingabe sehr aehnliche Ergebnisse.
+      + '\n\n(Variation ' + String(body.variation ?? Date.now()).slice(-5)
+      + ' — bitte andere Bilder als beim letzten Mal.)',
+    { maxTokens: 400, temperature: 1.0 },
+  );
 
   // JSON-Parse-Versuch — robust gegen Code-Block-Wrapping, Whitespace
   let titles: string[] = [];
@@ -193,7 +229,7 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
         .filter((t) => t.length > 0);
     }
   } catch {
-    // Fallback: zeilenweise splitten (falls Claude doch Liste statt JSON returnt)
+    // Fallback: zeilenweise splitten (falls das Modell doch eine Liste statt JSON liefert)
     titles = cleaned
       .split(/\r?\n/)
       .map((l) => l.replace(/^\s*[-*•\d.)\s]+/, '').trim())

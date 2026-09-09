@@ -1042,6 +1042,30 @@ function MembersTab() {
                         </div>
                       </button>
 
+                      {/* Banja-Freigabe (Migration 0148): das Ritual ist ein
+                          Privileg — eigene Dauer, Ruhestunde danach, zwei
+                          Kacheln auf der Tafel und keine Zutaten-Pflicht.
+                          Die Sperre sitzt im DB-Trigger, dieser Haken ist die
+                          Verwaltung dazu. */}
+                      <button
+                        onClick={() => update.mutate({ id: m.id, darf_banja: !m.darf_banja })}
+                        disabled={update.isPending}
+                        title="Darf das Banja-Ritual anbieten — und nur dann darf „Banja“ im Aufguss-Titel stehen"
+                        className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left ring-1 transition disabled:opacity-50 ${
+                          m.darf_banja
+                            ? 'bg-rose-500/20 text-rose-100 ring-rose-400/50'
+                            : 'bg-forest-800/60 text-forest-300 ring-forest-700/40 hover:bg-forest-800'
+                        }`}
+                      >
+                        <span className="text-base leading-none mt-0.5">{m.darf_banja ? '☑' : '☐'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">♨️ Banja-Ritual</div>
+                          <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                            Darf Banja anbieten · nur dann ist „Banja" im Titel erlaubt
+                          </div>
+                        </div>
+                      </button>
+
                       {/* CP-Mitarbeiter: Mitglied arbeitet zusätzlich für CP (Migration 0076) */}
                       <button
                         onClick={() => update.mutate({ id: m.id, is_cp_employee: !m.is_cp_employee })}

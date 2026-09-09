@@ -1665,7 +1665,12 @@ export default function Planner() {
                     {/* hidden  = Kirschwasser/Haferpflaume/Räuchern — laufen über
                             die Reiter weiter unten (lib/attributes.ts).
                         retired = ausgemustert, siehe dort. */}
-                    {ATTRIBUTE_CHIPS.map((a) => {
+                    {ATTRIBUTE_CHIPS
+                      // Banja nur zeigen, wer dafür freigegeben ist (0148). Das
+                      // ist reine Höflichkeit — durchgesetzt wird es im
+                      // DB-Trigger, der jeden Schreibweg abfängt.
+                      .filter((a) => a.id !== BANJA_ATTR || m?.darf_banja)
+                      .map((a) => {
                       const active = attrs.includes(a.id);
                       const gesperrt = !active && auswahlVoll;
                       return (
