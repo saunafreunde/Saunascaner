@@ -798,17 +798,20 @@ export function useSetMyAutoCheckin() {
   });
 }
 
-// ─── Saunafeste (Migration 0150) ─────────────────────────────────────────
-// An diesen Samstagen laufen Aufgüsse ab `ab_zwei_saunen` Uhr in den aktiven
-// Saunen und ab `ab_drei_saunen` zusätzlich in `dritte_sauna_id` (Finnische
-// Sauna, sonst inaktiv). Planer und Tafel zeigen dann drei Spalten.
-// Anzeige-Spiegel (Video, Tagesabschluss): src/lib/saunafeste.ts.
+// ─── Saunafeste (Migration 0150/0152) ────────────────────────────────────
+// An diesen Samstagen läuft ein Raster zur halben Stunde (erster_slot …
+// letzter_slot): vor ab_beide je Stunde eine Sauna im Wechsel 80/100, ab
+// ab_beide beide, ab ab_alle zusätzlich `dritte_sauna_id` (Finnische Sauna,
+// sonst inaktiv). Den Plan rechnet lib/saunafestPlan.ts (Spiegel von
+// saunafest_slots()). Anzeige-Spiegel (Video, Tagesabschluss): lib/saunafeste.ts.
 
 export type SaunafestTag = {
   datum: string;               // YYYY-MM-DD (Europe/Berlin)
   motto: string;
-  ab_zwei_saunen: number;
-  ab_drei_saunen: number;
+  erster_slot: string;         // Postgres time, 'HH:MM:SS'
+  letzter_slot: string;
+  ab_beide: string;
+  ab_alle: string;
   dritte_sauna_id: string | null;
 };
 
@@ -846,7 +849,7 @@ export type SaunafestBewerbung = {
   id: string;
   fest_datum: string;
   sauna_id: string;
-  slot_hour: number;
+  slot_zeit: string;           // Postgres time, 'HH:MM:SS' — vergleichen über hhmm()
   member_id: string;
   status: 'offen' | 'zugeteilt' | 'abgelehnt';
   infusion_id: string | null;
@@ -875,7 +878,7 @@ export function useSaunafestBewerbungen() {
 export function useSaunafestBewerben() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { fest_datum: string; sauna_id: string; slot_hour: number; member_id: string }) => {
+    mutationFn: async (p: { fest_datum: string; sauna_id: string; slot_zeit: string; member_id: string }) => {
       const { error } = await need().from('saunafest_bewerbungen').insert(p);
       if (error) throw error;
     },

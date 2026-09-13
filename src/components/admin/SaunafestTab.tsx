@@ -1,9 +1,11 @@
-// Admin-Reiter „Saunafest" (Migration 0150/0151).
+// Admin-Reiter „Saunafest" (Migrationen 0150–0152).
 //
 // Am Fest bewerben sich die Aufgießer im Planer auf Slots — hier entscheidet
-// der Admin. Die Matrix zeigt je Sauna und Stunde alle Bewerber; ein Klick
-// auf „Zuteilen" macht daraus den Aufguss des Bewerbers, die übrigen des
-// Slots gelten als abgelehnt. „Aufheben" nimmt das zurück.
+// der Admin. Die Matrix folgt dem Festraster (lib/saunafestPlan.ts): Zeilen
+// sind die Uhrzeiten 10:30 … 23:30, Spalten die Saunen; Kacheln, die der Plan
+// nicht vorsieht (z. B. Blockhaus um 10:30), sind zu. Ein Klick auf „Zuteilen"
+// macht aus der Bewerbung den Aufguss des Bewerbers, die übrigen des Slots
+// gelten als abgelehnt. „Aufheben" nimmt das zurück.
 
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
@@ -12,12 +14,15 @@ import {
   useSaunas, useAllMembers, useInfusions,
   type SaunafestTag, type SaunafestBewerbung,
 } from '@/lib/api';
-import type { Infusion } from '@/types/database';
-
-const LAST_HOUR = 20;
+import { festSlots, festZeiten, festSlotOffen, festAblaufText, hhmm, type FestSlot } from '@/lib/saunafestPlan';
+import type { Infusion, Sauna } from '@/types/database';
 
 function lokalDatum(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function lokalZeit(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 /** Push an den Bewerber — Zugabe, nie Pflicht: schlägt der Versand fehl, steht die Zuteilung trotzdem. */
@@ -50,23 +55,22 @@ export function SaunafestTab() {
 
   const memberName = (id: string) => membersQ.data?.find((m) => m.id === id)?.name ?? '?';
 
-  const saunen = useMemo(() => (saunasQ.data ?? [])
-    .filter((s) => s.is_active || (fest?.dritte_sauna_id != null && s.id === fest.dritte_sauna_id))
-    .sort((a, b) => a.sort_order - b.sort_order), [saunasQ.data, fest?.dritte_sauna_id]);
-
-  const stunden = useMemo(() => fest
-    ? Array.from({ length: Math.max(0, LAST_HOUR - fest.ab_zwei_saunen + 1) }, (_, i) => fest.ab_zwei_saunen + i)
-    : [], [fest]);
+  const plan: FestSlot[] = useMemo(() => (fest ? festSlots(fest, saunasQ.data ?? []) : []), [fest, saunasQ.data]);
+  const saunen: Sauna[] = useMemo(() => {
+    const imPlan = new Set(plan.flatMap((s) => s.saunaIds));
+    return (saunasQ.data ?? []).filter((s) => imPlan.has(s.id)).sort((a, b) => a.sort_order - b.sort_order);
+  }, [plan, saunasQ.data]);
+  const zeiten = useMemo(() => festZeiten(plan), [plan]);
 
   const bewerbungen = useMemo(() => (bewQ.data ?? []).filter((b) => fest && b.fest_datum === fest.datum), [bewQ.data, fest]);
 
-  /** Echter Aufguss (kein Personal-Fallback) in Sauna × Stunde am Festtag. */
-  const aufgussIn = (saunaId: string, stunde: number): Infusion | undefined => {
+  /** Echter Aufguss (kein Personal-Fallback) in Sauna × Uhrzeit am Festtag. */
+  const aufgussIn = (saunaId: string, zeit: string): Infusion | undefined => {
     if (!fest) return undefined;
     return (infusionsQ.data ?? []).find((i) => {
       if (i.sauna_id !== saunaId || i.is_personal_fallback) return false;
       const s = new Date(i.start_time);
-      return lokalDatum(s) === fest.datum && s.getHours() === stunde;
+      return lokalDatum(s) === fest.datum && lokalZeit(s) === zeit;
     });
   };
 
@@ -76,8 +80,8 @@ export function SaunafestTab() {
       await zuteilen.mutateAsync(b.id);
       const sauna = saunen.find((s) => s.id === b.sauna_id)?.name ?? 'Sauna';
       const datum = fest ? format(new Date(`${fest.datum}T12:00:00`), 'dd.MM.') : '';
-      setMeldung(`✓ ${memberName(b.member_id)} gießt am ${datum} um ${String(b.slot_hour).padStart(2, '0')}:00 Uhr in der ${sauna} auf.`);
-      void benachrichtige(b.member_id, `${datum} · ${String(b.slot_hour).padStart(2, '0')}:00 Uhr · ${sauna}. Titel und Öle bitte im Planer eintragen.`);
+      setMeldung(`✓ ${memberName(b.member_id)} gießt am ${datum} um ${hhmm(b.slot_zeit)} Uhr in der ${sauna} auf.`);
+      void benachrichtige(b.member_id, `${datum} · ${hhmm(b.slot_zeit)} Uhr · ${sauna}. Titel und Öle bitte im Planer eintragen.`);
     } catch (e) {
       setMeldung(`Zuteilen fehlgeschlagen: ${(e as Error).message}`);
     } finally { setBusyId(null); }
@@ -97,6 +101,7 @@ export function SaunafestTab() {
   const offen = bewerbungen.filter((b) => b.status === 'offen').length;
   const zugeteilt = bewerbungen.filter((b) => b.status === 'zugeteilt').length;
   const bewerberIds = new Set(bewerbungen.map((b) => b.member_id));
+  const slotsGesamt = plan.reduce((n, s) => n + s.saunaIds.length, 0);
 
   return (
     <div className="space-y-4">
@@ -107,14 +112,14 @@ export function SaunafestTab() {
           </h2>
           {fest && (
             <span className="text-xs text-forest-400 tabular-nums">
-              {bewerbungen.length} Bewerbungen von {bewerberIds.size} Personen · {zugeteilt} zugeteilt · {offen} offen
+              {slotsGesamt} Slots · {bewerbungen.length} Bewerbungen von {bewerberIds.size} Personen · {zugeteilt} zugeteilt · {offen} offen
             </span>
           )}
         </div>
         <p className="mt-1 text-xs text-forest-300/70 leading-relaxed">
           Die Aufgießer bewerben sich im Planer auf beliebig viele Slots. Du entscheidest je Slot, wer aufgießt —
-          daraus wird sein Aufguss, Titel und Öle trägt er selbst nach. Ab {fest?.ab_zwei_saunen ?? 14} Uhr in zwei
-          Saunen, ab {fest?.ab_drei_saunen ?? 17} Uhr in allen drei.
+          daraus wird sein Aufguss, Titel und Öle trägt er selbst nach.
+          {fest && <> Raster: {festAblaufText(fest)}.</>}
         </p>
 
         {feste.length === 0 ? (
@@ -158,13 +163,13 @@ export function SaunafestTab() {
               </div>
             ))}
 
-            {stunden.map((h) => (
+            {zeiten.map((zeit) => (
               <SlotZeile
-                key={h}
-                stunde={h}
-                fest={fest}
+                key={zeit}
+                zeit={zeit}
+                plan={plan}
                 saunen={saunen}
-                bewerbungen={bewerbungen.filter((b) => b.slot_hour === h)}
+                bewerbungen={bewerbungen.filter((b) => hhmm(b.slot_zeit) === zeit)}
                 aufgussIn={aufgussIn}
                 memberName={memberName}
                 busyId={busyId}
@@ -174,7 +179,7 @@ export function SaunafestTab() {
             ))}
           </div>
           <p className="mt-2 text-[11px] text-forest-500">
-            ✋ = Bewerbung · ✓ = zugeteilt · 🧖 = Aufguss anderweitig eingetragen · — = Sauna noch nicht geöffnet
+            ✋ = Bewerbung · ✓ = zugeteilt · 🧖 = Aufguss anderweitig eingetragen · — = in dieser Stunde nicht dran
           </p>
         </section>
       )}
@@ -182,12 +187,12 @@ export function SaunafestTab() {
   );
 }
 
-function SlotZeile({ stunde, fest, saunen, bewerbungen, aufgussIn, memberName, busyId, onZuteilen, onAufheben }: {
-  stunde: number;
-  fest: SaunafestTag;
-  saunen: { id: string; name: string }[];
+function SlotZeile({ zeit, plan, saunen, bewerbungen, aufgussIn, memberName, busyId, onZuteilen, onAufheben }: {
+  zeit: string;
+  plan: FestSlot[];
+  saunen: Sauna[];
   bewerbungen: SaunafestBewerbung[];
-  aufgussIn: (saunaId: string, stunde: number) => Infusion | undefined;
+  aufgussIn: (saunaId: string, zeit: string) => Infusion | undefined;
   memberName: (id: string) => string;
   busyId: string | null;
   onZuteilen: (b: SaunafestBewerbung) => void;
@@ -196,16 +201,15 @@ function SlotZeile({ stunde, fest, saunen, bewerbungen, aufgussIn, memberName, b
   return (
     <>
       <div className="flex items-center justify-center rounded-md bg-forest-900/50 text-sm font-mono font-bold tabular-nums text-forest-100">
-        {String(stunde).padStart(2, '0')}:00
+        {zeit}
       </div>
       {saunen.map((s) => {
-        const zu = s.id === fest.dritte_sauna_id && stunde < fest.ab_drei_saunen;
-        if (zu) {
+        if (!festSlotOffen(plan, zeit, s.id)) {
           return (
             <div key={s.id} className="rounded-md bg-forest-950/30 px-2 py-2 text-center text-xs text-forest-500 ring-1 ring-forest-900/40">—</div>
           );
         }
-        const inf = aufgussIn(s.id, stunde);
+        const inf = aufgussIn(s.id, zeit);
         const hier = bewerbungen.filter((b) => b.sauna_id === s.id);
         const zugeteilte = hier.find((b) => b.status === 'zugeteilt');
         const offene = hier.filter((b) => b.status !== 'zugeteilt');

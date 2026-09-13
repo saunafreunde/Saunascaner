@@ -69,6 +69,7 @@ import {
   useSaunafestBewerbungen, useSaunafestBewerben, useSaunafestBewerbungZurueck, type SaunafestBewerbung,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
+import { festSlots, festSlotOffen, festSaunenUm, festAblaufText, hhmm as zeitHHMM, type FestSlot } from '@/lib/saunafestPlan';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
 import { usePreviewMode } from '@/hooks/usePreviewMode';
 import { PreviewBanner } from '@/components/PreviewBanner';
@@ -93,10 +94,11 @@ function fmtDuration(ms: number): string {
 // mondayOpen kommt aus schedule_settings (Migration 0083) — bei true
 // werden auch am Montag Slots (11–20 wie Sa/So) angeboten.
 function getAvailableSlots(
-  forDate: Date, mondayOpen: boolean, isHoliday: boolean = false, fest: SaunafestTag | null = null,
+  forDate: Date, mondayOpen: boolean, isHoliday: boolean = false, plan: FestSlot[] | null = null,
 ): string[] {
-  const saunafest = fest ? { abZwei: fest.ab_zwei_saunen, abDrei: fest.ab_drei_saunen } : null;
-  return slotHoursForWeekday(forDate.getDay(), { mondayOpen, isHoliday, saunafest }).map(
+  // Saunafest (0152): das Raster kommt aus dem Plan — halbe Stunden, 10:30 … 23:30.
+  if (plan) return plan.map((s) => s.zeit);
+  return slotHoursForWeekday(forDate.getDay(), { mondayOpen, isHoliday }).map(
     (h) => `${String(h).padStart(2, '0')}:00`,
   );
 }
@@ -168,7 +170,7 @@ type SlotStatus =
   // zweite Banja-Stunde faelschlich als frei an.
   | { kind: 'laeuft'; infusion: Infusion }
   // Saunafest (0150): die dritte Sauna macht erst später am Tag auf.
-  | { kind: 'geschlossen'; abUhr: number }
+  | { kind: 'geschlossen'; hinweis: string }
   // Saunafest (0151): kein Buchen, sondern Bewerben — mehrere je Slot, der
   // Admin teilt zu. `meine` = die eigene offene Bewerbung, `anzahl` = alle.
   | { kind: 'bewerbung'; anzahl: number; meine: SaunafestBewerbung | null }
@@ -208,7 +210,7 @@ function slotVisualFor(status: SlotStatus, blockedBySecondary: boolean): SlotVis
     return { bg: 'bg-sky-500/15', text: 'text-sky-100/80', ring: 'ring-sky-400/30', icon: '🌬️', title: 'Ruhephase — die Sauna wird gereinigt', disabled: true };
   }
   if (status.kind === 'geschlossen') {
-    return { bg: 'bg-forest-950/30', text: 'text-forest-300/40', ring: 'ring-forest-900/40', icon: '🕰️', title: `Öffnet am Festtag erst um ${status.abUhr}:00 Uhr`, disabled: true };
+    return { bg: 'bg-forest-950/30', text: 'text-forest-300/40', ring: 'ring-forest-900/40', icon: '🕰️', title: status.hinweis, disabled: true };
   }
   if (status.kind === 'bewerbung') {
     const zaehler = status.anzahl > 0 ? `✋${status.anzahl}` : null;
@@ -581,7 +583,7 @@ export default function Planner() {
   const garantieOptsFor = useCallback((date: Date, fest: SaunafestTag | null) => ({
     mondayOpen,
     isHoliday: isHolidayDate(date, holidaySet),
-    saunafest: fest ? { abZwei: fest.ab_zwei_saunen, abDrei: fest.ab_drei_saunen } : null,
+    saunafest: !!fest,
   }), [mondayOpen, holidaySet]);
   /** Welche Saunen an diesem Tag planbar sind: die aktiven, am Fest dazu die dritte. */
   const saunenAmTag = useCallback((fest: SaunafestTag | null) =>
@@ -589,11 +591,10 @@ export default function Planner() {
       .filter((s) => s.is_active || (fest?.dritte_sauna_id != null && s.id === fest.dritte_sauna_id))
       .sort((a, b) => a.sort_order - b.sort_order),
   [saunas]);
-  /** Ab welcher Stunde diese Sauna am Festtag aufmacht (null = wie alle). */
-  const festOeffnetAb = (fest: SaunafestTag | null, saunaIdLookup: string): number | null => {
-    if (!fest) return null;
-    return saunaIdLookup === fest.dritte_sauna_id ? fest.ab_drei_saunen : fest.ab_zwei_saunen;
-  };
+  /** Das Festraster (0152): Uhrzeit × Sauna — null an normalen Tagen. */
+  const festPlanFor = useCallback((fest: SaunafestTag | null): FestSlot[] | null =>
+    (fest ? festSlots(fest, saunas) : null), [saunas]);
+  const saunaName = useCallback((id: string) => saunas.find((s) => s.id === id)?.name ?? '?', [saunas]);
 
   const dayContextOf = useCallback((date: Date): DayContext => {
     const isHol = isHolidayDate(date, holidaySet);
@@ -602,10 +603,11 @@ export default function Planner() {
     // Feiertag öffnet auch den Montag (überschreibt mondayOpen)
     const isMondayBlocked = isMonday && !mondayOpen && !isHol;
     const isPast = date.getTime() < todayDate.getTime();
-    const availableSlots = getAvailableSlots(date, mondayOpen, isHol, fest);
+    const availableSlots = getAvailableSlots(date, mondayOpen, isHol, festPlanFor(fest));
     const opts = garantieOptsFor(date, fest);
     const garantieSlotsOpen: DayContext['garantieSlotsOpen'] = [];
-    if (!isMondayBlocked) {
+    // Am Fest gibt es keine Garantie-Slots (0152).
+    if (!isMondayBlocked && !fest) {
       const weekday = date.getDay();
       for (const h of slotHoursForWeekday(weekday, opts)) {
         const slotDate = setMinutes(setHours(date, h), 0);
@@ -619,7 +621,7 @@ export default function Planner() {
       }
     }
     return { date, isMonday: isMondayBlocked, isPast, availableSlots, garantieSlotsOpen, fest };
-  }, [todayDate, saunas, infusionByKey, mondayOpen, holidaySet, festAm, garantieOptsFor]);
+  }, [todayDate, saunas, infusionByKey, mondayOpen, holidaySet, festAm, garantieOptsFor, festPlanFor]);
 
   const slotStatusFor = useCallback((date: Date, saunaIdLookup: string, hhmm: string): SlotStatus => {
     const start = slotToDate(date, hhmm);
@@ -628,15 +630,20 @@ export default function Planner() {
     // die Kachel sichtbar, aber zu. Die gemeinsame Stundenliste beginnt bei
     // abZwei, deshalb greift das nur für die dritte Sauna.
     const fest = festAm(date);
-    const festAb = festOeffnetAb(fest, saunaIdLookup);
-    if (festAb !== null && start.getHours() < festAb) return { kind: 'geschlossen', abUhr: festAb };
+    // Saunafest (0152): nur Kacheln, die der Plan vorsieht — 10:30 ist z. B.
+    // nur die 80-°C-Sauna dran, die dritte kommt erst ab 17:30 dazu.
+    const plan = festPlanFor(fest);
+    if (fest && plan && !festSlotOffen(plan, hhmm, saunaIdLookup)) {
+      const dran = festSaunenUm(plan, hhmm).map(saunaName);
+      return { kind: 'geschlossen', hinweis: dran.length ? `Um ${hhmm} Uhr am Fest: ${dran.join(' + ')}` : `Um ${hhmm} Uhr am Fest kein Aufguss` };
+    }
     const inf = infusionByKey.get(infusionKey(saunaIdLookup, start));
     // Saunafest (0151): solange kein echter Aufguss im Slot steht, ist er
     // eine Bewerbungsfläche — auch über einem Personal-Fallback, den die
     // Zuteilung dann übernimmt. Zugeteilte Slots sind normale Aufgüsse.
     if (fest && (!inf || inf.is_personal_fallback)) {
       const hier = (bewQ.data ?? []).filter((b) =>
-        b.fest_datum === fest.datum && b.sauna_id === saunaIdLookup && b.slot_hour === start.getHours() && b.status === 'offen');
+        b.fest_datum === fest.datum && b.sauna_id === saunaIdLookup && zeitHHMM(b.slot_zeit) === hhmm && b.status === 'offen');
       const meine = hier.find((b) => b.member_id === m?.id) ?? null;
       return { kind: 'bewerbung', anzahl: hier.length, meine };
     }
@@ -663,7 +670,7 @@ export default function Planner() {
       }
     }
     return { kind: 'free' };
-  }, [infusionByKey, infusions, m?.id, festAm, bewQ.data]);
+  }, [infusionByKey, infusions, m?.id, festAm, festPlanFor, saunaName, bewQ.data]);
 
   // Klick in der Matrix. Am Saunafest (0151) heißt das für Aufgießer
   // „bewerben" bzw. „Bewerbung zurückziehen" — sofort, ohne Formular. Der
@@ -676,7 +683,7 @@ export default function Planner() {
           bewerbungZurueck.mutate(st.meine.id, { onError: (e) => setFormError((e as Error).message) });
         } else {
           bewerben.mutate(
-            { fest_datum: ctx.fest.datum, sauna_id: pickedSaunaId, slot_hour: Number(picked.split(':')[0]), member_id: m.id },
+            { fest_datum: ctx.fest.datum, sauna_id: pickedSaunaId, slot_zeit: picked, member_id: m.id },
             { onError: (e) => setFormError((e as Error).message) },
           );
         }
@@ -839,11 +846,11 @@ export default function Planner() {
     if (selectedDayCtx.fest && !isAdmin) {
       return setFormError('Am Saunafest bewirbst du dich oben in der Matrix — der Admin teilt die Slots zu.');
     }
-    // Saunafest (0150): die dritte Sauna erst ab ihrer Öffnungsstunde.
+    // Saunafest (0152): nur Slots aus dem Festraster (Admin-Direktbuchung).
     {
-      const festAb = festOeffnetAb(selectedDayCtx.fest, saunaId);
-      if (festAb !== null && Number.isFinite(selectedSlotHour) && selectedSlotHour < festAb) {
-        return setFormError(`Diese Sauna öffnet am Festtag erst um ${festAb}:00 Uhr — bitte einen späteren Slot wählen.`);
+      const plan = festPlanFor(selectedDayCtx.fest);
+      if (plan && !festSlotOffen(plan, slot, saunaId)) {
+        return setFormError('Dieser Slot ist am Fest für diese Sauna nicht vorgesehen — bitte oben eine offene Kachel wählen.');
       }
     }
 
@@ -1293,6 +1300,45 @@ export default function Planner() {
                 {checkMsg && (
                   <p className={`mt-3 text-sm font-medium ${checkMsg.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{checkMsg.text}</p>
                 )}
+                {/* Saunafest-Aufruf (0151/0152): direkt unter dem Check-in, damit
+                    es niemand übersieht. Aufgießer springen zur Matrix des
+                    Festtags, der Admin in den Zuteilungs-Reiter. */}
+                {(() => {
+                  const heuteKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+                  const naechstes = (festTageQ.data ?? []).find((f) => f.datum >= heuteKey);
+                  if (!naechstes || (!isAufgieser && !isAdmin)) return null;
+                  const festDatum = new Date(`${naechstes.datum}T00:00:00`);
+                  const meine = (bewQ.data ?? []).filter((b) => b.fest_datum === naechstes.datum && b.member_id === m?.id && b.status !== 'abgelehnt').length;
+                  return (
+                    <div className="mt-3 rounded-xl bg-gradient-to-r from-amber-950/70 to-forest-950/60 p-3 ring-1 ring-amber-500/40">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl" aria-hidden>🔥</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-bold text-amber-100">
+                            Saunafest {WEEKDAY_LABEL_DE_SHORT[festDatum.getDay()]} {format(festDatum, 'dd.MM.')} · {naechstes.motto}
+                          </div>
+                          <div className="text-[11px] text-amber-200/80">{festAblaufText(naechstes)}</div>
+                        </div>
+                      </div>
+                      {isAdmin ? (
+                        <Link
+                          to="/admin#saunafest"
+                          className="mt-2 block w-full rounded-xl bg-amber-500 px-4 py-2.5 text-center text-sm font-bold text-amber-950 hover:bg-amber-400 transition"
+                        >
+                          Bewerbungen zuteilen →
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedDate(festDatum); jumpToZone('planen'); }}
+                          className="mt-2 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-400 active:scale-[0.99] transition"
+                        >
+                          {meine > 0 ? `Meine Fest-Slots (${meine} beworben) →` : 'Slots fürs Saunafest wählen →'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </Card>
 
@@ -1518,7 +1564,7 @@ export default function Planner() {
                         {ctx.fest && (
                           <span
                             className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-500/40"
-                            title={`Saunafest: ab ${ctx.fest.ab_zwei_saunen} Uhr Aufgüsse in 2 Saunen, ab ${ctx.fest.ab_drei_saunen} Uhr in 3`}
+                            title={`Saunafest: ${festAblaufText(ctx.fest)}`}
                           >
                             🔥 Saunafest · {ctx.fest.motto}
                           </span>
@@ -1532,7 +1578,7 @@ export default function Planner() {
                       const meine = (bewQ.data ?? []).filter((b) => b.fest_datum === ctx.fest!.datum && b.member_id === m?.id && b.status === 'offen').length;
                       return (
                         <p className="-mt-1 mb-2 text-[11px] text-amber-200/80">
-                          Bewerbung: Slots antippen, so viele du willst — der Admin teilt zu. ✋ = Bewerbungen je Slot.
+                          {festAblaufText(ctx.fest)}. Bewerbung: Slots antippen, so viele du willst — der Admin teilt zu. ✋ = Bewerbungen je Slot.
                           {meine > 0 && <span className="ml-1 font-semibold text-amber-100">Du bist auf {meine} Slot{meine === 1 ? '' : 's'} beworben.</span>}
                         </p>
                       );
