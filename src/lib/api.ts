@@ -837,6 +837,92 @@ export function saunafestAm(date: Date, tage: SaunafestTag[] | undefined): Sauna
   return tage.find((t) => t.datum === key) ?? null;
 }
 
+// ─── Saunafest-Bewerbungen (Migration 0151) ──────────────────────────────
+// Am Fest wird nicht gebucht, sondern beworben: beliebig viele Slots, mehrere
+// je Slot. Der Admin teilt zu (saunafest_zuteilen) — daraus entsteht der
+// Aufguss des Bewerbers.
+
+export type SaunafestBewerbung = {
+  id: string;
+  fest_datum: string;
+  sauna_id: string;
+  slot_hour: number;
+  member_id: string;
+  status: 'offen' | 'zugeteilt' | 'abgelehnt';
+  infusion_id: string | null;
+  created_at: string;
+  entschieden_at: string | null;
+};
+
+/** Alle Bewerbungen der kommenden Feste (Planer: Zähler + eigene; Admin: Zuteilung). */
+export function useSaunafestBewerbungen() {
+  return useQuery({
+    queryKey: ['saunafest-bewerbungen'],
+    queryFn: async () => {
+      const heute = new Date();
+      const key = `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, '0')}-${String(heute.getDate()).padStart(2, '0')}`;
+      const { data, error } = await need()
+        .from('saunafest_bewerbungen')
+        .select('*')
+        .gte('fest_datum', key)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as SaunafestBewerbung[];
+    },
+  });
+}
+
+export function useSaunafestBewerben() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { fest_datum: string; sauna_id: string; slot_hour: number; member_id: string }) => {
+      const { error } = await need().from('saunafest_bewerbungen').insert(p);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['saunafest-bewerbungen'] }); },
+  });
+}
+
+export function useSaunafestBewerbungZurueck() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().from('saunafest_bewerbungen').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['saunafest-bewerbungen'] }); },
+  });
+}
+
+export function useSaunafestZuteilen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await need().rpc('saunafest_zuteilen', { p_id: id });
+      if (error) throw error;
+      return data as string;   // id des angelegten Aufgusses
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['saunafest-bewerbungen'] });
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+    },
+  });
+}
+
+export function useSaunafestZuteilungAufheben() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('saunafest_zuteilung_aufheben', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['saunafest-bewerbungen'] });
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+    },
+  });
+}
+
 // ─── Feiertage (Migration 0113) ──────────────────────────────────────────
 // Admin pflegt eine Liste von Feiertagen. An diesen Tagen wird die Sauna
 // wie an Sa/So behandelt (Aufguss ab 11:00 statt erst 14:00).

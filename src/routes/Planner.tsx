@@ -66,6 +66,7 @@ import {
   useScheduleSettings,
   useHolidaySet, isHolidayDate,
   useSaunafestTage, saunafestAm, type SaunafestTag,
+  useSaunafestBewerbungen, useSaunafestBewerben, useSaunafestBewerbungZurueck, type SaunafestBewerbung,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
@@ -168,6 +169,9 @@ type SlotStatus =
   | { kind: 'laeuft'; infusion: Infusion }
   // Saunafest (0150): die dritte Sauna macht erst später am Tag auf.
   | { kind: 'geschlossen'; abUhr: number }
+  // Saunafest (0151): kein Buchen, sondern Bewerben — mehrere je Slot, der
+  // Admin teilt zu. `meine` = die eigene offene Bewerbung, `anzahl` = alle.
+  | { kind: 'bewerbung'; anzahl: number; meine: SaunafestBewerbung | null }
   // Ruhephase nach dem Ritual — die Sauna wird gereinigt und gelueftet.
   // Serverseitig gesperrt (validate_infusion_banja_and_overlap).
   | { kind: 'ruhe' };
@@ -205,6 +209,13 @@ function slotVisualFor(status: SlotStatus, blockedBySecondary: boolean): SlotVis
   }
   if (status.kind === 'geschlossen') {
     return { bg: 'bg-forest-950/30', text: 'text-forest-300/40', ring: 'ring-forest-900/40', icon: '🕰️', title: `Öffnet am Festtag erst um ${status.abUhr}:00 Uhr`, disabled: true };
+  }
+  if (status.kind === 'bewerbung') {
+    const zaehler = status.anzahl > 0 ? `✋${status.anzahl}` : null;
+    if (status.meine) {
+      return { bg: 'bg-amber-500/25', text: 'text-amber-100', ring: 'ring-amber-400/70 ring-2', icon: zaehler, title: 'Deine Bewerbung — antippen zum Zurückziehen', disabled: false };
+    }
+    return { bg: 'bg-emerald-500/15', text: 'text-emerald-100', ring: 'ring-emerald-500/30', icon: zaehler, title: status.anzahl > 0 ? `${status.anzahl} Bewerbung(en) — antippen zum Mitbewerben` : 'Saunafest — antippen zum Bewerben', disabled: false };
   }
   // status.kind === 'free'
   if (blockedBySecondary) {
@@ -563,6 +574,10 @@ export default function Planner() {
   // wählt jeder frei.
   const festTageQ = useSaunafestTage();
   const festAm = useCallback((date: Date) => saunafestAm(date, festTageQ.data), [festTageQ.data]);
+  // Bewerbungen (0151): am Fest wird nicht gebucht, sondern beworben.
+  const bewQ = useSaunafestBewerbungen();
+  const bewerben = useSaunafestBewerben();
+  const bewerbungZurueck = useSaunafestBewerbungZurueck();
   const garantieOptsFor = useCallback((date: Date, fest: SaunafestTag | null) => ({
     mondayOpen,
     isHoliday: isHolidayDate(date, holidaySet),
@@ -612,9 +627,19 @@ export default function Planner() {
     // Saunafest (0150): die dritte Sauna öffnet erst ab abDrei — davor ist
     // die Kachel sichtbar, aber zu. Die gemeinsame Stundenliste beginnt bei
     // abZwei, deshalb greift das nur für die dritte Sauna.
-    const festAb = festOeffnetAb(festAm(date), saunaIdLookup);
+    const fest = festAm(date);
+    const festAb = festOeffnetAb(fest, saunaIdLookup);
     if (festAb !== null && start.getHours() < festAb) return { kind: 'geschlossen', abUhr: festAb };
     const inf = infusionByKey.get(infusionKey(saunaIdLookup, start));
+    // Saunafest (0151): solange kein echter Aufguss im Slot steht, ist er
+    // eine Bewerbungsfläche — auch über einem Personal-Fallback, den die
+    // Zuteilung dann übernimmt. Zugeteilte Slots sind normale Aufgüsse.
+    if (fest && (!inf || inf.is_personal_fallback)) {
+      const hier = (bewQ.data ?? []).filter((b) =>
+        b.fest_datum === fest.datum && b.sauna_id === saunaIdLookup && b.slot_hour === start.getHours() && b.status === 'offen');
+      const meine = hier.find((b) => b.member_id === m?.id) ?? null;
+      return { kind: 'bewerbung', anzahl: hier.length, meine };
+    }
     if (inf) {
       if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
       if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
@@ -638,7 +663,30 @@ export default function Planner() {
       }
     }
     return { kind: 'free' };
-  }, [infusionByKey, infusions, m?.id, festAm]);
+  }, [infusionByKey, infusions, m?.id, festAm, bewQ.data]);
+
+  // Klick in der Matrix. Am Saunafest (0151) heißt das für Aufgießer
+  // „bewerben" bzw. „Bewerbung zurückziehen" — sofort, ohne Formular. Der
+  // Admin bucht auch am Fest direkt (er teilt zu, er bewirbt sich nicht).
+  function pickSlot(date: Date, ctx: DayContext, pickedSaunaId: string, picked: string) {
+    if (ctx.fest && !ctx.isPast && !isAdmin && m) {
+      const st = slotStatusFor(date, pickedSaunaId, picked);
+      if (st.kind === 'bewerbung') {
+        if (st.meine) {
+          bewerbungZurueck.mutate(st.meine.id, { onError: (e) => setFormError((e as Error).message) });
+        } else {
+          bewerben.mutate(
+            { fest_datum: ctx.fest.datum, sauna_id: pickedSaunaId, slot_hour: Number(picked.split(':')[0]), member_id: m.id },
+            { onError: (e) => setFormError((e as Error).message) },
+          );
+        }
+        return;
+      }
+    }
+    setSelectedDate(date);
+    setSaunaId(pickedSaunaId);
+    setSlot(picked);
+  }
 
   function getInfusionAt(date: Date, saunaIdLookup: string, hhmm: string): Infusion | undefined {
     return infusionByKey.get(infusionKey(saunaIdLookup, slotToDate(date, hhmm)));
@@ -784,6 +832,12 @@ export default function Planner() {
     // Stunden des Tages eintragen (Server prüft Öffnungszeiten NICHT).
     if (!selectedDayCtx.availableSlots.includes(slot)) {
       return setFormError('Slot liegt außerhalb der Aufgusszeiten dieses Tages — bitte oben neu wählen.');
+    }
+    // Saunafest (0151): Aufgießer bewerben sich in der Matrix, nur der Admin
+    // trägt direkt ein. Der Pfad hierher ist nur über einen vorher gewählten
+    // Slot erreichbar — trotzdem abfangen.
+    if (selectedDayCtx.fest && !isAdmin) {
+      return setFormError('Am Saunafest bewirbst du dich oben in der Matrix — der Admin teilt die Slots zu.');
     }
     // Saunafest (0150): die dritte Sauna erst ab ihrer Öffnungsstunde.
     {
@@ -1474,6 +1528,15 @@ export default function Planner() {
                         <span className="text-[10px] text-forest-500">vergangen</span>
                       )}
                     </div>
+                    {ctx.fest && !ctx.isPast && !isAdmin && (() => {
+                      const meine = (bewQ.data ?? []).filter((b) => b.fest_datum === ctx.fest!.datum && b.member_id === m?.id && b.status === 'offen').length;
+                      return (
+                        <p className="-mt-1 mb-2 text-[11px] text-amber-200/80">
+                          Bewerbung: Slots antippen, so viele du willst — der Admin teilt zu. ✋ = Bewerbungen je Slot.
+                          {meine > 0 && <span className="ml-1 font-semibold text-amber-100">Du bist auf {meine} Slot{meine === 1 ? '' : 's'} beworben.</span>}
+                        </p>
+                      );
+                    })()}
 
                     {ctx.isMonday ? (
                       <div className="rounded-lg bg-forest-900/40 px-3 py-3 text-center text-[11px] text-forest-400/70 ring-1 ring-forest-800/30">
@@ -1493,11 +1556,7 @@ export default function Planner() {
                             slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
                             secondarySaunaBlocked={secondaryBlockedForDay}
                             garantieSlotsOpenToday={ctx.garantieSlotsOpen}
-                            onPick={(pickedSaunaId, picked) => {
-                              setSelectedDate(d);
-                              setSaunaId(pickedSaunaId);
-                              setSlot(picked);
-                            }}
+                            onPick={(pickedSaunaId, picked) => pickSlot(d, ctx, pickedSaunaId, picked)}
                           />
                         </div>
                         {/* Desktop: bestehendes Stapeln pro Sauna mit breitem
@@ -1513,11 +1572,7 @@ export default function Planner() {
                               slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
                               secondarySaunaBlocked={secondaryBlockedForDay}
                               garantieSlotsOpenToday={ctx.garantieSlotsOpen}
-                              onPick={(picked) => {
-                                setSelectedDate(d);
-                                setSaunaId(s.id);
-                                setSlot(picked);
-                              }}
+                              onPick={(picked) => pickSlot(d, ctx, s.id, picked)}
                             />
                           ))}
                         </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { RecurringAdminTab } from '@/components/admin/RecurringAdminTab';
+import { SaunafestTab } from '@/components/admin/SaunafestTab';
 import { AvailabilityOverview } from '@/components/cp/AvailabilityOverview';
 import { OverviewExport } from '@/components/admin/OverviewExport';
 import { InvitationsTab } from '@/components/admin/InvitationsTab';
@@ -48,10 +49,11 @@ import { downloadBadge } from '@/lib/badge';
 import { downloadStatsPdf } from '@/lib/statsPdf';
 import { fmtClock } from '@/lib/time';
 
-type Tab = 'saunas' | 'members' | 'gaeste' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'uebersichten' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays' | 'pw_setup' | 'infokarten';
+type Tab = 'saunafest' | 'saunas' | 'members' | 'gaeste' | 'availability' | 'invitations' | 'recurring' | 'presence' | 'stats' | 'auswertungen' | 'uebersichten' | 'branding' | 'handbook' | 'polls' | 'tasks' | 'feed' | 'news' | 'aroma' | 'activity' | 'stage'| 'shared_email' | 'colors' | 'oils' | 'oil_weighing' | 'wifi' | 'holidays' | 'pw_setup' | 'infokarten';
 
 const TAB_META: Record<Tab, { label: string; icon: string }> = {
   saunas:       { label: 'Saunen',       icon: '🔥' },
+  saunafest:    { label: 'Saunafest',    icon: '🎪' },
   members:      { label: 'Mitglieder',   icon: '👥' },
   gaeste:       { label: 'Gäste',        icon: '👋' },
   invitations:  { label: 'Einladungen',  icon: '✉️' },
@@ -85,7 +87,7 @@ const TAB_META: Record<Tab, { label: string; icon: string }> = {
 type Group = 'operations' | 'members' | 'reports' | 'modules' | 'setup';
 
 const GROUP_META: Record<Group, { label: string; icon: string; tabs: Tab[] }> = {
-  operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring', 'availability'] },
+  operations: { label: 'Operations',  icon: '🔥', tabs: ['saunas', 'presence', 'recurring', 'saunafest', 'availability'] },
   // 'gaeste' steht bewusst an zweiter Stelle, nicht an erster: switchGroup
   // setzt beim Gruppenwechsel hart tabs[0], und Landeplatz der Gruppe
   // „Mitglieder" soll die Mitgliederliste bleiben.
@@ -240,6 +242,7 @@ export default function Admin() {
         {tab === 'availability' && <AvailabilityOverview />}
         {tab === 'invitations' && <InvitationsTab />}
         {tab === 'recurring' && <RecurringAdminTab />}
+        {tab === 'saunafest' && <SaunafestTab />}
         {tab === 'presence' && <PresenceTab />}
         {tab === 'stats' && <StatsTab />}
         {tab === 'branding' && <BrandingTab />}
