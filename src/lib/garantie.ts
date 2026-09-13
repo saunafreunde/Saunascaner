@@ -17,6 +17,11 @@ export type GarantieOpts = {
    *  erst 14:00 (auch wenn der Tag ein Di/Mi/Do/Mo wäre). Caller liefert das
    *  pro Datum via useHolidays()-Lookup. Migration 0113, 30.05.2026. */
   isHoliday?: boolean;
+  /** Saunafest (Migration 0150): Aufgüsse erst ab `abZwei` Uhr, die dritte
+   *  Sauna ab `abDrei`. Vor `abZwei` gibt es keine Garantie-Slots — der
+   *  Samstags-Rhythmus danach bleibt. Caller liefert das per
+   *  saunafestAm()-Lookup aus useSaunafestTage(). */
+  saunafest?: { abZwei: number; abDrei: number } | null;
 };
 
 // Normale Vereins-Aufgusszeiten:
@@ -35,6 +40,9 @@ export function garantieTemperatureFor(date: Date, opts: GarantieOpts = {}): 80 
   const hour = date.getHours();
   const mondayOpen = opts.mondayOpen ?? false;
   const isHoliday = opts.isHoliday ?? false;
+
+  // Saunafest: vor der Festöffnung keine Garantie (Spiegel von 0150).
+  if (opts.saunafest && hour < opts.saunafest.abZwei) return null;
 
   // Feiertag (Vorrang): wie Sa/So ab 11:00. Fr-Spezial-Logik (siehe unten)
   // greift weiterhin wenn der Feiertag auf einen Fr fällt.
@@ -74,6 +82,13 @@ export function slotHoursForWeekday(weekday: number, opts: GarantieOpts = {}): n
   const elevenToTwenty = Array.from({ length: LAST_SLOT_HOUR - 11 + 1 }, (_, i) => 11 + i);
   // 14..20 = [14, 15, ..., 20] = 7 Slots (Di/Mi/Do)
   const dithuHours = Array.from({ length: LAST_SLOT_HOUR - DITHU_START_HOUR + 1 }, (_, i) => DITHU_START_HOUR + i);
+
+  // Saunafest: erst ab der Festöffnung (14–20). Welche Sauna wann dazukommt,
+  // entscheidet der Planer pro Sauna (abDrei) — die Stundenliste ist gemeinsam.
+  if (opts.saunafest) {
+    const ab = opts.saunafest.abZwei;
+    return Array.from({ length: Math.max(0, LAST_SLOT_HOUR - ab + 1) }, (_, i) => ab + i);
+  }
 
   // Feiertag überschreibt: 11-20 (auch wenn Mo/Di/Mi/Do)
   if (isHoliday) return elevenToTwenty;

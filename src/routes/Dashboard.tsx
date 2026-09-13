@@ -18,6 +18,7 @@ import {
   useCoAufgieser,
   useScheduleSettings,
   useHolidaySet,
+  useSaunafestTage, saunafestAm,
 } from '@/lib/api';
 import { Stage } from '@/components/stage/Stage';
 // ALL_BADGES / BadgeDefinition entfernt — Tafel rendert keine
@@ -113,9 +114,15 @@ export default function Dashboard() {
         return fromDir || 'Mitstreiter';
       });
 
+  // Saunafest (0150): am Festtag kommt die dritte Sauna als Spalte dazu —
+  // die Kacheln zeigen dann von selbst nur, was dort geplant ist (ab 17 Uhr).
+  const festTage = useSaunafestTage();
+  const festHeute = saunafestAm(now, festTage.data);
   const activeSaunas = useMemo(
-    () => (saunas.data ?? []).filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order),
-    [saunas.data]
+    () => (saunas.data ?? [])
+      .filter((s) => s.is_active || (festHeute?.dritte_sauna_id != null && s.id === festHeute.dritte_sauna_id))
+      .sort((a, b) => a.sort_order - b.sort_order),
+    [saunas.data, festHeute?.dritte_sauna_id]
   );
 
   const meisterName = (id: string | null) =>

@@ -6,9 +6,12 @@
 // für alles, was die App selbst rendert — das Video muss dann neu gerendert
 // werden (Anleitung in _ablage/saunascaner/saunafest-video/README.md).
 //
-// Bewusst hart hinterlegt und nicht in der Datenbank: es sind sechs Zeilen für
-// eine Saison, sie stehen fest, und eine Tabelle mit eigener RLS-Policy plus
-// Admin-Oberfläche wäre für sechs Datumsangaben nicht zu rechtfertigen.
+// Diese Liste ist die ANZEIGE-Fassung (Tafel-Video, Tagesabschluss). Seit
+// Migration 0150 gibt es dieselben Termine auch in der Tabelle
+// `saunafest_tage` — die ist die Quelle für alles, was plant und sperrt
+// (Planer-Matrix mit dritter Sauna, Garantie-Slots erst ab 14 Uhr,
+// useSaunafestTage() in lib/api.ts). Beide müssen übereinstimmen; wer hier
+// einen Termin ändert, ändert ihn auch dort.
 
 export type Saunafest = {
   /** ISO-Datum (Europe/Berlin), immer ein Samstag. */

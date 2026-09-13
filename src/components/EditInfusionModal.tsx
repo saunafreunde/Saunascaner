@@ -302,8 +302,10 @@ export function EditInfusionModal({
             <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Besonderheiten</label>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {/* hidden = Kirschwasser/Haferpflaume/Räuchern (eigene Reiter),
-                  retired = ausgemustert (lib/attributes.ts) */}
-              {ATTRIBUTES.filter((a) => !a.hidden && !a.retired).map((a) => {
+                  retired = ausgemustert, automatisch = Banja/Wenik nur über
+                  das Banja-Ritual (lib/attributes.ts). Was ein Aufguss davon
+                  schon trägt, bleibt beim Umschalten anderer Chips erhalten. */}
+              {ATTRIBUTES.filter((a) => !a.hidden && !a.retired && !a.automatisch).map((a) => {
                 const active = attrs.includes(a.id);
                 return (
                   <button

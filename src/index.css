@@ -2039,3 +2039,26 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   .glut-fuellung, .glut-daumen { transition: none; }
   .glut-puls { display: none; }
 }
+
+/* ── Banja-Alarm (Migration 0149) ──────────────────────────────────────────
+   Rotes Vollbild bei einem Umgehungsversuch. Pure CSS, GPU-freundlich: die
+   Tafel laeuft 24/7, und auch dieser Alarm darf keinen JS-Timer fuer die
+   Optik brauchen. Bei prefers-reduced-motion steht alles still — die
+   Botschaft traegt der Text, nicht das Blinken. */
+@keyframes banja-alarm-puls {
+  0%, 100% { background-color: rgba(70, 0, 0, 0.94); }
+  50%      { background-color: rgba(120, 8, 8, 0.96); }
+}
+@keyframes banja-alarm-schwingen {
+  0%, 100% { transform: rotate(-14deg); }
+  50%      { transform: rotate(14deg); }
+}
+.banja-alarm-blitz { animation: banja-alarm-puls 1.1s ease-in-out infinite; }
+.banja-alarm-glocke {
+  display: inline-block;
+  transform-origin: 50% 12%;
+  animation: banja-alarm-schwingen 0.42s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .banja-alarm-blitz, .banja-alarm-glocke { animation: none; }
+}

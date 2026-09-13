@@ -4,6 +4,8 @@ import { de } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { UnvollstaendigeAufguesse } from '@/components/UnvollstaendigeAufguesse';
 import { EditInfusionModal } from '@/components/EditInfusionModal';
+import { BanjaAlarm, istBanjaSperre, banjaGrund } from '@/components/BanjaAlarm';
+import { meldeBanjaVersuch } from '@/lib/api';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList, sendBadgeAnnouncement } from '@/lib/telegram';
@@ -63,6 +65,7 @@ import {
   useTakeoverPersonalFallback, useBookBanjaRitual, type Template,
   useScheduleSettings,
   useHolidaySet, isHolidayDate,
+  useSaunafestTage, saunafestAm, type SaunafestTag,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
@@ -88,8 +91,11 @@ function fmtDuration(ms: number): string {
 // Slot-Stunden via zentrale garantie.ts (Single Source of Truth).
 // mondayOpen kommt aus schedule_settings (Migration 0083) — bei true
 // werden auch am Montag Slots (11–20 wie Sa/So) angeboten.
-function getAvailableSlots(forDate: Date, mondayOpen: boolean, isHoliday: boolean = false): string[] {
-  return slotHoursForWeekday(forDate.getDay(), { mondayOpen, isHoliday }).map(
+function getAvailableSlots(
+  forDate: Date, mondayOpen: boolean, isHoliday: boolean = false, fest: SaunafestTag | null = null,
+): string[] {
+  const saunafest = fest ? { abZwei: fest.ab_zwei_saunen, abDrei: fest.ab_drei_saunen } : null;
+  return slotHoursForWeekday(forDate.getDay(), { mondayOpen, isHoliday, saunafest }).map(
     (h) => `${String(h).padStart(2, '0')}:00`,
   );
 }
@@ -160,6 +166,8 @@ type SlotStatus =
   // fragte nur, ob zu GENAU dieser Stunde etwas BEGINNT, und zeigte die
   // zweite Banja-Stunde faelschlich als frei an.
   | { kind: 'laeuft'; infusion: Infusion }
+  // Saunafest (0150): die dritte Sauna macht erst später am Tag auf.
+  | { kind: 'geschlossen'; abUhr: number }
   // Ruhephase nach dem Ritual — die Sauna wird gereinigt und gelueftet.
   // Serverseitig gesperrt (validate_infusion_banja_and_overlap).
   | { kind: 'ruhe' };
@@ -194,6 +202,9 @@ function slotVisualFor(status: SlotStatus, blockedBySecondary: boolean): SlotVis
   }
   if (status.kind === 'ruhe') {
     return { bg: 'bg-sky-500/15', text: 'text-sky-100/80', ring: 'ring-sky-400/30', icon: '🌬️', title: 'Ruhephase — die Sauna wird gereinigt', disabled: true };
+  }
+  if (status.kind === 'geschlossen') {
+    return { bg: 'bg-forest-950/30', text: 'text-forest-300/40', ring: 'ring-forest-900/40', icon: '🕰️', title: `Öffnet am Festtag erst um ${status.abUhr}:00 Uhr`, disabled: true };
   }
   // status.kind === 'free'
   if (blockedBySecondary) {
@@ -479,6 +490,8 @@ export default function Planner() {
   const fehlt = fehltNoch(auswahl);
   // Welcher Aufguss wird gerade über die Nachpflege-Liste bearbeitet?
   const [nachpflege, setNachpflege] = useState<Infusion | null>(null);
+  // Grund des Banja-Umgehungsversuchs, solange das rote Fenster steht.
+  const [banjaAlarm, setBanjaAlarm] = useState<string | null>(null);
   const attrsPayload = (): string[] => baueAttrsPayload(auswahl);
   // Admin kann anderen Saunameister beim Erstellen wählen — default: self.
   // Bei nicht-Admins wird m.id verwendet (Backend lehnt fremde IDs eh ab).
@@ -539,22 +552,49 @@ export default function Planner() {
     isPast: boolean;
     availableSlots: string[];
     garantieSlotsOpen: { hour: number; saunaName: string; tempC: 80 | 100 }[];
+    /** Saunafest an diesem Tag (0150) — sonst null. */
+    fest: SaunafestTag | null;
   };
 
   const holidaySet = useHolidaySet();
+  // Saunafeste (0150): an diesen Samstagen Aufgüsse ab 14 Uhr in den beiden
+  // Außensaunen, ab 17 Uhr auch in der dritten. Die Matrix bekommt dann
+  // drei Spalten, und die Garantie-Sperre der Zweitsauna entfällt — am Fest
+  // wählt jeder frei.
+  const festTageQ = useSaunafestTage();
+  const festAm = useCallback((date: Date) => saunafestAm(date, festTageQ.data), [festTageQ.data]);
+  const garantieOptsFor = useCallback((date: Date, fest: SaunafestTag | null) => ({
+    mondayOpen,
+    isHoliday: isHolidayDate(date, holidaySet),
+    saunafest: fest ? { abZwei: fest.ab_zwei_saunen, abDrei: fest.ab_drei_saunen } : null,
+  }), [mondayOpen, holidaySet]);
+  /** Welche Saunen an diesem Tag planbar sind: die aktiven, am Fest dazu die dritte. */
+  const saunenAmTag = useCallback((fest: SaunafestTag | null) =>
+    saunas
+      .filter((s) => s.is_active || (fest?.dritte_sauna_id != null && s.id === fest.dritte_sauna_id))
+      .sort((a, b) => a.sort_order - b.sort_order),
+  [saunas]);
+  /** Ab welcher Stunde diese Sauna am Festtag aufmacht (null = wie alle). */
+  const festOeffnetAb = (fest: SaunafestTag | null, saunaIdLookup: string): number | null => {
+    if (!fest) return null;
+    return saunaIdLookup === fest.dritte_sauna_id ? fest.ab_drei_saunen : fest.ab_zwei_saunen;
+  };
+
   const dayContextOf = useCallback((date: Date): DayContext => {
     const isHol = isHolidayDate(date, holidaySet);
+    const fest = festAm(date);
     const isMonday = date.getDay() === 1;
     // Feiertag öffnet auch den Montag (überschreibt mondayOpen)
     const isMondayBlocked = isMonday && !mondayOpen && !isHol;
     const isPast = date.getTime() < todayDate.getTime();
-    const availableSlots = getAvailableSlots(date, mondayOpen, isHol);
+    const availableSlots = getAvailableSlots(date, mondayOpen, isHol, fest);
+    const opts = garantieOptsFor(date, fest);
     const garantieSlotsOpen: DayContext['garantieSlotsOpen'] = [];
     if (!isMondayBlocked) {
       const weekday = date.getDay();
-      for (const h of slotHoursForWeekday(weekday, { mondayOpen, isHoliday: isHol })) {
+      for (const h of slotHoursForWeekday(weekday, opts)) {
         const slotDate = setMinutes(setHours(date, h), 0);
-        const tempC = garantieTemperatureFor(slotDate, { mondayOpen, isHoliday: isHol });
+        const tempC = garantieTemperatureFor(slotDate, opts);
         if (tempC === null) continue;
         const garantieSauna = saunas.find((s) => s.temperature_label === `${tempC}°C` && s.is_active);
         if (!garantieSauna) continue;
@@ -563,12 +603,17 @@ export default function Planner() {
         if (!hasReal) garantieSlotsOpen.push({ hour: h, saunaName: garantieSauna.name, tempC });
       }
     }
-    return { date, isMonday: isMondayBlocked, isPast, availableSlots, garantieSlotsOpen };
-  }, [todayDate, saunas, infusionByKey, mondayOpen, holidaySet]);
+    return { date, isMonday: isMondayBlocked, isPast, availableSlots, garantieSlotsOpen, fest };
+  }, [todayDate, saunas, infusionByKey, mondayOpen, holidaySet, festAm, garantieOptsFor]);
 
   const slotStatusFor = useCallback((date: Date, saunaIdLookup: string, hhmm: string): SlotStatus => {
     const start = slotToDate(date, hhmm);
     if (isBefore(start, new Date())) return { kind: 'past' };
+    // Saunafest (0150): die dritte Sauna öffnet erst ab abDrei — davor ist
+    // die Kachel sichtbar, aber zu. Die gemeinsame Stundenliste beginnt bei
+    // abZwei, deshalb greift das nur für die dritte Sauna.
+    const festAb = festOeffnetAb(festAm(date), saunaIdLookup);
+    if (festAb !== null && start.getHours() < festAb) return { kind: 'geschlossen', abUhr: festAb };
     const inf = infusionByKey.get(infusionKey(saunaIdLookup, start));
     if (inf) {
       if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
@@ -593,7 +638,7 @@ export default function Planner() {
       }
     }
     return { kind: 'free' };
-  }, [infusionByKey, infusions, m?.id]);
+  }, [infusionByKey, infusions, m?.id, festAm]);
 
   function getInfusionAt(date: Date, saunaIdLookup: string, hhmm: string): Infusion | undefined {
     return infusionByKey.get(infusionKey(saunaIdLookup, slotToDate(date, hhmm)));
@@ -638,20 +683,21 @@ export default function Planner() {
   // ─── durch echte Aufgießer (nicht Personal-Fallback) belegt sind.
   const isGarantieSauna = useMemo(() => {
     const start = slotToDate(selectedDate, slot);
-    const isHol = isHolidayDate(selectedDate, holidaySet);
-    const temp = garantieTemperatureFor(start, { mondayOpen, isHoliday: isHol });
+    const temp = garantieTemperatureFor(start, garantieOptsFor(selectedDate, festAm(selectedDate)));
     if (temp === null) return false;
     const sauna = saunas.find((s) => s.id === saunaId);
     if (!sauna) return false;
     return sauna.temperature_label === `${temp}°C`;
-  }, [selectedDate, slot, saunaId, saunas, mondayOpen, holidaySet]);
+  }, [selectedDate, slot, saunaId, saunas, garantieOptsFor, festAm]);
 
   const garantieSlotsOpenToday = selectedDayCtx.garantieSlotsOpen;
   // Per-Stunde-Sperre (Migration 0092): Zweit-Sauna ist nur für die konkrete
   // Stunde gesperrt wenn der Garantie-Slot DIESER Stunde noch nicht durch einen
   // echten Aufgießer belegt ist. Andere Stunden des Tages sind unabhängig.
   const selectedSlotHour = Number(slot.split(':')[0]);
+  // Am Saunafest (0150) gibt es keine Zweitsauna-Sperre: jeder wählt frei.
   const secondarySaunaBlocked =
+    !selectedDayCtx.fest &&
     !isGarantieSauna &&
     Number.isFinite(selectedSlotHour) &&
     garantieSlotsOpenToday.some((g) => g.hour === selectedSlotHour);
@@ -738,6 +784,13 @@ export default function Planner() {
     // Stunden des Tages eintragen (Server prüft Öffnungszeiten NICHT).
     if (!selectedDayCtx.availableSlots.includes(slot)) {
       return setFormError('Slot liegt außerhalb der Aufgusszeiten dieses Tages — bitte oben neu wählen.');
+    }
+    // Saunafest (0150): die dritte Sauna erst ab ihrer Öffnungsstunde.
+    {
+      const festAb = festOeffnetAb(selectedDayCtx.fest, saunaId);
+      if (festAb !== null && Number.isFinite(selectedSlotHour) && selectedSlotHour < festAb) {
+        return setFormError(`Diese Sauna öffnet am Festtag erst um ${festAb}:00 Uhr — bitte einen späteren Slot wählen.`);
+      }
     }
 
     // Banja-Pfad früh erkennen — umgeht mehrere Standard-Checks (Slot-Taken,
@@ -861,7 +914,16 @@ export default function Planner() {
           sendBadgeAnnouncement(displayName, badge).catch(() => {});
         }
       }
-    } catch (e) { setFormError((e as Error).message); }
+    } catch (e) {
+      // Banja-Umgehung ist kein normaler Fehler: rotes Fenster statt roter
+      // Zeile, und der Admin erfährt davon (0149).
+      if (istBanjaSperre(e)) {
+        setBanjaAlarm(banjaGrund(e));
+        meldeBanjaVersuch(banjaGrund(e), title || null);
+        return;
+      }
+      setFormError((e as Error).message);
+    }
   }
 
   // ─── Evakuierung ────────────────────────────────────────────────────────
@@ -1380,7 +1442,9 @@ export default function Planner() {
                 // Marker, ob der Tag überhaupt Garantie-Sperren hat — die
                 // konkrete Sperre pro Slot wird in SaunaSlotRow per-Stunde
                 // entschieden (siehe blockedBySecondary unten).
-                const secondaryBlockedForDay = ctx.garantieSlotsOpen.length > 0;
+                // Am Saunafest (0150) entfällt die Sperre — freie Wahl in allen Saunen.
+                const secondaryBlockedForDay = ctx.garantieSlotsOpen.length > 0 && !ctx.fest;
+                const saunenHeute = saunenAmTag(ctx.fest);
                 return (
                   <div
                     key={d.toISOString()}
@@ -1397,6 +1461,14 @@ export default function Planner() {
                         </span>
                         <span className="text-[11px] text-forest-400 tabular-nums">{format(d, 'dd.MM.')}</span>
                         {isToday && <span className="text-[9px] uppercase tracking-wider text-amber-300/80">heute</span>}
+                        {ctx.fest && (
+                          <span
+                            className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-500/40"
+                            title={`Saunafest: ab ${ctx.fest.ab_zwei_saunen} Uhr Aufgüsse in 2 Saunen, ab ${ctx.fest.ab_drei_saunen} Uhr in 3`}
+                          >
+                            🔥 Saunafest · {ctx.fest.motto}
+                          </span>
+                        )}
                       </div>
                       {ctx.isPast && !isToday && (
                         <span className="text-[10px] text-forest-500">vergangen</span>
@@ -1414,7 +1486,7 @@ export default function Planner() {
                             statt gestapelter SaunaSlotRows. */}
                         <div className="lg:hidden">
                           <DaySaunaMatrix
-                            saunas={saunas.filter((s) => s.is_active)}
+                            saunas={saunenHeute}
                             slots={ctx.availableSlots}
                             selectedSaunaId={isSelected ? saunaId : ''}
                             selectedSlot={isSelected ? slot : ''}
@@ -1431,7 +1503,7 @@ export default function Planner() {
                         {/* Desktop: bestehendes Stapeln pro Sauna mit breitem
                             horizontalen Slot-Grid bleibt unverändert. */}
                         <div className="hidden lg:block space-y-1.5">
-                          {saunas.filter((s) => s.is_active).map((s) => (
+                          {saunenHeute.map((s) => (
                             <SaunaSlotRow
                               key={s.id}
                               sauna={s}
@@ -1470,6 +1542,16 @@ export default function Planner() {
                 {(() => {
                   const banjaSauna = saunas.find((s) => s.id === saunaId && s.is_active);
                   if (!banjaSauna) return null;
+                  // Ohne Freigabe (0148) keine Karte — die Sperre sitzt im
+                  // DB-Trigger, aber ein Knopf, der garantiert ins rote
+                  // Fenster führt, wäre eine Falle statt einer Funktion.
+                  if (!(m?.darf_banja || isAdmin)) {
+                    return (
+                      <p className="text-[11px] text-forest-400/80">
+                        ♨️ Das Banja-Ritual (mit Wenikaufguss) darf nur anbieten, wer vom Admin dafür freigegeben ist.
+                      </p>
+                    );
+                  }
                   const startStunde = selectedSlotHour;
                   const dauer = banjaDauerFuer(startStunde);
                   // Zwei Stunden-Kacheln plus die Ruhestunde danach.
@@ -1664,12 +1746,10 @@ export default function Planner() {
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {/* hidden  = Kirschwasser/Haferpflaume/Räuchern — laufen über
                             die Reiter weiter unten (lib/attributes.ts).
-                        retired = ausgemustert, siehe dort. */}
+                        retired = ausgemustert, siehe dort.
+                        automatisch = Banja + Wenik: nur über die Banja-
+                            Spezialkarte, nie als Chip (13.09.2026). */}
                     {ATTRIBUTE_CHIPS
-                      // Banja nur zeigen, wer dafür freigegeben ist (0148). Das
-                      // ist reine Höflichkeit — durchgesetzt wird es im
-                      // DB-Trigger, der jeden Schreibweg abfängt.
-                      .filter((a) => a.id !== BANJA_ATTR || m?.darf_banja)
                       .map((a) => {
                       const active = attrs.includes(a.id);
                       const gesperrt = !active && auswahlVoll;
@@ -2178,6 +2258,10 @@ export default function Planner() {
           onClose={() => setNachpflege(null)}
           onSaved={() => setNachpflege(null)}
         />
+      )}
+
+      {banjaAlarm && (
+        <BanjaAlarm grund={banjaAlarm} onClose={() => setBanjaAlarm(null)} />
       )}
     </PageBackground>
   );

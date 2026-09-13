@@ -798,6 +798,45 @@ export function useSetMyAutoCheckin() {
   });
 }
 
+// ─── Saunafeste (Migration 0150) ─────────────────────────────────────────
+// An diesen Samstagen laufen Aufgüsse ab `ab_zwei_saunen` Uhr in den aktiven
+// Saunen und ab `ab_drei_saunen` zusätzlich in `dritte_sauna_id` (Finnische
+// Sauna, sonst inaktiv). Planer und Tafel zeigen dann drei Spalten.
+// Anzeige-Spiegel (Video, Tagesabschluss): src/lib/saunafeste.ts.
+
+export type SaunafestTag = {
+  datum: string;               // YYYY-MM-DD (Europe/Berlin)
+  motto: string;
+  ab_zwei_saunen: number;
+  ab_drei_saunen: number;
+  dritte_sauna_id: string | null;
+};
+
+export function useSaunafestTage() {
+  return useQuery({
+    queryKey: ['saunafest-tage'],
+    queryFn: async () => {
+      const { data, error } = await need()
+        .from('saunafest_tage')
+        .select('*')
+        .order('datum', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as SaunafestTag[];
+    },
+    staleTime: 10 * 60_000, // sechs Termine pro Saison
+  });
+}
+
+/** Das Fest an diesem Tag (lokales Berlin-Datum), sonst null. */
+export function saunafestAm(date: Date, tage: SaunafestTag[] | undefined): SaunafestTag | null {
+  if (!tage?.length) return null;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const key = `${y}-${m}-${d}`;
+  return tage.find((t) => t.datum === key) ?? null;
+}
+
 // ─── Feiertage (Migration 0113) ──────────────────────────────────────────
 // Admin pflegt eine Liste von Feiertagen. An diesen Tagen wird die Sauna
 // wie an Sa/So behandelt (Aufguss ab 11:00 statt erst 14:00).
@@ -5867,4 +5906,17 @@ export function useAdminRotateCheckinPin() {
       qc.invalidateQueries({ queryKey: ['member'] });
     },
   });
+}
+// ─── Banja-Umgehungsversuch melden (0149) ────────────────────────────────
+/** Protokolliert einen von der Datenbank abgewiesenen Banja-Versuch.
+ *
+ *  Bewusst „fire and forget": der Nutzer sieht bereits das rote Fenster, und
+ *  ein Fehler beim Protokollieren darf daran nichts ändern. Der Aufruf muss
+ *  NACH dem gescheiterten Speichern kommen — der Trigger rollt die
+ *  Transaktion zurück, ein Eintrag aus ihm heraus wäre nie zu sehen. */
+export function meldeBanjaVersuch(grund: string, titel?: string | null): void {
+  const c = supabase;
+  if (!c) return;
+  void c.rpc('melde_banja_versuch', { p_grund: grund, p_titel: titel ?? null })
+    .then(() => undefined, () => undefined);
 }

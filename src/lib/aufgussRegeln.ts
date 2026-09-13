@@ -221,7 +221,7 @@ export function pruefeAuswahl(a: ZutatenAuswahl): string | null {
  *
  *  Wer die Reiter nicht hat, nimmt weiter ATTRIBUTES_WAEHLBAR — sonst
  *  verschwinden diese Aufgussarten dort ersatzlos. */
-export const ATTRIBUTE_CHIPS = ATTRIBUTES.filter((a) => !a.retired && !a.hidden);
+export const ATTRIBUTE_CHIPS = ATTRIBUTES.filter((a) => !a.retired && !a.hidden && !a.automatisch);
 
 /**
  * Fehlen diesem Aufguss die Zutaten — muss das Tablet mahnen?

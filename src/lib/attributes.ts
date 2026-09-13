@@ -55,6 +55,14 @@ export type InfusionAttribute =
 //             Liste, damit ATTR_BY_ID Alt-Aufgüsse weiter beschriften kann.
 //             Löschen würde bestehende Karten auf nackte IDs zurückwerfen.
 //
+// `automatisch` = WIRD GESETZT, NICHT GEWÄHLT. Banja und Wenikaufguss gibt
+//             es seit 13.09.2026 nur noch als Paar aus dem Banja-Ritual: die
+//             Spezialkarte im Planer setzt beide Marker zusammen, der
+//             DB-Trigger weist Wenik ohne Banja ab (0150). Als Chip tauchen
+//             sie nirgends mehr auf — auch nicht bei den Standard-
+//             Besonderheiten im Profil, sonst stünde der Marker beim nächsten
+//             Aufguss schon drin und liefe in die Sperre.
+//
 // Ausgemustert am 08.08.2026 nach Auswertung von 1000 Aufgüssen
 // (29.05.–03.10.2026, 393 davon mit Besonderheiten):
 //   thymian        0×  — nie benutzt
@@ -64,7 +72,7 @@ export type InfusionAttribute =
 //   malle_schlager 2×  — geht in „Schlager" auf (vorher Party-Schlager, 3×)
 export const ATTRIBUTES: {
   id: InfusionAttribute; emoji: string; label: string;
-  hidden?: true; retired?: true;
+  hidden?: true; retired?: true; automatisch?: true;
 }[] = [
   // Aufguss-Stil
   { id: 'flame',          emoji: '🔥', label: 'Extra heiß' },
@@ -75,8 +83,8 @@ export const ATTRIBUTES: {
   { id: 'kaffee',         emoji: '☕', label: 'Kaffee' },
   { id: 'kirschwasser',   emoji: '🍒', label: 'Kirschwasser', hidden: true },
   { id: 'haferpflaume',   emoji: '🟣', label: 'Haferpflaume', hidden: true },
-  { id: 'banja',          emoji: '♨️', label: 'Banja' },
-  { id: 'wenik',          emoji: '🍃', label: 'Wenikaufguss' },
+  { id: 'banja',          emoji: '♨️', label: 'Banja', automatisch: true },
+  { id: 'wenik',          emoji: '🍃', label: 'Wenikaufguss', automatisch: true },
   { id: 'vulkan',         emoji: '🌋', label: 'Vulkanaufguss' },
   { id: 'versucherle',    emoji: '🥃', label: 'Versucherle' },
   // Sud-Zutaten
@@ -117,7 +125,7 @@ export const ATTRIBUTES: {
 /** Alles außer ausgemustert — für Ansichten OHNE Zutaten-Reiter.
  *  Formulare mit Reitern (Planer, Öl-Raum) nehmen ATTRIBUTE_CHIPS aus
  *  lib/aufgussRegeln, das zusätzlich `hidden` ausblendet. */
-export const ATTRIBUTES_WAEHLBAR = ATTRIBUTES.filter((a) => !a.retired);
+export const ATTRIBUTES_WAEHLBAR = ATTRIBUTES.filter((a) => !a.retired && !a.automatisch);
 
 export const ATTR_BY_ID: Record<InfusionAttribute, { emoji: string; label: string }> =
   Object.fromEntries(ATTRIBUTES.map((a) => [a.id, { emoji: a.emoji, label: a.label }])) as never;
