@@ -2067,7 +2067,7 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
    Eingangs-Tablet außerhalb der Öffnungszeiten: der Joker jagt das Logo.
    Nur transform/opacity (GPU), keine JS-Timer — der Schirm läuft die ganze
    Nacht. Logo und Joker fahren dieselbe Bahn: X- und Y-Schwingung mit
-   verschiedenen Perioden (Lissajous), das Logo 1,4 s voraus (negatives
+   verschiedenen Perioden (Lissajous), das Logo 2,3 s voraus (negatives
    animation-delay). .joker-wende dreht den Läufer an den X-Wendepunkten um
    (steps(1): 0–50 % nach rechts, 50–100 % nach links) — seine Periode MUSS
    der von joker-bahn-x entsprechen. */
@@ -2129,11 +2129,13 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
 .joker-x     { animation: joker-bahn-x 13s ease-in-out infinite; }
 .joker-y     { animation: joker-bahn-y 8.6s ease-in-out infinite; }
 .joker-wende { animation: joker-wende 13s steps(1) infinite; }
-/* Das Logo ist dem Joker 1,4 s voraus — auf beiden Achsen gleich viel. */
-.joker-vor, .joker-vor-y { animation-delay: -1.4s; }
+/* Das Logo ist dem Joker 2,3 s voraus — auf beiden Achsen gleich viel. Weniger
+   Vorsprung und der Läufer verdeckt das Logo hochkant fast dauernd (Bahn ist
+   dort nur 56vw breit). */
+.joker-vor, .joker-vor-y { animation-delay: -2.3s; }
 
 .joker-laeufer, .joker-logo { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; will-change: transform; }
-.joker-laeufer { height: 38vmin; width: auto; animation: joker-hoppeln 0.46s ease-in-out infinite alternate; }
+.joker-laeufer { height: 34vmin; width: auto; animation: joker-hoppeln 0.46s ease-in-out infinite alternate; }
 .joker-logo {
   height: 17vmin; width: 17vmin; object-fit: contain; border-radius: 22%;
   animation: joker-logo-flucht 0.9s ease-in-out infinite alternate;

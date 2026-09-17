@@ -9,7 +9,7 @@
 // Bewegung: reine CSS-Transforms (GPU), keine JS-Timer im Ruhezustand — das
 // Tablet läuft die ganze Nacht (Lehre von der TV-Tafel). Logo und Joker
 // fahren DIESELBE Bahn (X- und Y-Schwingung mit verschiedenen Perioden =
-// Lissajous-Figur), der Joker nur 1,4 s später: er läuft dem Logo exakt
+// Lissajous-Figur), der Joker nur 2,3 s später: er läuft dem Logo exakt
 // hinterher, holt an den Wendepunkten fast auf und verpasst es dann doch.
 // Die Keyframes stehen in index.css (Abschnitt „Joker-Bildschirmschoner").
 
@@ -71,16 +71,17 @@ export function JokerSchoner({ oeffnetUm }: { oeffnetUm: string | null }) {
     >
       {/* Die Jagd läuft unsichtbar weiter, während gelacht wird — danach geht sie nahtlos weiter. */}
       <div className={`joker-buehne ${lacht ? 'joker-buehne--blass' : ''}`} aria-hidden>
-        <div className="joker-x joker-vor">
-          <div className="joker-y joker-vor-y">
-            {logoUrl && <img src={logoUrl} alt="" className="joker-logo" draggable={false} />}
-          </div>
-        </div>
         <div className="joker-x">
           <div className="joker-y">
             <div className="joker-wende">
               <img src="/kiosk/joker-lauf.webp" alt="" className="joker-laeufer" draggable={false} />
             </div>
+          </div>
+        </div>
+        {/* Logo NACH dem Joker: liegt obenauf und verschwindet an den Wendepunkten nie ganz hinter ihm. */}
+        <div className="joker-x joker-vor">
+          <div className="joker-y joker-vor-y">
+            {logoUrl && <img src={logoUrl} alt="" className="joker-logo" draggable={false} />}
           </div>
         </div>
       </div>
