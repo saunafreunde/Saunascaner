@@ -2,7 +2,7 @@ import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useActiveEvacuation, useEndEvacuation } from '@/lib/api';
+import { useCurrentMember, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
@@ -12,6 +12,7 @@ import { AppReloadWatcher } from '@/components/AppReloadWatcher';
 import { ErrorBoundary, TafelErrorFallback } from '@/components/ErrorBoundary';
 import { useAutoCheckin } from '@/hooks/useAutoCheckin';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
+import { JokerSchoner, KioskBlende } from '@/components/kiosk/JokerSchoner';
 
 // Routen ohne Bottom-Nav: TV/Tablet-Layouts + Auth-Flows
 const NO_BOTTOM_NAV_PATHS = [
@@ -51,6 +52,28 @@ function KioskFullscreenGate() {
   const { pathname } = useLocation();
   if (!KIOSK_FULLSCREEN_PATHS.includes(pathname)) return null;
   return <KioskFullscreenRunner />;
+}
+
+// Bildschirmschoner-Sperre des Eingangs-Tablets (Migration 0153): außerhalb der
+// Öffnungszeiten liegt der Joker über dem ganzen Kiosk. Ob gesperrt ist,
+// entscheidet der Server; freigeben kann nur ein Admin über die App. Die
+// Abfrage läuft NUR auf den Kiosk-Pfaden (eigener Runner, damit der Hook
+// woanders gar nicht erst pollt).
+//  • Status lädt noch      → dunkle Blende (nach einem Neuladen ist nichts kurz bedienbar)
+//  • Abfrage scheitert ganz → offen lassen: ein Serverfehler darf das Tablet am
+//    Tag nicht aussperren. Ein späterer Aussetzer ändert nichts — react-query
+//    behält den letzten bekannten Stand.
+function KioskSperreRunner() {
+  const status = useKioskSperreStatus();
+  if (status.data?.gesperrt) return <JokerSchoner oeffnetUm={status.data.oeffnet_um} />;
+  if (!status.data && status.isLoading) return <KioskBlende />;
+  return null;
+}
+
+function KioskSperreGate() {
+  const { pathname } = useLocation();
+  if (!isSupabaseConfigured || !KIOSK_FULLSCREEN_PATHS.includes(pathname)) return null;
+  return <KioskSperreRunner />;
 }
 
 // Eager-loaded routes (für sofortige Verfügbarkeit)
@@ -166,6 +189,7 @@ export default function App() {
       </div>
       <BottomNavGate />
       <KioskFullscreenGate />
+      <KioskSperreGate />
     </Suspense>
     </ErrorBoundary>
   );

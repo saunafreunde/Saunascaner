@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   useSaunafestTage, useSaunafestBewerbungen, useSaunafestZuteilen, useSaunafestZuteilungAufheben,
-  useSaunas, useAllMembers, useInfusions,
+  useSaunas, useAllMembers, useInfusions, sendPushTo,
   type SaunafestTag, type SaunafestBewerbung,
 } from '@/lib/api';
 import { festSlots, festZeiten, festSlotOffen, festAblaufText, hhmm, type FestSlot } from '@/lib/saunafestPlan';
@@ -25,14 +25,11 @@ function lokalZeit(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-/** Push an den Bewerber — Zugabe, nie Pflicht: schlägt der Versand fehl, steht die Zuteilung trotzdem. */
+/** Push an den Bewerber — Zugabe, nie Pflicht: schlägt der Versand fehl, steht die Zuteilung trotzdem.
+ *  Läuft über sendPushTo (mit Login-Header): der nackte fetch davor kam als 401 nie an. */
 async function benachrichtige(memberId: string, body: string) {
   try {
-    await fetch('/api/push-send', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ member_ids: [memberId], title: '🔥 Saunafest — du bist dran', body }),
-    });
+    await sendPushTo([memberId], { title: '🔥 Saunafest — du bist dran', body, url: '/planner', tag: 'saunafest-zuteilung' });
   } catch { /* still */ }
 }
 

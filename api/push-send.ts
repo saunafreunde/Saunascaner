@@ -12,6 +12,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 import { authenticate } from './_auth.js';
+import { tgBroadcast } from './_telegram.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cron-Action: process-queue — verarbeitet notification_queue,
@@ -231,6 +232,46 @@ async function processQueue(req: VercelRequest, res: VercelResponse) {
             )
           );
           totalSent += results.filter((r) => r.status === 'fulfilled').length;
+        }
+      } else if (item.kind === 'kiosk_joker' && (item as { recipient_id?: string }).recipient_id) {
+        // Eingangs-Tablet ausserhalb der Oeffnungszeiten angetippt (Migration 0153):
+        // eine Zeile je Admin, Titel/Body/Ziel stehen im Payload. requireInteraction,
+        // damit die Meldung nicht von selbst wieder verschwindet.
+        const recipientId = (item as { recipient_id: string }).recipient_id;
+        const { data: subs } = await sb
+          .from('push_subscriptions')
+          .select('endpoint, p256dh_key, auth_key')
+          .eq('member_id', recipientId);
+        if (subs && subs.length > 0) {
+          const pushPayload = JSON.stringify({
+            title: (payload.title as string) || '🃏 Eingangs-Tablet angetippt',
+            body: (payload.body as string) || 'Jemand hat den gesperrten Bildschirm berührt.',
+            url: (payload.url as string) || '/admin',
+            tag: 'kiosk-joker',
+            requireInteraction: true,
+          });
+          const results = await Promise.allSettled(
+            subs.map((s) =>
+              webpush.sendNotification(
+                { endpoint: s.endpoint, keys: { p256dh: s.p256dh_key, auth: s.auth_key } },
+                pushPayload
+              )
+            )
+          );
+          totalSent += results.filter((r) => r.status === 'fulfilled').length;
+        }
+      } else if (item.kind === 'kiosk_joker_telegram') {
+        // Dieselbe Meldung einmal an die abonnierten Telegram-Chats. Fehlt der
+        // Bot-Token oder gibt es keine Chats, gilt die Zeile trotzdem als erledigt.
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const text = payload.text as string | undefined;
+        if (token && text) {
+          const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
+          const chats = ((cfg?.value as { chat_ids?: number[] } | null)?.chat_ids ?? []).filter((c) => typeof c === 'number');
+          if (chats.length > 0) {
+            const tg = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({ chat_id, text, parse_mode: 'HTML' }));
+            totalSent += tg.filter((r) => r.ok).length;
+          }
         }
       }
 

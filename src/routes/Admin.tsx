@@ -28,6 +28,7 @@ import { HolidaysTab } from '@/components/admin/HolidaysTab';
 import { GaesteTab } from '@/components/admin/GaesteTab';
 import { ZugangsdatenButtons } from '@/components/admin/ZugangsdatenButtons';
 import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
+import { TabletSperreCard } from '@/components/admin/TabletSperreCard';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { SAUNA_HEADER_IMAGES } from '@/lib/saunaHeaders';
 import {
@@ -235,6 +236,10 @@ export default function Admin() {
         {/* Notfall-Alarm — nur Admin, immer erreichbar (Rollen-Guard in der Komponente) */}
         <div className="mb-4">
           <EvacuationAlarmButton />
+        </div>
+        {/* Eingangs-Tablet: Joker-Sperre freigeben/sperren — Ziel der Push-Meldung „Tablet angetippt" */}
+        <div className="mb-4">
+          <TabletSperreCard />
         </div>
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}

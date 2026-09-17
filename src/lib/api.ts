@@ -1683,6 +1683,17 @@ export async function sendTestPush(memberId: string) {
   if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
 }
 
+/** Push an bestimmte Mitglieder — nur Admins dürfen fremde Empfänger ansprechen (api/push-send). */
+export async function sendPushTo(memberIds: string[], payload: { title: string; body: string; url?: string; tag?: string }) {
+  if (memberIds.length === 0) return;
+  const r = await fetch('/api/push-send', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ member_ids: memberIds, ...payload }),
+  });
+  if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
+}
+
 export async function sendBroadcastPush(payload: {
   title: string;
   body: string;
@@ -3245,6 +3256,83 @@ export function useSetScheduleSettings() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule-settings'] }),
+  });
+}
+
+// ─── Eingangs-Tablet: Bildschirmschoner-Sperre (Migration 0153) ───────────
+// Außerhalb der Öffnungszeiten zeigt das Welcome-Tablet den Joker. Ob gesperrt
+// ist, rechnet der Server (Berlin-Zeit, Feiertage, Saunafest, Admin-Freigabe) —
+// das Tablet fragt nur ab. Freigeben/Sperren/Zeiten ändern darf allein der Admin.
+export type KioskSperreZeiten = { di_do: [string, string]; fr_so: [string, string]; fest: [string, string] };
+export type KioskSperreStatus = {
+  aktiv: boolean;
+  gesperrt: boolean;
+  grund: 'aus' | 'freigegeben' | 'offen' | 'geschlossen';
+  oeffnet_um: string | null;
+  freigegeben_bis: string | null;
+  letzte_beruehrung_at: string | null;
+  beruehrungen: number;
+  zeiten: KioskSperreZeiten;
+};
+
+export function useKioskSperreStatus(opts?: { enabled?: boolean; intervalMs?: number }) {
+  return useQuery<KioskSperreStatus>({
+    queryKey: ['kiosk-sperre'],
+    enabled: opts?.enabled ?? true,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('kiosk_sperre_status');
+      if (error) throw error;
+      return data as KioskSperreStatus;
+    },
+    // Kein Realtime-Kanal für das anonyme Tablet: Polling ist hier der
+    // Update-Pfad (Freigabe vom Handy wirkt nach spätestens einem Intervall).
+    refetchInterval: opts?.intervalMs ?? 10_000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+/** Tablet wurde im gesperrten Zustand angetippt — der Server meldet es (gedrosselt) allen Admins. */
+export async function kioskSperreBeruehrt(): Promise<{ gesperrt: boolean; gemeldet: boolean }> {
+  const { data, error } = await need().rpc('kiosk_sperre_beruehrt');
+  if (error) throw error;
+  return data as { gesperrt: boolean; gemeldet: boolean };
+}
+
+export function useKioskSperreFreigeben() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (minuten: number) => {
+      const { data, error } = await need().rpc('kiosk_sperre_freigeben', { p_minuten: minuten });
+      if (error) throw error;
+      return data as KioskSperreStatus;
+    },
+    onSuccess: (d) => qc.setQueryData(['kiosk-sperre'], d),
+  });
+}
+
+export function useKioskSperreSperren() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('kiosk_sperre_sperren');
+      if (error) throw error;
+      return data as KioskSperreStatus;
+    },
+    onSuccess: (d) => qc.setQueryData(['kiosk-sperre'], d),
+  });
+}
+
+export function useKioskSperreKonfigSetzen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { aktiv: boolean; zeiten: KioskSperreZeiten }) => {
+      const { data, error } = await need().rpc('kiosk_sperre_konfig_setzen', { p_aktiv: input.aktiv, p_zeiten: input.zeiten });
+      if (error) throw error;
+      return data as KioskSperreStatus;
+    },
+    onSuccess: (d) => qc.setQueryData(['kiosk-sperre'], d),
   });
 }
 

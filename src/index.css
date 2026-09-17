@@ -2062,3 +2062,98 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
 @media (prefers-reduced-motion: reduce) {
   .banja-alarm-blitz, .banja-alarm-glocke { animation: none; }
 }
+
+/* ── Joker-Bildschirmschoner (Migration 0153) ──────────────────────────────
+   Eingangs-Tablet außerhalb der Öffnungszeiten: der Joker jagt das Logo.
+   Nur transform/opacity (GPU), keine JS-Timer — der Schirm läuft die ganze
+   Nacht. Logo und Joker fahren dieselbe Bahn: X- und Y-Schwingung mit
+   verschiedenen Perioden (Lissajous), das Logo 1,4 s voraus (negatives
+   animation-delay). .joker-wende dreht den Läufer an den X-Wendepunkten um
+   (steps(1): 0–50 % nach rechts, 50–100 % nach links) — seine Periode MUSS
+   der von joker-bahn-x entsprechen. */
+.joker-schoner {
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  background-color: #071a13;
+  background-image:
+    radial-gradient(ellipse at 50% 45%, rgba(4, 16, 13, 0) 0%, rgba(4, 16, 13, 0.94) 78%),
+    linear-gradient(to bottom right, rgba(190, 24, 60, 0.10) 25%, transparent 25%),
+    linear-gradient(to bottom left,  rgba(251, 191, 36, 0.06) 25%, transparent 25%),
+    linear-gradient(to top left,     rgba(190, 24, 60, 0.10) 25%, transparent 25%),
+    linear-gradient(to top right,    rgba(251, 191, 36, 0.06) 25%, transparent 25%);
+  background-size: 100% 100%, 14vmin 22vmin, 14vmin 22vmin, 14vmin 22vmin, 14vmin 22vmin;
+}
+.joker-buehne { position: absolute; inset: 0; transition: opacity 0.4s ease; }
+.joker-buehne--blass { opacity: 0; }
+
+@keyframes joker-bahn-x {
+  0%, 100% { transform: translateX(22vw); }
+  50%      { transform: translateX(78vw); }
+}
+@keyframes joker-bahn-y {
+  0%, 100% { transform: translateY(24vh); }
+  50%      { transform: translateY(64vh); }
+}
+@keyframes joker-wende {
+  0%   { transform: scaleX(1); }
+  50%  { transform: scaleX(-1); }
+  100% { transform: scaleX(1); }
+}
+@keyframes joker-hoppeln {
+  from { transform: translate(-50%, -50%) translateY(0.6vmin) rotate(-3deg); }
+  to   { transform: translate(-50%, -50%) translateY(-2.4vmin) rotate(3deg); }
+}
+@keyframes joker-logo-flucht {
+  from { transform: translate(-50%, -50%) rotate(-11deg) scale(1); }
+  to   { transform: translate(-50%, -50%) rotate(11deg) scale(1.07); }
+}
+@keyframes joker-auftritt {
+  from { opacity: 0; transform: scale(0.72); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes joker-schuetteln {
+  from { transform: translateY(0) rotate(-3.5deg); }
+  to   { transform: translateY(-1.6vmin) rotate(3.5deg); }
+}
+@keyframes joker-haha {
+  from { transform: rotate(-4deg) scale(1); }
+  to   { transform: rotate(3deg) scale(1.08); }
+}
+@keyframes joker-drift {
+  from { transform: translateX(-7vw); }
+  to   { transform: translateX(7vw); }
+}
+
+.joker-x, .joker-y, .joker-wende { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+.joker-x     { animation: joker-bahn-x 13s ease-in-out infinite; }
+.joker-y     { animation: joker-bahn-y 8.6s ease-in-out infinite; }
+.joker-wende { animation: joker-wende 13s steps(1) infinite; }
+/* Das Logo ist dem Joker 1,4 s voraus — auf beiden Achsen gleich viel. */
+.joker-vor, .joker-vor-y { animation-delay: -1.4s; }
+
+.joker-laeufer, .joker-logo { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; will-change: transform; }
+.joker-laeufer { height: 38vmin; width: auto; animation: joker-hoppeln 0.46s ease-in-out infinite alternate; }
+.joker-logo {
+  height: 17vmin; width: 17vmin; object-fit: contain; border-radius: 22%;
+  animation: joker-logo-flucht 0.9s ease-in-out infinite alternate;
+}
+
+.joker-auftritt { animation: joker-auftritt 0.32s cubic-bezier(0.2, 1.4, 0.4, 1) both; pointer-events: none; }
+.joker-lacher { height: min(52vh, 70vmin); width: auto; max-width: none; animation: joker-schuetteln 0.26s ease-in-out infinite alternate; }
+.joker-haha {
+  margin-top: 1vmin;
+  font-size: clamp(34px, 8vmin, 96px); font-weight: 900; line-height: 1; letter-spacing: 0.04em;
+  color: #fbbf24; text-shadow: 0 0.5vmin 0 #9f1239;
+  animation: joker-haha 0.3s ease-in-out infinite alternate;
+}
+.joker-fusszeile { animation: joker-drift 90s ease-in-out infinite alternate; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .joker-x, .joker-y, .joker-wende, .joker-laeufer, .joker-logo,
+  .joker-lacher, .joker-haha, .joker-fusszeile, .joker-auftritt { animation: none; }
+  .joker-x { transform: translateX(40vw); }
+  .joker-x.joker-vor { transform: translateX(72vw); }
+  .joker-y { transform: translateY(44vh); }
+  .joker-laeufer, .joker-logo { transform: translate(-50%, -50%); }
+}
