@@ -237,7 +237,7 @@ export default function Admin() {
         <div className="mb-4">
           <EvacuationAlarmButton />
         </div>
-        {/* Eingangs-Tablet: Joker-Sperre freigeben/sperren — Ziel der Push-Meldung „Tablet angetippt" */}
+        {/* Displays: Joker-Sperre freigeben/sperren — Ziel der Push-Meldung „… angetippt" */}
         <div className="mb-4">
           <TabletSperreCard />
         </div>

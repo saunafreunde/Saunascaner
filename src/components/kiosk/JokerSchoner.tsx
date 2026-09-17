@@ -1,10 +1,11 @@
-// Bildschirmschoner des Eingangs-Tablets (Migration 0153).
+// Bildschirmschoner aller Displays (Migrationen 0153–0155): TV-Tafel,
+// Eingangs-Tablet, Öl-Raum-Tablet, Scanner.
 //
 // Ist die Sauna zu, jagt ein lachender Joker das Vereinslogo über den
 // Bildschirm. Tippt jemand darauf, bleibt der Joker stehen und lacht ihn aus —
 // und der Server meldet die Berührung allen Admins. Freigeben kann nur ein
-// Admin über die App (Admin → „Eingangs-Tablet"); bis dahin liegt dieser
-// Schirm über allem, was das Tablet sonst zeigt.
+// Admin über die App (Admin → „Displays"); bis dahin liegt dieser Schirm
+// über allem, was das Display sonst zeigt.
 //
 // Bewegung: reine CSS-Transforms (GPU), keine JS-Timer im Ruhezustand — das
 // Tablet läuft die ganze Nacht (Lehre von der TV-Tafel). Logo und Joker
@@ -15,11 +16,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useBrandSettings, brandAssetUrl, kioskSperreBeruehrt } from '@/lib/api';
+import { useBrandSettings, brandAssetUrl, kioskSperreBeruehrt, type KioskDisplay } from '@/lib/api';
 
 const LACH_DAUER_MS = 4600;
 
-export function JokerSchoner({ oeffnetUm }: { oeffnetUm: string | null }) {
+export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oeffnetUm: string | null }) {
   const brand = useBrandSettings();
   // Erst zeigen, wenn die Branding-Einstellungen da sind — sonst blitzt kurz das Ersatz-Icon auf.
   const logoUrl = brand.isLoading ? null
@@ -31,10 +32,16 @@ export function JokerSchoner({ oeffnetUm }: { oeffnetUm: string | null }) {
   // Alles unter dem Schoner stilllegen: keine Klicks, kein Fokus, keine
   // Tastatur — „ohne Freigabe geht nix". Der Schoner selbst hängt per Portal
   // am <body> und bleibt bedienbar.
+  // display:none obendrauf: die Tafel darunter (Bühne, Partikel, Videos) soll
+  // nachts nicht weiterrendern. Der React-Baum bleibt gemountet — Realtime und
+  // Daten laufen weiter, nach der Freigabe steht sofort der aktuelle Stand da.
   useEffect(() => {
     const root = document.getElementById('root');
-    root?.setAttribute('inert', '');
-    return () => { root?.removeAttribute('inert'); };
+    if (!root) return;
+    const vorher = root.style.display;
+    root.setAttribute('inert', '');
+    root.style.display = 'none';
+    return () => { root.removeAttribute('inert'); root.style.display = vorher; };
   }, []);
 
   useEffect(() => {
@@ -57,7 +64,7 @@ export function JokerSchoner({ oeffnetUm }: { oeffnetUm: string | null }) {
       void a.play().catch(() => { /* Ton gesperrt — der Joker lacht dann stumm */ });
     }
     // Der Server drosselt selbst (eine Meldung je 5 Minuten).
-    void kioskSperreBeruehrt().catch(() => { /* offline: Anzeige bleibt trotzdem gesperrt */ });
+    void kioskSperreBeruehrt(display).catch(() => { /* offline: Anzeige bleibt trotzdem gesperrt */ });
     timerRef.current = window.setTimeout(() => setLacht(false), LACH_DAUER_MS);
   }
 

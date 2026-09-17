@@ -3259,22 +3259,28 @@ export function useSetScheduleSettings() {
   });
 }
 
-// ─── Eingangs-Tablet: Bildschirmschoner-Sperre (Migration 0153) ───────────
-// Außerhalb der Öffnungszeiten zeigt das Welcome-Tablet den Joker. Ob gesperrt
-// ist, rechnet der Server (Berlin-Zeit, Feiertage, Saunafest, Admin-Freigabe) —
-// das Tablet fragt nur ab. Freigeben/Sperren/Zeiten ändern darf allein der Admin.
-export type KioskSperreZeiten = { di_do: [string, string]; fr_so: [string, string]; fest: [string, string] };
+// ─── Displays: Joker-Bildschirmschoner-Sperre (Migrationen 0153–0155) ─────
+// Ist die Sauna zu, zeigen ALLE Displays (TV-Tafel, Eingangs-Tablet, Öl-Raum,
+// Scanner) den Joker. „Offen" rechnet der Server aus dem Aufguss-Raster:
+// erster planbarer Slot − 30 min bis Ende des letzten Slots + 30 min (plus
+// echte Sondertermine, Saunafest bis nach Mitternacht) — die Displays fragen
+// nur ab. Freigeben / von Hand sperren / ausschalten darf allein der Admin.
+export type KioskDisplay = 'eingang' | 'tafel' | 'oelraum' | 'scanner';
 export type KioskSperreStatus = {
   aktiv: boolean;
   gesperrt: boolean;
   /** 'manuell' = vom Admin von Hand gesperrt (Migration 0154), gilt bis gesperrt_bis. */
   grund: 'aus' | 'freigegeben' | 'manuell' | 'offen' | 'geschlossen';
   oeffnet_um: string | null;
+  /** Heutiges Öffnungsfenster als HH:MM (Berlin); null = ganztägig zu (Ruhetag). */
+  heute_von: string | null;
+  heute_bis: string | null;
+  puffer_min: number;
   freigegeben_bis: string | null;
   gesperrt_bis: string | null;
   letzte_beruehrung_at: string | null;
+  letztes_display: string | null;
   beruehrungen: number;
-  zeiten: KioskSperreZeiten;
 };
 
 export function useKioskSperreStatus(opts?: { enabled?: boolean; intervalMs?: number }) {
@@ -3295,9 +3301,9 @@ export function useKioskSperreStatus(opts?: { enabled?: boolean; intervalMs?: nu
   });
 }
 
-/** Tablet wurde im gesperrten Zustand angetippt — der Server meldet es (gedrosselt) allen Admins. */
-export async function kioskSperreBeruehrt(): Promise<{ gesperrt: boolean; gemeldet: boolean }> {
-  const { data, error } = await need().rpc('kiosk_sperre_beruehrt');
+/** Display wurde im gesperrten Zustand angetippt — der Server meldet es (gedrosselt) allen Admins. */
+export async function kioskSperreBeruehrt(display: KioskDisplay): Promise<{ gesperrt: boolean; gemeldet: boolean }> {
+  const { data, error } = await need().rpc('kiosk_sperre_beruehrt', { p_display: display });
   if (error) throw error;
   return data as { gesperrt: boolean; gemeldet: boolean };
 }
@@ -3352,11 +3358,12 @@ export function useKioskSperreAufheben() {
   });
 }
 
-export function useKioskSperreKonfigSetzen() {
+/** Hauptschalter: Joker-Sperre für alle Displays ein/aus. */
+export function useKioskSperreAktivSetzen() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { aktiv: boolean; zeiten: KioskSperreZeiten }) => {
-      const { data, error } = await need().rpc('kiosk_sperre_konfig_setzen', { p_aktiv: input.aktiv, p_zeiten: input.zeiten });
+    mutationFn: async (aktiv: boolean) => {
+      const { data, error } = await need().rpc('kiosk_sperre_aktiv_setzen', { p_aktiv: aktiv });
       if (error) throw error;
       return data as KioskSperreStatus;
     },

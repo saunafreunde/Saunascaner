@@ -2,7 +2,7 @@ import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus } from '@/lib/api';
+import { useCurrentMember, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, type KioskDisplay } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
@@ -54,26 +54,40 @@ function KioskFullscreenGate() {
   return <KioskFullscreenRunner />;
 }
 
-// Bildschirmschoner-Sperre des Eingangs-Tablets (Migration 0153): außerhalb der
-// Öffnungszeiten liegt der Joker über dem ganzen Kiosk. Ob gesperrt ist,
-// entscheidet der Server; freigeben kann nur ein Admin über die App. Die
-// Abfrage läuft NUR auf den Kiosk-Pfaden (eigener Runner, damit der Hook
-// woanders gar nicht erst pollt).
+// Joker-Sperre aller Displays (Migrationen 0153–0155): ist die Sauna zu, liegt
+// der Joker über TV-Tafel, Eingangs-Tablet, Öl-Raum-Tablet und Scanner. Ob
+// gesperrt ist, entscheidet der Server (Aufguss-Raster ± 30 min); freigeben kann
+// nur ein Admin über die App. Die Abfrage läuft NUR auf den Display-Pfaden
+// (eigener Runner, damit der Hook woanders gar nicht erst pollt).
 //  • Status lädt noch      → dunkle Blende (nach einem Neuladen ist nichts kurz bedienbar)
-//  • Abfrage scheitert ganz → offen lassen: ein Serverfehler darf das Tablet am
+//  • Abfrage scheitert ganz → offen lassen: ein Serverfehler darf die Displays am
 //    Tag nicht aussperren. Ein späterer Aussetzer ändert nichts — react-query
 //    behält den letzten bekannten Stand.
-function KioskSperreRunner() {
+const DISPLAY_SPERRE_PFADE: Record<string, KioskDisplay> = {
+  '/willkommen': 'eingang',
+  '/checkin': 'eingang',
+  '/checkin/signup': 'eingang',
+  '/dashboard': 'tafel',
+  '/oil-room': 'oelraum',
+  '/scanner': 'scanner',
+};
+
+function KioskSperreRunner({ display }: { display: KioskDisplay }) {
   const status = useKioskSperreStatus();
-  if (status.data?.gesperrt) return <JokerSchoner oeffnetUm={status.data.oeffnet_um} />;
+  const evac = useActiveEvacuation();
+  // Evakuierung geht vor: der Schoner blendet #root aus, und der Alarm lebt
+  // darin — also weicht der Joker, solange ein Alarm läuft.
+  if (evac.data) return null;
+  if (status.data?.gesperrt) return <JokerSchoner display={display} oeffnetUm={status.data.oeffnet_um} />;
   if (!status.data && status.isLoading) return <KioskBlende />;
   return null;
 }
 
 function KioskSperreGate() {
   const { pathname } = useLocation();
-  if (!isSupabaseConfigured || !KIOSK_FULLSCREEN_PATHS.includes(pathname)) return null;
-  return <KioskSperreRunner />;
+  const display = DISPLAY_SPERRE_PFADE[pathname];
+  if (!isSupabaseConfigured || !display) return null;
+  return <KioskSperreRunner display={display} />;
 }
 
 // Eager-loaded routes (für sofortige Verfügbarkeit)
