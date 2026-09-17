@@ -12,7 +12,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
   useCurrentMember, useKioskSperreStatus, useKioskSperreFreigeben, useKioskSperreSperren,
-  useKioskSperreKonfigSetzen, type KioskSperreZeiten,
+  useKioskSperreKonfigSetzen, useKioskSperreJetztSperren, useKioskSperreAufheben, type KioskSperreZeiten,
 } from '@/lib/api';
 
 const ZEILEN: { key: keyof KioskSperreZeiten; label: string; hinweis: string }[] = [
@@ -38,6 +38,8 @@ export function TabletSperreCard() {
   const freigeben = useKioskSperreFreigeben();
   const sperren = useKioskSperreSperren();
   const konfig = useKioskSperreKonfigSetzen();
+  const jetztSperren = useKioskSperreJetztSperren();
+  const aufheben = useKioskSperreAufheben();
   const [offen, setOffen] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [entwurf, setEntwurf] = useState<{ aktiv: boolean; zeiten: KioskSperreZeiten } | null>(null);
@@ -52,13 +54,14 @@ export function TabletSperreCard() {
 
   if (!isAdmin || !s) return null;
 
-  const busy = freigeben.isPending || sperren.isPending || konfig.isPending;
+  const busy = freigeben.isPending || sperren.isPending || konfig.isPending || jetztSperren.isPending || aufheben.isPending;
   const beruehrtVor = s.letzte_beruehrung_at ? Date.now() - Date.parse(s.letzte_beruehrung_at) : null;
   const frischBeruehrt = s.gesperrt && beruehrtVor !== null && beruehrtVor < 30 * 60_000;
 
   const lage =
     s.grund === 'aus' ? { punkt: 'bg-forest-500', text: 'Bildschirmschoner ist ausgeschaltet — das Tablet ist immer offen.' }
     : s.grund === 'freigegeben' ? { punkt: 'bg-amber-400', text: `Von einem Admin freigegeben bis ${s.freigegeben_bis ? uhrzeit(s.freigegeben_bis) : '—'} Uhr.` }
+    : s.grund === 'manuell' ? { punkt: 'bg-rose-500', text: `Von Hand gesperrt — der Joker läuft bis ${s.gesperrt_bis ? uhrzeit(s.gesperrt_bis) : '—'} Uhr, danach gelten wieder die Zeiten.` }
     : s.grund === 'offen' ? { punkt: 'bg-emerald-400', text: 'Geöffnet — das Tablet ist normal bedienbar.' }
     : { punkt: 'bg-rose-500', text: `Gesperrt — der Joker läuft${s.oeffnet_um ? `, öffnet um ${s.oeffnet_um} Uhr` : ''}.` };
 
@@ -119,6 +122,27 @@ export function TabletSperreCard() {
               className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50"
             >
               Wieder sperren
+            </button>
+          )}
+          {/* Sperre von Hand: die Zeiten sind nur ein Raster — wer früher schließt, startet den Joker hier. */}
+          {s.aktiv && !s.gesperrt && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(() => jetztSperren.mutateAsync(), 'Tablet gesperrt — der Joker läuft bis morgen früh.')}
+              className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50"
+            >
+              Jetzt sperren
+            </button>
+          )}
+          {s.grund === 'manuell' && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(() => aufheben.mutateAsync(), 'Hand-Sperre aufgehoben — es gelten wieder die Zeiten.')}
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-forest-100 ring-1 ring-forest-500/60 hover:bg-forest-800/60 disabled:opacity-50"
+            >
+              Sperre aufheben
             </button>
           )}
           <button

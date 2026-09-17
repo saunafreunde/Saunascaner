@@ -3267,9 +3267,11 @@ export type KioskSperreZeiten = { di_do: [string, string]; fr_so: [string, strin
 export type KioskSperreStatus = {
   aktiv: boolean;
   gesperrt: boolean;
-  grund: 'aus' | 'freigegeben' | 'offen' | 'geschlossen';
+  /** 'manuell' = vom Admin von Hand gesperrt (Migration 0154), gilt bis gesperrt_bis. */
+  grund: 'aus' | 'freigegeben' | 'manuell' | 'offen' | 'geschlossen';
   oeffnet_um: string | null;
   freigegeben_bis: string | null;
+  gesperrt_bis: string | null;
   letzte_beruehrung_at: string | null;
   beruehrungen: number;
   zeiten: KioskSperreZeiten;
@@ -3317,6 +3319,32 @@ export function useKioskSperreSperren() {
   return useMutation({
     mutationFn: async () => {
       const { data, error } = await need().rpc('kiosk_sperre_sperren');
+      if (error) throw error;
+      return data as KioskSperreStatus;
+    },
+    onSuccess: (d) => qc.setQueryData(['kiosk-sperre'], d),
+  });
+}
+
+/** Sofort sperren — unabhängig von den Öffnungszeiten, bis zum nächsten Morgen 05:00 Uhr. */
+export function useKioskSperreJetztSperren() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('kiosk_sperre_jetzt_sperren');
+      if (error) throw error;
+      return data as KioskSperreStatus;
+    },
+    onSuccess: (d) => qc.setQueryData(['kiosk-sperre'], d),
+  });
+}
+
+/** Hand-Sperre zurücknehmen — danach gelten wieder die Öffnungszeiten. */
+export function useKioskSperreAufheben() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await need().rpc('kiosk_sperre_aufheben');
       if (error) throw error;
       return data as KioskSperreStatus;
     },
