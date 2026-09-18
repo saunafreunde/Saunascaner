@@ -119,7 +119,8 @@ const STYLES: { id: string; label: string; description: string }[] = [
   {
     id: 'schwarzwald',
     label: '🌲 Schwarzwald',
-    description: 'Heimat und Lokalkolorit: Tannen, Nebel im Tal, Köhler, Flößer, Glasbläser, Kuckucksuhr, Kirschwasser, Sagen wie das Glasmännlein oder der Holländer-Michel. Warm, bodenständig, gern mit leichtem alemannisch-schwäbischem Einschlag — nie Berlinerisch oder norddeutsch.',
+    // Kein „Köhler" in der Liste: er stand vorn und kam dann in jedem sechsten Titel vor.
+    description: 'Heimat und Lokalkolorit — nimm jedes Mal ein ANDERES Motiv: Tannen, Nebel im Tal, Flößer auf der Kinzig, Glasbläser, Uhrmacher und Kuckucksuhr, Bollenhut, Mühle am Bach, Vesper mit Speck, Hochmoor, Kirschwasser, Sagen wie das Glasmännlein oder der Holländer-Michel. Warm, bodenständig, gern mit leichtem alemannisch-schwäbischem Einschlag — nie Berlinerisch oder norddeutsch.',
   },
   {
     id: 'frech',
