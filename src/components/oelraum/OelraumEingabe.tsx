@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDays, isBefore, setHours, setMinutes } from 'date-fns';
+import { addDays, format, isBefore, setHours, setMinutes } from 'date-fns';
+import { de } from 'date-fns/locale';
 import type { Infusion, Sauna } from '@/types/database';
 import type { InfusionAttribute } from '@/lib/attributes';
 import { fmtClock, dayLabel } from '@/lib/time';
@@ -16,10 +17,13 @@ import {
 } from '@/lib/aufgussRegeln';
 import OilPicker from '@/components/OilPicker';
 import { SudPicker } from '@/components/SudPicker';
+import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
+import { zutatenAus } from '@/lib/titelZutaten';
 import {
   useAddInfusionKiosk, useUpdateInfusionKiosk, useDeleteInfusionKiosk,
   useTakeoverFallbackKiosk,
-  useMyCustomAttrs, useMyCustomOils,
+  useMyCustomAttrs, useMyCustomOils, useTemplatesKiosk,
+  useSudKraeuter, useSudMixe, useSaunafestTage, saunafestAm,
   isInfusionCancelLocked, INFUSION_CANCEL_LOCK_MINUTES,
   type MeisterDirectoryEntry,
 } from '@/lib/api';
@@ -31,6 +35,12 @@ import {
  *  sechs Öl-Plätze (die Datenbank erlaubt nur drei — es rettete allein die
  *  stille Normalisierung im OilPicker), kein Kontingent, und die selbst
  *  gebauten Buttons wurden beim Absenden kommentarlos weggeworfen.
+ *
+ *  Seit 18.09.2026 (Vorgabe Christoph: „dieselben Auswahlmöglichkeiten wie in
+ *  der Planer-App, Name aussuchen und planen") außerdem: Tagesauswahl wie im
+ *  Planer statt nur Heute/Morgen, KI-Titelvorschläge, Team-Aufguss und die
+ *  Vorlagen des gewählten Aufgießers. Bewusst NICHT am Tablet: Banja und
+ *  Saunafest-Bewerbungen — beides hängt am Login (siehe unten).
  *
  *  Zwei Betriebsarten:
  *    'neu'        einen Aufguss anlegen — volles Formular
@@ -47,6 +57,13 @@ export type EingabeAuftrag =
   | { art: 'ergaenzen'; inf: Infusion };
 
 const DURATIONS = [20, 30, 45] as const;
+
+/** So weit voraus wie im Planer: Mitglieder 14 Tage, Gast-Aufgießer 28. Der
+ *  Planer lässt Admins 182 Tage — am Tablet wäre das eine Leiste mit einem
+ *  halben Jahr Tagen; dort ist bei 28 Schluss, für mehr gibt es die App. */
+function maxTageVoraus(rolle: string | undefined): number {
+  return rolle === 'admin' || rolle === 'guest_aufgieser' ? 28 : 14;
+}
 const DEFAULT_DURATION_MIN = 20;
 
 // Der Banja-Chip fehlt am Tablet BEWUSST: ein Banja ist eine Buchung mit
@@ -56,10 +73,9 @@ const DEFAULT_DURATION_MIN = 20;
 // ablehnt oder die Tafel falsch rendert. Im Planer bleibt Banja wählbar.
 const TABLET_CHIPS = ATTRIBUTE_CHIPS.filter((a) => a.id !== BANJA_ATTR);
 
-function slotToDate(tag: 'today' | 'tomorrow', hhmm: string): Date {
+function slotToDate(tagOffset: number, hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
-  const basis = tag === 'tomorrow' ? addDays(new Date(), 1) : new Date();
-  return setMinutes(setHours(basis, h), m);
+  return setMinutes(setHours(addDays(new Date(), tagOffset), h), m);
 }
 
 export function OelraumEingabe({
@@ -102,12 +118,18 @@ export function OelraumEingabe({
   const uebernahme = useTakeoverFallbackKiosk(meisterId);
   const eigeneAttrsQ = useMyCustomAttrs(meisterId);
   const eigeneAttrs = useMemo(() => eigeneAttrsQ.data ?? [], [eigeneAttrsQ.data]);
-  // Nur geladen, damit der Zähler „eigene Öle" stimmt — der Picker holt sie
-  // sich über dieselbe Query noch einmal aus dem Cache.
-  useMyCustomOils(meisterId);
+  // Für den Zähler „eigene Öle" (der Picker holt sie sich über dieselbe Query
+  // noch einmal aus dem Cache) und für die Titel-KI, die Klartext-Namen braucht.
+  const eigeneOeleQ = useMyCustomOils(meisterId);
+  const sudKraeuterQ = useSudKraeuter();
+  const sudMixeQ = useSudMixe();
+  const vorlagenQ = useTemplatesKiosk(meisterId);
+  const vorlagen = useMemo(() => vorlagenQ.data ?? [], [vorlagenQ.data]);
+  const festeQ = useSaunafestTage();
 
   // ─── Formular ──────────────────────────────────────────────────────────────
-  const [tag, setTag] = useState<'today' | 'tomorrow'>('today');
+  // 0 = heute, 1 = morgen, … bis maxTageVoraus(Rolle) — wie der Planer.
+  const [tagOffset, setTagOffset] = useState(0);
   const [saunaId, setSaunaId] = useState<string>(bestehend?.sauna_id ?? '');
   const [slot, setSlot] = useState<string>(
     bestehend ? fmtClock(bestehend.start_time) : '15:00',
@@ -121,6 +143,9 @@ export function OelraumEingabe({
   const [schnaps, setSchnaps] = useState<string | null>(null);
   const [reiter, setReiter] = useState<'oils' | 'schnaps' | 'raeuchern' | 'sud'>('oils');
   const [pickerOffen, setPickerOffen] = useState(false);
+  const [titelPickerOffen, setTitelPickerOffen] = useState(false);
+  const [teamAufguss, setTeamAufguss] = useState(false);
+  const [vorlageId, setVorlageId] = useState('');
   const [fehler, setFehler] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState<{ text: string; eingecheckt: boolean } | null>(null);
 
@@ -148,15 +173,35 @@ export function OelraumEingabe({
     if (!saunaId && aktiveSaunen[0]) setSaunaId(aktiveSaunen[0].id);
   }, [saunaId, aktiveSaunen]);
 
-  const datum = tag === 'today' ? new Date() : addDays(new Date(), 1);
+  const maxTage = maxTageVoraus(gewaehlt?.role);
+  useEffect(() => { if (tagOffset > maxTage) setTagOffset(maxTage); }, [tagOffset, maxTage]);
+
+  const datum = addDays(new Date(), tagOffset);
   const feiertag = istFeiertag(datum);
+  // Saunafest: dort wird nicht gebucht, sondern beworben (Migrationen 0150–0152)
+  // — und Bewerbungen hängen am Login. Das Tablet bietet an Festtagen darum
+  // keine Slots an, statt am Bewerbungsverfahren vorbei Aufgüsse anzulegen.
+  const fest = saunafestAm(datum, festeQ.data ?? []);
   const slots = useMemo(
-    () => slotHoursForWeekday(datum.getDay(), { mondayOpen, isHoliday: feiertag })
+    () => slotHoursForWeekday(datum.getDay(), { mondayOpen, isHoliday: feiertag, saunafest: !!fest })
       .map((h) => `${String(h).padStart(2, '0')}:00`),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tag, mondayOpen, feiertag],
+    [tagOffset, mondayOpen, feiertag, !!fest],
   );
-  const montagZu = datum.getDay() === 1 && !mondayOpen && !feiertag;
+  const montagZu = datum.getDay() === 1 && !mondayOpen && !feiertag && !fest;
+
+  // Die Tagesleiste: Heute, Morgen, dann Wochentag + Datum.
+  const tage = useMemo(() => Array.from({ length: maxTage + 1 }, (_, i) => {
+    const d = addDays(new Date(), i);
+    const istFest = !!saunafestAm(d, festeQ.data ?? []);
+    const zu = !istFest && slotHoursForWeekday(d.getDay(), { mondayOpen, isHoliday: istFeiertag(d) }).length === 0;
+    return {
+      offset: i,
+      label: i === 0 ? 'Heute' : i === 1 ? 'Morgen' : format(d, 'EEE dd.MM.', { locale: de }),
+      istFest, zu,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [maxTage, mondayOpen, festeQ.data, istFeiertag]);
 
   useEffect(() => {
     if (bestehend) return;
@@ -172,7 +217,7 @@ export function OelraumEingabe({
   // belegt rendert, baut ein Tablet, an dem man nie etwas eintragen kann
   // (Testlauf 14.08.2026, Migration 0131).
   function slotInfo(hhmm: string): { art: 'frei' | 'belegt' | 'fallback'; fallbackId?: string } {
-    const start = slotToDate(tag, hhmm).getTime();
+    const start = slotToDate(tagOffset, hhmm).getTime();
     const deckend = infusions.filter((i) =>
       i.sauna_id === saunaId &&
       i.id !== bestehend?.id &&
@@ -245,6 +290,25 @@ export function OelraumEingabe({
     setTitel(''); setAttrs([]); setEigeneAttrIds([]);
     setOils(normalizeOilSlots(null)); setSudAuswahl([]); setSchnaps(null);
     setReiter('oils'); setDauer(DEFAULT_DURATION_MIN);
+    setTeamAufguss(false); setVorlageId('');
+  }
+
+  /** Vorlage ins Formular holen — wie applyTemplate im Planer. Vorlagen legen
+   *  ALLES in einem Feld ab (Standard-Attribute, UUIDs eigener Buttons, Sud,
+   *  Schnaps); zerlegeAttributes sortiert es zurück in die Reiter. */
+  function vorlageAnwenden(id: string) {
+    setVorlageId(id);
+    const t = vorlagen.find((v) => v.id === id);
+    if (!t) return;
+    const teile = zerlegeAttributes(t.attributes, eigeneAttrs.map((a) => a.id));
+    setTitel(t.title);
+    setAttrs([...teile.attrs].filter((a) => a !== BANJA_ATTR));
+    setEigeneAttrIds([...teile.customAttrIds]);
+    setSudAuswahl([...teile.sudAuswahl]);
+    setSchnaps(teile.schnaps);
+    setOils(normalizeOilSlots(t.oils));
+    if (!bestehend && (DURATIONS as readonly number[]).includes(t.duration_minutes)) setDauer(t.duration_minutes);
+    setFehler(null);
   }
 
   async function absenden(e: React.FormEvent) {
@@ -277,9 +341,10 @@ export function OelraumEingabe({
       }
 
       if (!saunaId) return setFehler('Bitte eine Sauna wählen.');
+      if (fest) return setFehler('Am Saunafest werden die Slots per Bewerbung vergeben — bitte im Planer bewerben.');
       if (montagZu) return setFehler('Montag keine Aufgüsse.');
       if (!slots.includes(slot)) return setFehler('Diese Uhrzeit gehört nicht zu den Aufgusszeiten des Tages.');
-      const start = slotToDate(tag, slot);
+      const start = slotToDate(tagOffset, slot);
       if (isBefore(start, new Date())) return setFehler('Slot liegt in der Vergangenheit.');
 
       const info = slotInfo(slot);
@@ -293,6 +358,7 @@ export function OelraumEingabe({
           title: titel.trim(),
           attributes: payload,
           oils: oelListe,
+          team_infusion: teamAufguss,
         });
         leeren();
         setErfolg({ text: 'Personal-Slot übernommen.', eingecheckt: !warDa });
@@ -309,7 +375,7 @@ export function OelraumEingabe({
         oils: oelListe,
         start_time: start.toISOString(),
         duration_minutes: dauer,
-        team_infusion: false,
+        team_infusion: teamAufguss,
       });
       leeren();
       setErfolg({ text: 'Aufguss eingetragen.', eingecheckt: !warDa });
@@ -369,6 +435,27 @@ export function OelraumEingabe({
         />
       )}
 
+      {titelPickerOffen && (
+        <TitleSuggestionPicker
+          vorhandeneTitel={infusions.map((x) => x.title).filter((t): t is string => !!t)}
+          zutaten={zutatenAus({
+            attrs,
+            customAttrIds: eigeneAttrIds,
+            oils,
+            schnaps,
+            sudAuswahl,
+            customAttrs: eigeneAttrs,
+            customOils: eigeneOeleQ.data ?? [],
+            sudKraeuter: sudKraeuterQ.data ?? [],
+            sudMixe: sudMixeQ.data ?? [],
+            sauna: saunas.find((x) => x.id === (bestehend?.sauna_id ?? saunaId)) ?? null,
+            zeitpunkt: bestehend ? new Date(bestehend.start_time) : slotToDate(tagOffset, slot),
+          })}
+          onPick={(t) => { setTitel(t); setTitelPickerOffen(false); }}
+          onClose={() => setTitelPickerOffen(false)}
+        />
+      )}
+
       <Kopf
         titel={bestehend ? 'Zutaten nachtragen' : 'Aufguss eintragen'}
         unter={displayMemberName(gewaehlt, 'Aufgießer:in')}
@@ -414,19 +501,30 @@ export function OelraumEingabe({
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-2">
-                {(['today', 'tomorrow'] as const).map((d) => (
-                  <button key={d} type="button" onClick={() => setTag(d)}
-                    className={`rounded-xl px-4 py-3 text-base font-medium ring-1 transition ${
-                      tag === d ? 'bg-forest-600 text-white ring-forest-500'
-                        : 'bg-forest-900/60 text-forest-200 ring-forest-800/50'
-                    }`}>
-                    {d === 'today' ? 'Heute' : 'Morgen'}
-                  </button>
-                ))}
-              </div>
+              {/* Tagesleiste wie im Planer — wischbar, so weit voraus wie dort. */}
+              <Feld label={`Tag — bis ${maxTage} Tage im Voraus`}>
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                  {tage.map((t) => (
+                    <button key={t.offset} type="button" onClick={() => setTagOffset(t.offset)}
+                      className={`flex-shrink-0 whitespace-nowrap rounded-xl px-4 py-3 text-base font-medium ring-1 transition ${
+                        tagOffset === t.offset ? 'bg-forest-600 text-white ring-forest-500'
+                          : t.zu ? 'bg-forest-950/40 text-forest-300/40 ring-forest-900/40'
+                            : 'bg-forest-900/60 text-forest-200 ring-forest-800/50'
+                      }`}>
+                      {t.istFest && <span aria-hidden className="mr-1">🎪</span>}{t.label}
+                    </button>
+                  ))}
+                </div>
+              </Feld>
 
-              {montagZu ? (
+              {fest ? (
+                <div className="rounded-xl bg-amber-500/10 px-4 py-5 text-center text-amber-100 ring-1 ring-amber-500/40">
+                  <p className="text-base font-bold">🎪 Saunafest{fest.motto ? ` — ${fest.motto}` : ''}</p>
+                  <p className="mt-1 text-sm text-amber-100/80">
+                    An diesem Tag werden die Slots per Bewerbung vergeben — bitte in der Planer-App bewerben.
+                  </p>
+                </div>
+              ) : montagZu ? (
                 <div className="rounded-xl bg-forest-900/60 px-4 py-6 text-center text-forest-300/70 ring-1 ring-forest-800/40">
                   Montag keine Aufgüsse
                 </div>
@@ -451,7 +549,7 @@ export function OelraumEingabe({
                     <div className="grid grid-cols-5 gap-2">
                       {slots.map((s) => {
                         const info = slotInfo(s);
-                        const vorbei = tag === 'today' && isBefore(slotToDate('today', s), new Date());
+                        const vorbei = tagOffset === 0 && isBefore(slotToDate(0, s), new Date());
                         const aus = info.art === 'belegt' || vorbei;
                         const istFallback = info.art === 'fallback' && !aus;
                         return (
@@ -483,14 +581,35 @@ export function OelraumEingabe({
             </>
           )}
 
-          {(!!bestehend || !montagZu) && (
+          {(!!bestehend || (!montagZu && !fest)) && (
             <>
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <Feld label="Titel">
-                  <input value={titel} onChange={(e) => setTitel(e.target.value)}
-                    placeholder="z.B. Eukalyptus klassisch"
-                    className="w-full rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
+              {vorlagen.length > 0 && (
+                <Feld label="Vorlage — füllt Titel, Dauer und Zutaten">
+                  <select value={vorlageId} onChange={(e) => vorlageAnwenden(e.target.value)}
+                    className="w-full rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400">
+                    <option value="">— ohne Vorlage —</option>
+                    {vorlagen.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
+                  </select>
                 </Feld>
+              )}
+
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-forest-300">Titel</span>
+                    {/* Wie im Planer: erst Zutaten wählen, dann schlägt die KI fünf Titel vor. */}
+                    <button type="button" onClick={() => setTitelPickerOffen(true)}
+                      disabled={anzahl === 0 && !schnaps}
+                      className="rounded-md bg-amber-500/15 px-3 py-1.5 text-sm font-medium text-amber-300 ring-1 ring-amber-500/30 transition disabled:cursor-not-allowed disabled:opacity-30">
+                      ✨ Vorschlagen
+                    </button>
+                  </div>
+                  <input value={titel} onChange={(e) => setTitel(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+                    enterKeyHint="done" autoComplete="off" maxLength={80}
+                    placeholder="z.B. Zirbelkiefer und kein Zurück mehr"
+                    className="mt-2 w-full rounded-lg bg-forest-900/80 px-3 py-3 text-base ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
+                </div>
                 {!bestehend && (
                   <Feld label="Dauer">
                     <select value={dauer} onChange={(e) => setDauer(Number(e.target.value))}
@@ -633,6 +752,20 @@ export function OelraumEingabe({
                     })}
                   </div>
                 </Feld>
+              )}
+
+              {/* Team-Aufguss wie im Planer. Beim Nachtragen nicht: update_infusion_kiosk
+                  ändert nur Titel und Zutaten. */}
+              {!bestehend && (
+                <button type="button" onClick={() => setTeamAufguss((v) => !v)} aria-pressed={teamAufguss}
+                  className="flex w-full items-center gap-3 text-left">
+                  <span className={`relative h-6 w-10 flex-shrink-0 rounded-full transition ${teamAufguss ? 'bg-amber-500' : 'bg-forest-800'}`}>
+                    <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${teamAufguss ? 'translate-x-4' : ''}`} />
+                  </span>
+                  <span className="text-sm text-forest-200">
+                    👥 Team-Aufguss <span className="text-forest-300/60">— andere Aufgießer können mitmachen</span>
+                  </span>
+                </button>
               )}
 
               {fehler && <p className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{fehler}</p>}

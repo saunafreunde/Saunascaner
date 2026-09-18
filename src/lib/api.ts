@@ -623,6 +623,8 @@ export function useTakeoverFallbackKiosk(saunameisterId: string | null) {
       title: string;
       attributes: InfusionAttribute[];
       oils: (string | null)[] | null;
+      /** Seit Migration 0158 — vorher setzte die Übernahme am Tablet fest „kein Team". */
+      team_infusion?: boolean;
     }) => {
       if (!saunameisterId) throw new Error('Kein Aufgießer ausgewählt.');
       const { error } = await need().rpc('takeover_personal_fallback_kiosk', {
@@ -631,6 +633,7 @@ export function useTakeoverFallbackKiosk(saunameisterId: string | null) {
         p_title: i.title,
         p_attributes: i.attributes,
         p_oils: i.oils ?? null,
+        p_team_infusion: i.team_infusion ?? false,
       });
       if (error) throw error;
     },
@@ -680,6 +683,25 @@ export function useTemplates(memberId: string | null) {
       if (error) throw error;
       return data as Template[];
     },
+  });
+}
+
+/** Vorlagen des am Öl-Raum-Tablet gewählten Aufgießers (Migration 0158).
+ *
+ *  Das Tablet ist anonym; per RLS sähe es nur die öffentlichen Vorlagen. Die
+ *  Funktion prüft wie die übrigen Kiosk-RPCs, dass die ID zu einem
+ *  freigeschalteten Aufgießer gehört, und liefert dessen Vorlagen + die
+ *  öffentlichen. Geschrieben wird darüber nichts. */
+export function useTemplatesKiosk(memberId: string | null) {
+  return useQuery({
+    queryKey: ['templates-kiosk', memberId],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('templates_kiosk', { p_member_id: memberId });
+      if (error) throw error;
+      return (data ?? []) as Template[];
+    },
+    staleTime: 60_000,
   });
 }
 

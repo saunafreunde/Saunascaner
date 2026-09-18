@@ -135,13 +135,16 @@ export function OelraumAnzeige({
 
   // ─── Ruhe: nichts steht an ────────────────────────────────────────────────
   // „In der Zeit, wo keine Aufgüsse stattfinden, soll nur das Logo erscheinen."
-  // Wörtlich genommen: kein Countdown, kein Hinweis, keine Kachel. Das Logo
-  // selbst ist der Weg in die Eingabe — so bleibt der Bildschirm leer und
-  // trotzdem bedienbar.
+  // Kein Countdown, kein Hinweis, keine Kachel — aber seit 18.09.2026 ein
+  // sichtbarer Knopf „Aufguss eintragen": das Logo zu halten war der EINZIGE
+  // Weg in die Eingabe, und den fand niemand mehr (letzter Tablet-Eintrag
+  // 29.08., Christoph: „kein Einstieg sichtbar"). Das Halten bleibt als
+  // zweiter Weg bestehen.
   if (laufend.length === 0 && naechste.length === 0) {
     return (
-      <div className="relative isolate min-h-screen w-full overflow-hidden bg-slate-950 flex flex-col items-center justify-center">
+      <div className="relative isolate min-h-screen w-full overflow-hidden bg-slate-950 flex flex-col">
         {hintergrund}
+        <div className="flex flex-1 items-center justify-center">
         <HaltenKnopf
           onFertig={() => onEintragen()}
           titel="Gedrückt halten, um einen Aufguss einzutragen"
@@ -161,7 +164,11 @@ export function OelraumAnzeige({
             </span>
           )}
         </HaltenKnopf>
-        {fusszeile}
+        </div>
+        <div className="relative flex items-center justify-between gap-4 px-[3vw] pb-[2vh] pt-[1vh]">
+          <EintragenKnopf onClick={() => onEintragen()} />
+          {fusszeile}
+        </div>
       </div>
     );
   }
@@ -255,15 +262,7 @@ export function OelraumAnzeige({
 
       {/* Eintragen + Fußzeile */}
       <div className="flex items-center justify-between gap-4 px-[3vw] pb-[2vh] pt-[1vh]">
-        <HaltenKnopf
-          onFertig={() => onEintragen()}
-          titel="Gedrückt halten"
-          ringFarbe="rgba(34,197,94,0.45)"
-          className="rounded-2xl bg-forest-800/70 px-[2.5vw] py-[1.6vh] text-[clamp(0.85rem,1.8vw,1.2rem)] font-bold text-forest-50 ring-1 ring-forest-600/50"
-        >
-          🧴 Aufguss eintragen
-          <span className="text-[0.7em] font-normal text-forest-300/70">— halten</span>
-        </HaltenKnopf>
+        <EintragenKnopf onClick={() => onEintragen()} />
         {fusszeile}
       </div>
     </div>
@@ -271,6 +270,22 @@ export function OelraumAnzeige({
 }
 
 // ─── Bausteine ────────────────────────────────────────────────────────────────
+
+/** Der Weg in die Eingabe: ein Tipp genügt (Vorgabe Christoph 18.09.2026).
+ *  Vorher musste man 2 s halten — ohne sichtbaren Hinweis passierte beim
+ *  Antippen scheinbar nichts. Ein Fehlgriff ist harmlos: die Eingabe schreibt
+ *  nichts, bis jemand absendet, und springt von selbst zur Anzeige zurück. */
+function EintragenKnopf({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl bg-forest-600 px-[3vw] py-[1.8vh] text-[clamp(0.95rem,2vw,1.35rem)] font-bold text-white shadow-lg shadow-black/40 ring-1 ring-forest-400/60 transition active:scale-[0.98]"
+    >
+      🧴 Aufguss eintragen
+    </button>
+  );
+}
 
 function MahnBand({
   fehlend, dringend, alleinig, onEintragen,
@@ -307,12 +322,11 @@ function MahnBand({
 
       <div className={`mt-[1.4vh] grid gap-[0.8vw] ${alleinig ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
         {fehlend.slice(0, 6).map((a) => (
-          <HaltenKnopf
+          <button
             key={a.inf.id}
-            onFertig={() => onEintragen({ saunaId: a.inf.sauna_id, startTime: a.inf.start_time })}
-            titel="Gedrückt halten, um für diesen Slot einzutragen"
-            ringFarbe={dringend ? 'rgba(244,63,94,0.4)' : 'rgba(245,158,11,0.35)'}
-            className={`rounded-xl px-4 py-[1.3vh] text-left ring-1 ${
+            type="button"
+            onClick={() => onEintragen({ saunaId: a.inf.sauna_id, startTime: a.inf.start_time })}
+            className={`rounded-xl px-4 py-[1.3vh] text-left ring-1 transition active:scale-[0.99] ${
               dringend ? 'bg-rose-900/50 ring-rose-500/50' : 'bg-amber-900/35 ring-amber-600/40'
             }`}
           >
@@ -328,7 +342,7 @@ function MahnBand({
               </span>
               <span aria-hidden className="text-[clamp(0.9rem,2vw,1.4rem)] opacity-70">→</span>
             </span>
-          </HaltenKnopf>
+          </button>
         ))}
       </div>
     </section>
