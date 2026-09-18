@@ -21,9 +21,11 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-/** Kreative Titel — dafuer reicht ein schnelles, guenstiges Modell.
+/** Wortwitz auf Deutsch UND Verbote einhalten — daran scheiterte das kleine
+ *  Modell (claude-haiku-4.5 schrieb trotz Verbot immer wieder „Wer X saet, wird
+ *  Y ernten", Test 18.09.2026). Sonnet kostet je Anfrage rund 0,4 Cent.
  *  Ueber OPENROUTER_MODEL jederzeit umstellbar, ohne Deploy. */
-const MODELL_VORGABE = 'anthropic/claude-haiku-4.5';
+const MODELL_VORGABE = 'anthropic/claude-sonnet-5';
 
 /** Ein Chat-Aufruf an OpenRouter (OpenAI-kompatibles Format).
  *  Gibt den reinen Text der Antwort zurueck. */
@@ -60,13 +62,18 @@ async function openrouter(system: string, user: string, opts: {
     throw new Error(`OpenRouter ${resp.status}: ${text.slice(0, 300)}`);
   }
   const data = await resp.json() as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
     error?: { message?: string };
   };
   // OpenRouter meldet Modell-Fehler teils mit HTTP 200 und einem error-Feld —
   // ohne diese Pruefung kaeme still ein leerer Titel heraus.
   if (data.error) throw new Error(`OpenRouter: ${data.error.message ?? 'unbekannter Fehler'}`);
-  return data.choices?.[0]?.message?.content?.trim() ?? '';
+  const text = data.choices?.[0]?.message?.content?.trim() ?? '';
+  // HTTP 200 ohne Inhalt gibt es wirklich (Denk-Modelle, die ihr Budget im
+  // Nachdenken verbrauchen): dann lieber laut scheitern — der Dialog zeigt in
+  // dem Fall die Regel-Titel statt fuenfmal denselben Platzhalter.
+  if (!text) throw new Error(`OpenRouter: leere Antwort (finish_reason ${data.choices?.[0]?.finish_reason ?? 'unbekannt'})`);
+  return text;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -131,7 +138,7 @@ const STYLES: { id: string; label: string; description: string }[] = [
 
 // Wörter, die jeden Titel beliebig machen — und das geschützte „Banja"
 // (Migration 0148 weist Titel mit diesem Wort ab, wenn das Ritual nicht gebucht ist).
-const VERBOTEN = 'Sinnesreise, Duftreise, Wohlfühl-, Oase, Harmonie, Zauber, Magie, Traum, Verführung, Klassisch, Hauch, Flüstern, Schamane, Wellness, Auszeit, Balance, Banja, Wenik';
+const VERBOTEN = 'Sinnesreise, Duftreise, Wohlfühl-, Oase, Harmonie, Zauber, Magie, Traum, Verführung, Klassisch, Hauch, Flüstern, Schamane, Wellness, Auszeit, Balance, trifft, säen/sät, ernten, Banja, Wenik';
 
 // Was der Aufruf mitschickt. Bewusst KLARTEXT statt IDs: 'flame' oder
 // 'custom:9f3e...' sagt einem Sprachmodell nichts, "Extra heiss" und
@@ -215,8 +222,7 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       '- Humor ist erwünscht, Kitsch nicht. Nichts Anzügliches.\n' +
       '- Höchstens ein Emoji, und nur am ENDE des Titels; mindestens zwei Titel ganz ohne.\n' +
       '- Erfinde keine Zutaten und keine Orte außerhalb des Schwarzwalds.\n' +
-      '- Abgegriffene Muster meiden: „X trifft Y", „Wer X sät, wird Y ernten", „Im Bann von …". ' +
-      'Beim Schwarzwald-Stil nicht immer der Köhler — wechsle Figuren und Motive.\n' +
+      '- Jeder Titel hat einen anderen Satzbau; beim Schwarzwald-Stil wechseln Figuren und Motive.\n' +
       '- Verbotene Wörter (auch als Wortteil): ' + VERBOTEN + '.\n\n' +
       'BEISPIELE aus dem Verein, die gut ankamen — Tonfall treffen, NICHT kopieren:\n' +
       '„Zirbelkiefer und kein Zurück mehr" · „Kaffee trifft Kelo – der stille Kick" · ' +
@@ -261,9 +267,11 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       .filter((t) => t.length > 0 && t.length < 80);
   }
 
-  // Auf genau 5 trimmen / auffüllen
+  // Auf genau 5 trimmen. Kam nichts Verwertbares, scheitert der Aufruf — der
+  // Dialog zeigt dann seine Regel-Titel (vorher: fünfmal „Klassischer Aufguss").
   if (titles.length > 5) titles = titles.slice(0, 5);
-  while (titles.length < 5) titles.push('Klassischer Aufguss');
+  if (titles.length < 3) throw new Error('KI lieferte keine verwertbaren Titel');
+  while (titles.length < 5) titles.push('Heute wird es richtig heiß, Freunde');
 
   // „Banja" ist geschützt (Migration 0148): ein Titel mit dem Wort würde beim
   // Speichern abgewiesen, wenn das Ritual nicht gebucht ist. Sollte das Modell
