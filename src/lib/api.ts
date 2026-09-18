@@ -3326,10 +3326,11 @@ export function useKioskSperreStatus(opts?: { enabled?: boolean; intervalMs?: nu
 }
 
 /** Display wurde im gesperrten Zustand angetippt — der Server meldet es (gedrosselt) allen Admins. */
-export async function kioskSperreBeruehrt(display: KioskDisplay): Promise<{ gesperrt: boolean; gemeldet: boolean }> {
+export async function kioskSperreBeruehrt(display: KioskDisplay): Promise<{ gesperrt: boolean; gemeldet: boolean; heute?: number }> {
   const { data, error } = await need().rpc('kiosk_sperre_beruehrt', { p_display: display });
   if (error) throw error;
-  return data as { gesperrt: boolean; gemeldet: boolean };
+  // `heute` = so viele haben heute schon am gesperrten Display getippt (Migration 0160).
+  return data as { gesperrt: boolean; gemeldet: boolean; heute?: number };
 }
 
 export function useKioskSperreFreigeben() {
