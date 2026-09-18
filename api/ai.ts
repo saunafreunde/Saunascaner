@@ -21,11 +21,13 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-/** Wortwitz auf Deutsch UND Verbote einhalten — daran scheiterte das kleine
- *  Modell (claude-haiku-4.5 schrieb trotz Verbot immer wieder „Wer X saet, wird
- *  Y ernten", Test 18.09.2026). Sonnet kostet je Anfrage rund 0,4 Cent.
- *  Ueber OPENROUTER_MODEL jederzeit umstellbar, ohne Deploy. */
-const MODELL_VORGABE = 'anthropic/claude-sonnet-5';
+/** Schnelles Modell OHNE Denkphase. Versuch mit anthropic/claude-sonnet-5 am
+ *  18.09.2026: es denkt ueber OpenRouter standardmaessig nach, verbrauchte das
+ *  ganze Token-Budget und lieferte HTTP 200 mit leerem Inhalt
+ *  (finish_reason "length") — jede Anfrage bezahlt, kein Titel. Haiku haelt
+ *  Verbote nur meistens ein; dafuer gibt es unten zwei Kandidaten je Stil und
+ *  eine harte Pruefung. Ueber OPENROUTER_MODEL umstellbar, ohne Deploy. */
+const MODELL_VORGABE = 'anthropic/claude-haiku-4.5';
 
 /** Ein Chat-Aufruf an OpenRouter (OpenAI-kompatibles Format).
  *  Gibt den reinen Text der Antwort zurueck. */
@@ -213,9 +215,10 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       'gibst deinen Aufgüssen Titel, über die man auf der Tafel im Vereinsraum redet. ' +
       'Du bekommst alles, was den Aufguss ausmacht: Öle, Sud-Kräuter, Räucherwerk, ' +
       'eine mögliche Schnaps-Sorte, die Besonderheiten sowie Sauna, Uhrzeit und Jahreszeit.\n\n' +
-      'AUFGABE: Schreibe GENAU 5 Titel, einen je Stil (Reihenfolge unten).\n\n' +
+      'AUFGABE: Schreibe je Stil ZWEI verschiedene Titel (Reihenfolge unten) — insgesamt 10.\n\n' +
       'SO KLINGT EIN GUTER TITEL:\n' +
-      '- 4 bis 9 Wörter, HÖCHSTENS 45 Zeichen (zähle nach!) — er erzählt etwas, statt nur zu benennen.\n' +
+      '- 5 bis 7 Wörter, HÖCHSTENS 40 Zeichen — er steht auf der Tafel in EINER Zeile. ' +
+      'Er erzählt etwas, statt nur zu benennen.\n' +
       '- Mindestens EINE Zutat oder Besonderheit kommt wörtlich oder klar erkennbar vor ' +
       '(Öl, Kraut, Schnaps, Räucherwerk, „extra heiß" …). Der Titel passt nur zu DIESEM Aufguss.\n' +
       '- Konkret statt wolkig: Dinge, Orte, Handlungen — keine Wellness-Prospekt-Sprache.\n' +
@@ -225,15 +228,14 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       '- Jeder Titel hat einen anderen Satzbau; beim Schwarzwald-Stil wechseln Figuren und Motive.\n' +
       '- Verbotene Wörter (auch als Wortteil): ' + VERBOTEN + '.\n\n' +
       'BEISPIELE aus dem Verein, die gut ankamen — Tonfall treffen, NICHT kopieren:\n' +
-      '„Zirbelkiefer und kein Zurück mehr" · „Kaffee trifft Kelo – der stille Kick" · ' +
-      '„Wo der Pfeffer wächst" · „Heute wird es richtig heiß, Freunde" · ' +
-      '„Die fabelhafte Welt der Amelie" · „Kaffeepause mit Schuss" · ' +
-      '„Rumpelstilzchens Aufguss" · „Wenn Fichtennadel die Steine trifft"\n\n' +
-      'STILE (genau in dieser Reihenfolge, einer pro Titel):\n' +
+      '„Zirbelkiefer und kein Zurück mehr" · „Wo der Pfeffer wächst" · ' +
+      '„Heute wird es richtig heiß, Freunde" · „Die fabelhafte Welt der Amelie" · ' +
+      '„Kaffeepause mit Schuss" · „Ein guter Morgen mit Rosmarin"\n\n' +
+      'STILE (genau in dieser Reihenfolge, zwei Titel je Stil):\n' +
       stylesPrompt + '\n\n' +
-      'Die fünf Titel unterscheiden sich klar: andere Zutat im Mittelpunkt, anderer Satzbau, ' +
-      'andere Stimmung. Antworte AUSSCHLIESSLICH mit einem JSON-Array von 5 Strings, z.B. ' +
-      '["Titel 1", "Titel 2", "Titel 3", "Titel 4", "Titel 5"]. ' +
+      'Die Titel unterscheiden sich klar: andere Zutat im Mittelpunkt, anderer Satzbau, ' +
+      'andere Stimmung. Antworte AUSSCHLIESSLICH mit einem JSON-Array aus 5 Arrays mit je ' +
+      '2 Strings, z.B. [["1a","1b"],["2a","2b"],["3a","3b"],["4a","4b"],["5a","5b"]]. ' +
       'Keine Erklärung, keine Markdown-Codeblöcke, kein Text außerhalb des Arrays.',
     beschreibung
       // Ein Zufallswert pro Aufruf, damit "Neu wuerfeln" auch bei identischer
@@ -241,44 +243,67 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       // Eingabe sehr aehnliche Ergebnisse.
       + '\n\n(Variation ' + String(body.variation ?? Date.now()).slice(-5)
       + ' — bitte andere Einfälle als beim letzten Mal.)',
-    { maxTokens: 600, temperature: 1.0 },
+    { maxTokens: 800, temperature: 1.0 },
   );
 
   // JSON-Parse-Versuch — robust gegen Code-Block-Wrapping, Whitespace
-  let titles: string[] = [];
+  const putzen = (t: string) => t.trim().replace(/^["„»'`]+|["“«'`]+$/g, '').replace(/[.!?]+$/g, '').trim();
+  let kandidaten: string[][] = [];
   const cleaned = raw
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```\s*$/, '')
     .trim();
   try {
-    const parsed = JSON.parse(cleaned);
+    const parsed: unknown = JSON.parse(cleaned);
     if (Array.isArray(parsed)) {
-      titles = parsed
-        .filter((x): x is string => typeof x === 'string')
-        .map((t) => t.trim().replace(/^["„»'`]+|["“«'`]+$/g, '').replace(/[.!?]+$/g, '').trim())
-        .filter((t) => t.length > 0);
+      if (parsed.every((x) => Array.isArray(x))) {
+        kandidaten = (parsed as unknown[][]).map((paar) =>
+          paar.filter((x): x is string => typeof x === 'string').map(putzen).filter((t) => t.length > 0));
+      } else {
+        // flache Liste: je zwei gehören zu einem Stil (bei genau 5: einer je Stil)
+        const flach = parsed.filter((x): x is string => typeof x === 'string').map(putzen).filter((t) => t.length > 0);
+        const jeStil = flach.length >= 10 ? 2 : 1;
+        for (let i = 0; i < flach.length; i += jeStil) kandidaten.push(flach.slice(i, i + jeStil));
+      }
     }
   } catch {
     // Fallback: zeilenweise splitten (falls das Modell doch eine Liste statt JSON liefert)
-    titles = cleaned
+    kandidaten = cleaned
       .split(/\r?\n/)
-      .map((l) => l.replace(/^\s*[-*•\d.)\s]+/, '').trim())
-      .map((t) => t.replace(/^["„»'`]+|["“«'`]+$/g, '').replace(/[.!?]+$/g, '').trim())
-      .filter((t) => t.length > 0 && t.length < 80);
+      .map((l) => putzen(l.replace(/^\s*[-*•\d.)\s]+/, '')))
+      .filter((t) => t.length > 0 && t.length < 80)
+      .map((t) => [t]);
   }
 
-  // Auf genau 5 trimmen. Kam nichts Verwertbares, scheitert der Aufruf — der
-  // Dialog zeigt dann seine Regel-Titel (vorher: fünfmal „Klassischer Aufguss").
-  if (titles.length > 5) titles = titles.slice(0, 5);
+  // Die Regeln stehen im Prompt — aber ein Sprachmodell hält Verbote nur
+  // meistens ein (Test 18.09.2026: „Wer X sät, wird Y ernten" kam trotz Verbot
+  // immer wieder). Darum zwei Kandidaten je Stil und hier die harte Prüfung:
+  // je Stil gewinnt der Kandidat mit den wenigsten Verstößen.
+  // „Banja" ist geschützt (Migration 0148): ein Titel mit dem Wort würde beim
+  // Speichern abgewiesen, wenn das Ritual nicht gebucht ist.
+  const istBanja = (z.besonderheiten ?? []).some((x) => /banja/i.test(x));
+  const FLOSKEL = /sinnesreise|duftreise|wohlfühl|oase|harmonie|zauber|magie|traum|verführ|klassisch|hauch|flüster|schamane|wellness|auszeit|balance|\btrifft\b|\bsä(e)?t\b|\bsäen\b|ernte/i;
+  const verstoesse = (t: string): number => {
+    const woerter = t.split(/\s+/).filter((w) => /[A-Za-zÄÖÜäöüß]/.test(w)).length;
+    let n = 0;
+    if (!istBanja && /banja|wenik/i.test(t)) n += 100;   // würde beim Speichern scheitern
+    if (FLOSKEL.test(t)) n += 10;
+    if (t.length > 44) n += 10;                           // passt nicht in eine Tafel-Zeile
+    else if (t.length > 40) n += 2;
+    if (woerter < 4 || woerter > 8) n += 5;
+    else if (woerter < 5 || woerter > 7) n += 1;          // Wunsch: 5–7 Wörter
+    return n;
+  };
+  let titles = kandidaten
+    .filter((paar) => paar.length > 0)
+    .slice(0, 5)
+    .map((paar) => [...paar].sort((a, b) => verstoesse(a) - verstoesse(b))[0])
+    .filter((t) => verstoesse(t) < 100);
+
+  // Kam nichts Verwertbares, scheitert der Aufruf — der Dialog zeigt dann seine
+  // Regel-Titel (vorher: fünfmal „Klassischer Aufguss").
   if (titles.length < 3) throw new Error('KI lieferte keine verwertbaren Titel');
   while (titles.length < 5) titles.push('Heute wird es richtig heiß, Freunde');
-
-  // „Banja" ist geschützt (Migration 0148): ein Titel mit dem Wort würde beim
-  // Speichern abgewiesen, wenn das Ritual nicht gebucht ist. Sollte das Modell
-  // das Verbot übergehen, fällt der Titel hier heraus, statt den Nutzer in den
-  // Fehler laufen zu lassen.
-  const istBanja = (z.besonderheiten ?? []).some((x) => /banja/i.test(x));
-  if (!istBanja) titles = titles.map((t) => (/banja/i.test(t) ? 'Heute wird es richtig heiß, Freunde' : t));
 
   return res.status(200).json({
     titles,
