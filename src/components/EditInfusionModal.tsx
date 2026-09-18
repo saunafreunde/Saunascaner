@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ATTRIBUTES, ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID, schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from '@/lib/schnaps';
-import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
+import { RAEUCHER_ATTR, RAEUCHER_THEME, KRAEUTER_ATTR } from '@/lib/aufgussTheme';
+import { KraeuterSchalter } from '@/components/KraeuterSchalter';
 import { SudPicker } from '@/components/SudPicker';
 import { stripSudAttrs, sudFromAttributes, sudAttrId, sudMixAttrId } from '@/lib/sud';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
@@ -13,7 +14,7 @@ import {
   useMyCustomAttrs, useMyCustomOils, useSudKraeuter, useSudMixe, useSaunas,
 } from '@/lib/api';
 import { isAdmin as isAdminHelper } from '@/lib/roles';
-import { pruefeAuswahl } from '@/lib/aufgussRegeln';
+import { pruefeAuswahl, kraeuterUmschalten, VOLL_HINWEIS } from '@/lib/aufgussRegeln';
 import OilPicker from '@/components/OilPicker';
 import { Portal } from '@/components/Portal';
 import type { Infusion } from '@/types/database';
@@ -193,6 +194,7 @@ export function EditInfusionModal({
   const oilCount = oils.filter(Boolean).length;
   const selectedSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
   const raeuchernOn = (attrs as string[]).includes(RAEUCHER_ATTR);
+  const kraeuterOn = (attrs as string[]).includes(KRAEUTER_ATTR);
 
   return (
     <Portal>
@@ -364,7 +366,7 @@ export function EditInfusionModal({
           <div>
             <div className="flex gap-1.5 rounded-xl bg-forest-900/50 p-1 ring-1 ring-forest-800/50">
               {([
-                { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oilCount > 0 },
+                { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oilCount > 0 || kraeuterOn },
                 { id: 'schnaps',   icon: '🥃', label: 'Schnaps',  filled: !!schnaps },
                 { id: 'raeuchern', icon: '💨', label: 'Räuchern', filled: raeuchernOn },
                 { id: 'sud',       icon: '🧪', label: 'Sud',       filled: sudAuswahl.length > 0 },
@@ -391,6 +393,8 @@ export function EditInfusionModal({
             {aromaTab === 'oils' ? (
               <div className="mt-2">
                 <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Öle (bis {MAX_OIL_SLOTS})</label>
+                {/* Reiner Kräuteraufguss: keine Öl-Auswahl — „rein" heißt ohne Öl. */}
+                {!kraeuterOn && (
                 <button
                   type="button"
                   onClick={() => setShowOilPicker(true)}
@@ -400,6 +404,16 @@ export function EditInfusionModal({
                     ? '🌿 Öle auswählen…'
                     : `🌿 ${oilCount} Öl${oilCount === 1 ? '' : 'e'} gewählt — bearbeiten`}
                 </button>
+                )}
+                <KraeuterSchalter
+                  an={kraeuterOn}
+                  onToggle={() => {
+                    const neu = kraeuterUmschalten({ attrs, customAttrIds, oils, sudAuswahl, schnaps });
+                    if (!neu) { setErrorMsg(VOLL_HINWEIS); return; }
+                    setAttrs(neu.attrs);
+                    setOils(neu.oils);
+                  }}
+                />
               </div>
             ) : aromaTab === 'schnaps' ? (
               <div className="mt-2">

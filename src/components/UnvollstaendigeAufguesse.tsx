@@ -1,7 +1,7 @@
 // Nachpflege-Liste für Aufgüsse, denen Zutaten fehlen.
 //
 // Warum es sie gibt: seit dem 09.09.2026 sind 3 Öle und 2 Besonderheiten
-// Pflicht (bei Räuchern, Sud und Schnaps entfällt die Öl-Pflicht). Die Regel
+// Pflicht (bei Räuchern, Sud, Schnaps und reinem Kräuteraufguss entfällt die Öl-Pflicht). Die Regel
 // greift beim Speichern — an den Aufgüssen, die vorher entstanden sind, geht
 // sie vorbei. Und die entstehen weiter von selbst: aus Stamm-Slots
 // materialisiert der Cron Einträge ohne jede Zutat.
@@ -54,7 +54,7 @@ export function UnvollstaendigeAufguesse({
       </div>
       <p className="mt-1 text-xs text-amber-200/80">
         Trag die Zutaten nach — oder wirf den Aufguss weg, wenn er nicht stattfindet.
-        Bei Räuchern, Sud und Schnaps brauchst du keine Öle.
+        Bei Räuchern, Sud, Schnaps und reinem Kräuteraufguss brauchst du keine Öle.
       </p>
 
       <ul className="mt-3 divide-y divide-amber-500/20">

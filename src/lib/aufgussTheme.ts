@@ -62,6 +62,28 @@ export const SUD_THEME: AufgussTheme = {
   kategorie: 'Sudaufguss',
 };
 
+/** Reiner Kräuteraufguss — frische oder getrocknete Kräuter statt Öl.
+ *
+ *  Eingeführt 18.09.2026 (Vorgabe Christoph): seit der Pflicht „3 Öle" legten
+ *  Aufgießer für reine Kräuteraufgüsse Platzhalter-Öle an („ZufallÖl", dreimal
+ *  im selben Aufguss), weil nur Räuchern, Sud und Schnaps die Pflicht aufheben.
+ *  Der Sud-Reiter passt nicht immer: er verlangt konkrete Kräuter aus dem Regal.
+ *  Gespeichert wie Räuchern als schlichtes Attribut — kein neues Format.
+ *  In der Rangfolge zuletzt: jede andere Art ist die konkretere Ansage. */
+export const KRAEUTER_ATTR = 'kraeuteraufguss';
+
+export const KRAEUTER_THEME: AufgussTheme = {
+  id: KRAEUTER_ATTR,
+  name: 'Kräuteraufguss',
+  emoji: '🌿',
+  // Frisches Blattgrün — heller als das Sud-Grün (#4d7c2f), damit die beiden
+  // Kräuter-Arten auf der Tafel nicht verwechselt werden.
+  color: '#5b9a3c',
+  image: '/kraeuter/kraeuteraufguss.webp',
+  badge: '🌿 Kräuter',
+  kategorie: 'Kräuteraufguss',
+};
+
 /** Banja — das lange Dampfritual. Eigener Look, weil es über zwei
  *  Aufgussstunden läuft und auf der Tafel entsprechend groß erscheint. */
 export const BANJA_ATTR = 'banja';
@@ -97,6 +119,7 @@ function schnapsTheme(s: Schnaps): AufgussTheme {
  *    2. Schnaps  — eine benannte Sorte ist die konkreteste Ansage
  *    3. Räuchern
  *    4. Sud
+ *    5. Kräuteraufguss
  *  Was nicht gewinnt, verschwindet nicht: es erscheint weiter unten als Pille
  *  (siehe stripThemeAttrs — entfernt wird nur die gewinnende Art). */
 export function themeFromAttributes(attrs: readonly string[] | null | undefined): AufgussTheme | null {
@@ -105,6 +128,7 @@ export function themeFromAttributes(attrs: readonly string[] | null | undefined)
   if (s) return schnapsTheme(s);
   if (attrs?.includes(RAEUCHER_ATTR)) return RAEUCHER_THEME;
   if (hasSud(attrs)) return SUD_THEME;
+  if (attrs?.includes(KRAEUTER_ATTR)) return KRAEUTER_THEME;
   return null;
 }
 
@@ -125,6 +149,7 @@ export function stripThemeAttrs(attrs: readonly string[]): string[] {
   // Banja behält seine Pille bewusst NICHT doppelt: das Badge steht schon oben.
   if (won.id === BANJA_ATTR) return attrs.filter((a) => a !== BANJA_ATTR);
   if (won.id === RAEUCHER_ATTR) return attrs.filter((a) => a !== RAEUCHER_ATTR);
+  if (won.id === KRAEUTER_ATTR) return attrs.filter((a) => a !== KRAEUTER_ATTR);
   // Der Sud gewinnt nur, wenn sonst nichts da ist — seine Kräuter bleiben als
   // Pillen stehen, sie sind der eigentliche Inhalt und nicht bloß ein Etikett.
   if (won.id === SUD_THEME.id) return [...attrs];

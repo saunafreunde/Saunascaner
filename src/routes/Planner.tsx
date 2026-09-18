@@ -16,7 +16,8 @@ import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
 import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID, parseSchnapsAttr } from '@/lib/schnaps';
-import { RAEUCHER_ATTR, RAEUCHER_THEME } from '@/lib/aufgussTheme';
+import { RAEUCHER_ATTR, RAEUCHER_THEME, KRAEUTER_ATTR } from '@/lib/aufgussTheme';
+import { KraeuterSchalter } from '@/components/KraeuterSchalter';
 import { SudPicker } from '@/components/SudPicker';
 // Das Kontingent und die Zerlegung liegen seit 14.08.2026 in einer eigenen
 // Datei, damit der Öl-Raum-Kiosk dieselben Regeln benutzt statt einer Kopie.
@@ -24,7 +25,7 @@ import {
   MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS,
   PFLICHT_OELE, PFLICHT_BESONDERHEITEN, fehltNoch,
   auswahlAnzahl as zaehleAuswahl, attrsPayload as baueAttrsPayload,
-  zerlegeAttributes, pruefeAuswahl, type ZutatenAuswahl,
+  zerlegeAttributes, pruefeAuswahl, kraeuterUmschalten, type ZutatenAuswahl,
 } from '@/lib/aufgussRegeln';
 import { TitleSuggestionPicker } from '@/components/TitleSuggestionPicker';
 import { zutatenAus } from '@/lib/titelZutaten';
@@ -485,6 +486,7 @@ export default function Planner() {
   const isBanjaPlanned = (attrs as string[]).includes(BANJA_ATTR);
   const selectedSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
   const raeuchernOn = (attrs as string[]).includes(RAEUCHER_ATTR);
+  const kraeuterOn = (attrs as string[]).includes(KRAEUTER_ATTR);
   // 3–6-Regel (User-Wunsch 03.08.2026): mindestens DREI, höchstens SECHS
   // Dinge pro Aufguss — Öle und Besonderheiten frei gemischt. Die Öle
   // bleiben dabei bei ihren MAX_OIL_SLOTS (3) Plätzen, die Besonderheiten
@@ -1847,7 +1849,7 @@ export default function Planner() {
                   </div>
                   <p className="mt-0.5 text-[11px] text-forest-400/60">
                     Pflicht: {PFLICHT_OELE} Öle und {PFLICHT_BESONDERHEITEN} Besonderheiten.
-                    Bei Räuchern, Sud und Schnaps entfällt die Öl-Pflicht — wählen darfst du sie trotzdem.
+                    Bei Räuchern, Sud, Schnaps und reinem Kräuteraufguss (Schalter im Öle-Reiter) entfällt die Öl-Pflicht.
                     Höchstens {MAX_AUSWAHL} Dinge zusammen.
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -1903,7 +1905,7 @@ export default function Planner() {
                 <div>
                   <div className="flex gap-1.5 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/50">
                     {([
-                      { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oils.some(Boolean) },
+                      { id: 'oils',      icon: '🌿', label: 'Öle',      filled: oils.some(Boolean) || kraeuterOn },
                       { id: 'schnaps',   icon: '🥃', label: 'Schnaps',  filled: !!schnaps },
                       { id: 'raeuchern', icon: '💨', label: 'Räuchern', filled: raeuchernOn },
                       { id: 'sud',       icon: '🧪', label: 'Sud',       filled: sudAuswahl.length > 0 },
@@ -1932,6 +1934,8 @@ export default function Planner() {
                   {aromaTab === 'oils' ? (
                     <div className="mt-2">
                       <label className="text-xs text-forest-300">Ätherische Öle <span className="text-forest-400/60">— eines pro Runde (max. 3, zählt aufs Kontingent)</span></label>
+                      {/* Reiner Kräuteraufguss: keine Öl-Plätze — „rein" heißt ohne Öl. */}
+                      {!kraeuterOn && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         {oils.map((id, i) => {
                           const o = id ? OIL_BY_ID[id] : null;
@@ -1962,6 +1966,16 @@ export default function Planner() {
                           );
                         })}
                       </div>
+                      )}
+                      <KraeuterSchalter
+                        an={kraeuterOn}
+                        onToggle={() => {
+                          const neu = kraeuterUmschalten(auswahl);
+                          if (!neu) { setFormError(VOLL_HINWEIS); return; }
+                          setAttrs(neu.attrs);
+                          setOils(neu.oils);
+                        }}
+                      />
                     </div>
                   ) : aromaTab === 'schnaps' ? (
                     <div className="mt-2">

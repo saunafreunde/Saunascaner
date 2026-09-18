@@ -5,6 +5,7 @@ export type InfusionAttribute =
   | 'nature'          // Natur / Kräuter
   | 'menthol'         // Menthol-Kristalle
   | 'raeuchern'       // Räuchern
+  | 'kraeuteraufguss' // reiner Kräuteraufguss — ohne Öl (Schalter im Öle-Reiter)
   | 'kaffee'          // Kaffee-Aufguss
   | 'kirschwasser'    // Kirschwasser
   | 'haferpflaume'    // Haferpflaume
@@ -80,6 +81,8 @@ export const ATTRIBUTES: {
   { id: 'nature',         emoji: '🌿', label: 'Natur / Kräuter' },
   { id: 'menthol',        emoji: '❄️', label: 'Menthol-Kristalle' },
   { id: 'raeuchern',      emoji: '💨', label: 'Räuchern', hidden: true },
+  // Eigene Aufgussart seit 18.09.2026 (lib/aufgussTheme.ts): Schalter im Öle-Reiter, kein Chip.
+  { id: 'kraeuteraufguss', emoji: '🌿', label: 'Kräuteraufguss', hidden: true },
   { id: 'kaffee',         emoji: '☕', label: 'Kaffee' },
   { id: 'kirschwasser',   emoji: '🍒', label: 'Kirschwasser', hidden: true },
   { id: 'haferpflaume',   emoji: '🟣', label: 'Haferpflaume', hidden: true },

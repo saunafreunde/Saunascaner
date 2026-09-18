@@ -15,7 +15,7 @@ import { MAX_OIL_SLOTS } from './oils';
 import { schnapsAttrId, schnapsFromAttributes, stripSchnapsAttrs } from './schnaps';
 import { sudAttrId, sudMixAttrId, sudFromAttributes, stripSudAttrs } from './sud';
 import { ATTRIBUTES, type InfusionAttribute } from './attributes';
-import { RAEUCHER_ATTR, BANJA_ATTR } from './aufgussTheme';
+import { RAEUCHER_ATTR, BANJA_ATTR, KRAEUTER_ATTR } from './aufgussTheme';
 
 // ─── Das Kontingent ───────────────────────────────────────────────────────────
 
@@ -131,15 +131,39 @@ export function zerlegeAttributes(
  *  Die Obergrenze gilt auch fürs Banja. */
 /** Trägt der Aufguss etwas, das die Öle ersetzt?
  *
- *  Räuchern, Sud und Schnaps sind eigene Aufgussarten — dort ist der Duft
- *  nicht das Öl, sondern das Räucherwerk, der Sud oder der Schnaps. Wer eine
+ *  Räuchern, Sud, Schnaps und der reine Kräuteraufguss sind eigene
+ *  Aufgussarten — dort ist der Duft nicht das Öl, sondern das Räucherwerk, der
+ *  Sud, der Schnaps oder das Kraut. Wer eine
  *  davon wählt, muss keine drei Öle mehr dazulegen; er DARF aber (Vorgabe
  *  Christoph 09.09.2026). Das Banja ist ganz ausgenommen: es ist eine Buchung
  *  mit fester Form, keine Zusammenstellung. */
 export function ersetztOele(a: ZutatenAuswahl): boolean {
   return (a.attrs as readonly string[]).includes(RAEUCHER_ATTR)
+    || (a.attrs as readonly string[]).includes(KRAEUTER_ATTR)
     || a.sudAuswahl.length > 0
     || !!a.schnaps;
+}
+
+/** Schaltet den reinen Kräuteraufguss um — für alle drei Formulare gleich.
+ *
+ *  AN:  die Öle fallen weg („rein" heißt ohne Öl — und gemischte Aufgüsse
+ *       brauchen den Schalter nicht, sie haben ja Öle) und das Attribut kommt
+ *       dazu. Rückgabe `null`, wenn auch ohne Öle kein Platz mehr im Kontingent
+ *       ist — dann muss erst etwas abgewählt werden.
+ *  AUS: nur das Attribut geht; die Öl-Plätze sind wieder frei wählbar. */
+export function kraeuterUmschalten(
+  a: ZutatenAuswahl,
+): { attrs: InfusionAttribute[]; oils: (string | null)[] } | null {
+  const an = (a.attrs as readonly string[]).includes(KRAEUTER_ATTR);
+  if (an) {
+    return { attrs: a.attrs.filter((x) => x !== KRAEUTER_ATTR), oils: [...a.oils] };
+  }
+  const ohneOele = auswahlAnzahl(a) - a.oils.filter(Boolean).length;
+  if (ohneOele >= MAX_AUSWAHL) return null;
+  return {
+    attrs: [...a.attrs, KRAEUTER_ATTR as InfusionAttribute],
+    oils: a.oils.map(() => null),
+  };
 }
 
 /** Was diesem Aufguss noch zur Vollständigkeit fehlt — für Live-Anzeigen im
@@ -175,7 +199,7 @@ export function fehltNochRoh(
   const sud = sudFromAttributes(roh);
   const rest = stripSudAttrs(stripSchnapsAttrs(roh));
   const hatSud = sud.kraeuter.length + sud.mixe.length > 0;
-  const ersetzt = rest.includes(RAEUCHER_ATTR) || hatSud || !!schnaps;
+  const ersetzt = rest.includes(RAEUCHER_ATTR) || rest.includes(KRAEUTER_ATTR) || hatSud || !!schnaps;
 
   return {
     oele: ersetzt ? 0 : Math.max(0, PFLICHT_OELE - (oils ?? []).filter(Boolean).length),
@@ -204,7 +228,8 @@ export function pruefeAuswahl(a: ZutatenAuswahl): string | null {
       teile.push(`${fehlt.besonderheiten} ${fehlt.besonderheiten === 1 ? 'Besonderheit' : 'Besonderheiten'}`);
     }
     return `Es fehlen noch ${teile.join(' und ')}. Pflicht sind ${PFLICHT_OELE} Oele und `
-      + `${PFLICHT_BESONDERHEITEN} Besonderheiten - bei Raeuchern, Sud und Schnaps entfaellt die Oel-Pflicht.`;
+      + `${PFLICHT_BESONDERHEITEN} Besonderheiten - bei Raeuchern, Sud, Schnaps und reinem Kraeuteraufguss `
+      + `(Schalter im Oele-Reiter) entfaellt die Oel-Pflicht.`;
   }
   const n = auswahlAnzahl(a);
   if (n > MAX_AUSWAHL) {
@@ -254,7 +279,9 @@ export function zutatenStatus(
   const hatSchnaps = !!schnapsFromAttributes(attrs);
   const hatRaeuchern = attrs.includes(RAEUCHER_ATTR);
   const hatBanja = attrs.includes(BANJA_ATTR);
+  // Der reine Kräuteraufguss trägt bewusst kein Öl — ihm fehlt nichts.
+  const hatKraeuter = attrs.includes(KRAEUTER_ATTR);
 
-  if (hatOel || hatSud || hatSchnaps || hatRaeuchern || hatBanja) return 'vollstaendig';
+  if (hatOel || hatSud || hatSchnaps || hatRaeuchern || hatBanja || hatKraeuter) return 'vollstaendig';
   return attrs.length > 0 ? 'nur_besonderheiten' : 'leer';
 }

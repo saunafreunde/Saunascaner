@@ -7,11 +7,12 @@ import { displayMemberName } from '@/lib/memberDisplay';
 import { slotHoursForWeekday } from '@/lib/garantie';
 import { OIL_BY_ID, MAX_OIL_SLOTS, normalizeOilSlots, parseCustomOilId } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID } from '@/lib/schnaps';
-import { RAEUCHER_ATTR, RAEUCHER_THEME, BANJA_ATTR } from '@/lib/aufgussTheme';
+import { RAEUCHER_ATTR, RAEUCHER_THEME, BANJA_ATTR, KRAEUTER_ATTR } from '@/lib/aufgussTheme';
+import { KraeuterSchalter } from '@/components/KraeuterSchalter';
 import {
   MAX_AUSWAHL, VOLL_HINWEIS, ATTRIBUTE_CHIPS, fehltNoch,
   auswahlAnzahl as zaehleAuswahl, attrsPayload as baueAttrsPayload,
-  zerlegeAttributes, pruefeAuswahl, type ZutatenAuswahl,
+  zerlegeAttributes, pruefeAuswahl, kraeuterUmschalten, type ZutatenAuswahl,
 } from '@/lib/aufgussRegeln';
 import OilPicker from '@/components/OilPicker';
 import { SudPicker } from '@/components/SudPicker';
@@ -196,6 +197,13 @@ export function OelraumEingabe({
   }
 
   const raeuchernAn = (attrs as string[]).includes(RAEUCHER_ATTR);
+  const kraeuterAn = (attrs as string[]).includes(KRAEUTER_ATTR);
+  function toggleKraeuter() {
+    const neu = kraeuterUmschalten(auswahl);
+    if (!neu) return;   // Kontingent voll — der Zähler oben zeigt es an
+    setAttrs(neu.attrs);
+    setOils(neu.oils);
+  }
   const gewaehlterSchnaps = schnaps ? SCHNAPS_BY_ID[schnaps] ?? null : null;
 
   // Die drei Öl-Plätze — identisch im Neu-Formular (Reiter „Öle") und im
@@ -514,7 +522,7 @@ export function OelraumEingabe({
               <div>
                 <div className="flex gap-1.5 rounded-xl bg-forest-950/60 p-1 ring-1 ring-forest-800/50">
                   {([
-                    { id: 'oils', icon: '🌿', label: 'Öle', gefuellt: oils.some(Boolean) },
+                    { id: 'oils', icon: '🌿', label: 'Öle', gefuellt: oils.some(Boolean) || kraeuterAn },
                     { id: 'schnaps', icon: '🥃', label: 'Schnaps', gefuellt: !!schnaps },
                     { id: 'raeuchern', icon: '💨', label: 'Räuchern', gefuellt: raeuchernAn },
                     { id: 'sud', icon: '🧪', label: 'Sud', gefuellt: sudAuswahl.length > 0 },
@@ -539,7 +547,9 @@ export function OelraumEingabe({
                     <p className="text-xs text-forest-400/70">
                       Eines pro Runde — höchstens {MAX_OIL_SLOTS}, zählt aufs Kontingent.
                     </p>
-                    <div className="mt-2">{oelChips}</div>
+                    {/* Reiner Kräuteraufguss: keine Öl-Plätze — „rein" heißt ohne Öl. */}
+                    {!kraeuterAn && <div className="mt-2">{oelChips}</div>}
+                    <KraeuterSchalter an={kraeuterAn} onToggle={toggleKraeuter} />
                   </div>
                 ) : reiter === 'schnaps' ? (
                   <div className="mt-2">
