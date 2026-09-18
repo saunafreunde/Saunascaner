@@ -21,7 +21,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-/** Kurze, kreative Titel — dafuer reicht ein schnelles, guenstiges Modell.
+/** Kreative Titel — dafuer reicht ein schnelles, guenstiges Modell.
  *  Ueber OPENROUTER_MODEL jederzeit umstellbar, ohne Deploy. */
 const MODELL_VORGABE = 'anthropic/claude-haiku-4.5';
 
@@ -94,32 +94,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// 5 explizit unterschiedliche Stile damit die Vorschläge wirklich Variation
-// haben (vorher waren 5 wiederholte Aufrufe an dasselbe System-Prompt sehr
-// ähnlich — gleiche poetische Bildsprache, gleiche Wortwahl). Jeder Stil
-// hat seinen eigenen Charakter + andere Beispiel-Worte.
-const STYLES: { id: string; description: string }[] = [
+// Fünf Stile nach dem Vorbild der Titel, die im Verein wirklich gut ankommen
+// (Auswertung der Aufguss-Liste, 18.09.2026): Geschichten, Redewendungen,
+// Ansagen ans Publikum. Die erste Fassung verlangte „max 4–5 Wörter" und sogar
+// Berlin-Mundart — heraus kamen kurze, austauschbare Wellness-Titel
+// („Gluthitz", „Haut im Flammenkuss") und Unsinn wie „Steinhuder See brennt".
+// `label` wandert mit in die Antwort, damit der Dialog die Zeilen richtig
+// beschriftet (Reihenfolge = Reihenfolge der Titel).
+const STYLES: { id: string; label: string; description: string }[] = [
   {
-    id: 'poetisch',
-    description: 'Poetisch-bildhaft mit Naturmetapher (Glut, Wald, Hauch, Glühen, Wiese, Frische, Atem, Dämmerung). Lyrisch, max 4 Wörter, gerne ein Adjektiv + ein Substantiv.',
+    id: 'geschichte',
+    label: '🎬 Geschichte',
+    description: 'Wie ein Film-, Buch- oder Märchentitel, umgedichtet auf diesen Aufguss. Man soll die Vorlage wiedererkennen und schmunzeln.',
   },
   {
-    id: 'kurz',
-    description: 'Sehr kurz und prägnant, 1–3 Wörter, prägnant wie ein Cocktail-Name. Knackig, eingängig.',
+    id: 'schwarzwald',
+    label: '🌲 Schwarzwald',
+    description: 'Heimat und Lokalkolorit: Tannen, Nebel im Tal, Köhler, Flößer, Glasbläser, Kuckucksuhr, Kirschwasser, Sagen wie das Glasmännlein oder der Holländer-Michel. Warm, bodenständig, gern mit leichtem alemannisch-schwäbischem Einschlag — nie Berlinerisch oder norddeutsch.',
   },
   {
-    id: 'mystisch',
-    description: 'Mystisch-elementar mit Bezug zu den 4 Elementen oder Sagengestalten (Feuer, Sturm, Eis, Schmiede, Drache, Phönix, Nymphe, Schamane). Geheimnisvoll, max 5 Wörter.',
+    id: 'frech',
+    label: '😉 Frech',
+    description: 'Eine bekannte Redewendung, ein Sprichwort oder Werbespruch, frech auf die Zutaten verdreht. Wortspiel statt Kalauer.',
   },
   {
-    id: 'sinnlich',
-    description: 'Sinnlich-leidenschaftlich, Bezug zu Wärme, Haut, Berührung, Verführung, Versuchung. Erotisch ohne plump zu sein, max 5 Wörter.',
+    id: 'ansage',
+    label: '📣 Ansage',
+    description: 'Direkte Ansprache an die Gäste auf der Bank: ein Versprechen, eine Warnung oder eine Einladung. Klingt, als würde der Aufgießer es in die Kabine rufen.',
   },
   {
-    id: 'augenzwinkernd',
-    description: 'Augenzwinkernd-humorvoll, frech, mit Wortspiel oder Augenzwinker-Referenz (Berlin-Mundart, Filmtitel-Anspielung, freches Adjektiv). Locker, max 5 Wörter.',
+    id: 'bild',
+    label: '🖼️ Bild',
+    description: 'Ein starkes, konkretes Bild aus Zutat + Ort oder Tageszeit, gefolgt von einem Gedankenstrich und einem kurzen Nachsatz mit Haltung.',
   },
 ];
+
+// Wörter, die jeden Titel beliebig machen — und das geschützte „Banja"
+// (Migration 0148 weist Titel mit diesem Wort ab, wenn das Ritual nicht gebucht ist).
+const VERBOTEN = 'Sinnesreise, Duftreise, Wohlfühl-, Oase, Harmonie, Zauber, Magie, Traum, Verführung, Klassisch, Hauch, Flüstern, Schamane, Wellness, Auszeit, Balance, Banja, Wenik';
 
 // Was der Aufruf mitschickt. Bewusst KLARTEXT statt IDs: 'flame' oder
 // 'custom:9f3e...' sagt einem Sprachmodell nichts, "Extra heiss" und
@@ -186,23 +198,33 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
   }
 
   const stylesPrompt = STYLES
-    .map((s, i) => `${i + 1}. ${s.id}: ${s.description}`)
+    .map((st, i) => `${i + 1}. ${st.id}: ${st.description}`)
     .join('\n');
 
   const raw = await openrouter(
-    'Du bist Aufguss-Meister im Saunaverein „Saunafreunde Schwarzwald". ' +
-      'Erstelle GENAU 5 sehr unterschiedliche kreative deutsche Titel-Vorschläge ' +
-      'für einen Sauna-Aufguss. Du bekommst alles, was ihn ausmacht: Öle, ' +
-      'Sud-Kräuter, Räucherwerk, eine mögliche Schnaps-Sorte, die Besonderheiten ' +
-      'sowie Sauna, Uhrzeit und Jahreszeit. Nutze davon das, was am stärksten ' +
-      'prägt — nicht alles muss vorkommen, aber der Titel soll erkennbar zu ' +
-      'DIESEM Aufguss gehören und nicht zu jedem beliebigen. Jeder Vorschlag ' +
-      'hat einen ANDEREN Stil-Charakter (siehe Liste). Vermeide Wiederholungen — ' +
-      'die fünf Titel sollen sich klar voneinander unterscheiden, andere Wortwahl, ' +
-      'andere Stimmung. Gerne mit passenden Emojis am Anfang (oder ohne).\n\n' +
-      'STILE (genau in dieser Reihenfolge, einer pro Vorschlag):\n' +
+    'Du bist der witzigste Aufgießer im Saunaverein „Saunafreunde Schwarzwald" und ' +
+      'gibst deinen Aufgüssen Titel, über die man auf der Tafel im Vereinsraum redet. ' +
+      'Du bekommst alles, was den Aufguss ausmacht: Öle, Sud-Kräuter, Räucherwerk, ' +
+      'eine mögliche Schnaps-Sorte, die Besonderheiten sowie Sauna, Uhrzeit und Jahreszeit.\n\n' +
+      'AUFGABE: Schreibe GENAU 5 Titel, einen je Stil (Reihenfolge unten).\n\n' +
+      'SO KLINGT EIN GUTER TITEL:\n' +
+      '- 4 bis 9 Wörter, höchstens 48 Zeichen — er erzählt etwas, statt nur zu benennen.\n' +
+      '- Mindestens EINE Zutat oder Besonderheit kommt wörtlich oder klar erkennbar vor ' +
+      '(Öl, Kraut, Schnaps, Räucherwerk, „extra heiß" …). Der Titel passt nur zu DIESEM Aufguss.\n' +
+      '- Konkret statt wolkig: Dinge, Orte, Handlungen — keine Wellness-Prospekt-Sprache.\n' +
+      '- Humor ist erwünscht, Kitsch nicht. Nichts Anzügliches.\n' +
+      '- Höchstens ein Emoji, und nur am ENDE des Titels; mindestens zwei Titel ganz ohne.\n' +
+      '- Erfinde keine Zutaten und keine Orte außerhalb des Schwarzwalds.\n' +
+      '- Verbotene Wörter (auch als Wortteil): ' + VERBOTEN + '.\n\n' +
+      'BEISPIELE aus dem Verein, die gut ankamen — Tonfall treffen, NICHT kopieren:\n' +
+      '„Zirbelkiefer und kein Zurück mehr" · „Kaffee trifft Kelo – der stille Kick" · ' +
+      '„Wo der Pfeffer wächst" · „Heute wird es richtig heiß, Freunde" · ' +
+      '„Die fabelhafte Welt der Amelie" · „Kaffeepause mit Schuss" · ' +
+      '„Rumpelstilzchens Aufguss" · „Wenn Fichtennadel die Steine trifft"\n\n' +
+      'STILE (genau in dieser Reihenfolge, einer pro Titel):\n' +
       stylesPrompt + '\n\n' +
-      'Antworte AUSSCHLIESSLICH mit einem JSON-Array von 5 Strings, z.B. ' +
+      'Die fünf Titel unterscheiden sich klar: andere Zutat im Mittelpunkt, anderer Satzbau, ' +
+      'andere Stimmung. Antworte AUSSCHLIESSLICH mit einem JSON-Array von 5 Strings, z.B. ' +
       '["Titel 1", "Titel 2", "Titel 3", "Titel 4", "Titel 5"]. ' +
       'Keine Erklärung, keine Markdown-Codeblöcke, kein Text außerhalb des Arrays.',
     beschreibung
@@ -210,8 +232,8 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       // Auswahl andere Titel bringt — ohne den liefert das Modell bei gleicher
       // Eingabe sehr aehnliche Ergebnisse.
       + '\n\n(Variation ' + String(body.variation ?? Date.now()).slice(-5)
-      + ' — bitte andere Bilder als beim letzten Mal.)',
-    { maxTokens: 400, temperature: 1.0 },
+      + ' — bitte andere Einfälle als beim letzten Mal.)',
+    { maxTokens: 600, temperature: 1.0 },
   );
 
   // JSON-Parse-Versuch — robust gegen Code-Block-Wrapping, Whitespace
@@ -241,8 +263,16 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
   if (titles.length > 5) titles = titles.slice(0, 5);
   while (titles.length < 5) titles.push('Klassischer Aufguss');
 
+  // „Banja" ist geschützt (Migration 0148): ein Titel mit dem Wort würde beim
+  // Speichern abgewiesen, wenn das Ritual nicht gebucht ist. Sollte das Modell
+  // das Verbot übergehen, fällt der Titel hier heraus, statt den Nutzer in den
+  // Fehler laufen zu lassen.
+  const istBanja = (z.besonderheiten ?? []).some((x) => /banja/i.test(x));
+  if (!istBanja) titles = titles.map((t) => (/banja/i.test(t) ? 'Heute wird es richtig heiß, Freunde' : t));
+
   return res.status(200).json({
     titles,
+    labels: STYLES.map((st) => st.label),
     title: titles[0], // Backward-Compat für alte Frontend-Versionen
   });
 }

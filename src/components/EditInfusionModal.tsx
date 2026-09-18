@@ -248,7 +248,10 @@ export function EditInfusionModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-2 text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              /* iPhone-fest wie im Planer: 16 px gegen den iOS-Zoom, Return schließt nur die Tastatur. */
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+              enterKeyHint="done" autoComplete="off" maxLength={80}
+              className="mt-1 w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-2 text-base sm:text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
               placeholder={'z.B. Eukalyptus-Frische'}
             />
           </div>

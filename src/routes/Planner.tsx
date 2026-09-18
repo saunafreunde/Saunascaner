@@ -1783,9 +1783,15 @@ export default function Planner() {
                       ✨ Vorschlagen
                     </button>
                   </div>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)}
-                    placeholder="z.B. Eukalyptus klassisch"
-                    className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
+                  {/* iPhone-fest (18.09.2026): 16 px Schrift, sonst zoomt iOS beim
+                      Antippen ins Feld und die Seite springt; und „Return" auf der
+                      iOS-Tastatur darf das halb ausgefüllte Formular nicht absenden —
+                      es schließt nur die Tastatur. */}
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+                    enterKeyHint="done" autoComplete="off" maxLength={80}
+                    placeholder="z.B. Zirbelkiefer und kein Zurück mehr"
+                    className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400" />
                 </div>
                 {titlePickerOpen && (
                   <TitleSuggestionPicker

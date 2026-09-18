@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generateInfusionTitles, type StyledTitle } from '@/lib/titleGenerator';
 import { zutatenLeer, type TitelZutaten } from '@/lib/titelZutaten';
+import { Portal } from '@/components/Portal';
 
 interface Props {
   zutaten: TitelZutaten;
@@ -47,6 +48,8 @@ export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, o
   const zutatenKey = useMemo(() => JSON.stringify(zutaten), [zutaten]);
 
   const [kiTitel, setKiTitel] = useState<string[] | null>(null);
+  // Die KI hat eigene Stile (api/ai.ts STYLES) — ihre Etiketten kommen mit der Antwort.
+  const [kiLabels, setKiLabels] = useState<string[]>([]);
   const [laedt, setLaedt] = useState(false);
   const [kiFehler, setKiFehler] = useState<string | null>(null);
 
@@ -68,6 +71,7 @@ export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, o
         if (!r.ok) throw new Error(daten?.error ?? `HTTP ${r.status}`);
         const t = Array.isArray(daten?.titles) ? daten.titles.filter((x: unknown) => typeof x === 'string') : [];
         if (t.length === 0) throw new Error('keine Vorschläge erhalten');
+        setKiLabels(Array.isArray(daten?.labels) ? daten.labels.filter((x: unknown) => typeof x === 'string') : []);
         setKiTitel(t);
       })
       .catch((e) => {
@@ -83,9 +87,9 @@ export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, o
 
   // Anzeige: KI wenn da, sonst Regeln. Die Stil-Etiketten bleiben dieselben —
   // die KI liefert ihre fünf in derselben Reihenfolge.
-  const anzeige: StyledTitle[] = kiTitel
-    ? kiTitel.slice(0, 5).map((t, i) => ({ style: regelTitel[i]?.style ?? 'kurz', title: t }))
-    : regelTitel;
+  const anzeige: { label: string; title: string }[] = kiTitel
+    ? kiTitel.slice(0, 5).map((t, i) => ({ label: kiLabels[i] ?? '✨ KI', title: t }))
+    : regelTitel.map((r) => ({ label: STYLE_LABEL[r.style], title: r.title }));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -93,7 +97,12 @@ export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, o
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Portal ist Pflicht: der Dialog wird aus dem Planer (HubZone) und aus dem
+  // Bearbeiten-Dialog geöffnet — beide tragen backdrop-blur, und backdrop-filter
+  // macht position:fixed relativ zum Container. Auf iPhones wurden die Taps im
+  // Dialog dann verschluckt: der Titel ließ sich nicht übernehmen (18.09.2026).
   return (
+    <Portal>
     <div
       className="fixed inset-0 z-[70] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
@@ -122,16 +131,16 @@ export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, o
         </div>
 
         <div className={`space-y-2 transition-opacity ${laedt ? 'opacity-60' : ''}`}>
-          {anzeige.map(({ style, title }, i) => (
+          {anzeige.map(({ label, title }, i) => (
             <button
-              key={`${style}-${i}`}
+              key={`${label}-${i}`}
               type="button"
               onClick={() => onPick(title)}
               className="group w-full rounded-xl bg-forest-900/60 ring-1 ring-forest-800/50 px-3 py-2.5 text-left hover:bg-forest-800/80 hover:ring-amber-500/60 transition active:scale-[0.98]"
             >
               <div className="flex items-start gap-2.5">
-                <span className="text-[10px] uppercase tracking-wider text-forest-500 group-hover:text-amber-400/80 mt-1 flex-shrink-0 w-16">
-                  {STYLE_LABEL[style]}
+                <span className="text-[10px] uppercase tracking-wider text-forest-500 group-hover:text-amber-400/80 mt-1 flex-shrink-0 w-20">
+                  {label}
                 </span>
                 <span className="flex-1 text-sm font-semibold text-forest-100 group-hover:text-amber-100 leading-snug">
                   {title}
@@ -168,5 +177,6 @@ export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, o
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
