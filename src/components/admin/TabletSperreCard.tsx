@@ -1,12 +1,13 @@
-// Admin-Karte „Displays" (Migrationen 0153–0155) — sitzt oben im Admin-Bereich,
+// Admin-Karte „Displays" (Migrationen 0153–0156) — sitzt oben im Admin-Bereich,
 // direkt unter dem Notfall-Alarm, damit sie nach der Push-Meldung sofort da ist.
 //
 // Ist die Sauna zu, zeigen alle Displays (TV-Tafel, Eingangs-Tablet, Öl-Raum,
 // Scanner) den Joker-Bildschirmschoner und sind gesperrt. „Offen" rechnet der
-// Server aus dem Aufguss-Raster: erster planbarer Slot − 30 min bis Ende des
-// letzten Slots + 30 min. Tippt jemand auf ein gesperrtes Display, bekommen
-// alle Admins eine Nachricht — und nur hier lässt sich freigeben (zeitlich
-// begrenzt), von Hand sperren oder der Schoner ganz ausschalten.
+// Server aus dem Aufguss-Raster: 60 min vor dem ersten planbaren Slot (die Sauna
+// öffnet eine Stunde vor dem ersten Aufguss) bis 30 min nach Ende des letzten.
+// Tippt jemand auf ein gesperrtes Display, bekommen alle Admins eine Nachricht —
+// und nur hier lässt sich freigeben (zeitlich begrenzt), von Hand sperren oder
+// der Schoner ganz ausschalten.
 
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
@@ -76,7 +77,10 @@ export function TabletSperreCard() {
             <span>{lage.text}</span>
           </p>
           <p className="mt-0.5 text-xs text-forest-400">
-            {fenster} <span className="text-forest-500">(Aufguss-Raster ± {s.puffer_min} min)</span>
+            {fenster}{' '}
+            <span className="text-forest-500">
+              ({s.puffer_vor_min} min vor dem ersten Aufguss bis {s.puffer_nach_min} min nach dem letzten)
+            </span>
           </p>
           {s.letzte_beruehrung_at && (
             <p className={`mt-0.5 text-xs ${frischBeruehrt ? 'font-semibold text-amber-200' : 'text-forest-400'}`}>

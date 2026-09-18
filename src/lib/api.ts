@@ -3262,7 +3262,8 @@ export function useSetScheduleSettings() {
 // ─── Displays: Joker-Bildschirmschoner-Sperre (Migrationen 0153–0155) ─────
 // Ist die Sauna zu, zeigen ALLE Displays (TV-Tafel, Eingangs-Tablet, Öl-Raum,
 // Scanner) den Joker. „Offen" rechnet der Server aus dem Aufguss-Raster:
-// erster planbarer Slot − 30 min bis Ende des letzten Slots + 30 min (plus
+// 60 min vor dem ersten planbaren Slot (die Sauna öffnet eine Stunde vor dem
+// ersten Aufguss, Migration 0156) bis 30 min nach Ende des letzten Slots (plus
 // echte Sondertermine, Saunafest bis nach Mitternacht) — die Displays fragen
 // nur ab. Freigeben / von Hand sperren / ausschalten darf allein der Admin.
 export type KioskDisplay = 'eingang' | 'tafel' | 'oelraum' | 'scanner';
@@ -3275,7 +3276,8 @@ export type KioskSperreStatus = {
   /** Heutiges Öffnungsfenster als HH:MM (Berlin); null = ganztägig zu (Ruhetag). */
   heute_von: string | null;
   heute_bis: string | null;
-  puffer_min: number;
+  puffer_vor_min: number;
+  puffer_nach_min: number;
   freigegeben_bis: string | null;
   gesperrt_bis: string | null;
   letzte_beruehrung_at: string | null;

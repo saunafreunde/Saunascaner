@@ -56,7 +56,8 @@ function KioskFullscreenGate() {
 
 // Joker-Sperre aller Displays (Migrationen 0153–0155): ist die Sauna zu, liegt
 // der Joker über TV-Tafel, Eingangs-Tablet, Öl-Raum-Tablet und Scanner. Ob
-// gesperrt ist, entscheidet der Server (Aufguss-Raster ± 30 min); freigeben kann
+// gesperrt ist, entscheidet der Server (60 min vor dem ersten bis 30 min nach dem
+// letzten Aufguss-Slot); freigeben kann
 // nur ein Admin über die App. Die Abfrage läuft NUR auf den Display-Pfaden
 // (eigener Runner, damit der Hook woanders gar nicht erst pollt).
 //  • Status lädt noch      → dunkle Blende (nach einem Neuladen ist nichts kurz bedienbar)
