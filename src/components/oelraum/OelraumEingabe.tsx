@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDays, format, isBefore, setHours, setMinutes } from 'date-fns';
+import { addDays, format, isBefore, setHours, setMilliseconds, setMinutes, setSeconds } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { Infusion, Sauna } from '@/types/database';
 import type { InfusionAttribute } from '@/lib/attributes';
@@ -73,9 +73,17 @@ const DEFAULT_DURATION_MIN = 20;
 // ablehnt oder die Tafel falsch rendert. Im Planer bleibt Banja wählbar.
 const TABLET_CHIPS = ATTRIBUTE_CHIPS.filter((a) => a.id !== BANJA_ATTR);
 
+/** Slot → Zeitpunkt, auf die volle Minute GLATT.
+ *
+ *  `new Date()` bringt die aktuellen Sekunden und Millisekunden mit; setHours/
+ *  setMinutes lassen sie stehen. Bis 18.09.2026 ging deshalb „18:00:37.123" an
+ *  die Datenbank — und check_secondary_sauna_allowed, das den Garantie-Slot mit
+ *  exakt gleicher Startzeit sucht, meldete „Zweit-Sauna gesperrt", obwohl der
+ *  100°-Slot längst belegt war. In der Zweitsauna ließ sich am Tablet so noch
+ *  nie neu anlegen. (create_infusion_kiosk rundet seit 0159 zusätzlich selbst.) */
 function slotToDate(tagOffset: number, hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
-  return setMinutes(setHours(addDays(new Date(), tagOffset), h), m);
+  return setMilliseconds(setSeconds(setMinutes(setHours(addDays(new Date(), tagOffset), h), m), 0), 0);
 }
 
 export function OelraumEingabe({
