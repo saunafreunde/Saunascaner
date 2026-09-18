@@ -23,13 +23,24 @@
 // Wer zwei Minuten Ruhe gibt, fängt wieder bei 1 an. Sprüche wechseln zufällig,
 // bei jedem Auftritt regnet es Glöckchen. Die Keyframes stehen in index.css
 // (Abschnitt „Joker-Bildschirmschoner").
+//
+// Die TV-Tafel hängt direkt RECHTS neben dem Eingangs-Tablet und hat keinen
+// Touch (Vorgabe Christoph 18.09.2026: „lass dort auch eine Grafik laufen,
+// immer eine andere wie am Pad"). Das Tablet funkt jeden Tipp (lib/jokerFunk),
+// die Tafel zeigt sofort ein EIGENES Motiv, das nach links zum Tablet schaut —
+// Zeigefinger, Fernrohr, Popcorn, reihum. Stumm: gelacht wird am Tablet. Fällt
+// der Funk aus, merkt es die Tafel am Berührungszähler der Status-Abfrage
+// (bis 10 s später). Auch der Kübel-Gag wechselt sich ab: beide Displays takten
+// ihn nach der Wanduhr, die Tafel eine halbe Runde versetzt.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useBrandSettings, brandAssetUrl, kioskSperreBeruehrt, type KioskDisplay } from '@/lib/api';
+import { jokerFunkVerbinden } from '@/lib/jokerFunk';
 
 type AuftrittArt = 'lachen' | 'eskalation' | 'kuckuck';
-type Auftritt = { art: AuftrittArt; ruf: string; zeile1: string; zeile2: string };
+/** 'nachbar' = die Tafel lacht mit, weil am Tablet nebenan getippt wurde (mit `bild`). */
+type Auftritt = { art: AuftrittArt | 'nachbar'; bild?: string; ruf: string; zeile1: string; zeile2: string };
 
 /** Ton + Dauer je Auftritt. Die Dauer folgt der Länge der Tondatei. */
 const TON: Record<'a' | 'irre' | 'raucher' | 'kuckuck', { src: string; ms: number }> = {
@@ -69,6 +80,39 @@ const SPRUECHE: Record<AuftrittArt, { zeile1: string; zeile2: string }[]> = {
   ],
 };
 
+/** Motive der TV-Tafel, wenn am Tablet links daneben getippt wird — bewusst
+ *  andere Bilder als am Tablet, alle schauen nach links hinüber. */
+const NACHBAR: { bild: string; ruf: string; sprueche: { zeile1: string; zeile2: string }[] }[] = [
+  {
+    bild: '/kiosk/joker-zeigt.webp', ruf: 'HA HA — DER DA!',
+    sprueche: [
+      { zeile1: 'Da drüben drückt einer!', zeile2: 'Am Tablet nebenan wird getippt — hilft nur nix. Zu ist zu.' },
+      { zeile1: 'Guck mal, der am Tablet!', zeile2: 'Drückt und drückt … aufmachen kann trotzdem nur der Admin.' },
+      { zeile1: 'Do hanna druckt oiner!', zeile2: 'S’hilft älles nix — zu isch zu. Dr Admin woiß B’scheid.' },
+    ],
+  },
+  {
+    bild: '/kiosk/joker-fernglas.webp', ruf: 'ICH SEH DICH!',
+    sprueche: [
+      { zeile1: 'Ja, genau du — links am Tablet.', zeile2: 'Der Admin sieht’s übrigens auch. Er wurde benachrichtigt.' },
+      { zeile1: 'Erwischt!', zeile2: 'Von hier aus sieht man alles. Der Admin weiß schon Bescheid.' },
+    ],
+  },
+  {
+    bild: '/kiosk/joker-popcorn.webp', ruf: 'WEITER SO!',
+    sprueche: [
+      { zeile1: 'Ich hab Popcorn.', zeile2: 'Drück ruhig noch mal. Aufmachen kann trotzdem nur der Admin.' },
+      { zeile1: 'Beste Vorstellung heute!', zeile2: 'Eintritt frei, Sauna zu. Komm wieder, wenn’s dampft.' },
+    ],
+  },
+];
+
+/** Länge der Kübel-Gag-Schleife — MUSS den 80 s in index.css entsprechen. */
+const GAG_MS = 80_000;
+
+/** So heißt das Eingangs-Tablet in kiosk_sperre.letztes_display (Migration 0155). */
+const EINGANG_NAME = 'Eingangs-Tablet';
+
 /** Glöckchen-Regen: feste Pseudo-Zufallswerte je Glöckchen — ohne Math.random im
  *  Render, damit ein Re-Render die fallenden Glöckchen nicht umsortiert. */
 const GLOECKCHEN = Array.from({ length: 16 }, (_, i) => ({
@@ -82,7 +126,13 @@ function zufall<T>(liste: readonly T[]): T {
   return liste[Math.floor(Math.random() * liste.length)];
 }
 
-export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oeffnetUm: string | null }) {
+export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay }: {
+  display: KioskDisplay;
+  oeffnetUm: string | null;
+  /** Aus der Status-Abfrage — Ersatzweg der Tafel, falls der Funk ausfällt. */
+  beruehrungen?: number;
+  letztesDisplay?: string | null;
+}) {
   const brand = useBrandSettings();
   // Erst zeigen, wenn die Branding-Einstellungen da sind — sonst blitzt kurz das Ersatz-Icon auf.
   const logoUrl = brand.isLoading ? null
@@ -94,6 +144,15 @@ export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oe
   const timerRef = useRef<number | null>(null);
   const tippsRef = useRef(0);
   const letzterTippRef = useRef(0);
+  const funkRef = useRef<ReturnType<typeof jokerFunkVerbinden> | null>(null);
+  const nachbarNrRef = useRef(Math.floor(Math.random() * NACHBAR.length));
+  const letzterNachbarRef = useRef(0);
+  const gesehenRef = useRef<number | null>(null);
+
+  // Kübel-Gag nach der Wanduhr takten — einmal beim Start gerechnet, kein Timer.
+  // Alle Displays teilen dieselbe 80-s-Zeitachse, die Tafel läuft eine halbe
+  // Runde versetzt: der Kübel kippt abwechselnd am Tablet und auf der Tafel.
+  const [versatzMs] = useState(() => -((Date.now() + (display === 'tafel' ? GAG_MS / 2 : 0)) % GAG_MS));
 
   // Alles unter dem Schoner stilllegen: keine Klicks, kein Fokus, keine
   // Tastatur — „ohne Freigabe geht nix". Der Schoner selbst hängt per Portal
@@ -124,6 +183,46 @@ export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oe
     };
   }, []);
 
+  /** Tafel: am Tablet nebenan wurde getippt — nächstes Motiv der Reihe, stumm. */
+  const nachbarLacht = useCallback((ms: number) => {
+    nachbarNrRef.current += 1;
+    const motiv = NACHBAR[nachbarNrRef.current % NACHBAR.length];
+    letzterNachbarRef.current = Date.now();
+    setAuftritt({ art: 'nachbar', bild: motiv.bild, ruf: motiv.ruf, ...zufall(motiv.sprueche) });
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => setAuftritt(null), Math.min(9000, Math.max(3000, ms)));
+  }, []);
+
+  // Funk: das Eingangs-Tablet sendet, die Tafel daneben hört zu. Öl-Raum und
+  // Scanner stehen woanders — sie bleiben draußen.
+  useEffect(() => {
+    if (display !== 'eingang' && display !== 'tafel') return;
+    const funk = jokerFunkVerbinden(display === 'tafel'
+      ? (tipp) => { if (tipp.von === 'eingang') nachbarLacht(tipp.ms); }
+      : undefined);
+    funkRef.current = funk;
+    return () => { funkRef.current = null; funk.trennen(); };
+  }, [display, nachbarLacht]);
+
+  // Tafel: Motive vorladen, damit der Auftritt ohne Ladepause kommt.
+  useEffect(() => {
+    if (display !== 'tafel') return;
+    for (const m of NACHBAR) new Image().src = m.bild;
+  }, [display]);
+
+  // Ersatzweg ohne Funk: die Status-Abfrage (alle 10 s) zählt die Berührungen
+  // mit. Steigt der Zähler wegen des Eingangs-Tablets und der Funk hat nichts
+  // gebracht, lacht die Tafel eben nachträglich.
+  useEffect(() => {
+    if (display !== 'tafel' || typeof beruehrungen !== 'number') return;
+    const vorher = gesehenRef.current;
+    gesehenRef.current = beruehrungen;
+    if (vorher === null || beruehrungen <= vorher) return;
+    if (letztesDisplay !== EINGANG_NAME) return;
+    if (Date.now() - letzterNachbarRef.current < 20_000) return;
+    nachbarLacht(6000);
+  }, [display, beruehrungen, letztesDisplay, nachbarLacht]);
+
   function angetippt() {
     if (auftritt) return;
 
@@ -141,6 +240,8 @@ export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oe
       ruf: schritt.art === 'kuckuck' ? 'KUCKUCK!' : schritt.art === 'eskalation' ? 'HA HA HA HA HA!' : 'HA HA HA!',
       ...spruch,
     });
+
+    funkRef.current?.senden({ von: display, ms: TON[schritt.ton].ms });
 
     const a = toeneRef.current[schritt.ton];
     if (a) {
@@ -164,6 +265,7 @@ export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oe
       aria-label="Bildschirm gesperrt — die Sauna ist geschlossen"
       onPointerDown={angetippt}
       onContextMenu={(e) => e.preventDefault()}
+      style={{ '--joker-versatz': `${versatzMs}ms` } as CSSProperties}
     >
       {/* Jagd und Kübel-Gag laufen unsichtbar weiter, während der Joker auftritt. */}
       <div className={`joker-buehne ${auftritt ? 'joker-buehne--blass' : ''}`} aria-hidden>
@@ -216,6 +318,24 @@ export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oe
             ))}
           </div>
 
+          {auftritt.art === 'nachbar' ? (
+            <div className="joker-auftritt absolute inset-0">
+              <div className="joker-nachbar">
+                <div className="joker-nachbar-figur">
+                  <img src={auftritt.bild} alt="" draggable={false} />
+                </div>
+                <div className="joker-nachbar-text">
+                  <div className="joker-haha joker-haha--nachbar" aria-hidden>{auftritt.ruf}</div>
+                  <p className="mt-[2vmin] font-bold text-[clamp(26px,5.4vmin,64px)] leading-tight text-amber-200">
+                    <span className="joker-nachbar-pfeil" aria-hidden>👈</span> {auftritt.zeile1}
+                  </p>
+                  <p className="mt-[1.4vmin] text-[clamp(18px,3.3vmin,38px)] leading-snug text-forest-100/90">
+                    {auftritt.zeile2}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="joker-auftritt absolute inset-0">
             <div className={`flex h-full flex-col items-center justify-center px-6 text-center ${gross ? 'joker-wackler' : ''}`}>
               {auftritt.art !== 'lachen' && erwischt !== null && erwischt > 1 && (
@@ -248,6 +368,7 @@ export function JokerSchoner({ display, oeffnetUm }: { display: KioskDisplay; oe
               </p>
             </div>
           </div>
+          )}
         </>
       )}
 

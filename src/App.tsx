@@ -79,7 +79,16 @@ function KioskSperreRunner({ display }: { display: KioskDisplay }) {
   // Evakuierung geht vor: der Schoner blendet #root aus, und der Alarm lebt
   // darin — also weicht der Joker, solange ein Alarm läuft.
   if (evac.data) return null;
-  if (status.data?.gesperrt) return <JokerSchoner display={display} oeffnetUm={status.data.oeffnet_um} />;
+  if (status.data?.gesperrt) {
+    return (
+      <JokerSchoner
+        display={display}
+        oeffnetUm={status.data.oeffnet_um}
+        beruehrungen={status.data.beruehrungen}
+        letztesDisplay={status.data.letztes_display}
+      />
+    );
+  }
   if (!status.data && status.isLoading) return <KioskBlende />;
   return null;
 }

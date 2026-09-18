@@ -2258,41 +2258,78 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   99.25%, 100%   { opacity: 0; }
 }
 
-.joker-jagd { position: absolute; inset: 0; animation: joker-jagd-pause 80s linear infinite; }
+/* --joker-versatz (negativ, setzt JokerSchoner einmal beim Start): die 80-s-Achse
+   läuft nach der Wanduhr, die TV-Tafel eine halbe Runde versetzt — der Kübel
+   kippt abwechselnd am Eingangs-Tablet und auf der Tafel daneben. */
+.joker-jagd { position: absolute; inset: 0; animation: joker-jagd-pause 80s linear var(--joker-versatz, 0s) infinite; }
 .joker-gag {
   position: absolute; left: 50%; top: 48%; width: 0; height: 0; opacity: 0;
-  animation: joker-gag-blende 80s linear infinite;
+  animation: joker-gag-blende 80s linear var(--joker-versatz, 0s) infinite;
 }
 .joker-gag > * { position: absolute; max-width: none; pointer-events: none; will-change: transform, opacity; }
 .joker-gag-logo {
   left: 0; top: -30vmin; height: 17vmin; width: 17vmin; object-fit: contain; border-radius: 22%;
   animation: joker-logo-flucht 0.9s ease-in-out infinite alternate;
 }
-.joker-gag-kuebel   { left: 9vmin; top: -24vmin; height: 26vmin; width: auto; opacity: 0; animation: joker-gag-kuebel 80s linear infinite; }
-.joker-gag-springer { left: 0; top: 10vmin; height: 34vmin; width: auto; animation: joker-gag-sprung 80s linear infinite; }
+.joker-gag-kuebel   { left: 9vmin; top: -24vmin; height: 26vmin; width: auto; opacity: 0; animation: joker-gag-kuebel 80s linear var(--joker-versatz, 0s) infinite; }
+.joker-gag-springer { left: 0; top: 10vmin; height: 34vmin; width: auto; animation: joker-gag-sprung 80s linear var(--joker-versatz, 0s) infinite; }
 .joker-gag-nass {
   left: 0; top: 8vmin; height: 40vmin; width: auto; opacity: 0;
-  animation: joker-gag-nass 80s linear infinite, joker-zittern 0.16s ease-in-out infinite alternate;
+  animation: joker-gag-nass 80s linear var(--joker-versatz, 0s) infinite, joker-zittern 0.16s ease-in-out infinite alternate;
 }
 .joker-gag-dampf {
   top: -10vmin; width: 14vmin; height: 14vmin; border-radius: 50%; opacity: 0;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 70%);
   filter: blur(1.4vmin);
-  animation: joker-gag-dampf 80s linear infinite;
+  animation: joker-gag-dampf 80s linear var(--joker-versatz, 0s) infinite;
 }
 .joker-gag-dampf--1 { left: -7vmin; }
-.joker-gag-dampf--2 { left: 0; top: -14vmin; animation-delay: 0.45s; }
-.joker-gag-dampf--3 { left: 8vmin; top: -9vmin; animation-delay: 0.9s; }
+.joker-gag-dampf--2 { left: 0; top: -14vmin; animation-delay: calc(var(--joker-versatz, 0s) + 0.45s); }
+.joker-gag-dampf--3 { left: 8vmin; top: -9vmin; animation-delay: calc(var(--joker-versatz, 0s) + 0.9s); }
 .joker-gag-text {
   left: 0; top: 33vmin; transform: translate(-50%, -50%); white-space: nowrap; opacity: 0;
   font-size: clamp(22px, 4.4vmin, 48px); font-weight: 900; letter-spacing: 0.02em;
   color: #7dd3fc; text-shadow: 0 0.4vmin 0 #0c4a6e;
-  animation: joker-gag-text 80s linear infinite;
+  animation: joker-gag-text 80s linear var(--joker-versatz, 0s) infinite;
+}
+
+/* ── Joker: Auftritt der TV-Tafel, wenn am Tablet LINKS daneben getippt wird ──
+   Eigene Motive (Zeigefinger, Fernrohr, Popcorn), quer nebeneinander: die
+   Figur rutscht vom linken Rand herein — von dort, wo das Tablet hängt —, der
+   Text steht rechts. Läuft nur die paar Sekunden eines Auftritts. */
+@keyframes joker-nachbar-rein {
+  from { transform: translateX(-70vw) rotate(-10deg); }
+  to   { transform: translateX(0) rotate(0deg); }
+}
+@keyframes joker-nachbar-pfeil {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-1.6vmin); }
+}
+.joker-nachbar {
+  display: flex; height: 100%; align-items: center; justify-content: center;
+  gap: 5vw; padding: 0 6vw;
+}
+.joker-nachbar-figur {
+  flex: none; animation: joker-nachbar-rein 0.55s cubic-bezier(0.2, 1.25, 0.4, 1) both;
+}
+.joker-nachbar-figur > img {
+  display: block; height: min(74vh, 78vmin); width: auto; max-width: 44vw; object-fit: contain;
+  animation: joker-schuetteln 0.26s ease-in-out infinite alternate;
+}
+.joker-nachbar-text { min-width: 0; max-width: 46vw; text-align: left; }
+.joker-haha--nachbar { display: inline-block; margin-top: 0; white-space: nowrap; transform-origin: 0 50%; }
+.joker-nachbar-pfeil { display: inline-block; animation: joker-nachbar-pfeil 0.4s ease-in-out infinite alternate; }
+@media (orientation: portrait) {
+  .joker-nachbar { flex-direction: column; gap: 3vh; }
+  .joker-nachbar-figur > img { height: min(48vh, 78vmin); max-width: 86vw; }
+  .joker-nachbar-text { max-width: 88vw; text-align: center; }
+  .joker-haha--nachbar { transform-origin: 50% 50%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .joker-gag, .joker-regen { display: none; }
   .joker-jagd, .joker-wackler, .joker-uhr, .joker-uhr-bild--auf { animation: none; }
+  .joker-nachbar-figur, .joker-nachbar-figur > img, .joker-nachbar-pfeil { animation: none; }
   .joker-x, .joker-y, .joker-wende, .joker-laeufer, .joker-logo,
   .joker-lacher, .joker-haha, .joker-fusszeile, .joker-auftritt { animation: none; }
   .joker-x { transform: translateX(40vw); }
