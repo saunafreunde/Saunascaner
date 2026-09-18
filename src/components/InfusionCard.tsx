@@ -70,6 +70,46 @@ function imminentStage(minsToStart: number): 0 | 2 | 5 | 10 | null {
   return 0;
 }
 
+/** Titel der Tafel-Kachel: IMMER eine Zeile, die Schrift passt sich dem Kasten an
+ *  (Vorgabe Christoph 18.09.2026 — vorher brach der Titel in zwei Zeilen um).
+ *
+ *  Reines CSS, kein ResizeObserver, kein Timer (die Tafel läuft 24/7): der
+ *  Titel-Kasten ist ein eigener Inline-Container, die Schriftgröße ist
+ *    min(Normalgröße, Kastenbreite / Titelbreite-in-em)
+ *  — `100cqi` ist die Kastenbreite, die Titelbreite wird hier EINMAL je Titel
+ *  gemessen (Canvas, gecacht). `cqh` in TITEL_NORMAL meint weiter die Karte:
+ *  der innere Container kapselt nur die Inline-Achse. */
+const TITEL_NORMAL = 'clamp(calc(21px * var(--dh)), 5.9cqh, 36px)';
+/** Unter diese Größe schrumpft der Titel nicht — dann lieber „…" am Ende. */
+const TITEL_MIN_ANTEIL = 0.5;
+
+const titelBreiteCache = new Map<string, number>();
+let messCtx: CanvasRenderingContext2D | null | undefined;
+
+/** Breite des Titels in em bei font-black + tracking-tight, mit 4 % Reserve. */
+function titelBreiteEm(text: string): number {
+  // Solange Inter noch lädt, misst der Canvas die Ersatzschrift — nicht cachen.
+  const interDa = typeof document !== 'undefined' && !!document.fonts?.check?.('900 16px Inter');
+  const key = (interDa ? 'i:' : 'f:') + text;
+  const bekannt = titelBreiteCache.get(key);
+  if (bekannt !== undefined) return bekannt;
+
+  if (messCtx === undefined) {
+    messCtx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+  }
+  let em: number;
+  if (messCtx) {
+    messCtx.font = "900 100px Inter, system-ui, sans-serif";
+    em = messCtx.measureText(text).width / 100;
+  } else {
+    em = text.length * 0.6;   // Schätzung ohne Canvas
+  }
+  // tracking-tight zieht je Zeichen 0,025 em ab; 4 % Reserve gegen Rundung.
+  const breite = Math.max(1, (em - text.length * 0.025) * 1.04);
+  if (interDa) titelBreiteCache.set(key, breite);
+  return breite;
+}
+
 /** Einheitliche Polsterung der Kopf-Badges (LIVE, Banja, Aufguss-Art).
  *  Als Konstante, damit die drei nicht auseinanderlaufen. */
 const BADGE_PAD = 'clamp(calc(2px * var(--d)), 0.6cqh, 5px) clamp(calc(6px * var(--d)), 1.6cqh, 12px)';
@@ -487,16 +527,20 @@ export function InfusionCard({
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
-              <h3
-                className="font-black text-slate-900 leading-tight tracking-tight flex-1 min-w-0 line-clamp-2"
-                style={{
-                  fontSize: 'clamp(calc(21px * var(--dh)), 5.9cqh, 36px)',
-                  textShadow: `0 1px 0 ${sauna.accent_color}25`,
-                }}
-              >
-                {infusion.title}
-                {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
-              </h3>
+              {/* Eine Zeile, Schrift passt sich dem Kasten an — siehe TITEL_NORMAL oben.
+                  Das Team-Symbol zählt mit (≈ 1,6 em samt Abstand). */}
+              <div className="flex-1 min-w-0" style={{ containerType: 'inline-size' }}>
+                <h3
+                  className="font-black text-slate-900 leading-tight tracking-tight whitespace-nowrap overflow-hidden text-ellipsis"
+                  style={{
+                    fontSize: `max(calc(${TITEL_NORMAL} * ${TITEL_MIN_ANTEIL}), min(${TITEL_NORMAL}, calc(100cqi / ${(titelBreiteEm(infusion.title ?? '') + (infusion.team_infusion ? 1.6 : 0)).toFixed(3)})))`,
+                    textShadow: `0 1px 0 ${sauna.accent_color}25`,
+                  }}
+                >
+                  {infusion.title}
+                  {infusion.team_infusion && <span className="ml-2 text-amber-600">👥</span>}
+                </h3>
+              </div>
 
               {/* Auszeichnungen (Aufguss-Art, Banja, LIVE) — im FLUSS rechts neben
                   dem Titel, nicht mehr absolut positioniert. Zwei Gründe: die

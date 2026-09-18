@@ -134,7 +134,7 @@ const STYLES: { id: string; label: string; description: string }[] = [
   {
     id: 'bild',
     label: '🖼️ Bild',
-    description: 'Ein starkes, konkretes Bild aus Zutat + Ort oder Tageszeit, gefolgt von einem Gedankenstrich und einem kurzen Nachsatz mit Haltung.',
+    description: 'Ein starkes, konkretes Bild aus Zutat + Ort oder Tageszeit — knapp wie eine Bildunterschrift, ohne Nachsatz.',
   },
 ];
 
@@ -294,10 +294,25 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
     else if (woerter < 5 || woerter > 7) n += 1;          // Wunsch: 5–7 Wörter
     return n;
   };
+  // Zu lang für eine Tafel-Zeile? Dann den Nachsatz kappen — am letzten
+  // Gedankenstrich, Doppelpunkt oder Komma, solange vorn noch ein Titel
+  // (mindestens 3 Wörter) stehen bleibt. „Herbstnebel und 100 Grad – was willst
+  // du sonst noch" wird zu „Herbstnebel und 100 Grad".
+  const kuerzen = (t: string): string => {
+    let s = t;
+    while (s.length > 44) {
+      const schnitt = Math.max(s.lastIndexOf(' – '), s.lastIndexOf(' — '), s.lastIndexOf(': '), s.lastIndexOf(', '));
+      if (schnitt <= 0) break;
+      const vorn = s.slice(0, schnitt).trim();
+      if (vorn.split(/\s+/).length < 3) break;
+      s = vorn;
+    }
+    return s;
+  };
   let titles = kandidaten
     .filter((paar) => paar.length > 0)
     .slice(0, 5)
-    .map((paar) => [...paar].sort((a, b) => verstoesse(a) - verstoesse(b))[0])
+    .map((paar) => paar.map(kuerzen).sort((a, b) => verstoesse(a) - verstoesse(b))[0])
     .filter((t) => verstoesse(t) < 100);
 
   // Kam nichts Verwertbares, scheitert der Aufruf — der Dialog zeigt dann seine
