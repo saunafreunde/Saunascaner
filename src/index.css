@@ -2317,7 +2317,12 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   animation: joker-schuetteln 0.26s ease-in-out infinite alternate;
 }
 .joker-nachbar-text { min-width: 0; max-width: 46vw; text-align: left; }
-.joker-haha--nachbar { display: inline-block; margin-top: 0; white-space: nowrap; transform-origin: 0 50%; }
+/* Der längste Ruf misst ~10 em und wächst in der Animation auf 108 % — die
+   Schrift folgt darum auch der Spaltenbreite (46vw quer, 88vw hochkant). */
+.joker-haha--nachbar {
+  display: inline-block; margin-top: 0; white-space: nowrap; transform-origin: 0 50%;
+  font-size: min(clamp(34px, 8vmin, 96px), 4.2vw);
+}
 .joker-nachbar-pfeil { display: inline-block; animation: joker-nachbar-pfeil 0.4s ease-in-out infinite alternate; }
 /* Nur sichtbar, wenn der Browser das Lachen der Tafel gesperrt hat (Autoplay). */
 .joker-ton-hinweis {
@@ -2329,7 +2334,7 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   .joker-nachbar { flex-direction: column; gap: 3vh; }
   .joker-nachbar-figur > img { height: min(48vh, 78vmin); max-width: 86vw; }
   .joker-nachbar-text { max-width: 88vw; text-align: center; }
-  .joker-haha--nachbar { transform-origin: 50% 50%; }
+  .joker-haha--nachbar { transform-origin: 50% 50%; font-size: min(clamp(34px, 8vmin, 96px), 7.6vw); }
 }
 
 @media (prefers-reduced-motion: reduce) {
