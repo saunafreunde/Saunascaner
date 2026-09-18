@@ -208,13 +208,15 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       'eine mögliche Schnaps-Sorte, die Besonderheiten sowie Sauna, Uhrzeit und Jahreszeit.\n\n' +
       'AUFGABE: Schreibe GENAU 5 Titel, einen je Stil (Reihenfolge unten).\n\n' +
       'SO KLINGT EIN GUTER TITEL:\n' +
-      '- 4 bis 9 Wörter, höchstens 48 Zeichen — er erzählt etwas, statt nur zu benennen.\n' +
+      '- 4 bis 9 Wörter, HÖCHSTENS 45 Zeichen (zähle nach!) — er erzählt etwas, statt nur zu benennen.\n' +
       '- Mindestens EINE Zutat oder Besonderheit kommt wörtlich oder klar erkennbar vor ' +
       '(Öl, Kraut, Schnaps, Räucherwerk, „extra heiß" …). Der Titel passt nur zu DIESEM Aufguss.\n' +
       '- Konkret statt wolkig: Dinge, Orte, Handlungen — keine Wellness-Prospekt-Sprache.\n' +
       '- Humor ist erwünscht, Kitsch nicht. Nichts Anzügliches.\n' +
       '- Höchstens ein Emoji, und nur am ENDE des Titels; mindestens zwei Titel ganz ohne.\n' +
       '- Erfinde keine Zutaten und keine Orte außerhalb des Schwarzwalds.\n' +
+      '- Abgegriffene Muster meiden: „X trifft Y", „Wer X sät, wird Y ernten", „Im Bann von …". ' +
+      'Beim Schwarzwald-Stil nicht immer der Köhler — wechsle Figuren und Motive.\n' +
       '- Verbotene Wörter (auch als Wortteil): ' + VERBOTEN + '.\n\n' +
       'BEISPIELE aus dem Verein, die gut ankamen — Tonfall treffen, NICHT kopieren:\n' +
       '„Zirbelkiefer und kein Zurück mehr" · „Kaffee trifft Kelo – der stille Kick" · ' +
