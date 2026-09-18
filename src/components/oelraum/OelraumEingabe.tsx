@@ -462,7 +462,10 @@ export function OelraumEingabe({
         onFertig={onFertig}
         rechts={!bestehend && (
           <button
-            onClick={() => setMeisterId(null)}
+            // Mit dem Wechsel auch das Formular leeren: Vorlage, eigene Buttons
+            // und eigene Öle gehören der vorigen Person — ohne das landeten
+            // deren Button-UUIDs im Aufguss des Nächsten.
+            onClick={() => { leeren(); setFehler(null); setMeisterId(null); }}
             className="rounded-lg bg-forest-900/80 px-3 py-1.5 text-xs text-forest-200 ring-1 ring-forest-700/50"
           >
             Wechseln
