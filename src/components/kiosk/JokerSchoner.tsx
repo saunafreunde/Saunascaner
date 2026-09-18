@@ -28,10 +28,15 @@
 // Touch (Vorgabe Christoph 18.09.2026: „lass dort auch eine Grafik laufen,
 // immer eine andere wie am Pad"). Das Tablet funkt jeden Tipp (lib/jokerFunk),
 // die Tafel zeigt sofort ein EIGENES Motiv, das nach links zum Tablet schaut —
-// Zeigefinger, Fernrohr, Popcorn, reihum. Stumm: gelacht wird am Tablet. Fällt
-// der Funk aus, merkt es die Tafel am Berührungszähler der Status-Abfrage
+// Zeigefinger, Fernrohr, Popcorn, reihum — und lacht mit einem ANDEREN Lachen
+// als das Tablet („am Bildschirm soll auch ein Sound kommen"). Ton ohne
+// Berührung erlaubt der Browser nur, wenn seit dem Laden der Seite schon einmal
+// jemand eine Taste der TV-Fernbedienung gedrückt hat (oder der Kiosk-Browser
+// Autoplay freigibt) — sonst bleibt die Tafel stumm und zeigt klein einen
+// Hinweis. Fällt der Funk aus, merkt es die Tafel am Berührungszähler der Status-Abfrage
 // (bis 10 s später). Auch der Kübel-Gag wechselt sich ab: beide Displays takten
-// ihn nach der Wanduhr, die Tafel eine halbe Runde versetzt.
+// ihn nach der SERVERuhr (Status-Feld jetzt_ms, 0161 — Geräteuhren gehen gern
+// eine Minute falsch), die Tafel eine halbe Runde versetzt.
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
@@ -107,6 +112,9 @@ const NACHBAR: { bild: string; ruf: string; sprueche: { zeile1: string; zeile2: 
   },
 ];
 
+/** Die drei Lachen — die Tafel nimmt reihum eines, das am Tablet gerade NICHT läuft. */
+const LACHER: (keyof typeof TON)[] = ['raucher', 'irre', 'a'];
+
 /** Länge der Kübel-Gag-Schleife — MUSS den 80 s in index.css entsprechen. */
 const GAG_MS = 80_000;
 
@@ -126,9 +134,11 @@ function zufall<T>(liste: readonly T[]): T {
   return liste[Math.floor(Math.random() * liste.length)];
 }
 
-export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay }: {
+export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay, uhrVersatzMs = 0 }: {
   display: KioskDisplay;
   oeffnetUm: string | null;
+  /** Serveruhr minus Geräteuhr in ms — nur beim Start gelesen (Takt des Kübel-Gags). */
+  uhrVersatzMs?: number;
   /** Aus der Status-Abfrage — Ersatzweg der Tafel, falls der Funk ausfällt. */
   beruehrungen?: number;
   letztesDisplay?: string | null;
@@ -140,6 +150,7 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay 
 
   const [auftritt, setAuftritt] = useState<Auftritt | null>(null);
   const [erwischt, setErwischt] = useState<number | null>(null);
+  const [tonGesperrt, setTonGesperrt] = useState(false);
   const toeneRef = useRef<Partial<Record<keyof typeof TON, HTMLAudioElement>>>({});
   const timerRef = useRef<number | null>(null);
   const tippsRef = useRef(0);
@@ -149,10 +160,11 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay 
   const letzterNachbarRef = useRef(0);
   const gesehenRef = useRef<number | null>(null);
 
-  // Kübel-Gag nach der Wanduhr takten — einmal beim Start gerechnet, kein Timer.
+  // Kübel-Gag nach der Serveruhr takten — einmal beim Start gerechnet, kein Timer.
   // Alle Displays teilen dieselbe 80-s-Zeitachse, die Tafel läuft eine halbe
   // Runde versetzt: der Kübel kippt abwechselnd am Tablet und auf der Tafel.
-  const [versatzMs] = useState(() => -((Date.now() + (display === 'tafel' ? GAG_MS / 2 : 0)) % GAG_MS));
+  const [versatzMs] = useState(() =>
+    -(Math.round(Date.now() + uhrVersatzMs + (display === 'tafel' ? GAG_MS / 2 : 0)) % GAG_MS));
 
   // Alles unter dem Schoner stilllegen: keine Klicks, kein Fokus, keine
   // Tastatur — „ohne Freigabe geht nix". Der Schoner selbst hängt per Portal
@@ -183,14 +195,29 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay 
     };
   }, []);
 
-  /** Tafel: am Tablet nebenan wurde getippt — nächstes Motiv der Reihe, stumm. */
-  const nachbarLacht = useCallback((ms: number) => {
+  /** Tafel: am Tablet nebenan wurde getippt — nächstes Motiv der Reihe, dazu ein
+   *  anderes Lachen als das, das am Tablet läuft (`padTon`). */
+  const nachbarLacht = useCallback((padTon?: string) => {
     nachbarNrRef.current += 1;
-    const motiv = NACHBAR[nachbarNrRef.current % NACHBAR.length];
+    const nr = nachbarNrRef.current;
+    const motiv = NACHBAR[nr % NACHBAR.length];
+    const auswahl = LACHER.filter((t) => t !== padTon);
+    const ton = auswahl[nr % auswahl.length];
     letzterNachbarRef.current = Date.now();
     setAuftritt({ art: 'nachbar', bild: motiv.bild, ruf: motiv.ruf, ...zufall(motiv.sprueche) });
+
+    for (const alt of Object.values(toeneRef.current)) alt?.pause();
+    const a = toeneRef.current[ton];
+    if (a) {
+      a.currentTime = 0;
+      a.play().then(
+        () => setTonGesperrt(false),
+        (e: unknown) => { if (e instanceof DOMException && e.name === 'NotAllowedError') setTonGesperrt(true); },
+      );
+    }
+
     if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => setAuftritt(null), Math.min(9000, Math.max(3000, ms)));
+    timerRef.current = window.setTimeout(() => setAuftritt(null), TON[ton].ms);
   }, []);
 
   // Funk: das Eingangs-Tablet sendet, die Tafel daneben hört zu. Öl-Raum und
@@ -198,7 +225,7 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay 
   useEffect(() => {
     if (display !== 'eingang' && display !== 'tafel') return;
     const funk = jokerFunkVerbinden(display === 'tafel'
-      ? (tipp) => { if (tipp.von === 'eingang') nachbarLacht(tipp.ms); }
+      ? (tipp) => { if (tipp.von === 'eingang') nachbarLacht(tipp.ton); }
       : undefined);
     funkRef.current = funk;
     return () => { funkRef.current = null; funk.trennen(); };
@@ -220,7 +247,7 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay 
     if (vorher === null || beruehrungen <= vorher) return;
     if (letztesDisplay !== EINGANG_NAME) return;
     if (Date.now() - letzterNachbarRef.current < 20_000) return;
-    nachbarLacht(6000);
+    nachbarLacht();
   }, [display, beruehrungen, letztesDisplay, nachbarLacht]);
 
   function angetippt() {
@@ -241,7 +268,7 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay 
       ...spruch,
     });
 
-    funkRef.current?.senden({ von: display, ms: TON[schritt.ton].ms });
+    funkRef.current?.senden({ von: display, ton: schritt.ton });
 
     const a = toeneRef.current[schritt.ton];
     if (a) {
@@ -334,6 +361,9 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay 
                   </p>
                 </div>
               </div>
+              {tonGesperrt && (
+                <div className="joker-ton-hinweis">🔇 Ton gesperrt — einmal OK auf der Fernbedienung drücken</div>
+              )}
             </div>
           ) : (
           <div className="joker-auftritt absolute inset-0">

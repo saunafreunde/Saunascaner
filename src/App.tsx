@@ -86,6 +86,7 @@ function KioskSperreRunner({ display }: { display: KioskDisplay }) {
         oeffnetUm={status.data.oeffnet_um}
         beruehrungen={status.data.beruehrungen}
         letztesDisplay={status.data.letztes_display}
+        uhrVersatzMs={typeof status.data.jetzt_ms === 'number' ? status.data.jetzt_ms - status.dataUpdatedAt : 0}
       />
     );
   }

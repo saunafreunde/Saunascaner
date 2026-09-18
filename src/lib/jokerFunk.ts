@@ -1,12 +1,12 @@
 // Joker-Funk: die TV-Tafel hängt direkt rechts neben dem Eingangs-Tablet, hat
 // aber keinen Touch. Tippt jemand am gesperrten Tablet, funkt es das über einen
 // Supabase-Realtime-Broadcast — die Tafel lacht sofort mit (mit einem ANDEREN
-// Motiv, siehe JokerSchoner). Broadcast braucht weder Tabelle noch RLS und geht
-// anonym (gemessen ~40 ms).
+// Motiv und einem ANDEREN Lachen, siehe JokerSchoner). Broadcast braucht weder
+// Tabelle noch RLS und geht anonym (gemessen ~40 ms).
 //
 // Der Kanal ist öffentlich: wer den Anon-Key kennt, kann „tipp" senden. Mehr als
-// ein paar Sekunden stummes Joker-Bild auf einem ohnehin gesperrten Schirm löst
-// das nicht aus — keine Meldung, kein Zähler (die laufen über die RPC
+// ein paar Sekunden Joker-Bild samt Lachen auf einem ohnehin gesperrten Schirm
+// löst das nicht aus — keine Meldung, kein Zähler (die laufen über die RPC
 // kiosk_sperre_beruehrt). Aus der Nutzlast wird nichts angezeigt.
 
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -16,7 +16,8 @@ import type { KioskDisplay } from '@/lib/api';
 const KANAL = 'kiosk-joker';
 const EREIGNIS = 'tipp';
 
-export type JokerTipp = { von: KioskDisplay; ms: number };
+/** `ton` = welches Lachen der Sender gerade spielt — der Empfänger nimmt ein anderes. */
+export type JokerTipp = { von: KioskDisplay; ton?: string };
 
 /** Hängt ein gesperrtes Display an den Funk. `onTipp` nur für Empfänger. */
 export function jokerFunkVerbinden(onTipp?: (tipp: JokerTipp) => void): {
@@ -38,8 +39,8 @@ export function jokerFunkVerbinden(onTipp?: (tipp: JokerTipp) => void): {
     if (onTipp) {
       ch.on('broadcast', { event: EREIGNIS }, (m) => {
         const p = m.payload as Partial<JokerTipp> | undefined;
-        if (!p || typeof p.von !== 'string' || typeof p.ms !== 'number') return;
-        onTipp({ von: p.von as KioskDisplay, ms: p.ms });
+        if (!p || typeof p.von !== 'string') return;
+        onTipp({ von: p.von as KioskDisplay, ton: typeof p.ton === 'string' ? p.ton : undefined });
       });
     }
     ch.subscribe((status) => {

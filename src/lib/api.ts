@@ -3305,6 +3305,8 @@ export type KioskSperreStatus = {
   letzte_beruehrung_at: string | null;
   letztes_display: string | null;
   beruehrungen: number;
+  /** Serverzeit der Antwort (Epoche in ms, Migration 0161) — gemeinsamer Takt für den Kübel-Gag. */
+  jetzt_ms?: number;
 };
 
 export function useKioskSperreStatus(opts?: { enabled?: boolean; intervalMs?: number }) {

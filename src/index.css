@@ -2319,6 +2319,12 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
 .joker-nachbar-text { min-width: 0; max-width: 46vw; text-align: left; }
 .joker-haha--nachbar { display: inline-block; margin-top: 0; white-space: nowrap; transform-origin: 0 50%; }
 .joker-nachbar-pfeil { display: inline-block; animation: joker-nachbar-pfeil 0.4s ease-in-out infinite alternate; }
+/* Nur sichtbar, wenn der Browser das Lachen der Tafel gesperrt hat (Autoplay). */
+.joker-ton-hinweis {
+  position: absolute; right: 2.4vmin; bottom: 2.4vmin; border-radius: 999px; padding: 0.9vmin 2vmin;
+  font-size: clamp(13px, 1.9vmin, 22px); font-weight: 600; white-space: nowrap;
+  color: rgba(220, 252, 231, 0.75); background: rgba(4, 16, 13, 0.7); box-shadow: 0 0 0 1px rgba(220, 252, 231, 0.18);
+}
 @media (orientation: portrait) {
   .joker-nachbar { flex-direction: column; gap: 3vh; }
   .joker-nachbar-figur > img { height: min(48vh, 78vmin); max-width: 86vw; }
