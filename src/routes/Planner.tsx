@@ -216,9 +216,9 @@ function slotVisualFor(status: SlotStatus, blockedBySecondary: boolean): SlotVis
   if (status.kind === 'bewerbung') {
     const zaehler = status.anzahl > 0 ? `✋${status.anzahl}` : null;
     if (status.meine) {
-      return { bg: 'bg-amber-500/25', text: 'text-amber-100', ring: 'ring-amber-400/70 ring-2', icon: zaehler, title: 'Deine Bewerbung — antippen zum Zurückziehen', disabled: false };
+      return { bg: 'bg-amber-500/25', text: 'text-amber-100', ring: 'ring-amber-400/70 ring-2', icon: zaehler, title: 'Du hast dich eingetragen — antippen zum Austragen', disabled: false };
     }
-    return { bg: 'bg-emerald-500/15', text: 'text-emerald-100', ring: 'ring-emerald-500/30', icon: zaehler, title: status.anzahl > 0 ? `${status.anzahl} Bewerbung(en) — antippen zum Mitbewerben` : 'Saunafest — antippen zum Bewerben', disabled: false };
+    return { bg: 'bg-emerald-500/15', text: 'text-emerald-100', ring: 'ring-emerald-500/30', icon: zaehler, title: status.anzahl > 0 ? `${status.anzahl} eingetragen — antippen, wenn du hier auch Zeit hast` : 'Saunafest — antippen, wenn du hier Zeit hast', disabled: false };
   }
   // status.kind === 'free'
   if (blockedBySecondary) {
@@ -579,6 +579,12 @@ export default function Planner() {
   const festTageQ = useSaunafestTage();
   const festAm = useCallback((date: Date) => saunafestAm(date, festTageQ.data), [festTageQ.data]);
   // Bewerbungen (0151): am Fest wird nicht gebucht, sondern beworben.
+  // Vorgabe Christoph 21.09.2026: JEDER außer Gästen trägt ein, wann er Zeit
+  // hat — auch die Admins (vorher sahen sie nur „Bewerbungen zuteilen" und
+  // konnten ihre eigenen Zeiten nirgends eintragen). Einteilen darf nur der
+  // Admin. `festDirekt` = Admin bucht am Fest ausnahmsweise direkt (wie früher).
+  const darfFestZeiten = !!m && m.role !== 'gast';
+  const [festDirekt, setFestDirekt] = useState(false);
   const bewQ = useSaunafestBewerbungen();
   const bewerben = useSaunafestBewerben();
   const bewerbungZurueck = useSaunafestBewerbungZurueck();
@@ -674,11 +680,11 @@ export default function Planner() {
     return { kind: 'free' };
   }, [infusionByKey, infusions, m?.id, festAm, festPlanFor, saunaName, bewQ.data]);
 
-  // Klick in der Matrix. Am Saunafest (0151) heißt das für Aufgießer
-  // „bewerben" bzw. „Bewerbung zurückziehen" — sofort, ohne Formular. Der
-  // Admin bucht auch am Fest direkt (er teilt zu, er bewirbt sich nicht).
+  // Klick in der Matrix. Am Saunafest (0151) heißt das „Zeit eintragen" bzw.
+  // „wieder austragen" — sofort, ohne Formular, für alle außer Gästen. Nur ein
+  // Admin, der oben auf „Direkt buchen" umgeschaltet hat, landet im Formular.
   function pickSlot(date: Date, ctx: DayContext, pickedSaunaId: string, picked: string) {
-    if (ctx.fest && !ctx.isPast && !isAdmin && m) {
+    if (ctx.fest && !ctx.isPast && m && darfFestZeiten && !(isAdmin && festDirekt)) {
       const st = slotStatusFor(date, pickedSaunaId, picked);
       if (st.kind === 'bewerbung') {
         if (st.meine) {
@@ -845,8 +851,8 @@ export default function Planner() {
     // Saunafest (0151): Aufgießer bewerben sich in der Matrix, nur der Admin
     // trägt direkt ein. Der Pfad hierher ist nur über einen vorher gewählten
     // Slot erreichbar — trotzdem abfangen.
-    if (selectedDayCtx.fest && !isAdmin) {
-      return setFormError('Am Saunafest bewirbst du dich oben in der Matrix — der Admin teilt die Slots zu.');
+    if (selectedDayCtx.fest && !(isAdmin && festDirekt)) {
+      return setFormError('Am Saunafest trägst du oben in der Matrix ein, wann du Zeit hast — eingeteilt wird vom Admin.');
     }
     // Saunafest (0152): nur Slots aus dem Festraster (Admin-Direktbuchung).
     {
@@ -1308,7 +1314,7 @@ export default function Planner() {
                 {(() => {
                   const heuteKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
                   const naechstes = (festTageQ.data ?? []).find((f) => f.datum >= heuteKey);
-                  if (!naechstes || (!isAufgieser && !isAdmin)) return null;
+                  if (!naechstes || !darfFestZeiten) return null;
                   const festDatum = new Date(`${naechstes.datum}T00:00:00`);
                   const meine = (bewQ.data ?? []).filter((b) => b.fest_datum === naechstes.datum && b.member_id === m?.id && b.status !== 'abgelehnt').length;
                   return (
@@ -1322,21 +1328,20 @@ export default function Planner() {
                           <div className="text-[11px] text-amber-200/80">{festAblaufText(naechstes)}</div>
                         </div>
                       </div>
-                      {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() => { setFestDirekt(false); setSelectedDate(festDatum); jumpToZone('planen'); }}
+                        className="mt-2 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-400 active:scale-[0.99] transition"
+                      >
+                        {meine > 0 ? `Meine Fest-Zeiten (${meine} eingetragen) →` : 'Eintragen, wann ich Zeit habe →'}
+                      </button>
+                      {isAdmin && (
                         <Link
                           to="/admin#saunafest"
-                          className="mt-2 block w-full rounded-xl bg-amber-500 px-4 py-2.5 text-center text-sm font-bold text-amber-950 hover:bg-amber-400 transition"
+                          className="mt-2 block w-full rounded-xl bg-amber-950/60 px-4 py-2.5 text-center text-sm font-semibold text-amber-100 ring-1 ring-amber-500/50 hover:bg-amber-900/60 transition"
                         >
-                          Bewerbungen zuteilen →
+                          Admin: Aufgießer einteilen →
                         </Link>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedDate(festDatum); jumpToZone('planen'); }}
-                          className="mt-2 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-400 active:scale-[0.99] transition"
-                        >
-                          {meine > 0 ? `Meine Fest-Slots (${meine} beworben) →` : 'Slots fürs Saunafest wählen →'}
-                        </button>
                       )}
                     </div>
                   );
@@ -1526,6 +1531,26 @@ export default function Planner() {
               >Tag ▶</button>
             </div>
 
+            {/* Saunafest-Sprung: der Pager endet für Aufgießer nach 14 Tagen — das
+                Fest liegt oft weiter weg und wäre sonst von hier nicht erreichbar. */}
+            {(() => {
+              if (!darfFestZeiten) return null;
+              const heuteKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+              const naechstes = (festTageQ.data ?? []).find((f) => f.datum >= heuteKey);
+              if (!naechstes) return null;
+              const festDatum = new Date(`${naechstes.datum}T00:00:00`);
+              if (isSameYMD(festDatum, selectedDate)) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={() => { setFestDirekt(false); setSelectedDate(festDatum); }}
+                  className="w-full rounded-xl bg-amber-500/15 px-3 py-2.5 text-left text-xs font-semibold text-amber-100 ring-1 ring-amber-500/40 hover:bg-amber-500/25 active:scale-[0.99] transition"
+                >
+                  🔥 Saunafest {WEEKDAY_LABEL_DE_SHORT[festDatum.getDay()]} {format(festDatum, 'dd.MM.')} · {naechstes.motto} — hier eintragen, wann du Zeit hast →
+                </button>
+              );
+            })()}
+
             {/* ── LEGENDE ─────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-3 text-[10px] text-forest-400 px-1">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" /> frei</span>
@@ -1576,13 +1601,37 @@ export default function Planner() {
                         <span className="text-[10px] text-forest-500">vergangen</span>
                       )}
                     </div>
-                    {ctx.fest && !ctx.isPast && !isAdmin && (() => {
+                    {ctx.fest && !ctx.isPast && darfFestZeiten && (() => {
                       const meine = (bewQ.data ?? []).filter((b) => b.fest_datum === ctx.fest!.datum && b.member_id === m?.id && b.status === 'offen').length;
+                      const direkt = isAdmin && festDirekt;
                       return (
-                        <p className="-mt-1 mb-2 text-[11px] text-amber-200/80">
-                          {festAblaufText(ctx.fest)}. Bewerbung: Slots antippen, so viele du willst — der Admin teilt zu. ✋ = Bewerbungen je Slot.
-                          {meine > 0 && <span className="ml-1 font-semibold text-amber-100">Du bist auf {meine} Slot{meine === 1 ? '' : 's'} beworben.</span>}
-                        </p>
+                        <>
+                          {isAdmin && (
+                            <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-forest-950/60 p-1 ring-1 ring-amber-500/30">
+                              <button
+                                type="button"
+                                onClick={() => setFestDirekt(false)}
+                                className={`rounded-lg px-2 py-2 text-[11px] font-bold transition ${!direkt ? 'bg-amber-500 text-amber-950' : 'text-amber-100/80 hover:bg-forest-900/60'}`}
+                              >
+                                ✋ Meine Zeiten eintragen
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFestDirekt(true)}
+                                className={`rounded-lg px-2 py-2 text-[11px] font-bold transition ${direkt ? 'bg-amber-500 text-amber-950' : 'text-amber-100/80 hover:bg-forest-900/60'}`}
+                              >
+                                ✍️ Direkt buchen (Admin)
+                              </button>
+                            </div>
+                          )}
+                          <p className="-mt-1 mb-2 text-[11px] text-amber-200/80">
+                            {festAblaufText(ctx.fest)}.{' '}
+                            {direkt
+                              ? 'Direkt buchen: Slot antippen und unten wie gewohnt eintragen.'
+                              : 'Tippe alle Zeiten an, zu denen du Zeit hast — so viele du willst, nochmal tippen trägt dich wieder aus. Eingeteilt wird vom Admin. ✋ = so viele haben sich eingetragen.'}
+                            {!direkt && meine > 0 && <span className="ml-1 font-semibold text-amber-100">Du hast {meine} Zeit{meine === 1 ? '' : 'en'} eingetragen.</span>}
+                          </p>
+                        </>
                       );
                     })()}
 

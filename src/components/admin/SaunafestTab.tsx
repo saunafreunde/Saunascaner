@@ -114,8 +114,9 @@ export function SaunafestTab() {
           )}
         </div>
         <p className="mt-1 text-xs text-forest-300/70 leading-relaxed">
-          Die Aufgießer bewerben sich im Planer auf beliebig viele Slots. Du entscheidest je Slot, wer aufgießt —
-          daraus wird sein Aufguss, Titel und Öle trägt er selbst nach.
+          Alle außer Gästen tragen im Planer ein, wann sie Zeit haben — so viele Slots sie wollen, auch du selbst
+          (Planer → „Eintragen, wann ich Zeit habe"). Du entscheidest je Slot, wer aufgießt — daraus wird sein
+          Aufguss, Titel und Öle trägt er selbst nach.
           {fest && <> Raster: {festAblaufText(fest)}.</>}
         </p>
 
