@@ -1572,6 +1572,11 @@ export default function Planner() {
                 // Am Saunafest (0150) entfällt die Sperre — freie Wahl in allen Saunen.
                 const secondaryBlockedForDay = ctx.garantieSlotsOpen.length > 0 && !ctx.fest;
                 const saunenHeute = saunenAmTag(ctx.fest);
+                // Im Eintrage-Modus des Fests gibt es keinen „gewählten" Slot — die
+                // hellgrüne Auswahl-Markierung überdeckte sonst an der ersten Kachel
+                // das Gelb für „du bist eingetragen".
+                const festEintragen = !!ctx.fest && !ctx.isPast && darfFestZeiten && !(isAdmin && festDirekt);
+                const zeigeAuswahl = isSelected && !festEintragen;
                 return (
                   <div
                     key={d.toISOString()}
@@ -1648,8 +1653,8 @@ export default function Planner() {
                           <DaySaunaMatrix
                             saunas={saunenHeute}
                             slots={ctx.availableSlots}
-                            selectedSaunaId={isSelected ? saunaId : ''}
-                            selectedSlot={isSelected ? slot : ''}
+                            selectedSaunaId={zeigeAuswahl ? saunaId : ''}
+                            selectedSlot={zeigeAuswahl ? slot : ''}
                             slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
                             secondarySaunaBlocked={secondaryBlockedForDay}
                             garantieSlotsOpenToday={ctx.garantieSlotsOpen}
@@ -1664,8 +1669,8 @@ export default function Planner() {
                               key={s.id}
                               sauna={s}
                               slots={ctx.availableSlots}
-                              selectedSaunaId={isSelected ? saunaId : ''}
-                              selectedSlot={isSelected ? slot : ''}
+                              selectedSaunaId={zeigeAuswahl ? saunaId : ''}
+                              selectedSlot={zeigeAuswahl ? slot : ''}
                               slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
                               secondarySaunaBlocked={secondaryBlockedForDay}
                               garantieSlotsOpenToday={ctx.garantieSlotsOpen}
