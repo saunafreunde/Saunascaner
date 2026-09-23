@@ -6,9 +6,45 @@ import { EmptyTile } from '@/components/EmptyTile';
 import { PersonalTile } from '@/components/PersonalTile';
 import { BanjaRuheTile } from '@/components/BanjaRuheTile';
 import { slotHoursForWeekday } from '@/lib/garantie';
+import { saunafestAm, type SaunafestTag } from '@/lib/api';
+import { festSlots } from '@/lib/saunafestPlan';
 import type { Ausschnitt } from '@/types/branding';
 
 const TILES_PER_COLUMN_DEFAULT = 3;
+
+/** Was eine Fest-Karte als Hintergrund bekommt (Standbild + 5-s-Loop, siehe
+ *  api/saunafest-video.ts). Die URLs sind schon aufgelöst (publicAssetUrl). */
+export type FestKartenVideo = { posterUrl: string | null; videoUrl: string | null };
+
+// ─── Saunafest-Zeiten (Migrationen 0152/0163) ─────────────────────────────
+// Am Fest läuft die Tafel nach eigenem Takt: Raster zur halben Stunde bis
+// letzter_slot, danach Tagesabschluss und erst dann der Wechsel auf den
+// nächsten Tag. Die Rechnung steht hier, weil Dashboard (Abschluss, dritte
+// Spalte) und Spalte (Tageswechsel) sie teilen müssen.
+
+/** Nach dem letzten Fest-Aufguss: so viele Minuten bis zum Tagesabschluss … */
+const FEST_ABSCHLUSS_NACH_MIN = 30;
+/** … und so lange steht der Abschluss, dann wechselt die Tafel den Tag. */
+const FEST_ABSCHLUSS_DAUER_MIN = 60;
+/** Fest-Aufgüsse dauern 20 Minuten (saunafest_einteilen, 0163) — so lange
+ *  bleibt auch eine unbesetzte Fest-Kachel stehen. */
+const FEST_AUFGUSS_MIN = 20;
+
+/** Uhrzeit des Festtags ('HH:MM' oder Postgres 'HH:MM:SS') als lokaler
+ *  Zeitpunkt — wie saunafestAm rechnet die Tafel in der Zeit des Geräts. */
+export function festZeitpunkt(fest: SaunafestTag, zeit: string): Date {
+  const [y, m, d] = fest.datum.split('-').map(Number);
+  const [hh, mm] = zeit.split(':').map(Number);
+  return new Date(y, m - 1, d, hh, mm || 0, 0, 0);
+}
+
+/** Tagesabschluss des Fests: letzter_slot + 30 min, für 60 min. Sein Ende ist
+ *  zugleich der Tageswechsel der Tafel. Beim Standard-Raster (letzter Slot
+ *  23:30) liegt beides schon am Folgetag (00:00–01:00). */
+export function festAbschluss(fest: SaunafestTag): { start: Date; ende: Date } {
+  const start = new Date(festZeitpunkt(fest, fest.letzter_slot).getTime() + FEST_ABSCHLUSS_NACH_MIN * 60_000);
+  return { start, ende: new Date(start.getTime() + FEST_ABSCHLUSS_DAUER_MIN * 60_000) };
+}
 
 interface SaunaTileColumnProps {
   sauna: Sauna;
@@ -37,6 +73,33 @@ interface SaunaTileColumnProps {
     tempLabel: string;
     direction: 'left' | 'right';
   } | null;
+  /** Saunafest-Termine (useSaunafestTage). An einem Festtag kommen die
+   *  Kachel-Zeiten aus dem Festraster statt aus den vollen Stunden. Ohne
+   *  diese Prop verhält sich die Spalte exakt wie vor dem Fest-Umbau. */
+  festTage?: SaunafestTag[];
+  /** ALLE Saunen (auch inaktive) — festSlots() braucht sie, um 80 °C, 100 °C
+   *  und die dritte Sauna zuzuordnen. */
+  alleSaunen?: Sauna[];
+  /** Nur am Festtag: Standbild/Video je Aufguss-ID. */
+  festVideos?: ReadonlyMap<string, FestKartenVideo>;
+  /** Darf überhaupt ein Video laufen (Admin-Schalter tafel_aktiv)? Auch dann
+   *  spielt nur die ERSTE Aufguss-Karte der Spalte — alle anderen zeigen ihr
+   *  Standbild. So laufen auf der Tafel höchstens so viele Videos, wie es
+   *  Spalten gibt. */
+  videosAbspielen?: boolean;
+}
+
+/** Eine Kachel-Zeit. `fest` = aus dem Festraster: dort wird der Aufguss über
+ *  die Startzeit zugeordnet, nicht über die volle Stunde. */
+type TafelSlot = { start: Date; fest: boolean };
+
+type FestKontext = { tage: SaunafestTag[]; saunas: Sauna[]; saunaId: string };
+
+/** Die Fest-Uhrzeiten ('HH:MM') DIESER Sauna — nur die, zu denen sie im Plan ist. */
+function festZeitenFuer(fest: SaunafestTag, k: FestKontext): string[] {
+  return festSlots(fest, k.saunas)
+    .filter((s) => s.saunaIds.includes(k.saunaId))
+    .map((s) => s.zeit);
 }
 
 /** Zeitpunkt (in Minuten seit Mitternacht) ab dem die Tafel auf den
@@ -69,6 +132,14 @@ const NEXT_DAY_SWITCH_TOTAL_MINUTES = 21 * 60 + 15; // 21:15
  * Card bis zu 65s nach Aufguss-Ende auf der Tafel (Buffer + useNow-Tick).
  * Plus die globalSlotEnds-Map ist jetzt COVERING (markiert auch die Stunden-
  * Slots in der Mitte eines mehrstündigen Aufgusses, z.B. Banja 19+20).
+ *
+ * SAUNAFEST (`fest` gesetzt, Migrationen 0152/0163): Ein Festtag hat keine
+ * vollen Stunden, sondern das Raster zur halben Stunde aus festSlots() — und
+ * zwar nur die Zeiten, zu denen DIESE Sauna im Plan ist (bis 13:30 wechseln
+ * sich 80 °C und 100 °C ab, die dritte Sauna kommt erst ab 17:30). Mit den
+ * Stunden-Kacheln landeten die 14:30–14:50-Aufgüsse auf keiner Kachel. Außerdem
+ * wechselt die Tafel am Festtag nicht um 21:15 den Tag, sondern erst nach dem
+ * Fest-Abschluss (festAbschluss().ende). Jeder andere Tag läuft unverändert.
  */
 function nextSlotStarts(
   n: number,
@@ -76,19 +147,48 @@ function nextSlotStarts(
   mondayOpen: boolean,
   globalSlotEnds: Map<number, number>,
   holidaySet: Set<string>,
-): Date[] {
-  const result: Date[] = [];
+  fest: FestKontext | null = null,
+): TafelSlot[] {
+  const result: TafelSlot[] = [];
   const startHour = from.getHours();
   // Ab 21:15 zeigt die Tafel den nächsten Sauna-Tag.
   // Vorher: ausschließlich heute (auch wenn die Liste leer ausläuft).
+  // Am Festtag erst nach dem Fest-Abschluss.
   const totalMinutesNow = from.getHours() * 60 + from.getMinutes();
-  const startDayOffset = totalMinutesNow >= NEXT_DAY_SWITCH_TOTAL_MINUTES ? 1 : 0;
-  const maxDayOffset   = totalMinutesNow >= NEXT_DAY_SWITCH_TOTAL_MINUTES ? 8 : 1;
+  const festHeute = fest ? saunafestAm(from, fest.tage) : null;
+  const tagWechseln = festHeute
+    ? from.getTime() >= festAbschluss(festHeute).ende.getTime()
+    : totalMinutesNow >= NEXT_DAY_SWITCH_TOTAL_MINUTES;
+  const startDayOffset = tagWechseln ? 1 : 0;
+  const maxDayOffset   = tagWechseln ? 8 : 1;
   let dayOffset = startDayOffset;
   while (result.length < n && dayOffset < maxDayOffset) {
     const weekday = (from.getDay() + dayOffset) % 7;
     // Datum-Lokal als YYYY-MM-DD für Holiday-Lookup (Migration 0113)
     const dayDate = new Date(from); dayDate.setDate(dayDate.getDate() + dayOffset);
+
+    // Festtag: Kachel-Zeiten aus dem Festraster dieser Sauna.
+    const tagFest = fest ? saunafestAm(dayDate, fest.tage) : null;
+    if (fest && tagFest) {
+      for (const zeit of festZeitenFuer(tagFest, fest)) {
+        const [h, m] = zeit.split(':').map(Number);
+        const slot = new Date(from);
+        slot.setDate(slot.getDate() + dayOffset);
+        slot.setHours(h, m || 0, 0, 0);
+        const slotTs = slot.getTime();
+        const defaultCutoff = slotTs + FEST_AUFGUSS_MIN * 60_000;
+        const maxEnd = globalSlotEnds.get(slotTs);
+        const cutoff = maxEnd && maxEnd + 5_000 > defaultCutoff
+          ? maxEnd + 5_000
+          : defaultCutoff;
+        if (cutoff <= from.getTime()) continue;
+        result.push({ start: slot, fest: true });
+        if (result.length >= n) break;
+      }
+      dayOffset++;
+      continue;
+    }
+
     const yyyy = dayDate.getFullYear();
     const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
     const dd = String(dayDate.getDate()).padStart(2, '0');
@@ -108,7 +208,7 @@ function nextSlotStarts(
         ? maxEnd + 5_000
         : defaultCutoff;
       if (cutoff <= from.getTime()) continue;
-      result.push(slot);
+      result.push({ start: slot, fest: false });
       if (result.length >= n) break;
     }
     dayOffset++;
@@ -129,8 +229,19 @@ export function SaunaTileColumn({
   mondayOpen = false,
   holidaySet,
   otherSaunaInfo,
+  festTage,
+  alleSaunen,
+  festVideos,
+  videosAbspielen = false,
 }: SaunaTileColumnProps) {
   const holidays = holidaySet ?? new Set<string>();
+  // Ohne Festtermine (oder ohne Saunaliste) kennt die Spalte kein Fest. Mit
+  // ihnen rechnet nextSlotStarts an jedem Nicht-Festtag trotzdem exakt wie
+  // bisher — der Fest-Zweig greift nur für einen Tag, der ein Fest IST.
+  const festKontext = useMemo<FestKontext | null>(
+    () => (festTage?.length && alleSaunen ? { tage: festTage, saunas: alleSaunen, saunaId: sauna.id } : null),
+    [festTage, alleSaunen, sauna.id],
+  );
   // Globale Map<slotTs, maxEndTs> über ALLE Saunen — sorgt für synchrone
   // Spalten (siehe Doku in nextSlotStarts).
   //
@@ -159,8 +270,8 @@ export function SaunaTileColumn({
   }, [infusions]);
 
   const slots = useMemo(
-    () => nextSlotStarts(tilesPerColumn, now, mondayOpen, globalSlotEnds, holidays),
-    [now, tilesPerColumn, mondayOpen, globalSlotEnds, holidays],
+    () => nextSlotStarts(tilesPerColumn, now, mondayOpen, globalSlotEnds, holidays, festKontext),
+    [now, tilesPerColumn, mondayOpen, globalSlotEnds, holidays, festKontext],
   );
 
   // Countdown für den Spalten-Kopf: läuft hier gerade einer, und wenn nicht,
@@ -214,19 +325,30 @@ export function SaunaTileColumn({
   // 20:00 bei einem 19:00-Banja, weil nextSlotStarts den 19:00-Slot dann per
   // `h < startHour` verwirft). So ist die Platzierung beweisbar identisch zum
   // bisherigen Auto-Placement — nur eben unverrückbar.
+  //
+  // Fest-Kacheln (slot.fest) ordnen ihren Aufguss über die STARTZEIT zu: am
+  // Fest beginnt jeder Aufguss genau auf seinem Rasterplatz (saunafest_einteilen
+  // legt ihn so an). Ein deckender Treffer wäre dort falsch — ein Aufguss, der
+  // vor dem Rasterplatz beginnt, würde als Continuation verschluckt.
   const tiles = useMemo<({ infusion: Infusion | null; slotTime: Date; isContinuation: boolean; row: number; span: number })[]>(() => {
     const HOUR_MS = 60 * 60_000;
     let nextRow = 1;
-    return slots.map((slotStart) => {
+    return slots.map(({ start: slotStart, fest }) => {
       const slotTs = slotStart.getTime();
-      const found = infusions.find(
-        (i) =>
-          i.sauna_id === sauna.id &&
-          new Date(i.start_time).getTime() <= slotTs &&
-          new Date(i.end_time).getTime() > slotTs,
-      ) ?? null;
+      const found = (fest
+        ? infusions.find(
+          (i) =>
+            i.sauna_id === sauna.id &&
+            Math.abs(new Date(i.start_time).getTime() - slotTs) < 60_000,
+        )
+        : infusions.find(
+          (i) =>
+            i.sauna_id === sauna.id &&
+            new Date(i.start_time).getTime() <= slotTs &&
+            new Date(i.end_time).getTime() > slotTs,
+        )) ?? null;
       const isContinuation =
-        !!found && new Date(found.start_time).getTime() < slotTs;
+        !fest && !!found && new Date(found.start_time).getTime() < slotTs;
       const slotsSpanned = found
         ? Math.max(1, Math.ceil((new Date(found.end_time).getTime() - new Date(found.start_time).getTime()) / HOUR_MS))
         : 1;
@@ -243,6 +365,10 @@ export function SaunaTileColumn({
       return { infusion: found, slotTime: slotStart, isContinuation, row, span };
     });
   }, [slots, infusions, sauna.id, tilesPerColumn]);
+
+  // Die erste echte Aufguss-Karte der Spalte (für das Fest-Video, s. u.).
+  const ersteKarte = tiles.findIndex(
+    (t) => !!t.infusion && !t.isContinuation && !t.infusion.is_personal_fallback);
 
   return (
     // HELL-THEME: weißlicher Glaspanel statt forest-Dunkel.
@@ -425,6 +551,11 @@ export function SaunaTileColumn({
                   />
                 );
               }
+              // Fest-Video (nur am Festtag gesetzt). Abspielen darf nur die
+              // erste Aufguss-Karte der Spalte — der laufende bzw. nächste
+              // Aufguss; alle anderen zeigen ihr Standbild. Rückt die nächste
+              // Karte nach, wechselt das von selbst über `now`, ohne Timer.
+              const fv = festVideos?.get(inf.id);
               return (
                 <InfusionCard
                   key={inf.id}
@@ -438,6 +569,7 @@ export function SaunaTileColumn({
                   className="min-h-0 h-full overflow-hidden"
                   backgroundImage={tileBgs[slotIndex] ?? null}
                   style={rowStyle}
+                  video={fv ? { ...fv, abspielen: videosAbspielen && slotIndex === ersteKarte } : undefined}
                 />
               );
             }

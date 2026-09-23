@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import type { Sauna, Infusion, MemberCustomAttr, RecurringSlot, AufgieserAbsence, MemberRole, Invitation } from '@/types/database';
 import type { SudKraut, SudMix } from '@/lib/sud';
@@ -835,6 +835,9 @@ export type SaunafestTag = {
   ab_beide: string;
   ab_alle: string;
   dritte_sauna_id: string | null;
+  /** Migration 0163: gesetzt, sobald der Admin den Plan bestätigt hat — vorher ist alles Entwurf. */
+  plan_bestaetigt_at: string | null;
+  plan_bestaetigt_von: string | null;
 };
 
 export function useSaunafestTage() {
@@ -916,6 +919,342 @@ export function useSaunafestBewerbungZurueck() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['saunafest-bewerbungen'] }); },
+  });
+}
+
+// ─── Saunafest: Zeitraum statt Einzel-Slots (Migration 0163) ─────────────
+// Vorgabe Christoph 23./24.09.2026: jeder (außer Gästen) wählt je Fest nur
+// einen Zeitraum (erster/letzter Aufguss, den er übernehmen könnte), seine
+// Lieblingssauna, optional eine Höchstzahl und einen Hinweis/Wunsch (≤ 300
+// Zeichen). Danach sieht er die Tagesübersicht: Zahlen je Uhrzeitblock, keine
+// Namen. Der Admin teilt ein (Entwurf, niemand wird angepingt) und bestätigt
+// dann den Plan — erst dann bekommt jeder Eingetragene Bescheid.
+
+export type SaunafestZeitraum = {
+  id: string;
+  fest_datum: string;              // YYYY-MM-DD
+  member_id: string;
+  von: string;                     // Postgres time 'HH:MM:SS' — vergleichen über hhmm()
+  bis: string;
+  lieblings_sauna_id: string | null;   // null = egal
+  max_aufguesse: number | null;        // null = egal
+  notiz: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Ein Uhrzeitblock der Tagesübersicht (saunafest_uebersicht). */
+export type SaunafestBlock = {
+  zeit: string;                    // 'HH:MM:SS'
+  saunen: string[];                // Saunen, die um diese Zeit dran sind
+  bedarf: number;                  // = saunen.length
+  verfuegbar: number;              // Personen, deren Zeitraum diese Zeit umfasst
+  eingeteilt: number;              // echte Aufgüsse um diese Zeit
+  lieblinge: Record<string, number>;   // sauna_id | 'egal' → Anzahl Verfügbarer
+};
+
+/** Höchstlänge des Hinweis-/Wunschtextes (DB-CHECK in 0163). */
+export const SAUNAFEST_NOTIZ_MAX = 300;
+
+/** Zeiträume kommender Feste: Mitglieder bekommen per RLS nur den eigenen, der Admin alle. */
+export function useSaunafestZeitraeume(enabled = true) {
+  return useQuery({
+    queryKey: ['saunafest-zeitraeume'],
+    enabled,
+    queryFn: async () => {
+      const heute = new Date();
+      const key = `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, '0')}-${String(heute.getDate()).padStart(2, '0')}`;
+      const { data, error } = await need()
+        .from('saunafest_verfuegbarkeit')
+        .select('*')
+        .gte('fest_datum', key)
+        .order('von', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as SaunafestZeitraum[];
+    },
+  });
+}
+
+/** Tagesübersicht eines Festes — nur Zahlen je Uhrzeitblock. */
+export function useSaunafestUebersicht(datum: string | null) {
+  return useQuery({
+    queryKey: ['saunafest-uebersicht', datum],
+    enabled: !!datum,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('saunafest_uebersicht', { p_datum: datum });
+      if (error) throw error;
+      return (data ?? []) as SaunafestBlock[];
+    },
+    // Andere Mitglieder sieht Realtime per RLS nicht — darum zusätzlich nachladen.
+    refetchInterval: 60_000,
+    staleTime: 15_000,
+  });
+}
+
+function saunafestNeuLaden(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['saunafest-zeitraeume'] });
+  qc.invalidateQueries({ queryKey: ['saunafest-uebersicht'] });
+  qc.invalidateQueries({ queryKey: ['saunafest-tage'] });
+  qc.invalidateQueries({ queryKey: ['infusions'] });
+}
+
+export function useSaunafestZeitraumSetzen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      datum: string; von: string; bis: string;
+      lieblingsSaunaId: string | null; maxAufguesse: number | null; notiz: string | null;
+    }) => {
+      const { data, error } = await need().rpc('saunafest_zeitraum_setzen', {
+        p_datum: p.datum, p_von: p.von, p_bis: p.bis,
+        p_lieblings_sauna: p.lieblingsSaunaId, p_max: p.maxAufguesse, p_notiz: p.notiz,
+      });
+      if (error) throw error;
+      return data as SaunafestZeitraum;
+    },
+    onSuccess: () => saunafestNeuLaden(qc),
+  });
+}
+
+export function useSaunafestZeitraumLoeschen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (datum: string) => {
+      const { error } = await need().rpc('saunafest_zeitraum_loeschen', { p_datum: datum });
+      if (error) throw error;
+    },
+    onSuccess: () => saunafestNeuLaden(qc),
+  });
+}
+
+/** Admin: Person in Uhrzeit × Sauna einteilen → legt den Aufguss an (id zurück). */
+export function useSaunafestEinteilen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { datum: string; zeit: string; saunaId: string; memberId: string }) => {
+      const { data, error } = await need().rpc('saunafest_einteilen', {
+        p_datum: p.datum, p_zeit: p.zeit, p_sauna: p.saunaId, p_member: p.memberId,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => saunafestNeuLaden(qc),
+  });
+}
+
+/** Admin: Einteilung zurücknehmen — löscht den Fest-Aufguss. */
+export function useSaunafestAusteilen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (infusionId: string) => {
+      const { error } = await need().rpc('saunafest_austeilen', { p_infusion: infusionId });
+      if (error) throw error;
+    },
+    onSuccess: () => saunafestNeuLaden(qc),
+  });
+}
+
+/** Admin: Aufgießer ohne Eintrag erinnern (höchstens einmal je Tag) — Anzahl zurück. */
+export function useSaunafestErinnern() {
+  return useMutation({
+    mutationFn: async (datum: string) => {
+      const { data, error } = await need().rpc('saunafest_erinnern', { p_datum: datum });
+      if (error) throw error;
+      return Number(data) || 0;
+    },
+  });
+}
+
+/** Admin: Plan bestätigen — alle Eingetragenen/Eingeteilten bekommen Bescheid. Anzahl Nachrichten zurück. */
+export function useSaunafestPlanBestaetigen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (datum: string) => {
+      const { data, error } = await need().rpc('saunafest_plan_bestaetigen', { p_datum: datum });
+      if (error) throw error;
+      return Number(data) || 0;
+    },
+    onSuccess: () => saunafestNeuLaden(qc),
+  });
+}
+
+/** Admin: Bestätigung zurücknehmen (zurück in den Entwurf, ohne Nachrichten). */
+export function useSaunafestPlanZuruecknehmen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (datum: string) => {
+      const { error } = await need().rpc('saunafest_plan_zuruecknehmen', { p_datum: datum });
+      if (error) throw error;
+    },
+    onSuccess: () => saunafestNeuLaden(qc),
+  });
+}
+
+// ─── Saunafest: Angaben je Fest-Aufguss + KI-Video (Migrationen 0164/0165) ─
+// Nach der Planbestätigung trägt der eingeteilte Aufgießer ein, was sein
+// Aufguss wird — keine Pflichtfelder. Titel/Beschreibung/die ersten drei Öle
+// landen in infusions (Tafel, Öl-Raum, Bewertung lesen sie wie immer), alles
+// andere in saunafest_aufguss_info. Daraus baut api/saunafest-video.ts per
+// fal.ai ein Standbild und einen 5-s-Loop, der am Festtag als Hintergrund der
+// Aufguss-Karte auf der Tafel läuft.
+
+export type SaunafestAufgussInfo = {
+  infusion_id: string;
+  thema: string | null;
+  bildidee: string | null;
+  musik: string | null;
+  requisiten: string | null;
+  oele: string[];                  // Regal-Slugs oder 'custom:<uuid>', beliebig viele (≤ 40)
+  updated_at: string;
+  updated_by: string | null;
+};
+
+/** Höchstlängen der Freitextfelder (DB-CHECKs in 0164). */
+export const SAUNAFEST_INFO_MAX = { titel: 80, beschreibung: 500, thema: 500, bildidee: 500, musik: 200, requisiten: 300, oele: 40 } as const;
+
+export type SaunafestVideoStatus = 'bild' | 'video' | 'fertig' | 'fehler';
+
+export type SaunafestVideo = {
+  infusion_id: string;
+  status: SaunafestVideoStatus;
+  poster_pfad: string | null;      // Pfad im Bucket „assets" → publicAssetUrl()
+  video_pfad: string | null;
+  fehler: string | null;
+  versuche: number;
+  eingaben_hash: string | null;
+  erzeugt_at: string | null;
+  updated_at: string;
+};
+
+/** Anonym lesbare Kartendaten eines Festtags (TV-Tafel, Öl-Raum). */
+export type SaunafestKarte = {
+  infusion_id: string;
+  oele: string[];
+  poster_pfad: string | null;
+  video_pfad: string | null;
+  video_status: SaunafestVideoStatus | null;
+};
+
+function sortierteIds(ids: string[]): string[] {
+  return [...new Set(ids)].sort();
+}
+
+/** Angaben zu diesen Fest-Aufgüssen (Angemeldete; leer, wenn noch nichts eingetragen). */
+export function useSaunafestAufgussInfos(infusionIds: string[]) {
+  const ids = sortierteIds(infusionIds);
+  return useQuery({
+    queryKey: ['saunafest-info', ids],
+    enabled: ids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await need().from('saunafest_aufguss_info').select('*').in('infusion_id', ids);
+      if (error) throw error;
+      return (data ?? []) as SaunafestAufgussInfo[];
+    },
+  });
+}
+
+export function useSaunafestAufgussInfoSpeichern() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      infusionId: string; titel: string; beschreibung: string; oele: string[];
+      thema: string; bildidee: string; musik: string; requisiten: string;
+    }) => {
+      const { error } = await need().rpc('saunafest_aufguss_info_speichern', {
+        p_infusion: p.infusionId, p_titel: p.titel, p_beschreibung: p.beschreibung, p_oele: p.oele,
+        p_thema: p.thema, p_bildidee: p.bildidee, p_musik: p.musik, p_requisiten: p.requisiten,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['saunafest-info'] });
+      qc.invalidateQueries({ queryKey: ['saunafest-karten'] });
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+    },
+  });
+}
+
+/** Video-Stand dieser Fest-Aufgüsse; fragt alle 10 s nach, solange eines in Arbeit ist.
+ *  `behalten`: beim Wechsel der ids die alten Daten stehen lassen, bis die neuen
+ *  da sind (Sammel-Abfrage im Admin-Reiter — sonst flackern alle Kacheln). */
+export function useSaunafestVideos(infusionIds: string[], opts?: { behalten?: boolean }) {
+  const ids = sortierteIds(infusionIds);
+  return useQuery({
+    queryKey: ['saunafest-videos', ids],
+    enabled: ids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await need().from('saunafest_video').select('*').in('infusion_id', ids);
+      if (error) throw error;
+      return (data ?? []) as SaunafestVideo[];
+    },
+    ...(opts?.behalten ? { placeholderData: keepPreviousData } : {}),
+    refetchInterval: (q) => ((q.state.data as SaunafestVideo[] | undefined)?.some((v) => v.status === 'bild' || v.status === 'video') ? 10_000 : false),
+  });
+}
+
+export type VideoStartAntwort = {
+  status: 'gestartet' | 'unveraendert' | 'laeuft' | 'gesperrt' | 'fehler';
+  meldung: string;
+  /** Nur bei 'laeuft': true = das laufende Video entsteht aus älteren Angaben
+   *  als den gerade gespeicherten; false = gleiche Angaben; fehlt = unbekannt. */
+  veraltet?: boolean;
+};
+
+/** Video (neu) erzeugen lassen. Der Server entscheidet über Kosten-Deckel und
+ *  ob sich die Angaben seit dem letzten Video überhaupt geändert haben. */
+export async function saunafestVideoStarten(infusionId: string, erzwingen = false): Promise<VideoStartAntwort> {
+  const r = await fetch('/api/saunafest-video?action=start', {
+    method: 'POST',
+    // authHeaders() setzt content-type schon — ein zweiter 'Content-Type' würde
+    // zu „application/json, application/json" zusammengeführt, und @vercel/node
+    // wirft dann beim Lesen von req.body (→ jeder Start endete mit 500).
+    headers: await authHeaders(),
+    body: JSON.stringify({ infusion_id: infusionId, erzwingen }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) return { status: 'fehler', meldung: (data as { error?: string }).error ?? `Fehler ${r.status}` };
+  return data as VideoStartAntwort;
+}
+
+/** Kartendaten eines Festtags — anonym (Tafel, Öl-Raum). Nur an Festtagen aktiv. */
+export function useSaunafestKarten(datum: string | null) {
+  return useQuery({
+    queryKey: ['saunafest-karten', datum],
+    enabled: !!datum,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('saunafest_karten', { p_datum: datum });
+      if (error) throw error;
+      return (data ?? []) as SaunafestKarte[];
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
+export type SaunafestVideoEinstellungen = { tafel_aktiv: boolean; max_versuche: number };
+
+/** Schalter „Videos auf der Tafel" (anonym lesbar, 0165). */
+export function useSaunafestVideoEinstellungen() {
+  return useQuery({
+    queryKey: ['saunafest-video-einstellungen'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('saunafest_video_einstellungen');
+      if (error) throw error;
+      return { tafel_aktiv: true, max_versuche: 3, ...((data ?? {}) as Partial<SaunafestVideoEinstellungen>) };
+    },
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+}
+
+export function useSaunafestVideoTafelSetzen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (aktiv: boolean) => {
+      const { error } = await need().rpc('saunafest_video_tafel_setzen', { p_aktiv: aktiv });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['saunafest-video-einstellungen'] }),
   });
 }
 

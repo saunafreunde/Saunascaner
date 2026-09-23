@@ -4,9 +4,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   useAufgieserStars, useCurrentMember, useStarStats, useTopFans,
-  useUpdateMyStarProfile, useInfusions,
+  useUpdateMyStarProfile, useInfusions, useSaunafestTage,
   SPECIALTY_LABELS, STAR_SPECIALTIES, type StarSpecialty,
 } from '@/lib/api';
+import { istFestEntwurf } from '@/lib/saunafestEntwurf';
 import { StarTradingCard } from '@/components/StarTradingCard';
 import { DmButton } from '@/components/DmButton';
 import { WuenscheAnMich } from '@/components/WuenscheAnMich';
@@ -34,6 +35,7 @@ export default function StarProfile() {
   const stats = useStarStats(memberId);
   const fans = useTopFans(memberId, 20);
   const infusions = useInfusions();
+  const festTage = useSaunafestTage();
 
   const star = (stars.data ?? []).find((s) => s.id === memberId);
   const isMe = me.data?.id === memberId;
@@ -49,11 +51,14 @@ export default function StarProfile() {
   const upcomingAufguss = useMemo(() => {
     if (!infusions.data || !memberId) return [];
     const now = Date.now();
+    // Saunafest-Einteilungen im Entwurf sieht nur der Admin (erst „Plan bestätigen“ macht sie öffentlich).
+    const admin = isAdmin(me.data);
     return infusions.data
-      .filter((i) => i.saunameister_id === memberId && new Date(i.start_time).getTime() > now && !i.is_personal_fallback)
+      .filter((i) => i.saunameister_id === memberId && new Date(i.start_time).getTime() > now && !i.is_personal_fallback
+        && (admin || !istFestEntwurf(i, festTage.data)))
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
       .slice(0, 5);
-  }, [infusions.data, memberId]);
+  }, [infusions.data, memberId, festTage.data, me.data]);
 
   if (stars.isLoading || me.isLoading) {
     return <div className="min-h-screen bg-schwarzwald-soft grid place-items-center text-forest-300">Lädt…</div>;

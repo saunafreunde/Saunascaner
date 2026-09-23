@@ -4,11 +4,13 @@ import type { OelraumSettings } from '@/types/branding';
 import { AusschnittBild } from '@/components/AusschnittBild';
 import { zutatenStatus, type ZutatenStatus } from '@/lib/aufgussRegeln';
 import {
-  zutatenFuer, besonderheitenFuer,
+  zutatenFuer, besonderheitenFuer, weitereFestOele,
   type RegalKatalog, type RegalEintrag,
 } from '@/lib/oelraumZutaten';
 import { HaltenKnopf } from '@/components/oelraum/HaltenKnopf';
-import { useOelraumWuensche } from '@/lib/api';
+import {
+  useOelraumWuensche, useSaunafestTage, useSaunafestKarten, saunafestAm,
+} from '@/lib/api';
 import { oelName } from '@/components/gast/DuftWunsch';
 
 /** Die Wand-Anzeige im Öl-Raum — das „Head-Pad" (Vorgabe 14.08.2026).
@@ -36,6 +38,11 @@ export interface AnzeigeAufguss {
   status: ZutatenStatus;
   /** Minuten bis Start. Negativ = läuft bereits. */
   minuten: number;
+  /** Aufguss eines Saunafests (Datum in saunafest_tage). Für den gibt es keine
+   *  Pflicht-Zutaten — fehlen die Öle noch, wird nicht gemahnt. */
+  fest: boolean;
+  /** Nur Fest: die Öle über die drei Runden hinaus (saunafest_karten.oele). */
+  weitereOele: RegalEintrag[];
 }
 
 function minutenText(m: number): string {
@@ -68,12 +75,26 @@ export function OelraumAnzeige({
   onEintragen: (vorgabe?: { saunaId: string; startTime: string }) => void;
   fusszeile?: React.ReactNode;
 }) {
+  // Saunafest (Migration 0164): ein Fest-Aufguss hat beliebig viele Öle. Die
+  // ersten drei stehen wie immer in infusions.oils (Runde 1–3), ALLE in
+  // saunafest_karten — die RPC ist anonym aufrufbar, das Tablet hat keinen
+  // Login. Abgefragt wird nur am Festtag selbst (enabled über das Datum).
+  const festTageQ = useSaunafestTage();
+  const festTage = festTageQ.data;
+  const festHeute = saunafestAm(now, festTage);
+  const festKartenQ = useSaunafestKarten(festHeute?.datum ?? null);
+  const festOele = useMemo(
+    () => new Map((festKartenQ.data ?? []).map((k) => [k.infusion_id, k.oele] as const)),
+    [festKartenQ.data],
+  );
+
   const { laufend, naechste, danach } = useMemo(() => {
     const jetzt = now.getTime();
     const horizont = jetzt + einstellungen.vorlauf_stunden * 3_600_000;
 
     const bauen = (i: Infusion): AnzeigeAufguss => {
       const start = Date.parse(i.start_time);
+      const fest = !!saunafestAm(new Date(start), festTage);
       return {
         inf: i,
         sauna: saunas.find((s) => s.id === i.sauna_id),
@@ -83,6 +104,8 @@ export function OelraumAnzeige({
         besonderheiten: besonderheitenFuer(i, katalog),
         status: zutatenStatus(i.attributes, i.oils),
         minuten: Math.round((start - jetzt) / 60_000),
+        fest,
+        weitereOele: fest ? weitereFestOele(festOele.get(i.id) ?? [], i.oils, katalog) : [],
       };
     };
 
@@ -112,7 +135,7 @@ export function OelraumAnzeige({
       : kommend.filter((i) => Date.parse(i.start_time) !== ersteZeit).map(bauen);
 
     return { laufend: laufendeListe, naechste: gruppe, danach: rest };
-  }, [now, infusions, saunas, katalog, nameFuer, anwesend, einstellungen.vorlauf_stunden]);
+  }, [now, infusions, saunas, katalog, nameFuer, anwesend, einstellungen.vorlauf_stunden, festTage, festOele]);
 
   // `key` auf der URL: wechselt das Motiv (Tageszeit), wird die Ebene neu
   // aufgebaut und blendet sich per CSS weich ein statt hart umzuspringen.
@@ -184,11 +207,15 @@ export function OelraumAnzeige({
   // Aufguss ist der dringendste Fall für die Verbrauchserfassung — er darf
   // nicht verschwinden, nur weil schon der nächste ansteht), dann die nächste
   // Gruppe, dann der Rest des Horizonts.
+  //
+  // Fest-Aufgüsse fallen hier heraus: für sie gibt es keine Pflichtfelder
+  // (Vorgabe Christoph 24.09.2026), die Öle trägt der Aufgießer in seinen
+  // Fest-Angaben nach. Ihre Karte sagt stattdessen neutral „Öle folgen".
   const fehlend = [
     ...(istLaufend ? [] : laufend),
     ...gruppe,
     ...danach,
-  ].filter((a) => a.status !== 'vollstaendig');
+  ].filter((a) => a.status !== 'vollstaendig' && !a.fest);
   const dringend = fehlend.some((a) => a.minuten <= einstellungen.mahnung_ab_minuten);
 
   return (
@@ -218,7 +245,7 @@ export function OelraumAnzeige({
         <MahnBand
           fehlend={fehlend}
           dringend={dringend}
-          alleinig={gruppe.every((a) => a.zutaten.length === 0)}
+          alleinig={gruppe.every((a) => a.zutaten.length === 0 && a.weitereOele.length === 0)}
           onEintragen={onEintragen}
         />
       )}
@@ -252,7 +279,18 @@ export function OelraumAnzeige({
                   {z.nummer !== null ? `#${z.nummer}` : z.emoji}
                 </span>
               ))}
-              {a.status !== 'vollstaendig' && (
+              {/* Fest: mehr als die vier Zeichen hier — der Rest steht auf der
+                  Karte, sobald der Aufguss dran ist; hier nur die Anzahl. */}
+              {a.fest && a.weitereOele.length + Math.max(0, a.zutaten.length - 4) > 0 && (
+                <span className="ml-1 font-semibold text-forest-300/85">
+                  +{a.weitereOele.length + Math.max(0, a.zutaten.length - 4)}
+                </span>
+              )}
+              {a.fest ? (
+                a.zutaten.length === 0 && a.weitereOele.length === 0 && (
+                  <span className="ml-1 font-semibold text-forest-400/80">· Öle folgen</span>
+                )
+              ) : a.status !== 'vollstaendig' && (
                 <span className="ml-1 font-semibold text-rose-400">· Zutaten fehlen</span>
               )}
             </span>
@@ -398,8 +436,15 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
           {/* Die Öle DIESES Aufgusses — das Kernstück der Karte (Vorgabe
               14.08.2026): jeder sieht, welcher Aufguss welche Öle hat, damit am
               Regal nicht die falschen gegriffen werden. */}
-          {a.zutaten.length > 0 ? (
-            <Zutaten zutaten={a.zutaten} />
+          {a.zutaten.length > 0 || a.weitereOele.length > 0 ? (
+            <Zutaten zutaten={a.zutaten} weitere={a.weitereOele} />
+          ) : a.fest ? (
+            /* Fest-Aufguss ohne Öle: keine Mahnung — dort gibt es keine
+               Pflichtfelder, der Aufgießer trägt seine Öle mit den Fest-
+               Angaben nach. Neutral statt rot. */
+            <p className="mt-[1vh] text-[clamp(0.8rem,1.7vw,1.15rem)] font-semibold text-forest-300/80">
+              Öle folgen
+            </p>
           ) : a.status !== 'vollstaendig' ? (
             <p className="mt-[1vh] text-[clamp(0.8rem,1.7vw,1.15rem)] font-bold text-rose-300">
               Noch keine Zutaten eingetragen
@@ -471,8 +516,14 @@ function artLabel(art: RegalEintrag['art']): string {
  *  das beim Planen eingestellt wird.
  *
  *  Darunter, abgesetzt, alles was zum ganzen Aufguss gehört statt zu einer
- *  Runde: Sud, Räucherwerk, Schnaps. */
-function Zutaten({ zutaten }: { zutaten: RegalEintrag[] }) {
+ *  Runde: Sud, Räucherwerk, Schnaps.
+ *
+ *  Saunafest: Öle über die drei Runden hinaus (`weitere`) stehen direkt unter
+ *  den Runden als EINE kompakte Zeile „Außerdem: #12 Zirbe · #33 Minze …".
+ *  Sie bricht um statt abzuschneiden — jede Flasche soll am Regal lesbar sein,
+ *  auch wenn es zwanzig sind. Eine eigene Runde pro Öl hätte die Karte bei
+ *  drei gleichzeitigen Saunen gesprengt (sie hat overflow:hidden). */
+function Zutaten({ zutaten, weitere = [] }: { zutaten: RegalEintrag[]; weitere?: RegalEintrag[] }) {
   const oele = zutaten.filter((z) => z.runde !== null);
   const zugaben = zutaten.filter((z) => z.runde === null);
 
@@ -507,10 +558,33 @@ function Zutaten({ zutaten }: { zutaten: RegalEintrag[] }) {
         </ol>
       )}
 
+      {weitere.length > 0 && (
+        <p
+          className={`flex flex-wrap items-baseline gap-x-[0.7vw] gap-y-[0.3vh] text-[clamp(0.7rem,1.45vw,1rem)] leading-snug ${
+            oele.length > 0 ? 'mt-[0.9vh]' : ''
+          }`}
+        >
+          <span className="font-semibold uppercase tracking-[0.14em] text-forest-400/80 text-[0.82em]">
+            {oele.length > 0 ? 'Außerdem:' : 'Öle:'}
+          </span>
+          {weitere.map((z, i) => (
+            <span key={z.key} className="whitespace-nowrap font-semibold text-slate-100">
+              {i > 0 && <span aria-hidden className="mr-[0.7vw] text-forest-500/70">·</span>}
+              {z.nummer !== null ? (
+                <span className="font-black tabular-nums" style={{ color: z.farbe }}>#{z.nummer}</span>
+              ) : (
+                <span aria-hidden>{z.emoji}</span>
+              )}{' '}
+              {z.name}
+            </span>
+          ))}
+        </p>
+      )}
+
       {zugaben.length > 0 && (
         <ul
           className={`space-y-[0.55vh] ${
-            oele.length > 0 ? 'mt-[1.1vh] border-t border-forest-800/50 pt-[1.1vh]' : ''
+            oele.length > 0 || weitere.length > 0 ? 'mt-[1.1vh] border-t border-forest-800/50 pt-[1.1vh]' : ''
           }`}
         >
           {zugaben.map((z) => (

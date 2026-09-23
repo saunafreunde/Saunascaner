@@ -11,6 +11,7 @@
     "api/birthday-cron.ts":{ "maxDuration": 60 },
     "api/push-reminder-cron.ts": { "maxDuration": 60 },
     "api/push-send.ts":    { "maxDuration": 30 },
+    "api/saunafest-video.ts":  { "maxDuration": 60 },
     "api/send-evacuation.ts":  { "maxDuration": 30 },
     "api/send-notification.ts":{ "maxDuration": 30 },
     "api/send-poll-results.ts":{ "maxDuration": 30 },

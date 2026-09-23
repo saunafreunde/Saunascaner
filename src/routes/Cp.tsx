@@ -16,6 +16,7 @@ import { AttendanceExportSection } from '@/components/cp/AttendanceExportSection
 import { RatingsAnonymousOverview } from '@/components/cp/RatingsAnonymousOverview';
 import { MonthlyHoursOverview } from '@/components/cp/MonthlyHoursOverview';
 import { AvailabilityOverview } from '@/components/cp/AvailabilityOverview';
+import { SaunafestZone } from '@/components/saunafest/SaunafestZone';
 
 // /cp — Bereich für role='staff' + is_personal_planer=true (CP-Verantwortlicher).
 // Hat alles vom Mitarbeiter (PIN, Anwesenheit, Notfall, Mini-Tafel) PLUS:
@@ -54,6 +55,10 @@ export default function Cp() {
 
         {/* Mini-Tafel: ganzer Tag im Überblick */}
         <MiniDashboardTimeline />
+
+        {/* Saunafest (0163–0165): Zeitraum + Hinweis eintragen, nach der
+            Planbestätigung die eigenen Aufgüsse. Ohne kommendes Fest: nichts. */}
+        {me.data && <SaunafestZone member={me.data} isAdmin={false} />}
 
         {/* Anwesenheits-Toggle + PIN */}
         <div className="grid sm:grid-cols-2 gap-4">

@@ -9,6 +9,7 @@ import { PreviewBanner } from '@/components/PreviewBanner';
 import { MiniDashboardTimeline } from '@/components/MiniDashboardTimeline';
 import { AvailabilityCalendar } from '@/components/staff/AvailabilityCalendar';
 import { WeeklyPlanDownload } from '@/components/staff/WeeklyPlanDownload';
+import { SaunafestZone } from '@/components/saunafest/SaunafestZone';
 
 // /mitarbeiter — Personal-Bereich (role='staff').
 // Bewusst auf das Nötigste reduziert (User-Wunsch): NUR
@@ -58,6 +59,10 @@ export default function Mitarbeiter() {
 
         {/* 2. Anwesenheit — „Ich bin da" ist die einzige Präsenz-Meldung fürs Personal */}
         <MyPresenceToggle />
+
+        {/* Saunafest (0163–0165): auch Personal trägt Zeitraum + Hinweis ein.
+            Ohne kommendes Fest rendert die Zone nichts. */}
+        {me.data && <SaunafestZone member={me.data} isAdmin={false} />}
 
         {/* 3. Wochenplan als PDF */}
         <WeeklyPlanDownload />

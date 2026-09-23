@@ -244,3 +244,11 @@ export function karteLaeuft(k: InfoKarte, jetzt: Date): boolean {
   if (k.bis && heute > k.bis) return false;
   return true;
 }
+
+/** Spielt diese Info-Karte ein Video ab (als Hintergrund oder als Element)?
+ *  Am Saunafest laufen schon die Aufguss-Karten je Spalte mit Video — Karten
+ *  mit Video bleiben dann draußen (Karussell und große Einblendung). */
+export function karteHatVideo(k: InfoKarte): boolean {
+  return (k.hintergrund.typ === 'video' && !!k.hintergrund.path)
+    || k.elemente.some((e) => e.typ === 'video');
+}

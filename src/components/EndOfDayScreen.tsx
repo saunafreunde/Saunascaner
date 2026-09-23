@@ -32,25 +32,35 @@ const MAX_ATTRS = 8;              // Top-8 Besonderheiten
 export function EndOfDayScreen({
   infusions,
   meisterDir,
+  stichtag,
 }: {
   infusions: Infusion[];
   meisterDir: MeisterDirectoryEntry[];
+  /** Tag, der abgeschlossen wird (Saunafest: der Abschluss läuft beim
+   *  Standard-Raster erst nach Mitternacht). Fehlt → heute. */
+  stichtag?: Date;
 }) {
-  // Heutige nicht-personal-fallback Aufgüsse
+  // Bezugszeitpunkt beim Einblenden einmal festhalten: der Screen läuft eine
+  // Stunde, und so bleibt die Anzeige stabil. An normalen Tagen ist das jetzt
+  // (20:15–21:15, kein Datumswechsel); am Fest der Festtag selbst — Zählung,
+  // Kopfzeile, PDF und „Heute war Saunafest" beziehen sich dann auf ihn,
+  // obwohl die Uhr schon nach Mitternacht steht.
+  const stichMs = stichtag?.getTime();
+  const bezug = useMemo(() => (stichMs != null ? new Date(stichMs) : new Date()), [stichMs]);
+
+  // Nicht-personal-fallback Aufgüsse des Bezugstags
   const todayInfs = useMemo(() => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today.getTime() + 86_400_000);
+    const today = new Date(bezug); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     return infusions.filter((i) => {
       if (i.is_personal_fallback) return false;
       const s = new Date(i.start_time);
       return s >= today && s < tomorrow;
     });
-  }, [infusions]);
+  }, [infusions, bezug]);
 
-  // Das nächste Saunafest für die Einladung unten. `now` einmal festhalten:
-  // der Screen läuft eine Stunde, ein Datumswechsel mittendrin ist
-  // ausgeschlossen (20:15–21:15), und so bleibt die Anzeige stabil.
-  const now = useMemo(() => new Date(), []);
+  // Das nächste Saunafest für die Einladung unten (ab dem Bezugstag).
+  const now = bezug;
   const naechstes = useMemo(() => naechstesFest(now), [now]);
   const tage = naechstes ? tageBis(naechstes, now) : 0;
 
@@ -119,7 +129,7 @@ export function EndOfDayScreen({
   const totalAufguesse = todayInfs.length;
   const teamCount = todayInfs.filter((i) => i.team_infusion).length;
 
-  const todayLabel = new Date().toLocaleDateString('de-DE', {
+  const todayLabel = bezug.toLocaleDateString('de-DE', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
 

@@ -52,6 +52,12 @@ export function useRealtimeSync() {
         })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_config' },
         () => qc.invalidateQueries({ queryKey: ['tv-settings'] }))
+      // Saunafest (Migration 0163): eigene Zeiträume (Admin: alle) + Tagesübersicht
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'saunafest_verfuegbarkeit' },
+        () => {
+          qc.invalidateQueries({ queryKey: ['saunafest-zeitraeume'] });
+          qc.invalidateQueries({ queryKey: ['saunafest-uebersicht'] });
+        })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evacuation_events' },
         () => qc.invalidateQueries({ queryKey: ['evacuation'] }))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'member_achievements' },
@@ -93,11 +99,18 @@ export function useRealtimeSync() {
           qc.invalidateQueries({ queryKey: ['games-open'] });
         })
       // Notification-Inbox (Migration 0077): live-updaten wenn neue
-      // Notification reinkommt oder mark_read passiert
+      // Notification reinkommt oder mark_read passiert.
+      // Saunafest (0163/0164): saunafest_tage hat kein eigenes Abo. „Plan
+      // bestätigen" schreibt plan_bestaetigt_at und die Nachrichten in DERSELBEN
+      // Transaktion — kommt eine saunafest_*-Nachricht an, ist der Plan-Stand
+      // schon gespeichert. Dann die Festtage frisch laden (sonst zeigt ein
+      // offener Planer bis zu 10 min weiter den Entwurf).
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notification_queue' },
-        () => {
+        (p) => {
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
           qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
+          const kind = (p.new as { kind?: string } | null)?.kind ?? '';
+          if (kind.startsWith('saunafest_')) qc.invalidateQueries({ queryKey: ['saunafest-tage'] });
         })
       // Feed-Kommentare (Migration 0078): pro post_id invalidieren
       .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_post_comments' },

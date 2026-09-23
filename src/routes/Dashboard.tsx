@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -11,6 +11,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import {
   useSaunas,
   useInfusions,
+  useInfusionsRange,
   useMeisterDirectory,
   useActiveEvacuation,
   useBrandSettings,
@@ -19,6 +20,8 @@ import {
   useScheduleSettings,
   useHolidaySet,
   useSaunafestTage, saunafestAm,
+  useSaunafestKarten, useSaunafestVideoEinstellungen,
+  type SaunafestTag,
 } from '@/lib/api';
 import { Stage } from '@/components/stage/Stage';
 // ALL_BADGES / BadgeDefinition entfernt — Tafel rendert keine
@@ -28,7 +31,9 @@ import { unlockAudio } from '@/lib/evacuation';
 // Browser blockiert Audio bis zum ersten Klick — wir versuchen es deshalb
 // stillschweigend bei jeder Interaktion zu entsperren, ohne sichtbaren Button.
 import { ParticleCanvas } from '@/components/ParticleCanvas';
-import { SaunaTileColumn } from '@/components/SaunaTileColumn';
+import {
+  SaunaTileColumn, festAbschluss, festZeitpunkt, type FestKartenVideo,
+} from '@/components/SaunaTileColumn';
 import { EndOfDayScreen } from '@/components/EndOfDayScreen';
 import type { Sauna, Infusion } from '@/types/database';
 // Stage komplett eingebunden — User-Wunsch: Scenes/Themes UND Effekte
@@ -75,6 +80,50 @@ function findOtherSaunaActivityAt(
   };
 }
 
+// ─── Saunafest: Videos der Aufguss-Karten (Migrationen 0164/0165) ────────
+// Steht nur am Festtag im Baum — dadurch laufen die beiden Abfragen (Karten
+// jede Minute, Admin-Schalter alle 5 min) auch NUR am Festtag und nicht an
+// den übrigen 360 Tagen auf dem Fernseher mit. Die Daten gehen per
+// Render-Funktion an die Spalten.
+function FestVideoDaten({
+  datum,
+  children,
+}: {
+  datum: string;
+  children: (d: { videos: ReadonlyMap<string, FestKartenVideo>; abspielen: boolean }) => ReactNode;
+}) {
+  const karten = useSaunafestKarten(datum);
+  const einstellungen = useSaunafestVideoEinstellungen();
+  const videos = useMemo(() => {
+    const m = new Map<string, FestKartenVideo>();
+    for (const k of karten.data ?? []) {
+      const posterUrl = publicAssetUrl(k.poster_pfad);
+      // Nur ein fertiges Video passt sicher zum Standbild. Während einer Neu-
+      // Erzeugung (bild/video) und nach einem Fehler zeigt poster_pfad schon
+      // bzw. noch auf ein anderes Bild als video_pfad (api/saunafest-video.ts:
+      // videoSetzen setzt poster_pfad beim Bildschritt). Dann nur das Standbild.
+      const videoUrl = k.video_status === 'fertig' ? publicAssetUrl(k.video_pfad) : null;
+      if (posterUrl || videoUrl) m.set(k.infusion_id, { posterUrl, videoUrl });
+    }
+    return m;
+  }, [karten.data]);
+  // Bis der Schalter geladen ist (oder wenn er nicht lädt): nur Standbilder.
+  // Lieber ein ruhiges Bild als ein TV-Stick, der sich an Videos verschluckt.
+  const abspielen = einstellungen.data?.tafel_aktiv ?? false;
+  return <>{children({ videos, abspielen })}</>;
+}
+
+/** Hatte dieser Festtag echte Aufgüsse? (Voraussetzung für den Abschluss.) */
+function festHatteAufguesse(fest: SaunafestTag, infusions: Infusion[]): boolean {
+  const beginn = festZeitpunkt(fest, '00:00');
+  const ende = new Date(beginn); ende.setDate(ende.getDate() + 1);
+  return infusions.some((i) => {
+    if (i.is_personal_fallback) return false;
+    const s = new Date(i.start_time);
+    return s >= beginn && s < ende;
+  });
+}
+
 export default function Dashboard() {
   useWakeLock(true);
   // 1s-Tick auf der Tafel, damit der nächste Aufguss ZÜGIG nachrutscht wenn
@@ -114,15 +163,45 @@ export default function Dashboard() {
         return fromDir || 'Mitstreiter';
       });
 
-  // Saunafest (0150): am Festtag kommt die dritte Sauna als Spalte dazu —
-  // die Kacheln zeigen dann von selbst nur, was dort geplant ist (ab 17 Uhr).
+  // Saunafest (0150/0152): am Festtag kommt die dritte Sauna als Spalte dazu —
+  // aber erst eine Stunde vor ab_alle (Standard 17:30 → Spalte ab 16:30).
+  // Vorher gäbe es dort nur leere Kacheln, und die zwei laufenden Saunen
+  // müssten sich den Platz grundlos mit ihr teilen. Nach dem Tageswechsel
+  // des Fests (festAbschluss().ende) verschwindet sie wieder.
   const festTage = useSaunafestTage();
   const festHeute = saunafestAm(now, festTage.data);
+  const gestern = new Date(now); gestern.setDate(gestern.getDate() - 1);
+  const festGestern = saunafestAm(gestern, festTage.data);
+
+  // Fest-Tagesabschluss: beim Standard-Raster (letzter Slot 23:30) läuft er am
+  // Folgetag 00:00–01:00. useInfusions kennt dann nur noch Aufgüsse, die HEUTE
+  // enden — die des Fests fehlen. Deshalb für das Fest, dessen Abschluss gerade
+  // läuft (bzw. in FEST_VORLAUF_MS beginnt), den ganzen Festtag eigens laden.
+  // Der Schlüssel hängt nur am Datum und bleibt über Mitternacht gleich (um
+  // 23:50 geladen, um 00:00 aus dem Cache). Bewusst NICHT den ganzen Festtag
+  // aktiv: useInfusionsRange pollt nicht, und Realtime invalidiert nur
+  // ['infusions'] — sonst zeigte der Abschluss den Stand vom Morgen.
+  const FEST_VORLAUF_MS = 10 * 60_000;
+  const festImAbschluss = (vorlaufMs: number): SaunafestTag | null => [festHeute, festGestern].find((f) => {
+    if (!f) return false;
+    const { start, ende } = festAbschluss(f);
+    return now.getTime() >= start.getTime() - vorlaufMs && now.getTime() < ende.getTime();
+  }) ?? null;
+  const abschlussFest = festImAbschluss(FEST_VORLAUF_MS);   // steuert nur die Abfrage
+  const abschlussVon = abschlussFest ? festZeitpunkt(abschlussFest, '00:00') : new Date(0);
+  const abschlussBis = new Date(abschlussVon); abschlussBis.setDate(abschlussBis.getDate() + 1);
+  const festAbschlussQ = useInfusionsRange(abschlussVon, abschlussBis, abschlussFest != null);
+  const festJetzt = festImAbschluss(0);                     // Abschluss läuft jetzt
+  const dritteSaunaId = festHeute?.dritte_sauna_id != null
+    && now.getTime() >= festZeitpunkt(festHeute, festHeute.ab_alle).getTime() - 60 * 60_000
+    && now.getTime() < festAbschluss(festHeute).ende.getTime()
+    ? festHeute.dritte_sauna_id
+    : null;
   const activeSaunas = useMemo(
     () => (saunas.data ?? [])
-      .filter((s) => s.is_active || (festHeute?.dritte_sauna_id != null && s.id === festHeute.dritte_sauna_id))
+      .filter((s) => s.is_active || (dritteSaunaId != null && s.id === dritteSaunaId))
       .sort((a, b) => a.sort_order - b.sort_order),
-    [saunas.data, festHeute?.dritte_sauna_id]
+    [saunas.data, dritteSaunaId]
   );
 
   const meisterName = (id: string | null) =>
@@ -184,6 +263,8 @@ export default function Dashboard() {
   }
 
   const allInfusions = infusions.data ?? [];
+  // Aufgüsse des Festtags, dessen Abschluss läuft (Rückfall: die normale Liste).
+  const festTagInfs = festAbschlussQ.data ?? allInfusions;
 
   // ── End-of-Day-Check ────────────────────────────────────────────────
   // Tagesabschluss-Screen läuft im festen Zeitfenster 20:15–21:15
@@ -191,7 +272,17 @@ export default function Dashboard() {
   // alle heutigen Aufgüsse schon durch sind), danach (ab 21:15)
   // wechselt SaunaTileColumn auf den nächsten Tag (siehe
   // NEXT_DAY_SWITCH_TOTAL_MINUTES dort).
+  //
+  // Saunafest: NICHT um 20:15 — das Fest läuft bis letzter_slot (23:30).
+  // Der Abschluss kommt 30 min nach dem letzten Slot und steht 60 min
+  // (festAbschluss in SaunaTileColumn, dort hängt auch der Tageswechsel
+  // dran). Beim Standard-Raster liegt er schon am Folgetag (00:00–01:00),
+  // deshalb wird auch das Fest von GESTERN geprüft (festJetzt) — mit den
+  // eigens geladenen Aufgüssen des Festtags (festTagInfs, s. o.).
   const showEndOfDay = useMemo(() => {
+    if (festJetzt) return festHatteAufguesse(festJetzt, festTagInfs);
+    // Am Festtag selbst gibt es kein 20:15-Fenster.
+    if (festHeute) return false;
     const totalMinutes = now.getHours() * 60 + now.getMinutes();
     const START = 20 * 60 + 15; // 20:15
     const END   = 21 * 60 + 15; // 21:15
@@ -206,7 +297,7 @@ export default function Dashboard() {
       return s >= today && s < tomorrow;
     });
     return todayInfs.length > 0;
-  }, [allInfusions, now]);
+  }, [allInfusions, now, festHeute, festJetzt, festTagInfs]);
 
   // ── Layout je nach Sauna-Anzahl ──────────────────────────────────────
   const renderMain = () => {
@@ -222,13 +313,18 @@ export default function Dashboard() {
     if (showEndOfDay) {
       return (
         <EndOfDayScreen
-          infusions={allInfusions}
+          infusions={festJetzt ? festTagInfs : allInfusions}
           meisterDir={members.data ?? []}
+          /* Fest-Abschluss nach Mitternacht: gezählt wird der Festtag, nicht der Sonntag. */
+          stichtag={festJetzt ? festZeitpunkt(festJetzt, '12:00') : undefined}
         />
       );
     }
 
-    const column = (idx: number) => {
+    const column = (
+      idx: number,
+      fest?: { videos: ReadonlyMap<string, FestKartenVideo>; abspielen: boolean },
+    ) => {
       const saunaId = activeSaunas[idx].id;
       return (
         <SaunaTileColumn
@@ -264,12 +360,27 @@ export default function Dashboard() {
              geprüft, ob die andere Sauna zur gleichen Zeit einen
              Aufguss hat. Wenn ja → Fische schwimmen dort hin + Leit-Text. */
           otherSaunaInfo={(slot) => findOtherSaunaActivityAt(saunaId, slot, activeSaunas, allInfusions)}
+          /* Saunafest: an einem Festtag kommen die Kachel-Zeiten aus dem
+             Festraster (halbe Stunden, je Sauna) und der Tageswechsel erst
+             nach dem Fest-Abschluss. An allen anderen Tagen ändert das nichts. */
+          festTage={festTage.data}
+          alleSaunen={saunas.data}
+          festVideos={fest?.videos}
+          videosAbspielen={fest?.abspielen ?? false}
         />
       );
     };
 
     // Alle Saunen-Spalten ohne Werbung — Tiles nutzen den ganzen TV-Platz,
     // gleichmäßig verteilt via flex-1 (auch bei 1, 2, 3+ Saunen).
+    // Am Festtag zusätzlich die Fest-Videos der Aufguss-Karten.
+    if (festHeute) {
+      return (
+        <FestVideoDaten datum={festHeute.datum}>
+          {(fest) => activeSaunas.map((_, i) => column(i, fest))}
+        </FestVideoDaten>
+      );
+    }
     return <>{activeSaunas.map((_, i) => column(i))}</>;
   };
 
@@ -295,7 +406,10 @@ export default function Dashboard() {
         backgroundRepeat: 'no-repeat',
       }}
     >
-      <ParticleCanvas activeSaunaCount={activeSaunas.length} />
+      {/* Am Festtag aus: der Partikel-Canvas zeichnet per requestAnimationFrame
+          über die ganze Fläche — neben bis zu drei laufenden Karten-Videos
+          wäre das die Last, an der sich der TV-Stick verschluckt. */}
+      {!festHeute && <ParticleCanvas activeSaunaCount={activeSaunas.length} />}
       <AnimatePresence>
         {evac.data && (
           <EvacuationOverlay
@@ -311,8 +425,10 @@ export default function Dashboard() {
 
       {/* Als „wichtig" markierte Info-Karten, periodisch groß über der Tafel.
           Muss sein, weil eine Info-Karte im Karussell nur in LEEREN Kacheln
-          erscheint — an vollen Tagen gäbe es keine. */}
-      <InfoEinblendung now={now} />
+          erscheint — an vollen Tagen gäbe es keine. Am Festtag ohne Karten
+          mit Video: die Aufguss-Karten spielen dann schon je Spalte eines
+          (wie im Karussell und beim ausgeschalteten ParticleCanvas). */}
+      <InfoEinblendung now={now} ohneVideo={!!festHeute} />
 
       {/* Connection-Indicator als Floating-Pixel rechts unten */}
       <div className="fixed bottom-2 right-3 z-40 pointer-events-none">

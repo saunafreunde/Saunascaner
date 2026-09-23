@@ -260,6 +260,32 @@ async function processQueue(req: VercelRequest, res: VercelResponse) {
           );
           totalSent += results.filter((r) => r.status === 'fulfilled').length;
         }
+      } else if (item.kind.startsWith('saunafest_') && (item as { recipient_id?: string }).recipient_id) {
+        // Saunafest (Migration 0163): Einteilung, Planbestätigung, Erinnerung.
+        // Titel/Body/Ziel stehen im Payload; die Zeile erscheint zusätzlich im
+        // Posteingang (list_my_notifications liest dieselbe Queue).
+        const recipientId = (item as { recipient_id: string }).recipient_id;
+        const { data: subs } = await sb
+          .from('push_subscriptions')
+          .select('endpoint, p256dh_key, auth_key')
+          .eq('member_id', recipientId);
+        if (subs && subs.length > 0) {
+          const pushPayload = JSON.stringify({
+            title: (payload.title as string) || '🔥 Saunafest',
+            body: (payload.body as string) || 'Es gibt Neuigkeiten zum Saunafest.',
+            url: (payload.url as string) || '/planner#saunafest',
+            tag: item.dedup_key || `saunafest-${item.id}`,
+          });
+          const results = await Promise.allSettled(
+            subs.map((s) =>
+              webpush.sendNotification(
+                { endpoint: s.endpoint, keys: { p256dh: s.p256dh_key, auth: s.auth_key } },
+                pushPayload
+              )
+            )
+          );
+          totalSent += results.filter((r) => r.status === 'fulfilled').length;
+        }
       } else if (item.kind === 'kiosk_joker_telegram') {
         // Dieselbe Meldung einmal an die abonnierten Telegram-Chats. Fehlt der
         // Bot-Token oder gibt es keine Chats, gilt die Zeile trotzdem als erledigt.

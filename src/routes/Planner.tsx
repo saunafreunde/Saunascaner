@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { addDays, format, setHours, setMinutes, isBefore } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { UnvollstaendigeAufguesse } from '@/components/UnvollstaendigeAufguesse';
 import { EditInfusionModal } from '@/components/EditInfusionModal';
+// Saunafest (0163/0164): eigener Bereich statt Bewerben im Tagesplaner, und
+// die Angaben je Fest-Aufguss (ohne Pflichtfelder) statt EditInfusionModal.
+import { SaunafestZone } from '@/components/saunafest/SaunafestZone';
+import { FestAufgussInfoDialog } from '@/components/saunafest/FestAufgussInfoDialog';
 import { BanjaAlarm, istBanjaSperre, banjaGrund } from '@/components/BanjaAlarm';
 import { meldeBanjaVersuch } from '@/lib/api';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
@@ -67,10 +71,9 @@ import {
   useScheduleSettings,
   useHolidaySet, isHolidayDate,
   useSaunafestTage, saunafestAm, type SaunafestTag,
-  useSaunafestBewerbungen, useSaunafestBewerben, useSaunafestBewerbungZurueck, type SaunafestBewerbung,
 } from '@/lib/api';
 import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
-import { festSlots, festSlotOffen, festSaunenUm, festAblaufText, hhmm as zeitHHMM, type FestSlot } from '@/lib/saunafestPlan';
+import { festSlots, festSlotOffen, festSaunenUm, festAblaufText, type FestSlot } from '@/lib/saunafestPlan';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
 import { usePreviewMode } from '@/hooks/usePreviewMode';
 import { PreviewBanner } from '@/components/PreviewBanner';
@@ -158,6 +161,10 @@ function isBanjaInfusion(inf: { attributes?: string[] | null; duration_minutes?:
   return !!inf && Array.isArray(inf.attributes) && inf.attributes.includes(BANJA_ATTR);
 }
 
+// Saunafest (0163): am Festtag bucht im Tagesplaner nur der Admin. Dieselbe
+// Meldung steht als Hinweiskarte über der Matrix und im Absende-Schutz.
+const FEST_NICHT_BUCHEN = '🔥 Saunafest — hier wird nicht gebucht. Trag im Bereich „Saunafest“ ein, wann du Zeit hast; der Admin teilt ein.';
+
 // Slot-Status pro (sauna, hhmm) für SlotMatrix
 type SlotStatus =
   | { kind: 'past' }
@@ -172,9 +179,10 @@ type SlotStatus =
   | { kind: 'laeuft'; infusion: Infusion }
   // Saunafest (0150): die dritte Sauna macht erst später am Tag auf.
   | { kind: 'geschlossen'; hinweis: string }
-  // Saunafest (0151): kein Buchen, sondern Bewerben — mehrere je Slot, der
-  // Admin teilt zu. `meine` = die eigene offene Bewerbung, `anzahl` = alle.
-  | { kind: 'bewerbung'; anzahl: number; meine: SaunafestBewerbung | null }
+  // Saunafest (0163): im Tagesplaner bucht am Fest nur der Admin. Alle anderen
+  // tragen ihren Zeitraum im Bereich „Saunafest" ein — die Kachel ist zu.
+  // Solange der Plan Entwurf ist, verrät sie auch keine Einteilung.
+  | { kind: 'fest' }
   // Ruhephase nach dem Ritual — die Sauna wird gereinigt und gelueftet.
   // Serverseitig gesperrt (validate_infusion_banja_and_overlap).
   | { kind: 'ruhe' };
@@ -213,12 +221,8 @@ function slotVisualFor(status: SlotStatus, blockedBySecondary: boolean): SlotVis
   if (status.kind === 'geschlossen') {
     return { bg: 'bg-forest-950/30', text: 'text-forest-300/40', ring: 'ring-forest-900/40', icon: '🕰️', title: status.hinweis, disabled: true };
   }
-  if (status.kind === 'bewerbung') {
-    const zaehler = status.anzahl > 0 ? `✋${status.anzahl}` : null;
-    if (status.meine) {
-      return { bg: 'bg-amber-500/25', text: 'text-amber-100', ring: 'ring-amber-400/70 ring-2', icon: zaehler, title: 'Du hast dich eingetragen — antippen zum Austragen', disabled: false };
-    }
-    return { bg: 'bg-emerald-500/15', text: 'text-emerald-100', ring: 'ring-emerald-500/30', icon: zaehler, title: status.anzahl > 0 ? `${status.anzahl} eingetragen — antippen, wenn du hier auch Zeit hast` : 'Saunafest — antippen, wenn du hier Zeit hast', disabled: false };
+  if (status.kind === 'fest') {
+    return { bg: 'bg-amber-500/10', text: 'text-amber-100/70', ring: 'ring-amber-500/30', icon: '🔥', title: 'Am Saunafest teilt der Admin ein', disabled: true };
   }
   // status.kind === 'free'
   if (blockedBySecondary) {
@@ -578,16 +582,15 @@ export default function Planner() {
   // wählt jeder frei.
   const festTageQ = useSaunafestTage();
   const festAm = useCallback((date: Date) => saunafestAm(date, festTageQ.data), [festTageQ.data]);
-  // Bewerbungen (0151): am Fest wird nicht gebucht, sondern beworben.
-  // Vorgabe Christoph 21.09.2026: JEDER außer Gästen trägt ein, wann er Zeit
-  // hat — auch die Admins (vorher sahen sie nur „Bewerbungen zuteilen" und
-  // konnten ihre eigenen Zeiten nirgends eintragen). Einteilen darf nur der
-  // Admin. `festDirekt` = Admin bucht am Fest ausnahmsweise direkt (wie früher).
-  const darfFestZeiten = !!m && m.role !== 'gast';
-  const [festDirekt, setFestDirekt] = useState(false);
-  const bewQ = useSaunafestBewerbungen();
-  const bewerben = useSaunafestBewerben();
-  const bewerbungZurueck = useSaunafestBewerbungZurueck();
+  // Saunafest-Bereich (0163, Vorgabe Christoph 23./24.09.2026): der Planer fürs
+  // Fest ist ein eigener Bereich, getrennt vom Tagesplaner. Dort trägt jeder
+  // außer Gästen seinen Zeitraum ein, der Admin teilt ein und bestätigt den
+  // Plan. Im Tagesplaner bucht am Festtag nur noch der Admin direkt.
+  // Anzeige in der Sprungleiste nur, solange ein Fest bevorsteht — dieselbe
+  // Bedingung, unter der SaunafestZone überhaupt etwas zeigt.
+  const heuteYmd = berlinYmd(now);
+  const hatKommendesFest = (festTageQ.data ?? []).some((f) => f.datum >= heuteYmd);
+  const darfSaunafest = !!m && (previewRole ? previewRole !== 'gast' : m.role !== 'gast');
   const garantieOptsFor = useCallback((date: Date, fest: SaunafestTag | null) => ({
     mondayOpen,
     isHoliday: isHolidayDate(date, holidaySet),
@@ -645,16 +648,16 @@ export default function Planner() {
       const dran = festSaunenUm(plan, hhmm).map(saunaName);
       return { kind: 'geschlossen', hinweis: dran.length ? `Um ${hhmm} Uhr am Fest: ${dran.join(' + ')}` : `Um ${hhmm} Uhr am Fest kein Aufguss` };
     }
+    // Saunafest (0163): Nicht-Admins buchen hier nicht — sie tragen im Bereich
+    // „Saunafest" ihren Zeitraum ein, der Admin teilt ein. Solange der Plan
+    // Entwurf ist, zeigt die Kachel keine Einteilung (auch nicht die eigene):
+    // erst mit „Plan bestätigen" erfährt jeder, ob und wann er dran ist.
+    if (fest && !isAdmin && !fest.plan_bestaetigt_at) return { kind: 'fest' };
     const inf = infusionByKey.get(infusionKey(saunaIdLookup, start));
-    // Saunafest (0151): solange kein echter Aufguss im Slot steht, ist er
-    // eine Bewerbungsfläche — auch über einem Personal-Fallback, den die
-    // Zuteilung dann übernimmt. Zugeteilte Slots sind normale Aufgüsse.
-    if (fest && (!inf || inf.is_personal_fallback)) {
-      const hier = (bewQ.data ?? []).filter((b) =>
-        b.fest_datum === fest.datum && b.sauna_id === saunaIdLookup && zeitHHMM(b.slot_zeit) === hhmm && b.status === 'offen');
-      const meine = hier.find((b) => b.member_id === m?.id) ?? null;
-      return { kind: 'bewerbung', anzahl: hier.length, meine };
-    }
+    // Nach der Bestätigung: Einteilungen wie gewohnt (belegt / mein Aufguss),
+    // nur die freien Kacheln bleiben zu — auch ein Personal-Aufguss ist am
+    // Fest nichts zum Übernehmen.
+    if (fest && !isAdmin && (!inf || inf.is_personal_fallback)) return { kind: 'fest' };
     if (inf) {
       if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
       if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
@@ -677,27 +680,15 @@ export default function Planner() {
         return { kind: 'ruhe' };
       }
     }
+    // Kein Aufguss, der hier beginnt, und nichts läuft herein — am Fest ist
+    // die Kachel für Nicht-Admins trotzdem zu (siehe oben).
+    if (fest && !isAdmin) return { kind: 'fest' };
     return { kind: 'free' };
-  }, [infusionByKey, infusions, m?.id, festAm, festPlanFor, saunaName, bewQ.data]);
+  }, [infusionByKey, infusions, m?.id, festAm, festPlanFor, saunaName, isAdmin]);
 
-  // Klick in der Matrix. Am Saunafest (0151) heißt das „Zeit eintragen" bzw.
-  // „wieder austragen" — sofort, ohne Formular, für alle außer Gästen. Nur ein
-  // Admin, der oben auf „Direkt buchen" umgeschaltet hat, landet im Formular.
-  function pickSlot(date: Date, ctx: DayContext, pickedSaunaId: string, picked: string) {
-    if (ctx.fest && !ctx.isPast && m && darfFestZeiten && !(isAdmin && festDirekt)) {
-      const st = slotStatusFor(date, pickedSaunaId, picked);
-      if (st.kind === 'bewerbung') {
-        if (st.meine) {
-          bewerbungZurueck.mutate(st.meine.id, { onError: (e) => setFormError((e as Error).message) });
-        } else {
-          bewerben.mutate(
-            { fest_datum: ctx.fest.datum, sauna_id: pickedSaunaId, slot_zeit: picked, member_id: m.id },
-            { onError: (e) => setFormError((e as Error).message) },
-          );
-        }
-        return;
-      }
-    }
+  // Klick in der Matrix: Slot für Schritt 2 übernehmen. Am Saunafest kommen
+  // hier nur Admins an — für alle anderen sind die Fest-Kacheln gesperrt.
+  function pickSlot(date: Date, pickedSaunaId: string, picked: string) {
     setSelectedDate(date);
     setSaunaId(pickedSaunaId);
     setSlot(picked);
@@ -848,11 +839,11 @@ export default function Planner() {
     if (!selectedDayCtx.availableSlots.includes(slot)) {
       return setFormError('Slot liegt außerhalb der Aufgusszeiten dieses Tages — bitte oben neu wählen.');
     }
-    // Saunafest (0151): Aufgießer bewerben sich in der Matrix, nur der Admin
-    // trägt direkt ein. Der Pfad hierher ist nur über einen vorher gewählten
-    // Slot erreichbar — trotzdem abfangen.
-    if (selectedDayCtx.fest && !(isAdmin && festDirekt)) {
-      return setFormError('Am Saunafest trägst du oben in der Matrix ein, wann du Zeit hast — eingeteilt wird vom Admin.');
+    // Saunafest (0163): im Tagesplaner bucht am Fest nur der Admin. Die Fest-
+    // Kacheln sind für alle anderen gesperrt und Schritt 2 ist ausgeblendet —
+    // trotzdem abfangen (Tageswechsel mit gemerktem Slot, alte Zustände).
+    if (selectedDayCtx.fest && !isAdmin) {
+      return setFormError(FEST_NICHT_BUCHEN);
     }
     // Saunafest (0152): nur Slots aus dem Festraster (Admin-Direktbuchung).
     {
@@ -1044,6 +1035,31 @@ export default function Planner() {
     [infusions, m?.id, isAdmin]
   );
 
+  // Saunafest (0164): Fest-Aufgüsse laufen NICHT über die normale Bearbeiten-
+  // Maske — dort sind 3 Öle + 2 Besonderheiten Pflicht, am Fest gibt es keine
+  // Pflichtfelder (Titel, Geschichte, Bildidee, Musik, beliebig viele Öle …).
+  // Deshalb raus aus Nachpflege-Liste und Atelier-Liste; die eigenen stehen im
+  // Atelier als eigene Liste und öffnen die Fest-Angaben (FestAufgussInfoDialog).
+  const myInfusionsOhneFest = useMemo(
+    () => myInfusions.filter((i) => !festAm(new Date(i.start_time))),
+    [myInfusions, festAm],
+  );
+  // Nur die EIGENEN Fest-Aufgüsse (auch beim Admin — fremde bearbeitet er im
+  // Bereich „Saunafest"). Vor der Planbestätigung ist die Einteilung Entwurf:
+  // ein Nicht-Admin sieht sie dann noch nicht.
+  const meineFestAufguesse = useMemo(
+    () => myInfusions.filter((i) => {
+      if (!m || i.saunameister_id !== m.id) return false;
+      const fest = festAm(new Date(i.start_time));
+      if (!fest) return false;
+      if (new Date(i.end_time).getTime() <= now.getTime()) return false;
+      return isAdmin || !!fest.plan_bestaetigt_at;
+    }),
+    [myInfusions, m, festAm, isAdmin, now],
+  );
+  // Welcher Fest-Aufguss gerade in den Fest-Angaben offen ist.
+  const [festInfo, setFestInfo] = useState<Infusion | null>(null);
+
   function getCoNames(infusionId: string): string[] {
     return (coAufgieserQ.data ?? []).filter((c) => c.infusion_id === infusionId).map((c) => c.member_name ?? '?');
   }
@@ -1078,6 +1094,8 @@ export default function Planner() {
   // navigierbar ohne Scrollen. IDs matchen die HubZone-id-Props unten.
   const navSections = [
     { id: 'heute', label: '🔥 Heute', show: true },
+    // Saunafest-Bereich (0163): alle außer Gästen, solange ein Fest bevorsteht.
+    { id: 'saunafest', label: '🎉 Saunafest', show: darfSaunafest && hatKommendesFest },
     { id: 'planen', label: '📋 Planen', show: isAufgieser || isStaff },
     { id: 'atelier', label: '🧖 Atelier', show: isAufgieser },
     { id: 'stammslot', label: '📅 Stamm-Slot', show: canApplyStammSlot && !!m },
@@ -1091,6 +1109,29 @@ export default function Planner() {
       document.getElementById(zoneId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
   }
+
+  // Deep-Link /planner#saunafest (Push + Posteingang, 0163/0164): Bereich
+  // öffnen und hinscrollen — einmal je Navigation, sobald Mitglied und Feste
+  // geladen sind. Die Zone rendert erst danach (und lädt selbst nach), darum
+  // kurz auf ihr Element warten. Auch wenn der Planer schon offen ist, kommt
+  // der Posteingang per navigate() hierher — deshalb location statt nur Mount.
+  const location = useLocation();
+  const festSprungFuer = useRef<string | null>(null);
+  useEffect(() => {
+    if (location.hash !== '#saunafest') return;
+    if (!m || !festTageQ.data) return;
+    if (festSprungFuer.current === location.key) return;
+    festSprungFuer.current = location.key;
+    let versuche = 0;
+    const warteAufZone = () => {
+      if (document.getElementById('saunafest')) { jumpToZone('saunafest'); return; }
+      versuche += 1;
+      if (versuche < 20) window.setTimeout(warteAufZone, 150);
+    };
+    warteAufZone();
+    // jumpToZone ist eine reine DOM-Hilfe ohne Zustand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash, location.key, m, festTageQ.data]);
 
   return (
     <PageBackground page="planner">
@@ -1308,44 +1349,6 @@ export default function Planner() {
                 {checkMsg && (
                   <p className={`mt-3 text-sm font-medium ${checkMsg.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{checkMsg.text}</p>
                 )}
-                {/* Saunafest-Aufruf (0151/0152): direkt unter dem Check-in, damit
-                    es niemand übersieht. Aufgießer springen zur Matrix des
-                    Festtags, der Admin in den Zuteilungs-Reiter. */}
-                {(() => {
-                  const heuteKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
-                  const naechstes = (festTageQ.data ?? []).find((f) => f.datum >= heuteKey);
-                  if (!naechstes || !darfFestZeiten) return null;
-                  const festDatum = new Date(`${naechstes.datum}T00:00:00`);
-                  const meine = (bewQ.data ?? []).filter((b) => b.fest_datum === naechstes.datum && b.member_id === m?.id && b.status !== 'abgelehnt').length;
-                  return (
-                    <div className="mt-3 rounded-xl bg-gradient-to-r from-amber-950/70 to-forest-950/60 p-3 ring-1 ring-amber-500/40">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl" aria-hidden>🔥</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-bold text-amber-100">
-                            Saunafest {WEEKDAY_LABEL_DE_SHORT[festDatum.getDay()]} {format(festDatum, 'dd.MM.')} · {naechstes.motto}
-                          </div>
-                          <div className="text-[11px] text-amber-200/80">{festAblaufText(naechstes)}</div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { setFestDirekt(false); setSelectedDate(festDatum); jumpToZone('planen'); }}
-                        className="mt-2 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-400 active:scale-[0.99] transition"
-                      >
-                        {meine > 0 ? `Meine Fest-Zeiten (${meine} eingetragen) →` : 'Eintragen, wann ich Zeit habe →'}
-                      </button>
-                      {isAdmin && (
-                        <Link
-                          to="/admin#saunafest"
-                          className="mt-2 block w-full rounded-xl bg-amber-950/60 px-4 py-2.5 text-center text-sm font-semibold text-amber-100 ring-1 ring-amber-500/50 hover:bg-amber-900/60 transition"
-                        >
-                          Admin: Aufgießer einteilen →
-                        </Link>
-                      )}
-                    </div>
-                  );
-                })()}
               </div>
             </Card>
 
@@ -1369,9 +1372,10 @@ export default function Planner() {
         </div>
 
         {/* Nachpflege ganz oben, noch vor „Heute": ein Aufguss ohne Zutaten
-            fällt sonst erst am Aufgusstag auf, wenn im Ölraum nichts steht. */}
+            fällt sonst erst am Aufgusstag auf, wenn im Ölraum nichts steht.
+            Fest-Aufgüsse nicht — für die gibt es keine Pflichtzutaten (0164). */}
         <UnvollstaendigeAufguesse
-          infusions={myInfusions}
+          infusions={myInfusionsOhneFest}
           saunaName={(id) => saunas.find((s) => s.id === id)?.name ?? '?'}
           onNachpflegen={(inf) => setNachpflege(inf)}
           onLoeschen={(inf) => {
@@ -1384,6 +1388,15 @@ export default function Planner() {
           }}
           busy={delInf.isPending}
         />
+
+        {/* ══ ZONE: SAUNAFEST — eigener Bereich, getrennt vom Tagesplaner ═══
+            (0163): Zeitraum + Lieblingssauna + Hinweis eintragen, Tages-
+            übersicht mit Zahlen, nach der Planbestätigung die eigenen
+            Einteilungen samt Angaben fürs Schild. Rendert selbst die HubZone
+            id="saunafest" — oder nichts (Gäste, kein Fest in Sicht). */}
+        {m && previewRole !== 'gast' && (
+          <SaunafestZone member={m} isAdmin={isAdmin} />
+        )}
 
         {/* ══ ZONE: HEUTE — Tagesprogramm + Live-Status in EINER Zone ═══════
             (vorher: DailyOverview standalone hier + "Heute Live"-Zone weit
@@ -1531,26 +1544,6 @@ export default function Planner() {
               >Tag ▶</button>
             </div>
 
-            {/* Saunafest-Sprung: der Pager endet für Aufgießer nach 14 Tagen — das
-                Fest liegt oft weiter weg und wäre sonst von hier nicht erreichbar. */}
-            {(() => {
-              if (!darfFestZeiten) return null;
-              const heuteKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
-              const naechstes = (festTageQ.data ?? []).find((f) => f.datum >= heuteKey);
-              if (!naechstes) return null;
-              const festDatum = new Date(`${naechstes.datum}T00:00:00`);
-              if (isSameYMD(festDatum, selectedDate)) return null;
-              return (
-                <button
-                  type="button"
-                  onClick={() => { setFestDirekt(false); setSelectedDate(festDatum); }}
-                  className="w-full rounded-xl bg-amber-500/15 px-3 py-2.5 text-left text-xs font-semibold text-amber-100 ring-1 ring-amber-500/40 hover:bg-amber-500/25 active:scale-[0.99] transition"
-                >
-                  🔥 Saunafest {WEEKDAY_LABEL_DE_SHORT[festDatum.getDay()]} {format(festDatum, 'dd.MM.')} · {naechstes.motto} — hier eintragen, wann du Zeit hast →
-                </button>
-              );
-            })()}
-
             {/* ── LEGENDE ─────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-3 text-[10px] text-forest-400 px-1">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70" /> frei</span>
@@ -1558,6 +1551,9 @@ export default function Planner() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/70" /> 🔒 gesperrt</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70" /> 🧖 belegt</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-violet-500/70" /> ✓ mein Aufguss</span>
+              {selectedDayCtx.fest && !isAdmin && (
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-500/40" /> 🔥 Saunafest — teilt der Admin ein</span>
+              )}
             </div>
 
             {/* ── TAG ANZEIGE ────────────────────────────────────────── */}
@@ -1572,11 +1568,10 @@ export default function Planner() {
                 // Am Saunafest (0150) entfällt die Sperre — freie Wahl in allen Saunen.
                 const secondaryBlockedForDay = ctx.garantieSlotsOpen.length > 0 && !ctx.fest;
                 const saunenHeute = saunenAmTag(ctx.fest);
-                // Im Eintrage-Modus des Fests gibt es keinen „gewählten" Slot — die
-                // hellgrüne Auswahl-Markierung überdeckte sonst an der ersten Kachel
-                // das Gelb für „du bist eingetragen".
-                const festEintragen = !!ctx.fest && !ctx.isPast && darfFestZeiten && !(isAdmin && festDirekt);
-                const zeigeAuswahl = isSelected && !festEintragen;
+                // Saunafest (0163): für Nicht-Admins ist der Tag im Tagesplaner
+                // zu — dann auch keine grüne „gewählt"-Markierung auf einer
+                // gesperrten Kachel (der Slot-Clamp setzt sonst die erste).
+                const festGesperrt = !!ctx.fest && !isAdmin;
                 return (
                   <div
                     key={d.toISOString()}
@@ -1606,39 +1601,44 @@ export default function Planner() {
                         <span className="text-[10px] text-forest-500">vergangen</span>
                       )}
                     </div>
-                    {ctx.fest && !ctx.isPast && darfFestZeiten && (() => {
-                      const meine = (bewQ.data ?? []).filter((b) => b.fest_datum === ctx.fest!.datum && b.member_id === m?.id && b.status === 'offen').length;
-                      const direkt = isAdmin && festDirekt;
-                      return (
-                        <>
-                          {isAdmin && (
-                            <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-forest-950/60 p-1 ring-1 ring-amber-500/30">
-                              <button
-                                type="button"
-                                onClick={() => setFestDirekt(false)}
-                                className={`rounded-lg px-2 py-2 text-[11px] font-bold transition ${!direkt ? 'bg-amber-500 text-amber-950' : 'text-amber-100/80 hover:bg-forest-900/60'}`}
-                              >
-                                ✋ Meine Zeiten eintragen
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setFestDirekt(true)}
-                                className={`rounded-lg px-2 py-2 text-[11px] font-bold transition ${direkt ? 'bg-amber-500 text-amber-950' : 'text-amber-100/80 hover:bg-forest-900/60'}`}
-                              >
-                                ✍️ Direkt buchen (Admin)
-                              </button>
-                            </div>
-                          )}
-                          <p className="-mt-1 mb-2 text-[11px] text-amber-200/80">
-                            {festAblaufText(ctx.fest)}.{' '}
-                            {direkt
-                              ? 'Direkt buchen: Slot antippen und unten wie gewohnt eintragen.'
-                              : 'Tippe alle Zeiten an, zu denen du Zeit hast — so viele du willst, nochmal tippen trägt dich wieder aus. Eingeteilt wird vom Admin. ✋ = so viele haben sich eingetragen.'}
-                            {!direkt && meine > 0 && <span className="ml-1 font-semibold text-amber-100">Du hast {meine} Zeit{meine === 1 ? '' : 'en'} eingetragen.</span>}
+                    {/* Saunafest (0163): im Tagesplaner wird am Fest nicht gebucht —
+                        Zeitraum, Lieblingssauna und Hinweis trägt jeder im Bereich
+                        „Saunafest" ein, der Admin teilt ein. */}
+                    {festGesperrt && ctx.fest && (
+                      <div className="mb-3 rounded-xl bg-gradient-to-r from-amber-950/70 to-forest-950/60 p-3 ring-1 ring-amber-500/40">
+                        <p className="text-sm font-semibold text-amber-100">{FEST_NICHT_BUCHEN}</p>
+                        {ctx.fest.plan_bestaetigt_at && (
+                          <p className="mt-1 text-xs text-amber-200/90">
+                            Der Plan steht — deine Einteilung und die Angaben fürs Schild findest du dort.
                           </p>
-                        </>
-                      );
-                    })()}
+                        )}
+                        <p className="mt-1 text-[11px] text-amber-200/70">{festAblaufText(ctx.fest)}</p>
+                        {darfSaunafest && (
+                          <button
+                            type="button"
+                            onClick={() => jumpToZone('saunafest')}
+                            className="mt-2 min-h-[44px] w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-400 active:scale-[0.99] transition"
+                          >
+                            Zum Saunafest-Bereich →
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {/* Admins buchen am Fest weiter direkt (nur Kacheln aus dem
+                        Festraster). Einteilen nach den eingetragenen Zeiträumen
+                        läuft im Bereich „Saunafest". */}
+                    {ctx.fest && !festGesperrt && !ctx.isPast && (
+                      <p className="-mt-1 mb-2 text-[11px] text-amber-200/80">
+                        {festAblaufText(ctx.fest)}. Als Admin buchst du hier direkt; eingeteilt nach Zeiträumen wird im{' '}
+                        <button
+                          type="button"
+                          onClick={() => jumpToZone('saunafest')}
+                          className="font-semibold text-amber-100 underline decoration-amber-400/60 underline-offset-2 hover:text-amber-50"
+                        >
+                          Bereich „Saunafest“
+                        </button>.
+                      </p>
+                    )}
 
                     {ctx.isMonday ? (
                       <div className="rounded-lg bg-forest-900/40 px-3 py-3 text-center text-[11px] text-forest-400/70 ring-1 ring-forest-800/30">
@@ -1653,12 +1653,12 @@ export default function Planner() {
                           <DaySaunaMatrix
                             saunas={saunenHeute}
                             slots={ctx.availableSlots}
-                            selectedSaunaId={zeigeAuswahl ? saunaId : ''}
-                            selectedSlot={zeigeAuswahl ? slot : ''}
+                            selectedSaunaId={isSelected && !festGesperrt ? saunaId : ''}
+                            selectedSlot={isSelected && !festGesperrt ? slot : ''}
                             slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
                             secondarySaunaBlocked={secondaryBlockedForDay}
                             garantieSlotsOpenToday={ctx.garantieSlotsOpen}
-                            onPick={(pickedSaunaId, picked) => pickSlot(d, ctx, pickedSaunaId, picked)}
+                            onPick={(pickedSaunaId, picked) => pickSlot(d, pickedSaunaId, picked)}
                           />
                         </div>
                         {/* Desktop: bestehendes Stapeln pro Sauna mit breitem
@@ -1669,12 +1669,12 @@ export default function Planner() {
                               key={s.id}
                               sauna={s}
                               slots={ctx.availableSlots}
-                              selectedSaunaId={zeigeAuswahl ? saunaId : ''}
-                              selectedSlot={zeigeAuswahl ? slot : ''}
+                              selectedSaunaId={isSelected && !festGesperrt ? saunaId : ''}
+                              selectedSlot={isSelected && !festGesperrt ? slot : ''}
                               slotStatus={(saunaIdLookup, hhmm) => slotStatusFor(d, saunaIdLookup, hhmm)}
                               secondarySaunaBlocked={secondaryBlockedForDay}
                               garantieSlotsOpenToday={ctx.garantieSlotsOpen}
-                              onPick={(picked) => pickSlot(d, ctx, s.id, picked)}
+                              onPick={(picked) => pickSlot(d, s.id, picked)}
                             />
                           ))}
                         </div>
@@ -1689,6 +1689,11 @@ export default function Planner() {
               <div className="rounded-xl bg-forest-900/60 px-4 py-3 text-center text-forest-300/70 ring-1 ring-forest-800/40 text-xs">
                 Bitte zuerst einen Slot in der Wochen-Übersicht oben wählen — Montag ist Ruhetag.
               </div>
+            ) : selectedDayCtx.fest && !isAdmin ? (
+              // Saunafest (0163): für Nicht-Admins gibt es an diesem Tag nichts
+              // zu buchen — kein Schritt 2 (die Hinweiskarte oben erklärt es).
+              // submit() fängt denselben Fall zusätzlich ab.
+              null
             ) : (
               <>
                 {/* ── BANJA-RITUAL QUICK-ACTION ─────────────────────────────
@@ -2209,8 +2214,45 @@ export default function Planner() {
         {/* ══ ZONE: Mein Aufguss-Atelier (nur Aufgieser) ═════════════════ */}
         {isAufgieser && (
           <HubZone id="atelier" icon="🧖" title="Mein Atelier" subtitle="Werkbank für Aufgüsse" accent="#22c55e" collapsible>
+            {/* Eigene Fest-Aufgüsse (0164): nicht über die normale Bearbeiten-
+                Maske (Pflichtzutaten), sondern über die Fest-Angaben fürs
+                Schild und das Video. Deshalb fehlen sie in der Liste darunter. */}
+            {meineFestAufguesse.length > 0 && (
+              <div className="mb-3 rounded-xl bg-gradient-to-r from-amber-950/60 to-forest-950/50 p-3 ring-1 ring-amber-500/40">
+                <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-amber-200/90">
+                  <span aria-hidden>🔥</span>
+                  <span>Meine Saunafest-Aufgüsse</span>
+                </h3>
+                <ul className="mt-2 space-y-1.5">
+                  {meineFestAufguesse.map((i) => {
+                    const sauna = saunas.find((s) => s.id === i.sauna_id);
+                    return (
+                      <li
+                        key={i.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-forest-950/60 px-3 py-2 ring-1 ring-amber-500/20"
+                        style={{ borderLeft: `3px solid ${sauna?.accent_color ?? '#f59e0b'}` }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-amber-50">{i.title}</div>
+                          <div className="text-[11px] text-amber-200/70 tabular-nums">
+                            {format(new Date(i.start_time), 'EEE dd.MM. · HH:mm', { locale: de })} Uhr · {sauna?.name ?? '?'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFestInfo(i)}
+                          className="min-h-[44px] rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-amber-950 hover:bg-amber-400 active:scale-95 transition whitespace-nowrap"
+                        >
+                          ✏️ Angaben fürs Schild
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             <AtelierTabs
-              myInfusions={myInfusions}
+              myInfusions={myInfusionsOhneFest}
               myMemberId={m?.id}
               templates={myTemplates}
               saunas={saunas}
@@ -2426,12 +2468,27 @@ export default function Planner() {
       </div>
 
       {/* Nachpflegen aus der Liste ganz oben — derselbe Dialog wie im Atelier,
-          damit es nur eine Bearbeiten-Maske gibt. */}
-      {nachpflege && (
+          damit es nur eine Bearbeiten-Maske gibt. Fest-Aufgüsse stehen nicht
+          in der Liste; falls doch einer hierher kommt, öffnen die Fest-Angaben
+          (am Fest gelten die Pflichtzutaten nicht). */}
+      {nachpflege && (festAm(new Date(nachpflege.start_time)) ? (
+        <FestAufgussInfoDialog
+          infusion={nachpflege}
+          onClose={() => setNachpflege(null)}
+        />
+      ) : (
         <EditInfusionModal
           infusion={nachpflege}
           onClose={() => setNachpflege(null)}
           onSaved={() => setNachpflege(null)}
+        />
+      ))}
+
+      {/* Fest-Angaben aus „Meine Saunafest-Aufgüsse" im Atelier (0164). */}
+      {festInfo && (
+        <FestAufgussInfoDialog
+          infusion={festInfo}
+          onClose={() => setFestInfo(null)}
         />
       )}
 

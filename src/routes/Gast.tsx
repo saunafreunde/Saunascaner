@@ -5,8 +5,9 @@ import { useNow } from '@/hooks/useNow';
 import { useAuth } from '@/hooks/useAuth';
 import {
   useCurrentMember, useMyFollowing, useAufgieserStars, useInfusions, useSaunas,
-  useBrandSettings, brandAssetUrl, useDeleteMyAccount,
+  useBrandSettings, brandAssetUrl, useDeleteMyAccount, useSaunafestTage,
 } from '@/lib/api';
+import { istFestEntwurf } from '@/lib/saunafestEntwurf';
 import { StarTradingCard } from '@/components/StarTradingCard';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
 import { LogoutButton } from '@/components/LogoutButton';
@@ -65,6 +66,8 @@ export default function Gast() {
   const infusions = useInfusions();
   const saunas = useSaunas();
   const brand = useBrandSettings();
+  // Saunafest-Einteilungen im Entwurf bleiben verborgen, bis der Admin den Plan bestätigt.
+  const festTage = useSaunafestTage();
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const shortName = brand.data?.org?.short_name ?? 'Saunafreunde';
@@ -90,9 +93,10 @@ export default function Gast() {
     return (infusions.data ?? [])
       .filter((i) => i.saunameister_id && followedIds.has(i.saunameister_id))
       .filter((i) => new Date(i.start_time).getTime() > nowMs && !i.is_personal_fallback)
+      .filter((i) => !istFestEntwurf(i, festTage.data))
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time))
       .slice(0, 8);
-  }, [infusions.data, followedIds, now]);
+  }, [infusions.data, followedIds, now, festTage.data]);
 
   // Aufgüsse des heutigen Berliner Kalendertags — komplett (auch vergangene),
   // damit der Tagesverlauf sichtbar bleibt. Live/Vergangen wird beim Rendern
@@ -102,8 +106,9 @@ export default function Gast() {
     return (infusions.data ?? [])
       .filter((i) => !i.is_personal_fallback && i.saunameister_id)
       .filter((i) => berlinYmd(i.start_time) === todayYmd)
+      .filter((i) => !istFestEntwurf(i, festTage.data))
       .sort((a, b) => +new Date(a.start_time) - +new Date(b.start_time));
-  }, [infusions.data, now]);
+  }, [infusions.data, now, festTage.data]);
 
   const saunaById = useMemo(() => {
     const m = new Map<string, { name: string; accent_color: string }>();

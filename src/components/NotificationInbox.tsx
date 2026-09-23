@@ -20,6 +20,10 @@ const KIND_EMOJI: Record<string, string> = {
   shared_email_inbound:   '📧',
   rating_reminder:        '⭐',
   kiosk_joker:            '🃏',
+  saunafest_plan:         '🔥',
+  saunafest_einteilung:   '🔥',
+  saunafest_erinnerung:   '🔥',
+  saunafest_video:        '🎬',
 };
 
 export function NotificationInbox({ onClose }: { onClose: () => void }) {
@@ -40,6 +44,7 @@ export function NotificationInbox({ onClose }: { onClose: () => void }) {
     if (n.kind === 'shared_email_inbound') return `/postfach?view=shared`;
     if (n.kind === 'rating_reminder') return `/bewerten`;
     if (n.kind === 'kiosk_joker') return `/admin`;
+    if (n.kind.startsWith('saunafest_')) return typeof p.url === 'string' ? p.url : '/planner#saunafest';
     return null;
   }
 

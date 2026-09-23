@@ -296,17 +296,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
       && GAST_BLOCKED_PATHS.some((p) => loc.pathname.startsWith(p))) {
     return <Navigate to="/gast" replace />;
   }
-  // Nicht-Aufgießer-Mitglieder gehören in den Unterstützer-Bereich, nicht in /planner
+  // Nicht-Aufgießer-Mitglieder gehören in den Unterstützer-Bereich, nicht in /planner.
+  // Der Hash wandert mit: Push/Posteingang verlinken /planner#saunafest, und die
+  // Saunafest-Zone gibt es auch in /unterstuetzer, /mitarbeiter und /cp.
   if (
     member.data?.role === 'member' && !member.data.is_aufgieser
     && loc.pathname === '/planner'
   ) {
-    return <Navigate to="/unterstuetzer" replace />;
+    return <Navigate to={`/unterstuetzer${loc.hash}`} replace />;
   }
   // Staff (Mitarbeiter) gehört in /mitarbeiter, nicht in /planner —
   // AUSSER Doppelrolle: Personal, das auch Aufgießer ist, darf den Aufgießer-Bereich nutzen.
   if (member.data?.role === 'staff' && !member.data?.is_aufgieser && loc.pathname === '/planner') {
-    return <Navigate to="/mitarbeiter" replace />;
+    return <Navigate to={`/mitarbeiter${loc.hash}`} replace />;
   }
   // /cp-Bereich nur für CP-Verantwortliche (staff + is_personal_planer) + Admin (Preview)
   if (loc.pathname.startsWith('/cp')

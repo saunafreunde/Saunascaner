@@ -46,6 +46,24 @@ function schleierVerlauf(f: number, mitte = 0.42, tief = 0.30, fuss = 0.70): str
     + `rgba(255,255,255,${deck(fuss, f)}) 100%)`;
 }
 
+/** Der Schleier über dem Saunafest-Video — deutlich leichter als über den
+ *  Öl-Motiven: das bewegte Bild ist der Sinn der Karte. Oben reicht ein
+ *  Hauch, weil Uhrzeit und Titel dort in eigenen deckenden Kästen stehen;
+ *  unten etwas mehr für Uhrzeit und Countdown im Fuß. */
+function videoSchleier(f: number): string {
+  return 'linear-gradient(180deg, '
+    + `rgba(255,255,255,${deck(0.55, f)}) 0%, `
+    + `rgba(255,255,255,${deck(0.30, f)}) 30%, `
+    + `rgba(255,255,255,${deck(0.08, f)}) 58%, `
+    + `rgba(255,255,255,${deck(0.06, f)}) 80%, `
+    + `rgba(255,255,255,${deck(0.55, f)}) 100%)`;
+}
+
+/** Bildausschnitt des Fest-Videos: etwas unterhalb der Mitte. Die Kachel ist
+ *  2:1 bis 5:1, das Video 16:9 bzw. 21:9 — oben sitzen Titel und Uhrzeit,
+ *  also soll dort nicht das Wichtigste des Motivs liegen. */
+const FEST_VIDEO_AUSSCHNITT = 'center 65%';
+
 const IMMINENT_MIN = 10;
 
 /** Referenz-Pillengröße der Tafel: die Karte mit drei Ölen NEBEN drei
@@ -139,6 +157,7 @@ export function InfusionCard({
   className = '',
   backgroundImage = null,
   style: extraStyle,
+  video = null,
 }: {
   infusion: Infusion;
   sauna: Sauna;
@@ -156,6 +175,11 @@ export function InfusionCard({
    *  Hauptverwendung: gridRow span 2 für Banja-Ritual (90 Min, 2 Slots).
    *  Migration 30.05.2026. */
   style?: React.CSSProperties;
+  /** Saunafest (Migrationen 0164/0165): Standbild und 5-s-Loop dieses
+   *  Aufgusses als unterste Ebene der Karte — vor Thema, Öl-Motiv und
+   *  Kachel-Foto. `abspielen` setzt die Spalte nur für ihre erste Karte;
+   *  alle anderen zeigen das Standbild (höchstens ein Video je Spalte). */
+  video?: { posterUrl: string | null; videoUrl: string | null; abspielen: boolean } | null;
 }) {
   // Color-Overrides (Admin-konfigurierbar via Migration 0088).
   // Fallback wenn nicht gesetzt: sauna.accent_color (Attribute) bzw.
@@ -221,6 +245,15 @@ export function InfusionCard({
 
   const isBanja = (infusion.attributes ?? []).includes('banja' as InfusionAttribute);
 
+  // Saunafest-Video: gewinnt vor Thema, Öl-Motiven und Kachel-Foto. Das
+  // <video> gibt es nur, wenn diese Karte abspielen darf — sonst das Standbild.
+  // Hat die Karte weder abspielbares Video noch Standbild, gilt sie als normale
+  // Karte (ein pausiertes <video> als Ersatz-Standbild würde auf dem TV-Stick
+  // trotzdem einen Decoder belegen).
+  const videoSrc = video?.abspielen ? video.videoUrl : null;
+  const posterSrc = video?.posterUrl ?? null;
+  const festVideo = !!(videoSrc || posterSrc);
+
   // Aufguss-Karten ohne eigene Art (kein Schnaps, kein Räuchern) sahen neben
   // den neuen Bild-Karten der freien Kacheln blass aus. Sie bekommen jetzt
   // das Motiv ihres ERSTEN Öls als Hintergrund — die 64 Bilder liegen seit
@@ -236,7 +269,7 @@ export function InfusionCard({
   // hier heraus und eine Karte mit drei eigenen Oelen blieb bildlos.
   // image_path traegt zwei Formen: '/…' ist eine Datei im Repo, alles andere
   // ein Storage-Pfad — daher die Fallunterscheidung.
-  const bgOils = theme ? [] : oils.map((o) => {
+  const bgOils = theme || festVideo ? [] : oils.map((o) => {
     const std = OIL_BY_ID[o];
     if (std) return { key: std.id, bild: `/oele/${std.id}.webp`, farbe: colorForOil(std.id) };
     const uuid = parseCustomOilId(o);
@@ -314,7 +347,7 @@ export function InfusionCard({
         layout: { duration: 0.55, ease: [0.25, 1, 0.5, 1] },
         opacity: { duration: 0.35 },
       }}
-      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${compact ? 'p-3' : 'p-5'} backdrop-blur-xl ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl ring-1 before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-white/[0.5] before:to-transparent before:pointer-events-none before:content-[''] ${compact ? 'p-3' : 'p-5'} ${festVideo ? '' : 'backdrop-blur-xl'} ${
         running
           ? 'ring-emerald-500/60'
           : imminent
@@ -336,7 +369,12 @@ export function InfusionCard({
         // bei 3 als auch 4 Tiles, sowohl 1080p als auch 4K.
         containerType: 'size',
         ...(imminent ? { borderColor: sauna.accent_color } : {}),
-        ...(theme ? {
+        ...(festVideo ? {
+          // Standbild/Video liegen als eigene Ebene darunter (siehe Fest-Video
+          // weiter unten). Hier nur die Grundfarbe, damit die Karte beim Laden
+          // nicht weiß aufblitzt — dieselbe wie bei den Öl-Motiven.
+          background: `linear-gradient(135deg, ${sauna.accent_color}18, rgba(254,247,237,${deck(0.9, finish.karte)}))`,
+        } : theme ? {
           // Schnaps-Karte: Fruchtbild als Plakat-Hintergrund. Bewusst ein
           // HELLER Schleier statt des dunklen im Zweig darunter — die Karte
           // ist Hell-Theme (Titel text-slate-900), auf einem abgedunkelten
@@ -384,12 +422,58 @@ export function InfusionCard({
           unten verschoben — Teil der einheitlichen 3-Spalten-Footer-Zeile
           (siehe ganz unten in der compact-Sektion: Sauna | Aufgießer | Uhrzeit). */}
 
+      {/* Saunafest-Video als unterste Ebene (Migrationen 0164/0165). Nur die
+          erste Karte der Spalte bekommt das <video>, alle anderen das
+          Standbild als <img> — der TV-Stick soll nicht neun Videos zugleich
+          dekodieren. Der `key` hängt an der URL: solange sie gleich bleibt,
+          läuft die Schleife ungestört weiter, auch wenn die Karte jede
+          Sekunde neu rendert. Darüber ein leichter Schleier, KEIN
+          backdrop-blur: ein Weichzeichner über laufendem Video würde jedes
+          Bild neu gerechnet. */}
+      {festVideo && (
+        <div aria-hidden className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+          {videoSrc ? (
+            <video
+              key={videoSrc}
+              src={videoSrc}
+              poster={posterSrc ?? undefined}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ objectFit: 'cover', objectPosition: FEST_VIDEO_AUSSCHNITT }}
+            />
+          ) : posterSrc ? (
+            <img
+              key={posterSrc}
+              src={posterSrc}
+              alt=""
+              decoding="async"
+              draggable={false}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ objectFit: 'cover', objectPosition: FEST_VIDEO_AUSSCHNITT }}
+            />
+          ) : null}
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: [
+                `linear-gradient(200deg, ${sauna.accent_color}00 0%, ${sauna.accent_color}00 50%, ${sauna.accent_color}26 100%)`,
+                videoSchleier(finish.schleier),
+              ].join(', '),
+            }}
+          />
+        </div>
+      )}
+
       {/* Kachel-Foto aus dem Branding-Tab, mit dem dort gewählten Ausschnitt.
           Als eigene Ebene statt als background-image: `background-size: cover`
           kennt keinen Zoom-Faktor, `object-fit` + `object-position` schon.
           Darüber derselbe dunkle Schleier wie vorher, damit der helle Text
           der Karte lesbar bleibt. */}
-      {backgroundImage && !theme && !bgOil && bgOils.length === 0 && (
+      {backgroundImage && !festVideo && !theme && !bgOil && bgOils.length === 0 && (
         <div aria-hidden className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
           <AusschnittBild url={backgroundImage.url} ausschnitt={backgroundImage.ausschnitt} />
           <div className="absolute inset-0" style={{ background: 'rgba(2,6,12,0.62)' }} />
@@ -448,7 +532,7 @@ export function InfusionCard({
         </>
       )}
 
-      {!imminent && !backgroundImage && !theme && !bgOil && <WoodGrainOverlay />}
+      {!imminent && !backgroundImage && !theme && !bgOil && !festVideo && <WoodGrainOverlay />}
 
       {compact ? (
         /* relative z-10 — damit der Card-Content GARANTIERT über der
@@ -464,10 +548,15 @@ export function InfusionCard({
               Kacheln nur noch der starre Pixel-Boden und der Inhalt läuft über. */}
           <div className="flex items-stretch flex-shrink-0" style={{ gap: 'clamp(calc(6px * var(--d)), 1.5cqh, 12px)' }}>
             <div
-              className="relative rounded-xl flex items-center justify-center backdrop-blur-md flex-shrink-0"
+              className={`relative rounded-xl flex items-center justify-center flex-shrink-0${festVideo ? '' : ' backdrop-blur-md'}`}
               style={{
                 padding: 'clamp(calc(4px * var(--d)), 1.2cqh, 10px) clamp(calc(8px * var(--d)), 2cqh, 16px)',
-                background: `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
+                // Über dem Fest-Video derselbe Verlauf, aber auf deckendem
+                // Weiß statt auf Weichzeichner — so sieht die Box aus wie auf
+                // den Motiv-Karten, ohne dass jedes Videobild geblurrt wird.
+                background: festVideo
+                  ? `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55)), rgba(255,255,255,0.92)`
+                  : `linear-gradient(135deg, ${sauna.accent_color}22, rgba(8,18,12,0.55))`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 16px ${sauna.accent_color}1f`,
               }}
             >
@@ -513,7 +602,7 @@ export function InfusionCard({
               </span>
             </div>
             <div
-              className="relative flex-1 rounded-xl flex flex-row items-center backdrop-blur-md min-w-0 overflow-hidden"
+              className={`relative flex-1 rounded-xl flex flex-row items-center min-w-0 overflow-hidden${festVideo ? '' : ' backdrop-blur-md'}`}
               style={{
                 padding: 'clamp(calc(6px * var(--d)), 1.6cqh, 14px) clamp(calc(11px * var(--d)), 2.7cqh, 22px)',
                 gap: 'clamp(calc(5px * var(--d)), 1.2cqh, 10px)',
@@ -521,9 +610,14 @@ export function InfusionCard({
                 // fast weiß — die sonst dunkle Titel-Box säße dort als Fremdkörper
                 // und drückte den slate-900-Titel auf ~3,5:1. Helle Box statt
                 // dessen: ~13:1, und das Motiv bleibt unten ungestört.
-                background: (theme || bgOil)
-                  ? `linear-gradient(135deg, ${sauna.accent_color}26 0%, rgba(255,255,255,0.86) 55%)`
-                  : `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
+                // Über dem Fest-Video ist der Schleier bewusst dünn — dort ist
+                // die helle Box DECKEND (ohne Weichzeichner), damit der Titel
+                // auf jedem Videobild gleich gut lesbar ist.
+                background: festVideo
+                  ? `linear-gradient(135deg, ${sauna.accent_color}2e 0%, ${sauna.accent_color}00 55%), rgba(255,255,255,0.95)`
+                  : (theme || bgOil)
+                    ? `linear-gradient(135deg, ${sauna.accent_color}26 0%, rgba(255,255,255,0.86) 55%)`
+                    : `linear-gradient(135deg, ${sauna.accent_color}22 0%, rgba(8,18,12,0.55) 60%)`,
                 boxShadow: `inset 0 0 0 1px ${sauna.accent_color}33, 0 0 24px ${sauna.accent_color}1f`,
               }}
             >
@@ -586,7 +680,17 @@ export function InfusionCard({
           {infusion.description && (
             <p
               className="tile-desc text-slate-600 italic line-clamp-1 flex-shrink-0"
-              style={{ fontSize: 'clamp(calc(12px * var(--d)), 3cqh, 17px)', color: schild.textSlogan }}
+              style={{
+                fontSize: 'clamp(calc(12px * var(--d)), 3cqh, 17px)',
+                color: schild.textSlogan,
+                // Über dem Fest-Video steht die Zeile sonst direkt auf dem
+                // bewegten Bild — ein heller Streifen hält sie lesbar.
+                ...(festVideo ? {
+                  alignSelf: 'flex-start' as const, maxWidth: '100%',
+                  padding: '0.1em 0.6em', borderRadius: '0.5em',
+                  background: 'rgba(255,255,255,0.85)',
+                } : {}),
+              }}
             >
               {infusion.description}
             </p>
@@ -611,6 +715,7 @@ export function InfusionCard({
             customAttrs={customAttrsAll.data ?? []}
             finish={finish}
             sud={sudPillen}
+            ohneBlur={festVideo}
           />
 
           {/* Footer-Zeile: drei Spalten ALLE UNTEN AUSGERICHTET damit es
@@ -934,6 +1039,9 @@ type PillsBlockProps = {
    *  anzuzeigen gibt — ein Hook davor wäre ein Regelbruch, einer danach
    *  würde bei jedem zweiten Rendern übersprungen. */
   finish: TafelFinish;
+  /** true = Karte liegt auf dem Fest-Video: Pillen ohne backdrop-blur (der
+   *  würde jedes Videobild neu weichzeichnen), dafür mit hellem Grund. */
+  ohneBlur?: boolean;
 };
 
 function PillsBlock({
@@ -941,8 +1049,15 @@ function PillsBlock({
   attributesAreDefault = false,
   oilsAreDefault = false,
   colorForAttr, colorForOil, customOils, customAttrs, finish, sud,
+  ohneBlur = false,
 }: PillsBlockProps) {
   if (attributes.length === 0 && oils.length === 0 && sud.length === 0) return null;
+
+  // Pillen-Grund: normal Glas mit Weichzeichner; über dem Fest-Video derselbe
+  // Farbverlauf auf deckenderem Weiß, ohne Weichzeichner.
+  const blur = ohneBlur ? '' : ' backdrop-blur';
+  const pillBg = (hex: string, f?: number) =>
+    ohneBlur ? `${tintBg(hex, f)}, rgba(255,255,255,0.55)` : tintBg(hex, f);
 
   // User-Wunsch (Mai 2026): wenn nur EINE der beiden Sektionen aktiv ist
   // (NUR Besonderheiten ODER NUR Öle), wird sie um 50% größer dargestellt
@@ -1080,11 +1195,11 @@ function PillsBlock({
                   <span
                     key={`a-${a}`}
                     title={standardMeta.label}
-                    className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
+                    className={`inline-flex items-center rounded-full${blur} font-medium text-slate-800 whitespace-nowrap`}
                     style={{
                       padding: '0.34em 0.85em',
                       gap: '0.4em',
-                      background: tintBg(c, finish.oele),
+                      background: pillBg(c, finish.oele),
                       boxShadow: tintRing(c),
                     }}
                   >
@@ -1101,11 +1216,11 @@ function PillsBlock({
                   <span
                     key={`a-${a}`}
                     title={customMeta.label}
-                    className="inline-flex items-center rounded-full backdrop-blur font-medium text-slate-800 whitespace-nowrap"
+                    className={`inline-flex items-center rounded-full${blur} font-medium text-slate-800 whitespace-nowrap`}
                     style={{
                       padding: '0.34em 0.85em',
                       gap: '0.4em',
-                      background: tintBg(c, finish.oele),
+                      background: pillBg(c, finish.oele),
                       boxShadow: tintRing(c),
                     }}
                   >
@@ -1120,10 +1235,10 @@ function PillsBlock({
             {hiddenAttrCount > 0 && (
               <span
                 title={`${hiddenAttrCount} weitere Besonderheiten`}
-                className="inline-flex items-center rounded-full backdrop-blur font-bold text-slate-700 whitespace-nowrap"
+                className={`inline-flex items-center rounded-full${blur} font-bold text-slate-700 whitespace-nowrap`}
                 style={{
                   padding: '0.34em 0.85em',
-                  background: tintBg('#64748b', finish.oele),
+                  background: pillBg('#64748b', finish.oele),
                   boxShadow: tintRing('#64748b'),
                 }}
               >
@@ -1181,11 +1296,11 @@ function PillsBlock({
                 <span
                   key={`o-${i}-${oilId}`}
                   title={display.name}
-                  className="inline-flex items-center rounded-full backdrop-blur font-semibold text-amber-800 whitespace-nowrap"
+                  className={`inline-flex items-center rounded-full${blur} font-semibold text-amber-800 whitespace-nowrap`}
                   style={{
                     padding: '0.34em 0.85em',
                     gap: '0.4em',
-                    background: tintBg(c),
+                    background: pillBg(c),
                     boxShadow: tintRing(c),
                   }}
                 >
@@ -1198,12 +1313,12 @@ function PillsBlock({
               <span
                 key={`s-${sp.id}`}
                 title={sp.name}
-                className="inline-flex items-center rounded-full backdrop-blur font-semibold whitespace-nowrap"
+                className={`inline-flex items-center rounded-full${blur} font-semibold whitespace-nowrap`}
                 style={{
                   padding: '0.34em 0.85em',
                   gap: '0.4em',
                   color: '#3f3f1a',
-                  background: tintBg(sp.color, finish.oele),
+                  background: pillBg(sp.color, finish.oele),
                   boxShadow: tintRing(sp.color),
                 }}
               >

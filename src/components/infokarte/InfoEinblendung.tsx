@@ -1,6 +1,6 @@
 import { useBrandSettings } from '@/lib/api';
 import { InfoKarteView } from '@/components/infokarte/InfoKarteView';
-import { karteLaeuft, LEINWAND_V } from '@/types/infokarten';
+import { karteLaeuft, karteHatVideo, LEINWAND_V } from '@/types/infokarten';
 
 /** Große Einblendung für als „wichtig" markierte Info-Karten.
  *
@@ -20,13 +20,20 @@ import { karteLaeuft, LEINWAND_V } from '@/types/infokarten';
  *  auf den Gäste zum Nachschauen kommen. Eine Einblendung, die den Plan zu
  *  oft verdeckt, macht die Tafel unbrauchbar — 20 s alle 5 Minuten sind rund
  *  7 % der Zeit.
+ *
+ *  ── ohneVideo (Saunafest) ──
+ *  Am Festtag spielen schon bis zu drei Aufguss-Karten ihr Video (eines je
+ *  Spalte). Die Einblendung pausiert sie nicht — eine Karte mit Video wäre
+ *  der vierte Decoder, den der TV-Stick nicht schafft. Dieselbe Regel wie im
+ *  Karussell (SlotCarousel); Karten ohne Video laufen weiter.
  */
 const ZYKLUS_S = 300;
 const DAUER_S = 20;
 
-export function InfoEinblendung({ now }: { now: Date }) {
+export function InfoEinblendung({ now, ohneVideo = false }: { now: Date; ohneVideo?: boolean }) {
   const brand = useBrandSettings();
-  const wichtige = (brand.data?.info_karten ?? []).filter((k) => k.wichtig && karteLaeuft(k, now));
+  const wichtige = (brand.data?.info_karten ?? [])
+    .filter((k) => k.wichtig && karteLaeuft(k, now) && !(ohneVideo && karteHatVideo(k)));
   if (wichtige.length === 0) return null;
 
   const sek = Math.floor(now.getTime() / 1000);

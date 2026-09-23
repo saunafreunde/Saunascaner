@@ -40,7 +40,8 @@ import {
  *  der Planer-App, Name aussuchen und planen") außerdem: Tagesauswahl wie im
  *  Planer statt nur Heute/Morgen, KI-Titelvorschläge, Team-Aufguss und die
  *  Vorlagen des gewählten Aufgießers. Bewusst NICHT am Tablet: Banja und
- *  Saunafest-Bewerbungen — beides hängt am Login (siehe unten).
+ *  der Saunafest-Zeitraum (Bereich „Saunafest“ im Planer, 0163) — beides hängt
+ *  am Login (siehe unten).
  *
  *  Zwei Betriebsarten:
  *    'neu'        einen Aufguss anlegen — volles Formular
@@ -186,9 +187,10 @@ export function OelraumEingabe({
 
   const datum = addDays(new Date(), tagOffset);
   const feiertag = istFeiertag(datum);
-  // Saunafest: dort wird nicht gebucht, sondern beworben (Migrationen 0150–0152)
-  // — und Bewerbungen hängen am Login. Das Tablet bietet an Festtagen darum
-  // keine Slots an, statt am Bewerbungsverfahren vorbei Aufgüsse anzulegen.
+  // Saunafest (0163): am Festtag bucht niemand selbst — man trägt im Planer-
+  // Bereich „Saunafest“ seinen Zeitraum ein (hängt am Login), der Admin teilt
+  // ein. Das Tablet bietet an Festtagen darum keine Slots an, statt an der
+  // Einteilung vorbei Aufgüsse anzulegen.
   const fest = saunafestAm(datum, festeQ.data ?? []);
   const slots = useMemo(
     () => slotHoursForWeekday(datum.getDay(), { mondayOpen, isHoliday: feiertag, saunafest: !!fest })
@@ -349,7 +351,7 @@ export function OelraumEingabe({
       }
 
       if (!saunaId) return setFehler('Bitte eine Sauna wählen.');
-      if (fest) return setFehler('Am Saunafest werden die Slots per Bewerbung vergeben — bitte im Planer bewerben.');
+      if (fest) return setFehler('Am Saunafest wird hier nicht gebucht — trag in der Planer-App im Bereich „Saunafest“ ein, wann du Zeit hast; der Admin teilt ein.');
       if (montagZu) return setFehler('Montag keine Aufgüsse.');
       if (!slots.includes(slot)) return setFehler('Diese Uhrzeit gehört nicht zu den Aufgusszeiten des Tages.');
       const start = slotToDate(tagOffset, slot);
@@ -532,7 +534,7 @@ export function OelraumEingabe({
                 <div className="rounded-xl bg-amber-500/10 px-4 py-5 text-center text-amber-100 ring-1 ring-amber-500/40">
                   <p className="text-base font-bold">🎪 Saunafest{fest.motto ? ` — ${fest.motto}` : ''}</p>
                   <p className="mt-1 text-sm text-amber-100/80">
-                    An diesem Tag werden die Slots per Bewerbung vergeben — bitte in der Planer-App bewerben.
+                    An diesem Tag wird hier nicht gebucht — trag in der Planer-App im Bereich {'„Saunafest“'} ein, wann du Zeit hast; der Admin teilt ein.
                   </p>
                 </div>
               ) : montagZu ? (

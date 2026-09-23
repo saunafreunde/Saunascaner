@@ -13,6 +13,7 @@ import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { MyCheckinPinCard } from '@/components/MyCheckinPinCard';
 import { PushPermission } from '@/components/PushPermission';
 import { PreviewBanner } from '@/components/PreviewBanner';
+import { SaunafestZone } from '@/components/saunafest/SaunafestZone';
 
 type Tab = 'termine' | 'pools';
 
@@ -54,6 +55,10 @@ export default function Unterstuetzer() {
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 space-y-6">
         {/* Anwesenheits-Toggle (ganz oben, wichtigster Self-Service) */}
         <MyPresenceToggle />
+
+        {/* Saunafest (0163–0165): Zeitraum + Hinweis eintragen, nach der
+            Planbestätigung die eigenen Aufgüsse. Ohne kommendes Fest: nichts. */}
+        {me.data && <SaunafestZone member={me.data} isAdmin={false} />}
 
         {/* Stats-Kompakt */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">

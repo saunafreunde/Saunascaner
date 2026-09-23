@@ -1,10 +1,10 @@
-import { useBrandSettings } from '@/lib/api';
+import { useBrandSettings, useSaunafestTage, saunafestAm } from '@/lib/api';
 import { ReefScene } from '@/components/ReefScene';
 import { OilCard, useSlotOil } from '@/components/emptytile/OilCard';
 import { GalleryCard } from '@/components/emptytile/GalleryCard';
 import { ForestWindow } from '@/components/emptytile/ForestWindow';
 import { InfoKarteView } from '@/components/infokarte/InfoKarteView';
-import { karteLaeuft } from '@/types/infokarten';
+import { karteLaeuft, karteHatVideo } from '@/types/infokarten';
 
 /** Karussell für leere Tafel-Kacheln.
  *
@@ -47,6 +47,8 @@ type Props = {
 
 export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, direction }: Props) {
   const brand = useBrandSettings();
+  // Derselbe Cache wie im Dashboard — keine zusätzliche Abfrage.
+  const festTage = useSaunafestTage();
   const gallery = brand.data?.slot_gallery ?? [];
   const cards = brand.data?.slot_cards;
 
@@ -76,7 +78,13 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
   // Info-Karten mit gültigem Zeitfenster. Laufen mehrere, wechseln sie sich
   // ab — wie die Fotos, nur eigener Topf, damit eine Ansage nicht mit den
   // Vereinsfotos um denselben Platz konkurriert.
-  const infos = (brand.data?.info_karten ?? []).filter((k) => karteLaeuft(k, now));
+  //
+  // Am Saunafest ohne Video-Karten: dort spielen schon die Aufguss-Karten ihr
+  // Video (je Spalte eines). Ein weiteres in einer leeren Kachel würde sich
+  // dazuaddieren — genau das, was der TV-Stick nicht schafft.
+  const festtag = !!saunafestAm(now, festTage.data);
+  const infos = (brand.data?.info_karten ?? [])
+    .filter((k) => karteLaeuft(k, now) && !(festtag && karteHatVideo(k)));
   const info = infos.length > 0
     ? infos[(((tick + kachelNr) % infos.length) + infos.length) % infos.length]
     : null;

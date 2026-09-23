@@ -145,6 +145,45 @@ export function zutatenFuer(
   return [...oele, ...sortiere(aus)];
 }
 
+/** Saunafest (Migration 0164): Ein Fest-Aufguss darf beliebig viele Öle aus
+ *  dem Regal haben (saunafest_aufguss_info.oele). Die ersten drei stehen wie
+ *  immer in `infusions.oils` und erscheinen über zutatenFuer() als Runde 1–3.
+ *  Diese Funktion liefert den REST — alles aus `alle`, was nicht schon als
+ *  Runde dasteht (so bleibt es auch richtig, wenn jemand die Runden später im
+ *  Planer umgestellt hat). Ohne Runde, nach Regalnummer sortiert: das ist der
+ *  Laufweg am Regal, eine Reihenfolge im Kübel gibt es für sie nicht. */
+export function weitereFestOele(
+  alle: readonly string[],
+  runden: readonly (string | null)[] | null | undefined,
+  katalog: RegalKatalog = LEERER_KATALOG,
+): RegalEintrag[] {
+  const schon = new Set((runden ?? []).filter((x): x is string => !!x));
+  const gesehen = new Set<string>();
+  const aus: RegalEintrag[] = [];
+  for (const roh of alle) {
+    if (!roh || schon.has(roh) || gesehen.has(roh)) continue;
+    gesehen.add(roh);
+    const eigeneId = parseCustomOilId(roh);
+    if (eigeneId) {
+      const e = katalog.eigeneOele.get(eigeneId);
+      aus.push({
+        key: `oel:${roh}`, art: 'eigenes_oel', nummer: null, runde: null,
+        emoji: e?.emoji ?? '🌿', name: e?.name ?? 'Eigenes Öl (gelöscht)',
+        farbe: e?.color ?? FARBE_OEL,
+      });
+      continue;
+    }
+    const o = OIL_BY_ID[roh];
+    if (o) {
+      aus.push({
+        key: `oel:${o.id}`, art: 'oel', nummer: o.number, runde: null,
+        emoji: o.emoji, name: o.name, farbe: FARBE_OEL,
+      });
+    }
+  }
+  return sortiere(aus);
+}
+
 /** Die Besonderheiten eines Aufgusses als beschriftete Pillen — Musik, Ritual,
  *  eigene Buttons. Nicht greifbar, aber der Aufgießer will sie im Öl-Raum
  *  trotzdem sehen (Menthol-Kristalle stehen nun mal auch dort). */
