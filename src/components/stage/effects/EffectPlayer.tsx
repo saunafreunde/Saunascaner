@@ -36,7 +36,9 @@ export function EffectPlayer({ effect }: { effect: LastEffect }) {
     seenNonces.add(noncedRef.current);
     // Cap remaining-time bei durationMs damit negative ageMs (Clock-Drift)
     // nicht zu unendlichen Timern werden.
-    const remaining = Math.max(0, Math.min(entry.durationMs, entry.durationMs - Math.max(0, ageMs)));
+    // nachlaufMs: Puffer für Effekte mit Ton (Joker), siehe EffectMeta.
+    const dauer = entry.durationMs + (entry.nachlaufMs ?? 0);
+    const remaining = Math.max(0, Math.min(dauer, dauer - Math.max(0, ageMs)));
     const t = setTimeout(() => setDone(true), remaining);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

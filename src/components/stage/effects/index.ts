@@ -4,10 +4,11 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 // durationMs: nach dieser Zeit unmounted EffectPlayer die Komponente.
 // category: Gruppierung für die Klapp-Sektionen im Admin-Tab (StageAdminTab).
 
-export type EffectCategory = 'verein' | 'feier' | 'episch' | 'fantasy' | 'natur' | 'saison';
+export type EffectCategory = 'joker' | 'verein' | 'feier' | 'episch' | 'fantasy' | 'natur' | 'saison';
 
 // Reihenfolge = Reihenfolge der Klapp-Gruppen im Admin-UI.
 export const EFFECT_CATEGORIES: { id: EffectCategory; label: string; emoji: string }[] = [
+  { id: 'joker',   label: 'Joker',                emoji: '🃏' },
   { id: 'verein',  label: 'Verein & Logo',        emoji: '🌲' },
   { id: 'feier',   label: 'Feier & Party',        emoji: '🎉' },
   { id: 'episch',  label: 'Episch & Action',      emoji: '💥' },
@@ -21,11 +22,25 @@ export type EffectMeta = {
   label: string;
   emoji: string;
   durationMs: number;
+  /** Zusätzliche Standzeit nur für den EffectPlayer (Label bleibt bei durationMs).
+   *  Der Player zieht das Alter des Triggers ab (Realtime-/Abfrage-Verzug) — ohne
+   *  Puffer würde er einen Effekt mit Ton vor dem Ende des Tons abräumen. */
+  nachlaufMs?: number;
   category: EffectCategory;
   component: LazyExoticComponent<ComponentType>;
 };
 
 export const EFFECT_REGISTRY: Record<string, EffectMeta> = {
+  // ── Joker (Auftritte des Bildschirmschoners, JokerEffect.tsx) ──
+  // durationMs = Länge der Tondatei (TON in kiosk/JokerSchoner.tsx); das Bild
+  // blendet JokerEffect selbst nach dieser Zeit aus. nachlaufMs hält den Player
+  // länger offen, damit er das Lachen nicht wegen des Zustell-Verzugs abschneidet.
+  'joker-lacht':      { id: 'joker-lacht',      label: 'Joker lacht',        emoji: '🃏',   durationMs: 8_200,  nachlaufMs: 3_000, category: 'joker', component: lazy(() => import('./JokerEffect').then((m) => ({ default: m.JokerLacht }))) },
+  'joker-ausraster':  { id: 'joker-ausraster',  label: 'Joker rastet aus',   emoji: '🤪',   durationMs: 6_700,  nachlaufMs: 3_000, category: 'joker', component: lazy(() => import('./JokerEffect').then((m) => ({ default: m.JokerRastetAus }))) },
+  'joker-raucher':    { id: 'joker-raucher',    label: 'Joker-Raucherlache', emoji: '😆',   durationMs: 8_200,  nachlaufMs: 3_000, category: 'joker', component: lazy(() => import('./JokerEffect').then((m) => ({ default: m.JokerRaucherlache }))) },
+  'joker-kuckuck':    { id: 'joker-kuckuck',    label: 'Joker-Kuckucksuhr',  emoji: '🕰️',  durationMs: 5_200,  nachlaufMs: 3_000, category: 'joker', component: lazy(() => import('./JokerEffect').then((m) => ({ default: m.JokerKuckuck }))) },
+  'joker-rueber':     { id: 'joker-rueber',     label: 'Joker zeigt rüber',  emoji: '👈',   durationMs: 8_200,  nachlaufMs: 3_000, category: 'joker', component: lazy(() => import('./JokerEffect').then((m) => ({ default: m.JokerSchautRueber }))) },
+
   // ── Verein & Logo ──
   'logo-reveal':      { id: 'logo-reveal',      label: 'Logo-Reveal',        emoji: '🎇',   durationMs: 10_000, category: 'verein',  component: lazy(() => import('./LogoRevealEffect')) },
   'logo-show':        { id: 'logo-show',        label: 'Große Logo-Show',    emoji: '🎆',   durationMs: 25_000, category: 'verein',  component: lazy(() => import('./LogoShowEffect')) },

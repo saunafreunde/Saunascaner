@@ -84,6 +84,8 @@ Standard · Winter · Weihnachten · Silvester · Fasching · Ostern · Frühlin
 | 🦄 Einhorn | 9s | Galoppierendes Einhorn mit Regenbogen-Mähne + Stern-Trail |
 | 🎵 Musik-Noten | 9s | 60 bunte Noten steigen schwingend auf |
 
+**🃏 Joker** — eigene Gruppe ganz oben: dieselben Auftritte wie auf den gesperrten Displays, aber ohne „geschlossen“-Sprüche, also auch mitten im Betrieb einspielbar. Joker lacht (8s) · Joker rastet aus (7s) · Joker-Raucherlache (8s) · Joker-Kuckucksuhr (5s) · Joker zeigt rüber (8s, eines von drei Motiven). Er erscheint auch auf einer gerade gesperrten Tafel. **Ton:** Auf der Tafel lacht er nur hörbar, wenn seit dem letzten Laden einmal eine Taste der Fernbedienung gedrückt wurde (tagsüber drücken — nachts meldet die gesperrte Tafel jeden Druck an alle Admins). Zum Anhören am eigenen Handy den 🧪 Lokal-Test einschalten.
+
 **Wann nutzen?** Geburtstage, neue Mitglieder, Vereins-Erfolge, Saunameister-Verabschiedungen, einfach für gute Stimmung. Mitglieder sehen es live auf dem TV — alle 3 Sekunden polled die Tafel, Effekte sind innerhalb von ~3 s sichtbar.
 
 **Diagnose im Admin-Tab:** Es gibt eine 🧪 **Lokal-Test-Sektion** — Klick rendert den Effekt direkt im Admin-Tab. Wenn er hier funktioniert aber auf der Tafel nicht: Realtime-Problem (selten — Supabase parkt inaktive Tenants). Wenn auch lokal nichts kommt: Bug, melden.

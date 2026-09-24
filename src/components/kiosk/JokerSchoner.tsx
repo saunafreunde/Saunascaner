@@ -47,8 +47,9 @@ type AuftrittArt = 'lachen' | 'eskalation' | 'kuckuck';
 /** 'nachbar' = die Tafel lacht mit, weil am Tablet nebenan getippt wurde (mit `bild`). */
 type Auftritt = { art: AuftrittArt | 'nachbar'; bild?: string; ruf: string; zeile1: string; zeile2: string };
 
-/** Ton + Dauer je Auftritt. Die Dauer folgt der Länge der Tondatei. */
-const TON: Record<'a' | 'irre' | 'raucher' | 'kuckuck', { src: string; ms: number }> = {
+/** Ton + Dauer je Auftritt. Die Dauer folgt der Länge der Tondatei.
+ *  Auch von den Joker-Effekten der Bühne genutzt (stage/effects/JokerEffect). */
+export const TON: Record<'a' | 'irre' | 'raucher' | 'kuckuck', { src: string; ms: number }> = {
   a:       { src: '/kiosk/joker-lachen.mp3',   ms: 8200 },   // keuchend, schnaubend — das Hauptlachen
   irre:    { src: '/kiosk/joker-lachen-2.mp3', ms: 6700 },   // irres Kichern, kippt ins Brüllen
   raucher: { src: '/kiosk/joker-lachen-3.mp3', ms: 8200 },   // raue Raucherlache
@@ -87,7 +88,7 @@ const SPRUECHE: Record<AuftrittArt, { zeile1: string; zeile2: string }[]> = {
 
 /** Motive der TV-Tafel, wenn am Tablet links daneben getippt wird — bewusst
  *  andere Bilder als am Tablet, alle schauen nach links hinüber. */
-const NACHBAR: { bild: string; ruf: string; sprueche: { zeile1: string; zeile2: string }[] }[] = [
+export const NACHBAR: { bild: string; ruf: string; sprueche: { zeile1: string; zeile2: string }[] }[] = [
   {
     bild: '/kiosk/joker-zeigt.webp', ruf: 'HA HA — DER DA!',
     sprueche: [
@@ -113,7 +114,7 @@ const NACHBAR: { bild: string; ruf: string; sprueche: { zeile1: string; zeile2: 
 ];
 
 /** Die drei Lachen — die Tafel nimmt reihum eines, das am Tablet gerade NICHT läuft. */
-const LACHER: (keyof typeof TON)[] = ['raucher', 'irre', 'a'];
+export const LACHER: (keyof typeof TON)[] = ['raucher', 'irre', 'a'];
 
 /** Länge der Kübel-Gag-Schleife — MUSS den 80 s in index.css entsprechen. */
 const GAG_MS = 80_000;
@@ -123,7 +124,7 @@ const EINGANG_NAME = 'Eingangs-Tablet';
 
 /** Glöckchen-Regen: feste Pseudo-Zufallswerte je Glöckchen — ohne Math.random im
  *  Render, damit ein Re-Render die fallenden Glöckchen nicht umsortiert. */
-const GLOECKCHEN = Array.from({ length: 16 }, (_, i) => ({
+export const GLOECKCHEN = Array.from({ length: 16 }, (_, i) => ({
   links: (i * 61 + 7) % 100,                       // vw
   groesse: 3.2 + ((i * 37) % 30) / 10,             // vmin
   dauer: 2.6 + ((i * 53) % 22) / 10,               // s

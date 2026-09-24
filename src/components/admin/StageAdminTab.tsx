@@ -7,6 +7,7 @@ import { SCENE_REGISTRY } from '@/components/stage/scenes';
 import { EFFECT_REGISTRY, EFFECT_CATEGORIES } from '@/components/stage/effects';
 import { EffectPlayer } from '@/components/stage/effects/EffectPlayer';
 import { activeScenesForState, currentSeasonLabel, THEME_PRESETS } from '@/lib/season';
+import { jokerTonFreischalten } from '@/lib/jokerTon';
 
 // Admin-Tab „🎭 Bühne": steuert TV-Tafel-Szenarien + Effekte.
 // Drei Sektionen: Aktive Layer (Checkboxes), Themes (One-Click), Effekte
@@ -31,6 +32,9 @@ export function StageAdminTab() {
   // den EffectPlayer neu mountet.
   const [localTest, setLocalTest] = useState<{ kind: string; triggered_at: string; nonce: string } | null>(null);
   function playLocal(kind: string) {
+    // Joker lachen hörbar: der Ton muss noch IN diesem Klick freigeschaltet
+    // werden (iPhone), der Effekt selbst startet erst nach dem Nachladen.
+    if (kind.startsWith('joker-')) jokerTonFreischalten();
     setLocalTest({
       kind,
       triggered_at: new Date().toISOString(),
@@ -265,6 +269,14 @@ export function StageAdminTab() {
                 <span className="text-[10px] text-forest-400 font-normal">({effects.length})</span>
                 <span className="ml-auto text-forest-500 text-xs transition group-open:rotate-180">▾</span>
               </summary>
+              {cat.id === 'joker' && (
+                <p className="px-4 pb-3 text-xs text-forest-400">
+                  Dieselben Auftritte wie auf den gesperrten Displays, nur ohne „geschlossen“-Sprüche — darf also auch
+                  mitten im Betrieb laufen. Zum Ausprobieren am Handy oben den 🧪 Lokal-Test-Modus einschalten.
+                  Auf der Tafel lacht er nur hörbar, wenn seit dem letzten Laden einmal eine Taste der Fernbedienung
+                  gedrückt wurde — tagsüber drücken, denn nachts meldet die gesperrte Tafel jeden Druck an alle Admins.
+                </p>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-3 pt-0">
                 {effects.map((eff) => (
                   <button
