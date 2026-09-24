@@ -33,7 +33,7 @@ import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/ap
 import { SAUNA_HEADER_IMAGES } from '@/lib/saunaHeaders';
 import {
   useSaunas, useToggleSauna, useUpdateSauna,
-  useAllMembers, useAddMember, useUpdateMember, useDeleteMember,
+  useAllMembers, useAddMember, useUpdateMember, useDeleteMember, adminMemberCode,
   usePendingMembers, useApproveMember, useCurrentMember,
   usePresentMembers,
   useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
@@ -875,7 +875,7 @@ function MembersTab() {
                     {m.revoked_at && <span className="ml-2 rounded-full bg-rose-500/20 px-2 text-[10px] font-bold text-rose-200">gesperrt</span>}
                   </div>
                   <div className="font-mono text-[10px] text-forest-300/50">
-                    {m.member_number ? `FDS-${String(m.member_number).padStart(3, '0')}` : m.member_code.slice(0, 8)}
+                    {m.member_number ? `FDS-${String(m.member_number).padStart(3, '0')}` : m.id.slice(0, 8)}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -924,11 +924,20 @@ function MembersTab() {
                   >
                     {m.is_aufgieser ? '🔥 Aufgieser' : '+ Aufgieser'}
                   </button>
-                  <button onClick={() => downloadBadge({
-                    name: m.name, memberCode: m.member_code, memberNumber: m.member_number,
-                    role: m.role, organization: orgName,
-                    frontBgUrl, backBgUrl, logoUrl,
-                  })}
+                  <button onClick={async () => {
+                    // Der Login-Code steht nicht mehr in der Mitgliederliste (Migration 0172) —
+                    // nur Admins holen ihn gezielt für den Ausweis.
+                    try {
+                      const memberCode = await adminMemberCode(m.id);
+                      await downloadBadge({
+                        name: m.name, memberCode, memberNumber: m.member_number,
+                        role: m.role, organization: orgName,
+                        frontBgUrl, backBgUrl, logoUrl,
+                      });
+                    } catch (e) {
+                      window.alert(`Ausweis konnte nicht erstellt werden: ${(e as Error).message}`);
+                    }
+                  }}
                     className="rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-forest-500">
                     Ausweis-PDF
                   </button>

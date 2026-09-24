@@ -728,19 +728,25 @@ export function useDeleteTemplate() {
 }
 
 // ─── Members (admin) ──────────────────────────────────────────────────────
+// Geheime Spalten (Migration 0172): checkin_pin, member_code, entry_code,
+// calendar_feed_token und telegram_link_token darf die Rolle authenticated/anon
+// NICHT mehr aus members lesen. Sie stehen nur noch in der eigenen Zeile aus
+// current_member() (SECURITY DEFINER); die Mitgliederliste (useAllMembers)
+// liefert sie nicht. Darum sind sie hier optional.
 export type Member = {
   id: string;
   auth_user_id: string | null;
   email: string | null;
   name: string;
-  member_code: string;
+  /** Login-Code (QR /m/<code> → Magic-Link). Nur eigene Zeile; Admin: rpc admin_member_code. */
+  member_code?: string;
   member_number: number | null;
   role: MemberRole;
   is_aufgieser: boolean;
   is_personal_planer: boolean;
   hourly_rate_eur: number;
   monthly_hour_limit_eur: number;
-  entry_code: string | null;
+  entry_code?: string | null;
   sauna_name: string | null;
   sauna_name_changed_at: string | null;
   custom_attrs_enabled: boolean;
@@ -754,9 +760,9 @@ export type Member = {
   nameplate_config: unknown;
   avatar_path: string | null;
   home_group: string | null;
-  calendar_feed_token: string | null;
+  calendar_feed_token?: string | null;
   telegram_user_id: number | null;
-  telegram_link_token: string | null;
+  telegram_link_token?: string | null;
   // Social-Layer / Star-Profil (Migration 0041)
   bio: string | null;
   aufgieser_story: string | null;
@@ -2204,15 +2210,37 @@ export function useSetMyDefaultMood() {
   });
 }
 
+/** Spalten, die die Mitgliederliste lesen darf — alle außer den geheimen
+ *  (checkin_pin, member_code, entry_code, calendar_feed_token, telegram_link_token).
+ *  NIE wieder select('*') auf members: seit 0172 gibt es nur noch Spaltenrechte,
+ *  '*' scheitert mit 42501 „permission denied for table members". Neue Spalte in
+ *  members → hier ergänzen UND in der Migration GRANT SELECT (spalte) … TO anon, authenticated. */
+export const MEMBER_LISTE_SPALTEN =
+  'id,auth_user_id,email,name,role,is_present,last_scan_at,revoked_at,created_at,approved,member_number,' +
+  'is_aufgieser,sauna_name,sauna_name_changed_at,custom_attrs_enabled,birthday,motto,avatar_path,home_group,' +
+  'telegram_user_id,gast_referral_source,gast_consent_at,gast_signup_origin,bio,aufgieser_story,signature_aufguss,' +
+  'specialties,style_quote,star_card_visible,star_accent_color,is_wm_admin,favorite_oils,is_personal_planer,' +
+  'hourly_rate_eur,monthly_hour_limit_eur,paid_until,fan_since,fan_address,feed_share_game_wins,is_cp_employee,' +
+  'family_has_partner,family_children_count,present_with_partner,present_children_count,default_mood_attributes,' +
+  'default_mood_oils,auto_checkin_enabled,avatar_locked,nameplate_config,dm_von_gaesten,darf_banja';
+
 export function useAllMembers() {
   return useQuery({
     queryKey: ['members'],
     queryFn: async () => {
-      const { data, error } = await need().from('members').select('*').order('name');
+      const { data, error } = await need().from('members').select(MEMBER_LISTE_SPALTEN).order('name');
       if (error) throw error;
-      return data as Member[];
+      return (data ?? []) as unknown as Member[];
     },
   });
+}
+
+/** Login-Code eines Mitglieds für das Ausweis-PDF (nur Admin, SECURITY DEFINER, Migration 0171). */
+export async function adminMemberCode(memberId: string): Promise<string> {
+  const { data, error } = await need().rpc('admin_member_code', { p_member_id: memberId });
+  if (error) throw error;
+  if (typeof data !== 'string' || !data) throw new Error('Kein Mitgliedscode gefunden.');
+  return data;
 }
 
 export function useAddMember() {

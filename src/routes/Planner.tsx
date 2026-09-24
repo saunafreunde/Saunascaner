@@ -378,6 +378,8 @@ export default function Planner() {
     setCheckBusy(true);
     setCheckMsg(null);
     try {
+      // Eigene Zeile aus current_member() — enthält den eigenen member_code.
+      if (!m.member_code) throw new Error('Mitgliedscode fehlt — bitte die App neu laden.');
       const r = await togglePresenceByCode(m.member_code);
       setCheckMsg({ ok: true, text: r.is_present ? '✅ Eingecheckt — willkommen!' : '👋 Ausgecheckt — bis zum nächsten Mal!' });
       await presentQ.refetch();
