@@ -21,6 +21,9 @@ export default function CheckinSignup() {
   const [pinResult, setPinResult] = useState<
     { pin: string; name: string; existing: boolean; mailSent: boolean; bewertbar: BewertbarerAufguss[] } | null
   >(null);
+  // E-Mail hat schon ein Konto: die PIN gibt es seit 25.09.2026 nur noch per
+  // Mail an die hinterlegte Adresse (sonst bekäme sie jeder, der die E-Mail kennt).
+  const [schonRegistriert, setSchonRegistriert] = useState<{ mailSent: boolean } | null>(null);
   // Direkt ins Bewerten springen, ohne den gerade erhaltenen PIN erneut
   // eintippen zu müssen — der Server hat ihn uns schon mitgegeben.
   const [bewerten, setBewerten] = useState(false);
@@ -31,7 +34,7 @@ export default function CheckinSignup() {
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
 
   const fristNeu = () => setFristKey((k) => k + 1);
-  const fristDauerMs = pinResult ? FRIST_PIN_MS : FRIST_MS;
+  const fristDauerMs = pinResult || schonRegistriert ? FRIST_PIN_MS : FRIST_MS;
 
   // Leerlauf: nach Ablauf zurück zur Landing-Page. Pausiert während einer
   // laufenden Anmeldung (busy) und sobald direkt ins Bewerten gesprungen
@@ -56,7 +59,15 @@ export default function CheckinSignup() {
         body: JSON.stringify({ name: name.trim(), email: email.trim(), dsgvo, ref: 'Tablet' }),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? 'Anmeldung fehlgeschlagen');
+      if (!r.ok) {
+        if (r.status === 429) throw new Error('Gerade sind sehr viele Anmeldungen eingegangen — bitte in ein paar Minuten noch einmal versuchen oder beim Personal melden.');
+        throw new Error(data.error ?? 'Anmeldung fehlgeschlagen');
+      }
+      if (data.existing || !data.pin) {
+        setSchonRegistriert({ mailSent: !!data.mailSent });
+        fristNeu();
+        return;
+      }
       setPinResult({
         pin: data.pin,
         name: data.name,
@@ -81,6 +92,50 @@ export default function CheckinSignup() {
         aufguesse={pinResult.bewertbar}
         onRaus={() => nav('/willkommen', { replace: true })}
       />
+    );
+  }
+
+  if (schonRegistriert) {
+    return (
+      <div
+        className="min-h-screen bg-schwarzwald-soft flex items-center justify-center p-6"
+        onPointerDown={fristNeu}
+      >
+        <div className="max-w-md w-full">
+          <div className="rounded-3xl bg-forest-950/85 ring-1 ring-amber-500/40 p-7 backdrop-blur text-center">
+            <div className="text-6xl mb-3">👋</div>
+            <h1 className="text-2xl font-semibold text-forest-100">Du bist schon bei uns angemeldet</h1>
+            <p className="mt-3 text-sm leading-relaxed text-forest-300/90">
+              {schonRegistriert.mailSent
+                ? 'Deinen PIN schicken wir dir aus Sicherheitsgründen per E-Mail an die hinterlegte Adresse — schau auch im Spam-Ordner nach. Mit dem PIN checkst du dich dann ein.'
+                : 'Die E-Mail mit deinem PIN konnten wir gerade nicht verschicken. Bitte sag kurz beim Personal Bescheid — wir schicken dir die Zugangsdaten nach.'}
+            </p>
+
+            <div className="kiosk-frist-bahn mt-4" aria-hidden>
+              <div
+                key={fristKey}
+                className="kiosk-frist-balken"
+                style={{ ['--kiosk-frist-dauer' as string]: `${fristDauerMs}ms` }}
+              />
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                onClick={() => nav('/checkin', { replace: true })}
+                className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-3 font-semibold text-amber-950 hover:from-amber-400 hover:to-amber-500"
+              >
+                🔢 Mit PIN einchecken
+              </button>
+              <button
+                onClick={() => nav('/willkommen', { replace: true })}
+                className="w-full rounded-xl bg-forest-900/70 ring-1 ring-forest-700/50 px-4 py-3 text-sm font-semibold text-forest-200 hover:bg-forest-800"
+              >
+                Zurück zur Startseite
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 

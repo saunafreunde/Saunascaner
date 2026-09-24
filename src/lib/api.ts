@@ -2210,27 +2210,19 @@ export function useSetMyDefaultMood() {
   });
 }
 
-/** Spalten, die die Mitgliederliste lesen darf — alle außer den geheimen
- *  (checkin_pin, member_code, entry_code, calendar_feed_token, telegram_link_token).
- *  NIE wieder select('*') auf members: seit 0172 gibt es nur noch Spaltenrechte,
- *  '*' scheitert mit 42501 „permission denied for table members". Neue Spalte in
- *  members → hier ergänzen UND in der Migration GRANT SELECT (spalte) … TO anon, authenticated. */
-export const MEMBER_LISTE_SPALTEN =
-  'id,auth_user_id,email,name,role,is_present,last_scan_at,revoked_at,created_at,approved,member_number,' +
-  'is_aufgieser,sauna_name,sauna_name_changed_at,custom_attrs_enabled,birthday,motto,avatar_path,home_group,' +
-  'telegram_user_id,gast_referral_source,gast_consent_at,gast_signup_origin,bio,aufgieser_story,signature_aufguss,' +
-  'specialties,style_quote,star_card_visible,star_accent_color,is_wm_admin,favorite_oils,is_personal_planer,' +
-  'hourly_rate_eur,monthly_hour_limit_eur,paid_until,fan_since,fan_address,feed_share_game_wins,is_cp_employee,' +
-  'family_has_partner,family_children_count,present_with_partner,present_children_count,default_mood_attributes,' +
-  'default_mood_oils,auto_checkin_enabled,avatar_locked,nameplate_config,dm_von_gaesten,darf_banja';
-
+/** Admin-Mitgliederliste (nur Admin-Bereich). Seit 0175/0176 über die
+ *  DEFINER-RPC admin_list_members(): anon/authenticated dürfen persönliche
+ *  Spalten (E-Mail, Geburtstag, Anschrift, Lohn, Familie …) und die Geheimnisse
+ *  (PIN, Login-Code, Tokens) nicht mehr direkt aus members lesen. Die RPC liefert
+ *  alle Spalten außer den Geheimnissen, nur an freigegebene, nicht gesperrte Admins.
+ *  NIE select('*') auf members — es gibt nur noch Spaltenrechte (42501). */
 export function useAllMembers() {
   return useQuery({
     queryKey: ['members'],
     queryFn: async () => {
-      const { data, error } = await need().from('members').select(MEMBER_LISTE_SPALTEN).order('name');
+      const { data, error } = await need().rpc('admin_list_members');
       if (error) throw error;
-      return (data ?? []) as unknown as Member[];
+      return (Array.isArray(data) ? data : []) as Member[];
     },
   });
 }
@@ -3305,11 +3297,25 @@ export async function togglePresenceByEntryCode(code: string) {
 // beim alten entry_code (selbst-gewählt, kaum genutzt).
 // Migration 0076 erweitert um needs_family_modal (true wenn beim Einchecken
 // die Familien-Auswahl gezeigt werden soll).
+// Seit 25.09.2026 über den Server (api/qr-signin.ts?action=pin-toggle): dort
+// werden Fehlversuche je IP gebremst. Der direkte RPC-Weg ist gesperrt (0174),
+// er ließ sich mit dem öffentlichen Schlüssel ohne Bremse durchprobieren.
+// Fehlertexte bleiben die alten Kennungen, damit Scanner.tsx sie erkennt.
 export async function togglePresenceByCheckinPin(pin: string) {
-  const { data, error } = await need().rpc('toggle_presence_by_checkin_pin', { p_pin: pin });
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  return row as { member_id: string; name: string; is_present: boolean; needs_family_modal: boolean };
+  const r = await fetch('/api/qr-signin?action=pin-toggle', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ pin }),
+  });
+  const data = (await r.json().catch(() => ({}))) as {
+    error?: string; member_id?: string; name?: string; is_present?: boolean; needs_family_modal?: boolean;
+  };
+  if (!r.ok) {
+    if (r.status === 404) throw new Error('unknown_or_revoked');
+    if (r.status === 429) throw new Error('zu_viele_fehlversuche');
+    throw new Error(data.error ?? `Check-in fehlgeschlagen (${r.status})`);
+  }
+  return data as { member_id: string; name: string; is_present: boolean; needs_family_modal: boolean };
 }
 
 // Pre-Check ob ein Einlass-Code frei ist (Migration 0025).

@@ -56,11 +56,14 @@ export async function authenticate(req: VercelRequest): Promise<AuthOk | AuthErr
   const service = createClient(supaUrl, serviceKey);
   const { data: member, error: memErr } = await service
     .from('members')
-    .select('id, auth_user_id, role, is_aufgieser, approved')
+    .select('id, auth_user_id, role, is_aufgieser, approved, revoked_at')
     .eq('auth_user_id', userData.user.id)
     .maybeSingle();
   if (memErr || !member) return { ok: false, status: 403, error: 'no member record' };
   if (!member.approved) return { ok: false, status: 403, error: 'not approved' };
+  // Gesperrte Mitglieder (Admin → „Sperren" setzt revoked_at) verlieren jeden
+  // Zugang — vorher behielt ein gesperrter Admin alle Rechte (Audit 24.09.2026).
+  if (member.revoked_at) return { ok: false, status: 403, error: 'revoked' };
 
   return { ok: true, member: member as AuthedMember, service };
 }

@@ -114,6 +114,13 @@ export default function Scanner() {
         showToast({ kind: 'err', text: 'PIN muss 4 Ziffern haben.' });
         return;
       }
+      if (msg.includes('zu_viele_fehlversuche') || msg.includes('too_many_requests')) {
+        setLockedUntil(Date.now() + LOCKOUT_MS);
+        setAttempts(0);
+        setCodeInput('');
+        showToast({ kind: 'err', text: 'Zu viele Fehlversuche an diesem Eingang. Bitte kurz warten.' });
+        return;
+      }
       if (msg.includes('unknown_or_revoked')) {
         const newAttempts = attempts + 1;
         if (newAttempts >= MAX_ATTEMPTS) {

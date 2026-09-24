@@ -51,11 +51,11 @@ function fmtClock(iso: string): string {
 }
 
 // ─── Zugang ──────────────────────────────────────────────────────────────
-// Telegram-Updates: Ist TELEGRAM_WEBHOOK_SECRET gesetzt, muss jedes Update es
-// mitbringen — im Header X-Telegram-Bot-Api-Secret-Token (so schickt Telegram
-// es, wenn ?reregister=1 den Webhook mit secret_token registriert hat) oder
-// übergangsweise als ?secret= aus einer älteren Registrierung. Ohne gesetztes
-// Geheimnis nimmt der Webhook Updates wie bisher ungeprüft an und warnt im Log.
+// Telegram-Updates: jedes Update muss TELEGRAM_WEBHOOK_SECRET im Header
+// X-Telegram-Bot-Api-Secret-Token mitbringen (so schickt Telegram es, seit
+// ?reregister=1 den Webhook mit secret_token registriert hat — 25.09.2026).
+// Fehlt die Env, wird abgelehnt (fail closed). Neues Geheimnis: siehe
+// docs/TECHNICAL_OVERVIEW.md §13.3 (setzen → deployen → sofort reregister).
 // Die Prüfung sitzt bewusst NUR am Update-Pfad: Cron-Hooks, Diagnose und der
 // Handbuch-Broadcast haben eigene Zugänge (vorher galt sie für alles, ein
 // gesetztes Geheimnis hätte die Cron-Hooks ausgesperrt).
@@ -69,9 +69,13 @@ const WEBHOOK_GEHEIMNIS_FORMAT = /^[A-Za-z0-9_-]{32,256}$/;
 
 function telegramUpdateErlaubt(req: VercelRequest): boolean {
   const geheim = webhookGeheimnis();
-  if (!geheim) return true;
-  return geheimnisGleich(req.headers['x-telegram-bot-api-secret-token'], geheim)
-    || geheimnisGleich(req.query.secret, geheim);
+  // Seit 25.09.2026 ist das Geheimnis gesetzt und Pflicht (fail closed): fehlt
+  // es in der Umgebung, wird jedes Update abgelehnt statt ungeprüft angenommen.
+  if (!geheim) {
+    console.error('[telegram-webhook] TELEGRAM_WEBHOOK_SECRET fehlt — Update abgelehnt');
+    return false;
+  }
+  return geheimnisGleich(req.headers['x-telegram-bot-api-secret-token'], geheim);
 }
 
 // Diagnose + Neu-Registrierung: nur eingeloggte Admins (JWT) oder Server mit
@@ -229,9 +233,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Ab hier: Update von Telegram (siehe telegramUpdateErlaubt).
   if (!telegramUpdateErlaubt(req)) return res.status(401).end();
-  if (!webhookGeheimnis()) {
-    console.warn('[telegram-webhook] TELEGRAM_WEBHOOK_SECRET fehlt — Update ungeprüft angenommen');
-  }
 
   const update = req.body as TelegramUpdate;
 

@@ -2,8 +2,15 @@
 // Default: Body { member_code: "<uuid>" } — Mitglieder-QR-Scanner
 // ?action=pin-checkin: Body { pin: "1234" } — Sauna-Tablet PIN-Checkin
 // ?action=tablet-signup: Body { name, email, dsgvo, ref?, origin? } — Schnell-Signup am Tablet
+// ?action=pin-toggle: Body { pin: "1234" } — Eingangs-Scanner (ein-/auschecken)
+//
+// Bremse (Migration 0173, 25.09.2026): Fehlversuche mit unbekannter PIN werden
+// je IP in der Datenbank gezählt (kiosk_versuche) — Treffer bremsen nie, damit
+// der Eingang am Saunafest nicht stockt. Die Speicher-Bremse unten bleibt als
+// grobe erste Stufe.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { authenticate } from './_auth.js';
 import { getBrandSettings, logEmailSend, sendSystemMail } from './_email_helpers.js';
@@ -26,10 +33,48 @@ function isRateLimited(ip: string, max = 10): boolean {
   return false;
 }
 
+// Client-IP laut Vercel: x-real-ip bzw. der erste Eintrag von x-forwarded-for
+// werden von Vercel gesetzt und lassen sich vom Client nicht vorgeben.
+function clientIp(req: VercelRequest): string {
+  const real = req.headers['x-real-ip'];
+  const r = Array.isArray(real) ? real[0] : real;
+  if (r && r.trim()) return r.trim();
+  return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown';
+}
+
+// Datenbank-Bremse (0173). Grenzen: unbekannte PINs je IP; Anmeldungen je IP;
+// Anmelde-Mails an ein bestehendes Konto je E-Mail (als sha256, nie im Klartext).
+const PIN_FEHL_MAX = 8;
+const PIN_FEHL_FENSTER_S = 15 * 60;
+const SIGNUP_MAX = 30;
+const SIGNUP_FENSTER_S = 60 * 60;
+const SIGNUP_MAIL_FENSTER_S = 10 * 60;
+
+async function gebremst(admin: SupabaseClient, art: string, schluessel: string, max: number, fensterS: number): Promise<boolean> {
+  const { data, error } = await admin.rpc('kiosk_gesperrt', {
+    p_art: art, p_schluessel: schluessel, p_max: max, p_fenster_sekunden: fensterS,
+  });
+  if (error) {
+    // Lieber durchlassen als den Eingang lahmlegen — die Speicher-Bremse greift weiter.
+    console.error('[qr-signin] kiosk_gesperrt fehlgeschlagen', error.code ?? '');
+    return false;
+  }
+  return data === true;
+}
+
+async function versuchMerken(admin: SupabaseClient, art: string, schluessel: string): Promise<void> {
+  const { error } = await admin.rpc('kiosk_versuch_merken', { p_art: art, p_schluessel: schluessel });
+  if (error) console.error('[qr-signin] kiosk_versuch_merken fehlgeschlagen', error.code ?? '');
+}
+
+function emailSchluessel(email: string): string {
+  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? 'unknown';
+  const ip = clientIp(req);
   if (isRateLimited(ip)) return res.status(429).json({ error: 'too_many_requests' });
 
   const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -39,9 +84,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const admin = createClient(supaUrl, serviceKey, { auth: { persistSession: false } });
   const action = String(req.query.action ?? '');
 
-  if (action === 'pin-checkin') return handlePinCheckin(req, res, admin);
-  if (action === 'kiosk-rate') return handleKioskRate(req, res, admin);
-  if (action === 'tablet-signup') return handleTabletSignup(req, res, admin);
+  if (action === 'pin-checkin') return handlePinCheckin(req, res, admin, ip);
+  if (action === 'pin-toggle') return handlePinToggle(req, res, admin, ip);
+  if (action === 'kiosk-rate') return handleKioskRate(req, res, admin, ip);
+  if (action === 'tablet-signup') return handleTabletSignup(req, res, admin, ip);
   if (action === 'resend-access') return handleResendAccess(req, res, admin);
 
   // Default: Mitglieder-QR-Scanner mit UUID member_code
@@ -99,13 +145,18 @@ async function handlePinCheckin(
   req: VercelRequest,
   res: VercelResponse,
   admin: SupabaseClient,
+  ip: string,
 ) {
   const pin = String(req.body?.pin ?? '').trim();
   if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
+  if (await gebremst(admin, 'pin_fehl', ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) {
+    return res.status(429).json({ error: 'zu_viele_fehlversuche' });
+  }
 
   const { data: rows, error } = await admin.rpc('kiosk_checkin', { p_pin: pin });
   if (error) {
     if (error.message?.includes('pin_unbekannt')) {
+      await versuchMerken(admin, 'pin_fehl', ip);
       return res.status(404).json({ error: 'pin_unknown' });
     }
     return res.status(500).json({ error: error.message });
@@ -122,14 +173,59 @@ async function handlePinCheckin(
   });
 }
 
+// ─── Eingangs-Scanner: PIN ein-/auschecken ────────────────────────────────
+// Vorher rief /scanner toggle_presence_by_checkin_pin direkt über PostgREST
+// mit dem öffentlichen anon-Key auf — ohne Bremse, alle 72 PINs waren mit
+// 10.000 Versuchen zu finden. Jetzt nur noch hier (service_role, 0174 sperrt
+// den direkten Weg).
+async function handlePinToggle(
+  req: VercelRequest,
+  res: VercelResponse,
+  admin: SupabaseClient,
+  ip: string,
+) {
+  const pin = String(req.body?.pin ?? '').trim();
+  if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin_format' });
+  if (await gebremst(admin, 'pin_fehl', ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) {
+    return res.status(429).json({ error: 'zu_viele_fehlversuche' });
+  }
+
+  const { data, error } = await admin.rpc('toggle_presence_by_checkin_pin', { p_pin: pin });
+  if (error) {
+    if (error.code === 'P0002' || error.message?.includes('unknown_or_revoked')) {
+      await versuchMerken(admin, 'pin_fehl', ip);
+      return res.status(404).json({ error: 'unknown_or_revoked' });
+    }
+    if (error.message?.includes('invalid_pin_format')) return res.status(400).json({ error: 'invalid_pin_format' });
+    console.error('[qr-signin] pin-toggle', error.code ?? '');
+    return res.status(500).json({ error: 'checkin_fehlgeschlagen' });
+  }
+  const r = (Array.isArray(data) ? data[0] : data) as
+    { member_id?: string; name?: string; is_present?: boolean; needs_family_modal?: boolean } | null;
+  if (!r?.member_id) {
+    await versuchMerken(admin, 'pin_fehl', ip);
+    return res.status(404).json({ error: 'unknown_or_revoked' });
+  }
+  return res.status(200).json({
+    member_id: r.member_id,
+    name: r.name ?? '',
+    is_present: !!r.is_present,
+    needs_family_modal: !!r.needs_family_modal,
+  });
+}
+
 // ─── Bewerten am Tablet ───────────────────────────────────────────────────
 async function handleKioskRate(
   req: VercelRequest,
   res: VercelResponse,
   admin: SupabaseClient,
+  ip: string,
 ) {
   const pin = String(req.body?.pin ?? '').trim();
   if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
+  if (await gebremst(admin, 'pin_fehl', ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) {
+    return res.status(429).json({ error: 'zu_viele_fehlversuche' });
+  }
 
   const b = req.body ?? {};
   const note = (v: unknown) => {
@@ -155,6 +251,7 @@ async function handleKioskRate(
     p_comment: typeof b.comment === 'string' ? b.comment.slice(0, 500) : null,
   });
   if (error) return res.status(500).json({ error: error.message });
+  if (data === 'pin_unbekannt') await versuchMerken(admin, 'pin_fehl', ip);
   if (data !== 'ok') return res.status(400).json({ error: String(data) });
 
   // Frische Liste zurückgeben — nach dem Speichern ist mindestens eine
@@ -173,17 +270,29 @@ async function handleTabletSignup(
   req: VercelRequest,
   res: VercelResponse,
   admin: SupabaseClient,
+  ip: string,
 ) {
   const { name, email, dsgvo, ref } = req.body as {
     name?: string; email?: string; dsgvo?: boolean; ref?: string;
   };
-  const cleanName = (name ?? '').trim();
+  const cleanName = (name ?? '').trim().slice(0, 80);
   const cleanEmail = (email ?? '').trim().toLowerCase();
   if (!cleanName || cleanName.length < 2) return res.status(400).json({ error: 'name_required' });
-  if (!cleanEmail.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 254) {
+    return res.status(400).json({ error: 'valid_email_required' });
+  }
   if (!dsgvo) return res.status(400).json({ error: 'dsgvo_required' });
 
-  // Prüfen ob Email bereits einen Account hat → in dem Fall PIN ausgeben.
+  // Bremse je IP: der Endpunkt legt Konten an und verschickt Mails — ohne
+  // Anmeldung. 30 je Stunde reichen auch für einen vollen Saunafest-Eingang.
+  if (await gebremst(admin, 'signup', ip, SIGNUP_MAX, SIGNUP_FENSTER_S)) {
+    return res.status(429).json({ error: 'zu_viele_anmeldungen' });
+  }
+  await versuchMerken(admin, 'signup', ip);
+
+  // Prüfen ob die E-Mail schon ein Konto hat. Dann gibt es die PIN NICHT am
+  // Bildschirm (sonst bekäme jeder, der eine Mitglieds-E-Mail kennt, deren
+  // PIN — Befund 24.09.2026), sondern nur per Mail an die hinterlegte Adresse.
   // listUsers ist paginiert (Default 50!) — ohne Loop würde ab User 51 die
   // Wiederanmeldung eines Bestands-Gasts fehlschlagen (createUser → email exists).
   let existing: User | undefined;
@@ -195,33 +304,30 @@ async function handleTabletSignup(
     if (existing || users.length < 500) break;
   }
   if (existing) {
-    // Existierenden Member-PIN ausgeben
     const { data: memberRow } = await admin
       .from('members')
-      .select('id, checkin_pin, name, role')
+      .select('id, checkin_pin, name, email, revoked_at')
       .eq('auth_user_id', existing.id)
       .maybeSingle();
-    if (memberRow && memberRow.checkin_pin) {
-      // Wer am Tablet steht, ist da — dieselbe Anwesenheits-Wirkung wie beim
-      // PIN-Checkin, sonst gilt der Tag nicht als Besuch und es lässt sich
-      // nichts bewerten (Migration 0082).
-      await markPresent(admin, memberRow.id);
-      const mailSent = await sendGastAccessMail(admin, {
-        memberId: memberRow.id,
-        email: cleanEmail,
-        name: memberRow.name,
-        pin: memberRow.checkin_pin,
-        isReturning: true,
-      });
-      return res.status(200).json({
-        existing: true,
-        pin: memberRow.checkin_pin,
-        name: memberRow.name,
-        role: memberRow.role,
-        mailSent,
-        bewertbar: await ladeBewertbar(admin, memberRow.checkin_pin),
-      });
+    // Kein Einchecken und keine PIN ohne PIN-Nachweis: die Person bekommt ihre
+    // Zugangsdaten per Mail und checkt danach wie alle mit der PIN ein.
+    // Höchstens eine Mail je Konto in 10 Minuten (sonst Mail-Bombe per Tablet).
+    let mailSent = true;
+    if (memberRow && memberRow.checkin_pin && !memberRow.revoked_at) {
+      const mailKey = emailSchluessel(cleanEmail);
+      if (!(await gebremst(admin, 'signup_mail', mailKey, 1, SIGNUP_MAIL_FENSTER_S))) {
+        await versuchMerken(admin, 'signup_mail', mailKey);
+        mailSent = await sendGastAccessMail(admin, {
+          memberId: memberRow.id,
+          // Adresse aus der Datenbank, nicht aus dem Formular.
+          email: (memberRow.email ?? cleanEmail).trim().toLowerCase(),
+          name: memberRow.name,
+          pin: memberRow.checkin_pin,
+          isReturning: true,
+        });
+      }
     }
+    return res.status(200).json({ existing: true, mailSent });
   }
 
   // Neuen Auth-User erstellen mit signup_kind=gast Metadata (Trigger generiert PIN)
