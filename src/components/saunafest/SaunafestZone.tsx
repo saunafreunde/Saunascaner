@@ -27,6 +27,7 @@ import { ZeitraumFormular } from '@/components/saunafest/ZeitraumFormular';
 import { Tagesuebersicht } from '@/components/saunafest/Tagesuebersicht';
 import { FestPlanAnsicht, type FestAufguss } from '@/components/saunafest/FestPlanAnsicht';
 import { MeineFestAufguesse } from '@/components/saunafest/MeineFestAufguesse';
+import { MeldeschlussTimer, meldeschlussStand, restzeitKurz, useJetzt } from '@/components/saunafest/Meldeschluss';
 import type { Infusion, Sauna } from '@/types/database';
 
 // Datum/Uhrzeit in Lokalzeit des Geräts (Berlin) — wie SaunafestTab/Planner.
@@ -58,6 +59,8 @@ export function SaunafestZone({ member, isAdmin }: { member: Member; isAdmin: bo
   const infusionsQ = useInfusions();
   const location = useLocation();
   const qc = useQueryClient();
+  // Meldeschluss-Countdown (0167) — tickt alle 20 s, nur wo die Zone überhaupt gilt.
+  const uhr = useJetzt(darf);
 
   const heute = lokalDatum(new Date());
   const feste = useMemo(() => (festeQ.data ?? []).filter((f) => f.datum >= heute), [festeQ.data, heute]);
@@ -97,9 +100,12 @@ export function SaunafestZone({ member, isAdmin }: { member: Member; isAdmin: bo
     !infosDa ? 0
       : (meineBestaetigt.get(datum) ?? []).filter((a) => !mitInfos.has(a.inf.id) && new Date(a.inf.end_time).getTime() > jetzt).length;
   const infosFehlenGesamt = feste.reduce((n, f) => n + infosFehlenAm(f.datum), 0);
-  // „Zeitraum fehlt" nur fürs nächste Fest und nur, solange der Plan Entwurf ist.
+  // „Zeitraum fehlt" nur fürs nächste Fest, solange der Plan Entwurf ist und
+  // der Meldeschluss noch nicht vorbei — danach kann man ohnehin nichts mehr tun.
   const naechstes = feste[0] ?? null;
-  const zeitraumFehlt = !!naechstes && !naechstes.plan_bestaetigt_at && zeitraeumeQ.isSuccess && !meineZeitraeume.has(naechstes.datum);
+  const naechstesStand = meldeschlussStand(naechstes, uhr);
+  const zeitraumFehlt = !!naechstes && !naechstes.plan_bestaetigt_at && !naechstesStand.vorbei
+    && zeitraeumeQ.isSuccess && !meineZeitraeume.has(naechstes.datum);
 
   const sichtbar = darf && !!fest;
   // Ohne Saunen bleibt die Zone sonst für immer bei „Lade …“ (schwaches Netz im Saunabereich).
@@ -129,13 +135,16 @@ export function SaunafestZone({ member, isAdmin }: { member: Member; isAdmin: bo
   }, [sichtbar, location.hash, location.key]);
 
   if (!sichtbar || !fest) return null;
+  const festStand = meldeschlussStand(fest, uhr);
 
   const badge = infosFehlenGesamt > 0 ? (
     <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums">
       Infos fehlen{infosFehlenGesamt > 1 ? ` (${infosFehlenGesamt})` : ''}
     </span>
   ) : zeitraumFehlt ? (
-    <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-amber-950">Zeitraum fehlt</span>
+    <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-amber-950 tabular-nums">
+      Zeitraum fehlt{Number.isFinite(naechstesStand.restMs) ? ` · noch ${restzeitKurz(naechstesStand.restMs)}` : ''}
+    </span>
   ) : fest.plan_bestaetigt_at ? (
     <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 ring-1 ring-emerald-500/40">Plan steht</span>
   ) : meineZeitraeume.has(fest.datum) ? (
@@ -179,6 +188,14 @@ export function SaunafestZone({ member, isAdmin }: { member: Member; isAdmin: bo
         )}
         <p className="text-[11px] leading-relaxed text-amber-200/80">🔥 {festAblaufText(fest)}</p>
 
+        {/* Meldeschluss (0167): sofort sehen, ob und bis wann man noch Rückmeldung geben kann. */}
+        <MeldeschlussTimer
+          stand={festStand}
+          eingetragen={meineZeitraeume.has(fest.datum)}
+          bestaetigt={!!fest.plan_bestaetigt_at}
+          istAdmin={isAdmin}
+        />
+
         {isAdmin && <AdminLeiste fest={fest} />}
 
         {!saunasQ.data || !zeitraeumeQ.isSuccess ? (
@@ -210,6 +227,7 @@ export function SaunafestZone({ member, isAdmin }: { member: Member; isAdmin: bo
             onInfosNeuLaden={() => { void infosQ.refetch(); }}
             memberId={member.id}
             isAdmin={isAdmin}
+            gesperrt={festStand.vorbei && !isAdmin}
           />
         )}
       </div>
@@ -241,7 +259,7 @@ function AdminLeiste({ fest }: { fest: SaunafestTag }) {
 
 // ── Inhalt je Fest (key = Datum → Zustand setzt sich beim Festwechsel zurück) ─
 function FestBereich({
-  fest, saunas, eigener, festAufguesse, meine, mitInfos, infosGeladen, infosFehler, onInfosNeuLaden, memberId, isAdmin,
+  fest, saunas, eigener, festAufguesse, meine, mitInfos, infosGeladen, infosFehler, onInfosNeuLaden, memberId, isAdmin, gesperrt,
 }: {
   fest: SaunafestTag;
   saunas: Sauna[];
@@ -255,8 +273,11 @@ function FestBereich({
   onInfosNeuLaden: () => void;
   memberId: string;
   isAdmin: boolean;
+  /** Meldeschluss vorbei (und kein Admin): nichts mehr eintragen, ändern oder austragen. */
+  gesperrt: boolean;
 }) {
-  const [bearbeiten, setBearbeiten] = useState(false);
+  const [bearbeitenGewuenscht, setBearbeiten] = useState(false);
+  const bearbeiten = bearbeitenGewuenscht && !gesperrt;
   const [uebersichtOffen, setUebersichtOffen] = useState(false);
   const bestaetigt = !!fest.plan_bestaetigt_at;
 
@@ -287,12 +308,18 @@ function FestBereich({
       zeitraum={eigener}
       saunas={saunas}
       bestaetigt={bestaetigt}
+      gesperrt={gesperrt}
       onAendern={() => setBearbeiten(true)}
     />
   );
 
   // ── Entwurf: Formular bzw. Zusammenfassung + Tagesübersicht ─────────────
   if (!bestaetigt) {
+    // Nach dem Meldeschluss ohne Eintrag: kein Formular mehr (der Countdown
+    // oben sagt schon, dass nur noch der Admin weiterhilft) — nur die Übersicht.
+    if (!eigener && gesperrt) {
+      return <Tagesuebersicht datum={fest.datum} saunen={saunas} eigenerZeitraum={null} />;
+    }
     if (!eigener || bearbeiten) return formular;
     return (
       <div className="space-y-4">
@@ -319,7 +346,7 @@ function FestBereich({
         zeitraumEingetragen={!!eigener}
       />
 
-      {bearbeiten ? formular : eigener ? zusammenfassung : (
+      {bearbeiten ? formular : eigener ? zusammenfassung : gesperrt ? null : (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-forest-950/50 px-3 py-2 ring-1 ring-forest-800/50">
           <span className="text-xs text-forest-300/90">Der Plan steht. Du hast doch noch Zeit?</span>
           <button
@@ -357,11 +384,12 @@ function FestBereich({
 // ── „✓ Eingetragen – du hättest Zeit: 14:30–19:30 · Lieblingssauna Kelo · höchstens 2 · Hinweis: …" ─
 // Bewusst NICHT „Du bist dabei“: so heißt es in der Nachricht nach „Plan
 // bestätigen“ nur für die tatsächlich Eingeteilten (0164).
-function ZeitraumZusammenfassung({ fest, zeitraum, saunas, bestaetigt, onAendern }: {
+function ZeitraumZusammenfassung({ fest, zeitraum, saunas, bestaetigt, gesperrt, onAendern }: {
   fest: SaunafestTag;
   zeitraum: SaunafestZeitraum;
   saunas: Sauna[];
   bestaetigt: boolean;
+  gesperrt: boolean;
   onAendern: () => void;
 }) {
   const loeschen = useSaunafestZeitraumLoeschen();
@@ -400,7 +428,7 @@ function ZeitraumZusammenfassung({ fest, zeitraum, saunas, bestaetigt, onAendern
           {fehler}
         </p>
       )}
-      <div className="mt-2 flex gap-2">
+      {!gesperrt && <div className="mt-2 flex gap-2">
         <button
           type="button"
           onClick={onAendern}
@@ -417,7 +445,7 @@ function ZeitraumZusammenfassung({ fest, zeitraum, saunas, bestaetigt, onAendern
         >
           {loeschen.isPending ? 'Trägt aus …' : 'Austragen'}
         </button>
-      </div>
+      </div>}
     </div>
   );
 }

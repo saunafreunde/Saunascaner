@@ -838,7 +838,21 @@ export type SaunafestTag = {
   /** Migration 0163: gesetzt, sobald der Admin den Plan bestätigt hat — vorher ist alles Entwurf. */
   plan_bestaetigt_at: string | null;
   plan_bestaetigt_von: string | null;
+  /** Migration 0167: bis dahin dürfen Mitglieder ihren Zeitraum eintragen/ändern (Standard: Do vorher, 18:00). */
+  meldeschluss: string | null;
 };
+
+/** Admin: Meldeschluss eines Fests verschieben (0167). */
+export function useSaunafestMeldeschlussAendern() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { datum: string; meldeschluss: string }) => {
+      const { error } = await need().rpc('saunafest_meldeschluss_aendern', { p_datum: p.datum, p_meldeschluss: p.meldeschluss });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['saunafest-tage'] }),
+  });
+}
 
 export function useSaunafestTage() {
   return useQuery({

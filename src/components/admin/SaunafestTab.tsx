@@ -31,6 +31,7 @@ import { festSlots, festZeiten, festSlotOffen, festAblaufText, hhmm, type FestSl
 import { einteilungsVorschlag, kandidaten, hatZeit, type Einteilung, type Zeitfenster } from '@/lib/saunafestEinteilung';
 import { VideoVorschau, type VideoStand } from '@/components/saunafest/VideoVorschau';
 import { FestAufgussInfoDialog } from '@/components/saunafest/FestAufgussInfoDialog';
+import { MeldeschlussAdmin } from '@/components/saunafest/Meldeschluss';
 import { Portal } from '@/components/Portal';
 import type { Infusion, Sauna } from '@/types/database';
 
@@ -505,6 +506,11 @@ export function SaunafestTab() {
                 Der Plan ist bestätigt: Wer jetzt eingeteilt oder ausgeteilt wird, bekommt sofort eine Nachricht.
               </p>
             )}
+
+            {/* Meldeschluss (0167): Standard Do vorher 18:00, hier verschiebbar. */}
+            <div className="mt-3">
+              <MeldeschlussAdmin key={`${fest.datum}-${fest.meldeschluss ?? ''}`} fest={fest} />
+            </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button
