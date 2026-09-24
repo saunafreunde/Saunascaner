@@ -11,6 +11,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import { cronBearerOk, cronSecretFehlt } from './_cron.js';
 
 interface RatingReminder {
   member_id: string;
@@ -29,11 +30,11 @@ interface PushSub {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Optional Cron-Schutz
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = req.headers.authorization ?? '';
-    if (auth !== `Bearer ${cronSecret}`) return res.status(401).json({ error: 'unauthorized' });
+  // Cron-Schutz, fail closed (api/_cron.ts): pg_cron „push-reminder-30min"
+  // schickt Authorization: Bearer aus dem Vault-Eintrag cron_secret (0168).
+  if (!cronBearerOk(req)) {
+    if (cronSecretFehlt()) console.error('[push-reminder-cron] abgelehnt: CRON_SECRET fehlt oder ist zu kurz');
+    return res.status(401).json({ error: 'unauthorized' });
   }
 
   const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;

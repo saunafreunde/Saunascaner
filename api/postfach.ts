@@ -14,14 +14,16 @@
 // Geteiltes Postfach (Migration 0080): zusätzlicher Query-Param `account=<uuid>` oder
 // Body-Feld `account_id`. Backend prüft shared_email_admins-Membership.
 //
-// Cron-only:
-//   GET /api/postfach?action=poll-shared-tickets  (Header X-Cron-Secret)
+// Ticket-Polling:
+//   GET /api/postfach?action=poll-shared-tickets  (JWT eines Shared-Inbox-Admins
+//   oder Header x-cron-secret; derzeit ruft kein Cron-Job diesen Weg auf)
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
 import { authenticate } from './_auth.js';
+import { cronHeaderOk } from './_cron.js';
 import { makeServiceClient } from './_email_helpers.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -115,9 +117,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Vorher lief der Handler vor jeder Auth und war ohne gesetztes CRON_SECRET
   // komplett offen → anonymer, teurer IMAP-Poll-DoS gegen alle Shared-Accounts.
   if (action === 'poll-shared-tickets') {
-    const cronSecret = process.env.CRON_SECRET;
-    const got = req.headers['x-cron-secret'] ?? req.query.cron_secret;
-    if (cronSecret && got === cronSecret) {
+    // Nur noch der Header zählt (zeitkonstant, api/_cron.ts). Der frühere
+    // Query-Parameter ?cron_secret= ist weg: er hatte keinen Aufrufer und hätte
+    // das Geheimnis in URL-Logs getragen.
+    if (cronHeaderOk(req)) {
       return await handlePollSharedTickets(req, res);
     }
     const cronAuth = await authenticate(req);

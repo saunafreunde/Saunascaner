@@ -11,13 +11,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import webpush from 'web-push';
 import { serviceClient } from './_auth.js';
+import { cronBearerOk, cronSecretFehlt } from './_cron.js';
 import { tgBroadcast } from './_telegram.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = req.headers.authorization ?? '';
-    if (auth !== `Bearer ${cronSecret}`) return res.status(401).json({ error: 'unauthorized' });
+  // Cron-Schutz, fail closed (api/_cron.ts): der Vercel-Cron schickt bei
+  // gesetztem CRON_SECRET selbst „Authorization: Bearer <CRON_SECRET>".
+  if (!cronBearerOk(req)) {
+    if (cronSecretFehlt()) console.error('[birthday-cron] abgelehnt: CRON_SECRET fehlt oder ist zu kurz');
+    return res.status(401).json({ error: 'unauthorized' });
   }
 
   const token = process.env.TELEGRAM_BOT_TOKEN;

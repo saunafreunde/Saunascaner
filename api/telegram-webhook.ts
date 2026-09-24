@@ -12,6 +12,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getBrandSettings } from './_email_helpers.js';
+import { authenticate } from './_auth.js';
+import { cronHeaderOk, cronSecretFehlt, geheimnisGleich } from './_cron.js';
 
 const TG_API = (token: string) => `https://api.telegram.org/bot${token}`;
 
@@ -48,10 +50,54 @@ function fmtClock(iso: string): string {
   return new Date(iso).toLocaleString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (secret && req.query.secret !== secret) return res.status(401).end();
+// ─── Zugang ──────────────────────────────────────────────────────────────
+// Telegram-Updates: Ist TELEGRAM_WEBHOOK_SECRET gesetzt, muss jedes Update es
+// mitbringen — im Header X-Telegram-Bot-Api-Secret-Token (so schickt Telegram
+// es, wenn ?reregister=1 den Webhook mit secret_token registriert hat) oder
+// übergangsweise als ?secret= aus einer älteren Registrierung. Ohne gesetztes
+// Geheimnis nimmt der Webhook Updates wie bisher ungeprüft an und warnt im Log.
+// Die Prüfung sitzt bewusst NUR am Update-Pfad: Cron-Hooks, Diagnose und der
+// Handbuch-Broadcast haben eigene Zugänge (vorher galt sie für alles, ein
+// gesetztes Geheimnis hätte die Cron-Hooks ausgesperrt).
+/** TELEGRAM_WEBHOOK_SECRET ohne Leerraum/BOM (eine PowerShell-Pipe setzt gern ein BOM davor). */
+function webhookGeheimnis(): string {
+  return (process.env.TELEGRAM_WEBHOOK_SECRET ?? '').trim();
+}
 
+/** Telegram erlaubt für secret_token nur A-Z a-z 0-9 _ - (1–256 Zeichen); wir verlangen mindestens 32. */
+const WEBHOOK_GEHEIMNIS_FORMAT = /^[A-Za-z0-9_-]{32,256}$/;
+
+function telegramUpdateErlaubt(req: VercelRequest): boolean {
+  const geheim = webhookGeheimnis();
+  if (!geheim) return true;
+  return geheimnisGleich(req.headers['x-telegram-bot-api-secret-token'], geheim)
+    || geheimnisGleich(req.query.secret, geheim);
+}
+
+// Diagnose + Neu-Registrierung: nur eingeloggte Admins (JWT) oder Server mit
+// x-cron-secret (z. B. pg_net aus der Datenbank). Vorher offen für jeden.
+async function adminOderCron(req: VercelRequest): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (cronHeaderOk(req)) return { ok: true };
+  if (!req.headers.authorization) return { ok: false, status: 401, error: 'admin login required' };
+  const auth = await authenticate(req);
+  if (!auth.ok) return { ok: false, status: auth.status, error: auth.error };
+  if (auth.member.role !== 'admin') return { ok: false, status: 403, error: 'admin only' };
+  return { ok: true };
+}
+
+/** Webhook-URL ohne Query — eine alte Registrierung trug das Geheimnis als ?secret=. */
+function ohneQuery(url: unknown): unknown {
+  return typeof url === 'string' ? url.split('?')[0] : url;
+}
+
+/** getWebhookInfo-Antwort mit maskierter URL (auch Admins sehen das Geheimnis nie). */
+function webhookInfoMaskiert(info: unknown): unknown {
+  const i = info as { result?: { url?: unknown } } | null;
+  if (!i || typeof i !== 'object' || !i.result || typeof i.result !== 'object') return info;
+  return { ...i, result: { ...i.result, url: ohneQuery(i.result.url) } };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,34 +106,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const sb = createClient(supaUrl, serviceKey);
 
   // GET ?diag=1 → Telegram-Webhook-Diagnose (Bot-Info + Webhook-Status + letzte Fehler)
-  // Aufruf direkt im Browser: /api/telegram-webhook?diag=1
-  // Liefert:
+  // Nur Admin (Authorization: Bearer <JWT>) oder x-cron-secret — ein bloßer
+  // Browser-Link genügt nicht mehr. Liefert:
   //   - getMe: Bot-Username + ID (Token-Validität)
-  //   - getWebhookInfo: aktuell registrierte URL + pending_update_count +
+  //   - getWebhookInfo: registrierte URL (ohne Query) + pending_update_count +
   //     last_error_date + last_error_message + max_connections
+  //   - geheimnis_aktiv: ob TELEGRAM_WEBHOOK_SECRET gesetzt ist (nie der Wert)
   // Wenn last_error_message gesetzt ist oder url leer → Webhook ist defekt.
   if (req.method === 'GET' && req.query.diag === '1') {
+    const zugang = await adminOderCron(req);
+    if (!zugang.ok) return res.status(zugang.status).json({ error: zugang.error });
     const [meRes, whRes] = await Promise.all([
-      fetch(`${TG_API(token)}/getMe`).then((r) => r.json()).catch((e) => ({ error: String(e) })),
-      fetch(`${TG_API(token)}/getWebhookInfo`).then((r) => r.json()).catch((e) => ({ error: String(e) })),
+      fetch(`${TG_API(token)}/getMe`).then((r) => r.json()).catch(() => ({ error: 'getMe fehlgeschlagen' })),
+      fetch(`${TG_API(token)}/getWebhookInfo`).then((r) => r.json()).catch(() => ({ error: 'getWebhookInfo fehlgeschlagen' })),
     ]);
     return res.status(200).json({
       bot: meRes,
-      webhook: whRes,
+      webhook: webhookInfoMaskiert(whRes),
+      geheimnis_aktiv: !!webhookGeheimnis(),
+      geheimnis_format_ok: !webhookGeheimnis() || WEBHOOK_GEHEIMNIS_FORMAT.test(webhookGeheimnis()),
       expected_url: `${process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app'}/api/telegram-webhook`,
-      hint: 'Wenn webhook.result.url leer oder ungleich expected_url → /api/telegram-webhook?reregister=1 aufrufen.',
+      hint: 'Wenn webhook.result.url leer oder ungleich expected_url → ?reregister=1 aufrufen (ebenfalls nur als Admin oder mit x-cron-secret).',
     });
   }
 
-  // GET ?reregister=1 → Webhook bei Telegram (neu) registrieren
-  // Liest TELEGRAM_WEBHOOK_SECRET aus Env und hängt es als ?secret=... an
-  // damit nur Telegram die URL hitten kann (sonst kann jeder die URL fluten).
+  // GET ?reregister=1 → Webhook bei Telegram (neu) registrieren. Zugang wie diag.
+  // Ist TELEGRAM_WEBHOOK_SECRET gesetzt, geht es als secret_token mit: Telegram
+  // schickt es dann bei jedem Update im Header X-Telegram-Bot-Api-Secret-Token.
+  // Die URL bleibt ohne Query — so taucht das Geheimnis weder in
+  // getWebhookInfo noch in Zugriffs-Logs auf.
   if (req.method === 'GET' && req.query.reregister === '1') {
+    const zugang = await adminOderCron(req);
+    if (!zugang.ok) return res.status(zugang.status).json({ error: zugang.error });
     const baseUrl = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
-    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-    const url = webhookSecret
-      ? `${baseUrl}/api/telegram-webhook?secret=${encodeURIComponent(webhookSecret)}`
-      : `${baseUrl}/api/telegram-webhook`;
+    const webhookSecret = webhookGeheimnis();
+    // Ungültiges Format → Telegram würde setWebhook ablehnen, die alte
+    // Registrierung bliebe ohne Header aktiv und jedes Update bekäme 401.
+    // Darum gar nicht erst registrieren (der Wert erscheint nie in der Antwort).
+    if (webhookSecret && !WEBHOOK_GEHEIMNIS_FORMAT.test(webhookSecret)) {
+      console.error('[telegram-webhook] reregister abgebrochen: TELEGRAM_WEBHOOK_SECRET braucht 32–256 Zeichen aus A-Z a-z 0-9 _ -');
+      return res.status(500).json({ error: 'TELEGRAM_WEBHOOK_SECRET hat ein ungültiges Format (erlaubt: A-Z a-z 0-9 _ -, 32–256 Zeichen)', geheimnis_aktiv: true });
+    }
+    const url = `${baseUrl}/api/telegram-webhook`;
     const setRes = await fetch(`${TG_API(token)}/setWebhook`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -95,16 +155,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         url,
         allowed_updates: ['message', 'callback_query'],
         drop_pending_updates: false,
+        ...(webhookSecret ? { secret_token: webhookSecret } : {}),
       }),
-    }).then((r) => r.json()).catch((e) => ({ ok: false, error: String(e) }));
+    }).then((r) => r.json()).catch(() => ({ ok: false, error: 'setWebhook fehlgeschlagen' }));
     const whInfo = await fetch(`${TG_API(token)}/getWebhookInfo`).then((r) => r.json()).catch(() => ({}));
-    return res.status(200).json({ set: setRes, webhook_now: whInfo, registered_url: url });
+    const setOk = !!setRes && typeof setRes === 'object' && (setRes as { ok?: unknown }).ok === true;
+    return res.status(setOk ? 200 : 502).json({
+      set: setRes,
+      webhook_now: webhookInfoMaskiert(whInfo),
+      registered_url: url,
+      geheimnis_aktiv: !!webhookSecret,
+    });
   }
 
   // GET ?announce=1 → Cron-Hook (Personal-Fallback-Announce)
+  // Beide Cron-Hooks verlangen x-cron-secret aus dem Vault (pg_cron, 0168/0169),
+  // fail closed über api/_cron.ts.
   if (req.method === 'GET' && req.query.announce === '1') {
-    const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && req.headers['x-cron-secret'] !== cronSecret) {
+    if (!cronHeaderOk(req)) {
+      if (cronSecretFehlt()) console.error('[telegram-webhook] announce abgelehnt: CRON_SECRET fehlt oder ist zu kurz');
       return res.status(401).json({ error: 'cron secret mismatch' });
     }
     const announced = await announceFallbacks(sb, token);
@@ -113,6 +182,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // GET ?rating_push=1 → Cron-Hook (Rating-Push 15 Min nach Aufguss-Ende)
   if (req.method === 'GET' && req.query.rating_push === '1') {
+    if (!cronHeaderOk(req)) {
+      if (cronSecretFehlt()) console.error('[telegram-webhook] rating_push abgelehnt: CRON_SECRET fehlt oder ist zu kurz');
+      return res.status(401).json({ error: 'cron secret mismatch' });
+    }
     const pushed = await sendRatingPushes(sb, token);
     return res.status(200).json({ ok: true, pushed });
   }
@@ -153,6 +226,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== 'POST') return res.status(405).end();
+
+  // Ab hier: Update von Telegram (siehe telegramUpdateErlaubt).
+  if (!telegramUpdateErlaubt(req)) return res.status(401).end();
+  if (!webhookGeheimnis()) {
+    console.warn('[telegram-webhook] TELEGRAM_WEBHOOK_SECRET fehlt — Update ungeprüft angenommen');
+  }
 
   const update = req.body as TelegramUpdate;
 

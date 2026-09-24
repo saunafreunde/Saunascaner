@@ -10,25 +10,11 @@
 //  - Cron-Aufruf (Server→Server): Header `x-cron-secret: <CRON_SECRET>` → unbeschränkt
 //    Fehlt CRON_SECRET in der Umgebung, gilt KEIN Aufruf als Cron (fail closed).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 import { authenticate } from './_auth.js';
+import { cronHeaderOk, cronSecretFehlt } from './_cron.js';
 import { tgBroadcast } from './_telegram.js';
-
-// Prüft den Header x-cron-secret zeitkonstant gegen CRON_SECRET. Beide Seiten
-// werden vorher gehasht, damit ungleiche Längen weder werfen noch auffallen.
-// Ohne (oder mit zu kurzem) CRON_SECRET ist das Ergebnis immer false.
-function cronSecretOk(req: VercelRequest): boolean {
-  const expected = process.env.CRON_SECRET ?? '';
-  if (expected.length < 32) return false;
-  const raw = req.headers['x-cron-secret'];
-  const got = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof got !== 'string' || got.length === 0) return false;
-  const a = createHash('sha256').update(got).digest();
-  const b = createHash('sha256').update(expected).digest();
-  return timingSafeEqual(a, b);
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cron-Action: process-queue — verarbeitet notification_queue,
@@ -59,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!title || !body) return res.status(400).json({ error: 'title + body required' });
 
   // Authorization
-  const isCron = cronSecretOk(req);
+  const isCron = cronHeaderOk(req);
 
   let sb;
   if (!isCron) {
@@ -128,8 +114,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function processQueue(req: VercelRequest, res: VercelResponse) {
   // Fail closed: ohne gesetztes CRON_SECRET oder mit falschem Header wird
   // abgelehnt. Vorher war der Endpunkt offen, solange CRON_SECRET fehlte.
-  if (!cronSecretOk(req)) {
-    if ((process.env.CRON_SECRET ?? '').length < 32) {
+  if (!cronHeaderOk(req)) {
+    if (cronSecretFehlt()) {
       console.error('[push-send] process-queue abgelehnt: CRON_SECRET fehlt oder ist kürzer als 32 Zeichen');
     }
     return res.status(401).json({ error: 'cron secret required' });

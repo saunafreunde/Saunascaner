@@ -176,8 +176,8 @@ export function useDeleteMessage(accountId?: string | null) {
 }
 
 // Trigger des Shared-Ticket-Pollings für sofortigen Refresh. Sendet das User-JWT mit —
-// das Backend verlangt einen eingeloggten Shared-Inbox-Admin (oder ein gültiges
-// CRON_SECRET). Ohne Auth-Header würde der Endpoint sonst anonymen IMAP-Poll-DoS erlauben.
+// das Backend verlangt einen eingeloggten Shared-Inbox-Admin (oder den Header
+// x-cron-secret). Ohne Auth-Header würde der Endpoint sonst anonymen IMAP-Poll-DoS erlauben.
 export async function pollSharedTickets(): Promise<{ ok: boolean; polled: number }> {
   try {
     const r = await fetch('/api/postfach?action=poll-shared-tickets', {

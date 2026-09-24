@@ -675,7 +675,7 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 - REPLICA IDENTITY FULL + Realtime
 
 **Workflow**:
-1. `email.ts`/`postfach.ts` Action `poll-shared-tickets` (Cron-only mit X-Cron-Secret-Header) macht IMAP-Pull → `email_ticket_upsert_from_inbound` (service_role-only RPC)
+1. `email.ts`/`postfach.ts` Action `poll-shared-tickets` (JWT eines `shared_email_admins`-Mitglieds oder Header `x-cron-secret`, zeitkonstant über `api/_cron.ts`; derzeit ruft ihn nur das Frontend) macht IMAP-Pull → `email_ticket_upsert_from_inbound` (service_role-only RPC)
 2. Bei INSERT oder Re-Open: notification_queue 'shared_email_inbound' an alle `shared_email_admins`
 3. Admin öffnet Ticket → `email_ticket_lock(p_force?)` mit 10-Min-Auto-Expire, Lock-Stealing möglich
 4. Antwort via SMTP → setzt automatisch Status='answered' + locked_by=NULL
@@ -688,12 +688,13 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 - HTML-Mail-Rendering mit dompurify + iframe-sandbox + Bild-Blocker
 - IMAP-Connect ~500ms, mit `refetchInterval` gecached
 
-**pg_cron**:
+**pg_cron** (NICHT aktiv — Vorlage, falls das Polling wieder per Cron laufen soll; ohne den Header antwortet der Endpunkt 401):
 ```sql
 SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
   SELECT net.http_post(
     url := 'https://saunascaner.vercel.app/api/postfach?action=poll-shared-tickets',
-    headers := jsonb_build_object('Content-Type','application/json'),
+    headers := jsonb_build_object('Content-Type','application/json',
+      'x-cron-secret', coalesce((select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret' limit 1), '')),
     body := '{}'::jsonb, timeout_milliseconds := 30000); $$);
 ```
 
@@ -939,7 +940,11 @@ Sensitive-Werte unter Vercel-Settings → Environment Variables:
 - `ANTHROPIC_API_KEY` (für `api/ai.ts`)
 - `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (für Web-Push)
 - `TELEGRAM_BOT_TOKEN` (für `api/telegram-webhook.ts`)
-- `CRON_SECRET` (für Cron-Endpoints; nur Production, sensitive). Derselbe Wert liegt im Supabase-Vault als `cron_secret` — die pg_cron-Jobs `process-notification-queue`, `telegram-announce-15min` und `push-reminder-30min` lesen ihn bei jedem Lauf von dort (0168); den Vercel-Cron `birthday-cron` versorgt Vercel selbst. Wechsel des Werts: siehe Kopf von Migration 0169.
+- `TELEGRAM_WEBHOOK_SECRET` (Stand 24.09.2026 NICHT gesetzt → Telegram-Updates werden ungeprüft angenommen, Log-Warnung je Update). Nur A-Z a-z 0-9 _ -, 32–256 Zeichen (Telegram-Vorgabe für `secret_token`; z. B. `secrets.token_hex(32)`, kein base64). Ist es gesetzt, wird ein Update nur angenommen, wenn es im Header `X-Telegram-Bot-Api-Secret-Token` steht (übergangsweise auch als `?secret=` einer alten Registrierung), sonst 401. `?diag=1` und `?reregister=1` nur als Admin (`Authorization: Bearer <JWT>`) oder mit `x-cron-secret`; die Webhook-URL wird dort immer ohne Query ausgegeben, `geheimnis_aktiv`/`geheimnis_format_ok` sind nur Booleans. reregister antwortet 502, wenn Telegram ablehnt, und 500 ohne Telegram-Aufruf, wenn das Format nicht passt.
+  - **Einschalten/Wechseln (nur nach Christophs OK, zu ruhiger Zeit):** 1. Wert lokal in eine Datei erzeugen, per stdin als sensitive Production-Env setzen (nicht per PowerShell-Pipe — BOM). 2. Per Push deployen — ab jetzt bekommen Updates 401. 3. SOFORT `?reregister=1` aufrufen; ohne Admin-Login z. B. aus der Datenbank: `select net.http_get(url := 'https://saunascaner.vercel.app/api/telegram-webhook?reregister=1', headers := jsonb_build_object('x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')))` und die Antwort in `net._http_response` lesen (`set.ok` = true, `geheimnis_aktiv` = true). 4. Mit `?diag=1` prüfen: `pending_update_count` sinkt, kein neues `last_error_date`. Updates aus dem Zeitfenster stellt Telegram nach (`drop_pending_updates: false`). Abbrechen: Env entfernen, neu deployen, reregister.
+  - **Als Admin im Browser:** in der eingeloggten App die Entwickler-Konsole öffnen: `const k=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token')); fetch('/api/telegram-webhook?diag=1',{headers:{Authorization:'Bearer '+JSON.parse(localStorage.getItem(k)).access_token}}).then(r=>r.json()).then(console.log)` — für die Neu-Registrierung `diag=1` durch `reregister=1` ersetzen.
+  - **Nur für den Server** (0170): die Telegram-RPCs `get_my_checkin_pin_by_telegram`, `get_pending_telegram_rating_pushes`, `get_personal_fallbacks_to_announce`, `mark_telegram_announced`, `mark_telegram_rating_pushed`, `register_telegram_chat`, `unregister_telegram_chat`, `telegram_announce_attendance` — vorher mit dem öffentlichen anon-Key aufrufbar (PIN-Leck).
+- `CRON_SECRET` (für Cron-Endpoints; nur Production, sensitive). Derselbe Wert liegt im Supabase-Vault als `cron_secret` — die pg_cron-Jobs `process-notification-queue`, `telegram-announce-15min`, `telegram-rating-pushes-5min` und `push-reminder-30min` lesen ihn bei jedem Lauf von dort (0168/0169); den Vercel-Cron `birthday-cron` versorgt Vercel selbst. Geprüft wird nur in `api/_cron.ts`: zeitkonstant, nur per Header, und ohne gesetztes CRON_SECRET lehnen alle Cron-Endpunkte ab. Wechsel des Werts: siehe Kopf von Migration 0169.
 
 ⚠️ **vercel.json env-Block ist Anti-Pattern**: Beschreibungs-„Defaults" landen 1:1 als Production-Env-Werte. Siehe `feedback_vercel_env_block_antipattern.md`.
 
