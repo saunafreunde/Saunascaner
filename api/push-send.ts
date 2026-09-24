@@ -8,11 +8,27 @@
 //      • Broadcast (kein/leer member_ids): nur Admin oder is_aufgieser (z.B. Evakuierung)
 //      • Beliebige andere Empfänger: nur Admin
 //  - Cron-Aufruf (Server→Server): Header `x-cron-secret: <CRON_SECRET>` → unbeschränkt
+//    Fehlt CRON_SECRET in der Umgebung, gilt KEIN Aufruf als Cron (fail closed).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 import { authenticate } from './_auth.js';
 import { tgBroadcast } from './_telegram.js';
+
+// Prüft den Header x-cron-secret zeitkonstant gegen CRON_SECRET. Beide Seiten
+// werden vorher gehasht, damit ungleiche Längen weder werfen noch auffallen.
+// Ohne (oder mit zu kurzem) CRON_SECRET ist das Ergebnis immer false.
+function cronSecretOk(req: VercelRequest): boolean {
+  const expected = process.env.CRON_SECRET ?? '';
+  if (expected.length < 32) return false;
+  const raw = req.headers['x-cron-secret'];
+  const got = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof got !== 'string' || got.length === 0) return false;
+  const a = createHash('sha256').update(got).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cron-Action: process-queue — verarbeitet notification_queue,
@@ -43,9 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!title || !body) return res.status(400).json({ error: 'title + body required' });
 
   // Authorization
-  const cronSecret = process.env.CRON_SECRET;
-  const cronHeader = req.headers['x-cron-secret'];
-  const isCron = !!cronSecret && cronHeader === cronSecret;
+  const isCron = cronSecretOk(req);
 
   let sb;
   if (!isCron) {
@@ -108,9 +122,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 // ─── Cron-Action: notification_queue verarbeiten ─────────────────────────
-// Aufruf via Supabase pg_cron alle 60s mit Header x-cron-secret oder GET/POST mit cronSecret.
+// Aufruf via Supabase pg_cron „process-notification-queue" jede Minute; der Job
+// liest x-cron-secret bei jedem Lauf aus dem Vault-Eintrag 'cron_secret' (0168).
 // Sendet pro Follower mit aktivierten Notifications eine Push-Notification.
 async function processQueue(req: VercelRequest, res: VercelResponse) {
+  // Fail closed: ohne gesetztes CRON_SECRET oder mit falschem Header wird
+  // abgelehnt. Vorher war der Endpunkt offen, solange CRON_SECRET fehlte.
+  if (!cronSecretOk(req)) {
+    if ((process.env.CRON_SECRET ?? '').length < 32) {
+      console.error('[push-send] process-queue abgelehnt: CRON_SECRET fehlt oder ist kürzer als 32 Zeichen');
+    }
+    return res.status(401).json({ error: 'cron secret required' });
+  }
+
   const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const vapidPub = process.env.VAPID_PUBLIC_KEY;
@@ -118,17 +142,6 @@ async function processQueue(req: VercelRequest, res: VercelResponse) {
   const vapidSub = process.env.VAPID_SUBJECT ?? 'mailto:admin@saunascaner.local';
   if (!supaUrl || !serviceKey || !vapidPub || !vapidPriv) {
     return res.status(500).json({ error: 'env missing' });
-  }
-
-  // Optional: Secret-Check wenn CRON_SECRET gesetzt ist (sonst offen wie push-reminder-cron).
-  // Da der Endpoint nur Pushes aus der Queue verschickt und idempotent ist (processed_at-Update),
-  // ist eine offene Variante akzeptabel — schlimmstenfalls verzögern sich Pushes.
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const headerSecret = req.headers['x-cron-secret'];
-    if (headerSecret !== cronSecret) {
-      return res.status(401).json({ error: 'cron secret required' });
-    }
   }
 
   const sb = createClient(supaUrl, serviceKey);

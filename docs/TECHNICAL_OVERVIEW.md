@@ -747,7 +747,7 @@ SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
 - `push_subscriptions(member_id, endpoint, p256dh, auth)`
 - `notification_queue(member_id, kind, payload, dedup_key, scheduled_at, sent_at, read_at, skipped_at)`
 - Trigger-basiert: bei jeder relevanten DB-Aktion (neuer Aufguss, Follow, DM, Comment, Rating-Window, …) wird ein notification_queue-Eintrag erzeugt
-- **pg_cron** (alle 60s) ruft `https://saunascaner.vercel.app/api/push-send?action=process-queue`
+- **pg_cron** (alle 60s) ruft `https://saunascaner.vercel.app/api/push-send?action=process-queue` mit Header `x-cron-secret` aus dem Vault-Eintrag `cron_secret`; ohne passendes Geheimnis antwortet der Endpunkt 401 (fail closed, seit 0168)
 - `api/push-send.ts` konsumiert Queue, verschickt via `web-push 3.6`, markiert `sent_at`
 - Dedup-Key verhindert Doppel-Push (z.B. `rating:<infusion>:<member>`, `dm:<message_id>`)
 
@@ -939,7 +939,7 @@ Sensitive-Werte unter Vercel-Settings → Environment Variables:
 - `ANTHROPIC_API_KEY` (für `api/ai.ts`)
 - `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (für Web-Push)
 - `TELEGRAM_BOT_TOKEN` (für `api/telegram-webhook.ts`)
-- `CRON_SECRET` (für Cron-Endpoints)
+- `CRON_SECRET` (für Cron-Endpoints; nur Production, sensitive). Derselbe Wert liegt im Supabase-Vault als `cron_secret` — die pg_cron-Jobs `process-notification-queue`, `telegram-announce-15min` und `push-reminder-30min` lesen ihn bei jedem Lauf von dort (0168); den Vercel-Cron `birthday-cron` versorgt Vercel selbst. Wechsel des Werts: siehe Kopf von Migration 0169.
 
 ⚠️ **vercel.json env-Block ist Anti-Pattern**: Beschreibungs-„Defaults" landen 1:1 als Production-Env-Werte. Siehe `feedback_vercel_env_block_antipattern.md`.
 
