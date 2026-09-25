@@ -23,7 +23,7 @@
     "date-fns-tz": "^3.2.0",
     "framer-motion": "^11.11.0",
     "imapflow": "^1.7.8",
-    "isomorphic-dompurify": "^2.16.0",
+    "isomorphic-dompurify": "^4.3.0",
     "jspdf": "^4.2.1",
     "mailparser": "^3.9.28",
     "nodemailer": "^10.0.10",
