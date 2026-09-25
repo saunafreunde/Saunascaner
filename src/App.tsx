@@ -2,7 +2,7 @@ import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, type KioskDisplay } from '@/lib/api';
+import { useCurrentMember, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, useKioskGeraetStatus, type KioskDisplay } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
@@ -338,7 +338,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 // (auch nicht-eingeloggte Gäste auf öffentlichen Routen sehen den Alarm).
 //
 // "Alarm beenden"-Button im Overlay: nur für authentifizierte Vereinsmitglieder
-// (NICHT für Gast/Fan/anon) — sonst könnte ein Gast den Notfall stoppen.
+// (NICHT für Gast/Fan/anon) und für gekoppelte Kiosk-Geräte (0177) — sonst
+// könnte ein Gast den Notfall stoppen. Der Server prüft dasselbe
+// (evakuierung_beenden).
 // Wichtig: auf Mobile blockt der Vollbild-Overlay alle anderen Beenden-Buttons,
 // daher MUSS der Button im Overlay selbst sein.
 function GlobalEvacuationOverlay() {
@@ -346,15 +348,18 @@ function GlobalEvacuationOverlay() {
   const loc = useLocation();
   const me = useCurrentMember();
   const end = useEndEvacuation();
+  const geraet = useKioskGeraetStatus();
 
   if (loc.pathname.startsWith('/dashboard')) return null;
   if (!evac.data) return null;
 
   const role = me.data?.role;
   // Alle Vereinsmitglieder dürfen beenden: Admin, Personal, ALLE Mitglieder
-  // (Helfer + Aufgießer), Gast-Aufgießer. Ausgeschlossen: anon, gast, fan.
+  // (Helfer + Aufgießer), Gast-Aufgießer, gekoppelte Geräte.
+  // Ausgeschlossen: anon ohne Kopplung, gast, fan.
   const canEnd = role === 'admin' || role === 'staff'
-    || role === 'member' || role === 'guest_aufgieser';
+    || role === 'member' || role === 'guest_aufgieser'
+    || geraet.data?.status === 'ok';
 
   return (
     <EvacuationOverlay

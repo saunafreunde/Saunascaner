@@ -18,6 +18,7 @@ export function EvacuationOverlay({
   onEnd?: () => Promise<void> | void;
 }) {
   const [ending, setEnding] = useState(false);
+  const [endError, setEndError] = useState<string | null>(null);
   const presentQ = usePresentFull();
   const present = presentQ.data ?? [];
 
@@ -44,8 +45,16 @@ export function EvacuationOverlay({
     if (!onEnd || ending) return;
     if (!window.confirm('Evakuierungsalarm wirklich beenden?')) return;
     setEnding(true);
+    setEndError(null);
     try {
       await onEnd();
+    } catch (e) {
+      // Nicht verschlucken: wer „Beenden" drückt und nichts passiert, drückt
+      // sonst ratlos weiter, während der Alarm auf allen Geräten weiterläuft.
+      const msg = (e as Error)?.message ?? '';
+      setEndError(/nicht_berechtigt|42501/i.test(msg)
+        ? 'Dieses Gerät darf den Alarm nicht beenden. Bitte am Handy (eingeloggt) oder an einem gekoppelten Tablet beenden.'
+        : `Beenden hat nicht geklappt: ${msg || 'unbekannter Fehler'}. Bitte erneut versuchen.`);
     } finally {
       setEnding(false);
     }
@@ -128,6 +137,11 @@ export function EvacuationOverlay({
           >
             {ending ? 'Beende…' : '✓ Alarm beenden'}
           </button>
+        )}
+        {endError && (
+          <p role="alert" className="-mt-3 mb-6 max-w-xl rounded-xl bg-black/60 px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/40">
+            {endError}
+          </p>
         )}
       </div>
     </motion.div>
