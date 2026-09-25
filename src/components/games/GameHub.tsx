@@ -10,15 +10,8 @@ import { GAME_LABELS, GAME_REGISTRY, GAME_IDS } from './registry';
 import { Avatar } from '@/components/Avatar';
 import { LeaderboardSection } from './LeaderboardSection';
 import { PushPermission } from '@/components/PushPermission';
+import { spielFehlerText } from './spielFehlerText';
 
-/** Serverfehler der Spiele-RPCs lesbar machen (0206/0209: Sperre gesperrter
- *  bzw. unbestätigter Konten). Unbekannte Fehler bleiben wie sie sind. */
-function spielFehlerText(e: unknown): string {
-  const msg = (e as Error)?.message ?? '';
-  if (msg.startsWith('gegner_gesperrt')) return 'Dieses Spiel gibt es nicht mehr — das Konto des Gegners ist gesperrt oder noch nicht freigegeben.';
-  if (msg.startsWith('konto_gesperrt')) return 'Dein Konto ist gesperrt oder noch nicht freigegeben — Spielen ist gerade nicht möglich.';
-  return msg || 'Unbekannter Fehler';
-}
 
 // Der Spiele-Hub nach der Neubewertung vom 16.08.2026: EIN Screen ohne
 // Scrollen — sechs Kacheln mit ehrlicher Dauer-Angabe, darüber genau eine

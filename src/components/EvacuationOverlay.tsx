@@ -26,7 +26,7 @@ export function EvacuationOverlay({
   /** Versandstand von Push + Telegram (evacuation_events.telegram_status) —
    *  nur für Berechtigte übergeben. Zeigt, ob die Benachrichtigung wirklich
    *  raus ist; der Toast des auslösenden Knopfs liegt UNTER diesem Overlay. */
-  versand?: { status: string | null; seit: string };
+  versand?: { status: string | null; seit: string; statusSeit?: string | null };
 }) {
   const [ending, setEnding] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
@@ -147,7 +147,7 @@ export function EvacuationOverlay({
           </p>
         )}
 
-        {versand && <VersandZeile status={versand.status} seit={versand.seit} />}
+        {versand && <VersandZeile status={versand.status} seit={versand.seit} statusSeit={versand.statusSeit} />}
 
         {/* Alarm-Beenden-Button — nur wenn onEnd übergeben wurde */}
         {onEnd && (
@@ -176,12 +176,19 @@ export function EvacuationOverlay({
  *  Chats, Teilausfall oder fehlender Push erscheinen als Warnung statt „✓“.
  *  Ein hängender Versand wird nach 90 s vom Server selbst noch einmal
  *  angestoßen (pg_cron); die Warnung unten erscheint trotzdem schon nach 60 s. */
-function VersandZeile({ status, seit }: { status: string | null; seit: string }) {
+function VersandZeile({ status, seit, statusSeit }: { status: string | null; seit: string; statusSeit?: string | null }) {
   const now = useNow(5_000);
   const alterS = Math.max(0, (now.getTime() - Date.parse(seit)) / 1000);
+  // Wie lange der aktuelle Stand schon gilt (0199: telegram_status_seit).
+  const standAlterS = statusSeit ? Math.max(0, (now.getTime() - Date.parse(statusSeit)) / 1000) : null;
   let text: string;
   let warnung = false;
-  if (!status || status === 'sende') {
+  if (status?.startsWith('nachsende') && standAlterS !== null && standAlterS > 90) {
+    // Telegram-Nachversand ohne Endstand (0207/0210): der Server meldet sich
+    // nicht mehr — nicht weiter „versucht es erneut" behaupten.
+    warnung = true;
+    text = '⚠️ Telegram-Nachversand hängt, bisher an KEINEN Chat zugestellt — bitte im Telegram-Chat prüfen und telefonisch alarmieren.';
+  } else if (!status || status === 'sende') {
     if (alterS < (status ? 60 : 30)) {
       text = 'Push + Telegram werden verschickt …';
     } else {

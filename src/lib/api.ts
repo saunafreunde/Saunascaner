@@ -3889,6 +3889,8 @@ export type EvacuationEvent = {
   /** 0191: mitglied | geraet | uebergang (ältere Alarme: null). */
   quelle?: string | null;
   foto_status?: string | null;
+  /** 0199: seit wann telegram_status gilt (Hänge-Erkennung im Vollbild). */
+  telegram_status_seit?: string | null;
 };
 
 export function useActiveEvacuation() {

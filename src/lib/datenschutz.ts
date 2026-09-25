@@ -28,5 +28,7 @@
 //                  speichert, wer es sieht, ALL-INKL als Postfach-Anbieter,
 //                  Frist 24 Monate), Anmeldung beim Telegram-Bot (Daten,
 //                  Rechtsgrundlage, Fristen 60 Tage / 12 Monate).
-export const DATENSCHUTZ_FASSUNG = '2026-09-25.3';
+//   '2026-09-25.4' Abschlussrunde (0210): Vereinspostfach speichert bei
+//                  Antworten aus der App auch die Empfängeradressen (An/Cc).
+export const DATENSCHUTZ_FASSUNG = '2026-09-25.4';
 export const DATENSCHUTZ_STAND = '25. September 2026';

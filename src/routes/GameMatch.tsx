@@ -7,6 +7,7 @@ import {
 import { GAME_REGISTRY, GAME_LABELS } from '@/components/games/registry';
 import { useCurrentMember } from '@/lib/api';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { spielFehlerText } from '@/components/games/spielFehlerText';
 
 export default function GameMatch() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -52,6 +53,14 @@ export default function GameMatch() {
           rolle={m.player_b === myId ? 'eingeladen' : m.player_a === myId ? 'wartend' : 'offen'}
         />
       )}
+      {m && meta && m.status === 'aborted' && (
+        // Abgebrochen (0209/0210: Konto des Gegners gesperrt/gelöscht, oder
+        // games_cleanup_stale nach 14 Tagen ohne Zug). Ohne diesen Hinweis
+        // zeigten Schach und Vier gewinnt weiter „Gegner zieht…".
+        <div className="mx-auto mt-4 max-w-md rounded-xl bg-amber-500/15 px-4 py-3 text-center text-sm font-semibold text-amber-100 ring-1 ring-amber-400/40">
+          Partie abgebrochen — ohne Wertung (Konto des Gegners nicht mehr aktiv oder 14 Tage ohne Zug).
+        </div>
+      )}
       {m && meta && !istPending && (
         // Eigene Fehlergrenze: ein Absturz im Spiel ersetzt nur das Brett, nicht
         // die ganze App samt Navigation (App-Root-Grenze hat keinen Auto-Reset).
@@ -91,7 +100,7 @@ function PendingPanel({ matchId, spielName, rolle }: {
               <button
                 onClick={async () => {
                   setFehler(null);
-                  try { await accept.mutateAsync(matchId); } catch (e) { setFehler((e as Error).message); }
+                  try { await accept.mutateAsync(matchId); } catch (e) { setFehler(spielFehlerText(e)); }
                 }}
                 disabled={busy}
                 className="flex-1 rounded-xl bg-emerald-500/80 px-4 py-3 text-sm font-bold text-forest-950 disabled:opacity-50"
@@ -103,7 +112,7 @@ function PendingPanel({ matchId, spielName, rolle }: {
                 onClick={async () => {
                   setFehler(null);
                   try { await decline.mutateAsync(matchId); navigate('/spiele'); }
-                  catch (e) { setFehler((e as Error).message); }
+                  catch (e) { setFehler(spielFehlerText(e)); }
                 }}
                 disabled={busy}
                 className="flex-1 rounded-xl bg-forest-900/70 px-4 py-3 text-sm text-forest-300 ring-1 ring-forest-700/50 disabled:opacity-50"
@@ -125,7 +134,7 @@ function PendingPanel({ matchId, spielName, rolle }: {
               onClick={async () => {
                 setFehler(null);
                 try { await cancel.mutateAsync(matchId); navigate('/spiele'); }
-                catch (e) { setFehler((e as Error).message); }
+                catch (e) { setFehler(spielFehlerText(e)); }
               }}
               disabled={busy}
               className="mt-4 rounded-xl bg-forest-900/70 px-4 py-2.5 text-sm text-forest-300 ring-1 ring-forest-700/50 disabled:opacity-50"
@@ -143,7 +152,7 @@ function PendingPanel({ matchId, spielName, rolle }: {
             <button
               onClick={async () => {
                 setFehler(null);
-                try { await join.mutateAsync(matchId); } catch (e) { setFehler((e as Error).message); }
+                try { await join.mutateAsync(matchId); } catch (e) { setFehler(spielFehlerText(e)); }
               }}
               disabled={busy}
               className="mt-4 rounded-xl bg-emerald-500/80 px-5 py-3 text-sm font-bold text-forest-950 disabled:opacity-50"

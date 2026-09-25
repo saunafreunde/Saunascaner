@@ -416,7 +416,7 @@ function GlobalEvacuationOverlay() {
       withSiren
       onEnd={canEnd ? async () => { await end.mutateAsync(evac.data!.id); } : undefined}
       // Versandstand (Push + Telegram) nur für die, die handeln können.
-      versand={canEnd ? { status: evac.data.telegram_status, seit: evac.data.triggered_at } : undefined}
+      versand={canEnd ? { status: evac.data.telegram_status, seit: evac.data.triggered_at, statusSeit: evac.data.telegram_status_seit ?? null } : undefined}
     />
   );
 }

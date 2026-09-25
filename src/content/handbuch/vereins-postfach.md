@@ -51,7 +51,7 @@ Ein Ticket ist **eine Unterhaltung mit einer Person**:
 
 ### Speicherfrist (Datenschutz)
 
-- Die App speichert zu jeder Mail nur die **Bearbeitungsliste** (Absender, Betreff, Zeitpunkte, Status, technische Nachrichten-Kennungen). Die Mails selbst bleiben im Postfach auf dem Mailserver (ALL-INKL).
+- Die App speichert zu jeder Mail nur die **Bearbeitungsliste** (Absender, Betreff, Zeitpunkte, Status, technische Nachrichten-Kennungen, bei Antworten aus der App auch die Empfängeradressen An/Cc). Die Mails selbst bleiben im Postfach auf dem Mailserver (ALL-INKL).
 - **Erledigte Tickets** („🟢 Beantwortet" oder „⚪ Geschlossen") löscht die App automatisch (nachts), wenn die letzte Mail der Unterhaltung — eingegangen oder aus der App gesendet — **über 24 Monate** zurückliegt. Offene Tickets bleiben, bis sie jemand erledigt.
 - Mails, die älter als 24 Monate sind, legt der Abruf **nicht mehr als Ticket** an.
 - Bitte das Postfach selbst nach derselben Frist aufräumen (alte Mails im Webmail löschen) — die App löscht nur ihre Liste, nicht die Mails auf dem Server.

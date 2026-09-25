@@ -119,8 +119,9 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           unserem Mailserver (siehe 5.) und werden von den zuständigen
           Vereinsmitgliedern gelesen und beantwortet, auch über die App. Die App speichert
           dazu eine Bearbeitungsliste: Absender (Name und Adresse), Betreff, Zeitpunkte,
-          Bearbeitungsstand und die technischen Kennungen der Nachrichten (Message-ID),
-          damit Antworten derselben Unterhaltung zugeordnet werden.
+          Bearbeitungsstand, bei Antworten aus der App die Empfängeradressen (An/Cc) und
+          die technischen Kennungen der Nachrichten (Message-ID), damit Antworten derselben
+          Unterhaltung zugeordnet werden.
         </li>
         <li>
           <Stark>Benachrichtigungen (freiwillig):</Stark> dein Posteingang in der App;
@@ -333,8 +334,8 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         <li>Änderungsprotokoll des Vorstands: 24 Monate.</li>
         <li>Protokoll verschickter E-Mails: 12 Monate.</li>
         <li>
-          Vereinspostfach: Einträge der Bearbeitungsliste (Absender, Betreff, Zeitpunkte,
-          Nachrichten-Kennungen) zu erledigten — beantworteten oder geschlossenen —
+          Vereinspostfach: Einträge der Bearbeitungsliste (Absender, Empfänger der Antworten
+          aus der App, Betreff, Zeitpunkte, Nachrichten-Kennungen) zu erledigten — beantworteten oder geschlossenen —
           Anfragen löscht die App 24 Monate nach der letzten eingegangenen bzw. aus der
           App gesendeten E-Mail der Unterhaltung; ältere E-Mails nimmt sie nicht mehr in
           die Liste auf. Offene Anfragen bleiben, bis sie erledigt sind. Die E-Mails
