@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useBrandSettings, brandAssetUrl, useKioskGeraetStatus } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GeraetKoppelnQr } from '@/components/kiosk/GeraetKoppelnQr';
+import { KIOSK_GERAET_ARTEN } from '@/lib/kioskGeraet';
 
 // /willkommen — Landing-Page für das Gäste-Tablet am Eingang.
 // Anonym, zwei große Touch-Karten:
@@ -22,6 +23,11 @@ import { GeraetKoppelnQr } from '@/components/kiosk/GeraetKoppelnQr';
 // kleiner Knopf „Tablet koppeln" — er zeigt den QR-Code, den ein Admin mit
 // dem Handy scannt. Im Kiosk-Browser kommt man oft nicht an die Adresszeile,
 // /koppeln wäre dann unerreichbar. Gekoppelt verschwindet der Knopf.
+// Gekoppelt heißt: als Eingangs-Tablet (Audit-Runde 4, 25.09.2026). Ist das
+// Gerät als andere Art gekoppelt (umgesetztes Öl-Raum-Tablet, beim Freigeben
+// „Eingangs-Scanner" erwischt), lehnt der Server die Gäste-Anmeldung ab —
+// dann heißt der Knopf „Tablet neu koppeln"; die Freigabe beendet die alte
+// Kopplung von selbst (p_alt, 0198).
 
 const BENEFITS = [
   ['🌟', 'Aufgießern folgen'],
@@ -54,8 +60,13 @@ export default function Willkommen() {
   const qc = useQueryClient();
   const brand = useBrandSettings();
   const geraet = useKioskGeraetStatus();
-  // Nur eine echte Antwort „nicht gekoppelt" zählt (ein Ladefehler nicht).
-  const ungekoppelt = !!geraet.data && geraet.data.status !== 'ok';
+  // Nur als Eingangs-Tablet gekoppelt zählt (wie im Öl-Raum: qr-signin
+  // verlangt Art 'eingang'). Nur eine echte Antwort zählt, ein Ladefehler nicht.
+  const kopplung = geraet.data;
+  const gekoppelt = kopplung?.status === 'ok' && kopplung.art === 'eingang';
+  const ungekoppelt = !!kopplung && !gekoppelt;
+  const falscheArt = kopplung?.status === 'ok' && kopplung.art !== 'eingang' ? kopplung.art : null;
+  const falscheArtLabel = falscheArt ? (KIOSK_GERAET_ARTEN.find((a) => a.art === falscheArt)?.label ?? falscheArt) : null;
   const [koppeln, setKoppeln] = useState(false);
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
@@ -222,13 +233,18 @@ export default function Willkommen() {
         <p className="text-[11px] text-forest-500">
           Tablet im Gäste-Bereich · Bitte freilassen wenn du fertig bist
         </p>
+        {ungekoppelt && falscheArtLabel && (
+          <p className="mt-3 text-[11px] text-amber-300/90">
+            Dieses Gerät ist als {falscheArtLabel} gekoppelt, nicht als Eingangs-Tablet.
+          </p>
+        )}
         {ungekoppelt && (
           <button
             type="button"
             onClick={() => setKoppeln(true)}
             className="mt-3 rounded-full bg-forest-950/80 px-4 py-2 text-xs font-semibold text-forest-300 ring-1 ring-forest-700/60 hover:text-forest-100"
           >
-            🔐 Tablet koppeln (für Admins)
+            🔐 {falscheArtLabel ? 'Tablet neu koppeln (für Admins)' : 'Tablet koppeln (für Admins)'}
           </button>
         )}
       </footer>

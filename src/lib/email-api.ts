@@ -135,8 +135,12 @@ export function useSendMail(accountId?: string | null) {
       in_reply_to?: string;
       references?: string[];
       attachments?: { filename: string; content: string; contentType?: string }[];
+      // Nur Vereins-Postfach (0208): beantwortetes Ticket + UID der beantworteten
+      // Mail — der Server setzt genau dieses Ticket auf „Beantwortet“.
+      ticket_id?: string;
+      antwort_uid?: number;
     }) => {
-      return await postfachRequest<{ ok: true; messageId: string }>('send', undefined, p, accountId);
+      return await postfachRequest<{ ok: true; messageId: string; ticket_vermerkt?: boolean }>('send', undefined, p, accountId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['postfach', 'messages'] });

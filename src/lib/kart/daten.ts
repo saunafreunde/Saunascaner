@@ -54,10 +54,28 @@ export function istVoruebergehend(err: unknown): boolean {
   return status === 0 || status === 408 || status === 429 || status >= 500;
 }
 
-/** Bewusste Ablehnung durch den Server (RAISE in der RPC) — Wiederholen ist sinnlos. */
+/** Konto gesperrt oder noch nicht freigegeben (0206: _games_schreiber_id wirft
+ *  'konto_gesperrt: …' mit 42501). Endgültig — Wiederholen ist sinnlos.
+ *  Bewusst NUR mit diesem Präfix (Audit-Runde 4, 25.09.2026): ein nacktes
+ *  42501 („permission denied for function …", etwa kurz ohne Anmeldung beim
+ *  Tokenwechsel) bleibt über „Erneut senden" wiederholbar. */
+export function istGesperrt(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  return e?.code === '42501' && typeof e.message === 'string' && e.message.startsWith('konto_gesperrt');
+}
+
+/** Bewusste Ablehnung durch den Server (RAISE in der RPC, gesperrtes Konto) —
+ *  Wiederholen ist sinnlos. */
 export function istAbgelehnt(err: unknown): boolean {
   const code = (err as { code?: unknown } | null)?.code;
-  return code === 'P0001';
+  return code === 'P0001' || istGesperrt(err);
+}
+
+/** Gesperrt, während die Kart-Seite offen war: Mitgliederzeile neu laden, damit
+ *  der App-Wächter sofort „Konto gesperrt" bzw. „wartet auf Freigabe" zeigt —
+ *  sonst erst beim nächsten Fokuswechsel oder Neuladen. */
+function beiSperreMitgliedNeuLaden(qc: ReturnType<typeof useQueryClient>, err: unknown) {
+  if (istGesperrt(err)) void qc.invalidateQueries({ queryKey: ['current-member'] });
 }
 
 const WIEDERHOLUNG = {
@@ -88,6 +106,7 @@ export function useGeistSpeichern() {
     },
     ...WIEDERHOLUNG,
     onSuccess: (_d, i) => { void qc.invalidateQueries({ queryKey: ['kart-geister', i.strecke] }); },
+    onError: (err) => beiSperreMitgliedNeuLaden(qc, err),
   });
 }
 
@@ -132,6 +151,7 @@ export function useGpMelden() {
       void qc.invalidateQueries({ queryKey: ['kart-pokale'] });
       void qc.invalidateQueries({ queryKey: ['kart-gp-bestenliste', i.klasse] });
     },
+    onError: (err) => beiSperreMitgliedNeuLaden(qc, err),
   });
 }
 

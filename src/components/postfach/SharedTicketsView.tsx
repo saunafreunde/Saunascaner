@@ -16,12 +16,21 @@ import { Avatar } from '@/components/Avatar';
 // Layout: Account-Tabs oben (wenn mehrere) → Status-Pills →
 // Ticket-Liste links | Mail-Detail rechts mit SharedTicketHeader
 
+// Entwurf einer Antwort. ticketId + antwortUid (0208): Der Server ordnet die
+// Antwort genau diesem Ticket zu (statt über den Schlüssel zu raten) und lässt
+// es offen, falls seit dem Laden eine neuere Kundenmail (größere UID) kam.
+type AntwortEntwurf = {
+  to?: string; subject?: string; body?: string;
+  inReplyTo?: string; references?: string[];
+  ticketId?: string; antwortUid?: number;
+};
+
 export function SharedTicketsView({ accounts }: { accounts: SharedAccount[] }) {
   const [activeAccount, setActiveAccount] = useState<string | null>(accounts[0]?.account_id ?? null);
   const [statusFilter, setStatusFilter] = useState<EmailTicketStatus | null>('open');
   const [selectedTicket, setSelectedTicket] = useState<EmailTicket | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeDraft, setComposeDraft] = useState<{ to?: string; subject?: string; body?: string; inReplyTo?: string; references?: string[] } | null>(null);
+  const [composeDraft, setComposeDraft] = useState<AntwortEntwurf | null>(null);
 
   const ticketsQ = useAccountTickets(activeAccount, statusFilter);
 
@@ -221,7 +230,7 @@ function SharedTicketDetail({
   accountId: string;
   ticket: EmailTicket;
   onClose: () => void;
-  onReply: (d: { to: string; subject: string; body: string; inReplyTo: string; references: string[] }) => void;
+  onReply: (d: AntwortEntwurf) => void;
 }) {
   const [showImages, setShowImages] = useState(false);
   const me = useCurrentMember();
@@ -259,7 +268,7 @@ function SharedTicketDetail({
   }
 
   function handleClose() {
-    if (!confirm('Ticket schließen? Wenn der Kunde wieder schreibt, wird es automatisch wieder geöffnet.')) return;
+    if (!confirm('Ticket schließen? Antwortet der Absender auf diese Unterhaltung, wird es automatisch wieder geöffnet.')) return;
     setStatusMut.mutate({ ticketId: ticket.id, status: 'closed' });
   }
 
@@ -276,6 +285,9 @@ function SharedTicketDetail({
       body: `\n\nAm ${msg.date ? format(new Date(msg.date), 'dd.MM.yyyy HH:mm') : ''} schrieb ${fromStr}:\n${quote}`,
       inReplyTo: msg.messageId ?? '',
       references: [...msg.references, msg.messageId].filter(Boolean) as string[],
+      // Zuordnung beim Senden über die Ticket-ID (0208), nicht über den Schlüssel.
+      ticketId: ticket.id,
+      antwortUid: msg.uid,
     });
   }
 
@@ -392,7 +404,7 @@ function SharedComposeModal({
   accountId, draft, onClose, onSent,
 }: {
   accountId: string;
-  draft: { to?: string; subject?: string; body?: string; inReplyTo?: string; references?: string[] } | null;
+  draft: AntwortEntwurf | null;
   onClose: () => void;
   onSent: () => void;
 }) {
@@ -410,6 +422,8 @@ function SharedComposeModal({
         text: body,
         in_reply_to: draft?.inReplyTo,
         references: draft?.references,
+        ticket_id: draft?.ticketId,
+        antwort_uid: draft?.antwortUid,
       });
       onSent();
     } catch (e) {

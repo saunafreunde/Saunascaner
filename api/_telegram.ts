@@ -30,6 +30,16 @@
 //    telegram_chat_deaktiviert pausiert — nicht gelöscht. vereinsChats()
 //    überspringt sie, der Admin sieht sie (Admin → Handbuch → Telegram) und
 //    kann sie wieder aktivieren; ein /start aus dem Chat hebt die Pause auf.
+//
+// Audit-Runde 4 (25.09.2026, Migration 0207):
+//  - SendeOptionen.wiederholen (OPT-IN, nur der Evakuierungsalarm): zweiter
+//    Versuch nach 1 s auch bei HTTP ≥ 500, Netzfehler und Zeitüberschreitung,
+//    solange die Frist (fristBis) reicht. Alle anderen Rundrufe bleiben beim
+//    zweiten Versuch nur nach 429 (sie laufen nacheinander ohne Frist — eine
+//    Wiederholung würde dort die Wartezeit je Chat verdoppeln).
+//  - vereinsChatsStreng(): wie vereinsChats(), meldet einen Lesefehler des
+//    Verteilers aber als null statt als leere Liste. Nur der Alarm nutzt sie
+//    (Status 'fehler' → Nachversand statt still 'keine_chats').
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { serviceClient } from './_auth.js';
@@ -53,7 +63,18 @@ export function escHtml(s: unknown): string {
  * einer Nebenabfrage scheitern).
  */
 export async function vereinsChats(sb: SupabaseClient): Promise<number[]> {
-  const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
+  return (await vereinsChatsStreng(sb)) ?? [];
+}
+
+/**
+ * Wie vereinsChats(), aber ein Lesefehler des Verteilers (system_config)
+ * ergibt null statt [] — „nicht lesbar“ ist dann von „keine Chats“ zu
+ * unterscheiden (0207, Evakuierungsalarm). Die Filter (gesperrt, pausiert)
+ * bleiben nachsichtig wie in vereinsChats().
+ */
+export async function vereinsChatsStreng(sb: SupabaseClient): Promise<number[] | null> {
+  const { data: cfg, error } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
+  if (error) return null;
   const roh = (cfg?.value as { chat_ids?: unknown } | null)?.chat_ids;
   const ids = Array.isArray(roh)
     ? Array.from(new Set(roh.map((c) => Number(c)).filter((c) => Number.isSafeInteger(c) && c !== 0)))
@@ -115,6 +136,16 @@ export type SendeOptionen = {
   max429WarteMs?: number;
   /** Date.now()-Zeitpunkt, nach dem kein Versuch mehr beginnt (Gesamtfrist). */
   fristBis?: number;
+  /**
+   * OPT-IN (0207, nur der Evakuierungsalarm): zweiter Versuch nach
+   * WIEDERHOLEN_PAUSE_MS auch bei HTTP ≥ 500, Netzfehler und
+   * Zeitüberschreitung — nur, wenn danach bis fristBis noch mindestens
+   * MIN_WIEDERHOLEN_REST_MS bleiben. Bewusst in Kauf genommen: Nach einer
+   * Zeitüberschreitung oder einem 5xx kann Telegram die Nachricht trotzdem
+   * angenommen haben, dann kommt sie doppelt an. Beim Alarm ist ein Duplikat
+   * besser als ein fehlender Alarm; für Massen-Rundrufe bleibt es aus.
+   */
+  wiederholen?: boolean;
 };
 
 export type BroadcastOptionen = SendeOptionen & {
@@ -133,6 +164,17 @@ const PAKET_GROESSE = 20;
 const STANDARD_429_WARTE_MS = 10_000;
 /** Unter dieser Restzeit beginnt kein Versuch mehr — er könnte nicht fertig werden. */
 const MIN_RESTZEIT_MS = 1_000;
+/** Pause vor dem zweiten Versuch nach 5xx/Netz-/Zeitfehler (nur mit wiederholen). */
+const WIEDERHOLEN_PAUSE_MS = 1_000;
+/** So viel Zeit muss nach der Pause bis fristBis bleiben, sonst kein zweiter Versuch. */
+const MIN_WIEDERHOLEN_REST_MS = 3_000;
+
+/** Zweiter Versuch nach einem vorübergehenden Fehler (5xx, Netz, Zeit)? Nur mit Opt-in. */
+function nochmalVersuchen(opts: SendeOptionen, attempt: number): boolean {
+  if (!opts.wiederholen || attempt !== 1) return false;
+  return opts.fristBis === undefined
+    || Date.now() + WIEDERHOLEN_PAUSE_MS + MIN_WIEDERHOLEN_REST_MS <= opts.fristBis;
+}
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -149,7 +191,11 @@ function versuchsGrenze(standardMs: number, fristBis?: number): number | null {
   return Math.min(standardMs, rest);
 }
 
-/** Sendet einen einzelnen Telegram-API-Call mit 1× Retry bei 429. Wirft nie. */
+/**
+ * Sendet einen einzelnen Telegram-API-Call mit 1× Retry bei 429 — mit
+ * opts.wiederholen (0207) auch bei 5xx, Netzfehler und Zeitüberschreitung.
+ * Wirft nie.
+ */
 export async function tgSendOnce(
   token: string,
   method: 'sendMessage' | 'sendPhoto',
@@ -173,7 +219,13 @@ export async function tgSendOnce(
       r = await fetch(url, { ...init, signal: AbortSignal.timeout(grenze) });
     } catch (e) {
       const name = (e as Error)?.name;
-      return { chat_id, ok: false, status: 0, attempt, error: name === 'TimeoutError' || name === 'AbortError' ? 'zeitueberschreitung' : (e as Error).message };
+      const fehler = name === 'TimeoutError' || name === 'AbortError' ? 'zeitueberschreitung' : (e as Error)?.message;
+      // Netzfehler/Zeitüberschreitung: nur mit Opt-in ein zweites Mal (0207).
+      if (nochmalVersuchen(opts, attempt)) {
+        await sleep(WIEDERHOLEN_PAUSE_MS);
+        continue;
+      }
+      return { chat_id, ok: false, status: 0, attempt, error: fehler };
     }
     if (r.ok) {
       // Antwort nicht lesen (spart Zeit), Verbindung aber freigeben.
@@ -197,6 +249,12 @@ export async function tgSendOnce(
         await sleep(waitMs);
         continue;
       }
+    }
+    // Serverfehler bei Telegram (502/503 …): nur mit Opt-in ein zweites Mal (0207).
+    // 4xx (außer 429) bleiben endgültig — ein toter Chat wird nicht wiederholt.
+    if (r.status >= 500 && nochmalVersuchen(opts, attempt)) {
+      await sleep(WIEDERHOLEN_PAUSE_MS);
+      continue;
     }
     return { chat_id, ok: false, status: r.status, attempt, beschreibung, tot: totGrund(r.status, beschreibung) };
   }

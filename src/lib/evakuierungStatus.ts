@@ -8,6 +8,9 @@
 //   statt 'push a/b' auch 'push fehlt:<grund>' (vapid, abos, zeit, fehler)
 // Ältere Werte ohne Push-Teil ('gesendet k/n', 'keine_chats', 'kein_token')
 // bleiben lesbar. 'sende' bzw. NULL (läuft noch) behandelt der Aufrufer.
+// Seit 0207 (Audit-Runde 4): 'nachsende · push …' — Telegram kam beim ersten
+// Mal bei keinem Chat an und wird gerade (nur Telegram, ohne Push) erneut
+// verschickt; bis zum Endstand gilt das als Warnung.
 //
 // Bewusst ohne Importe: wird vom Evakuierungs-Vollbild und von
 // src/lib/telegram.ts genutzt (keine Import-Zyklen).
@@ -17,6 +20,8 @@ export type TelegramStand =
   | { art: 'keine_chats' }
   | { art: 'kein_token' }
   | { art: 'fehler' }
+  /** 0207: Nur-Telegram-Nachversand läuft (vorher kein Chat erreicht). */
+  | { art: 'nachversand' }
   | { art: 'unbekannt'; roh: string };
 
 export type PushStand =
@@ -40,6 +45,7 @@ export function versandStandLesen(status: string): VersandStand {
   else if (tgRoh === 'keine_chats') telegram = { art: 'keine_chats' };
   else if (tgRoh === 'kein_token') telegram = { art: 'kein_token' };
   else if (tgRoh === 'fehler') telegram = { art: 'fehler' };
+  else if (tgRoh === 'nachsende') telegram = { art: 'nachversand' };
   else telegram = { art: 'unbekannt', roh: status };
 
   let push: PushStand = { art: 'unbekannt' };
@@ -97,6 +103,10 @@ export function versandStandText(stand: VersandStand): { text: string; warnung: 
   } else if (t.art === 'kein_token') {
     warnung = telegramProblem = true;
     teile.push('⚠️ Telegram ist nicht eingerichtet');
+  } else if (t.art === 'nachversand') {
+    // Warnung bleibt: ob der zweite Anlauf ankommt, ist offen — nicht warten.
+    warnung = telegramProblem = true;
+    teile.push('⚠️ Telegram bisher an KEINEN Chat zugestellt, der Server versucht es erneut');
   } else {
     warnung = telegramProblem = true;
     teile.push('⚠️ Telegram-Versand abgebrochen');

@@ -40,12 +40,26 @@
 //    'keine_chats · push …', 'fehler · push …'. Ältere Werte ('gesendet k/n'
 //    ohne Push-Teil) liest das Vollbild weiterhin.
 //  * Tote Chats (Bot blockiert …) werden danach pausiert (_telegram.ts).
+//
+// Audit-Runde 4 (25.09.2026, Migration 0207):
+//  * Telegram-Text mit zweitem Versuch auch bei 5xx, Netzfehler und
+//    Zeitüberschreitung (tgSendOnce, Opt-in wiederholen) — innerhalb der Frist.
+//  * Nur-Telegram-Nachversand: Kam der Text bei KEINEM Chat an
+//    ('fehlgeschlagen 0/n · …' bzw. 'fehler · …'), beansprucht
+//    evakuierung_telegram_nachversand_beanspruchen() den Alarm frühestens
+//    60 s später erneut (höchstens 2×, nur laufende Alarme der letzten
+//    15 Minuten; der Nachfass-Job ruft dafür an). Status währenddessen
+//    'nachsende · <alter Push-Teil>'. Verschickt wird NUR Telegram — der Push
+//    kam schon und wird nicht wiederholt; sein Teil im Status bleibt stehen.
+//    Teilausfälle ('gesendet k/n', k ≥ 1) werden nicht nachgesendet.
+//  * Ist der Verteiler (system_config) nicht lesbar, lautet der Status jetzt
+//    'fehler · …' (und wird nachgesendet) statt still 'keine_chats'.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { authenticate, serviceClient } from './_auth.js';
 import { cronHeaderOk } from './_cron.js';
-import { tgBroadcast, toteChatsMerken, vereinsChats, type TgResult } from './_telegram.js';
+import { tgBroadcast, toteChatsMerken, vereinsChats, vereinsChatsStreng, type TgResult } from './_telegram.js';
 import { pushAnAlle } from './_webpush.js';
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // Telegram erlaubt 10 MB für sendPhoto
@@ -57,6 +71,9 @@ const FRIST_TG_MS = 22_000;     // danach beginnt kein Telegram-Versuch mehr
 const FRIST_PUSH_MS = 12_000;   // Push wird nach so langer Zeit nicht mehr abgewartet
 const FRIST_FOTO_MS = 27_000;   // letzter Beginn eines Foto-Versuchs
 const MIN_FOTO_REST_MS = 5_000; // weniger Restzeit → Foto gar nicht erst beanspruchen
+/** Stände, bei denen Telegram allein nachgesendet werden darf (0207) — die
+ *  Datenbank prüft Frist und Zähler (evakuierung_telegram_nachversand_beanspruchen). */
+const NACHSENDBAR_RE = /^(?:fehlgeschlagen 0\/|fehler · |nachsende)/;
 
 type Zugang = 'cron' | 'geraet' | 'mitglied' | 'uebergang';
 
@@ -135,6 +152,51 @@ async function statusSchreiben(sb: SupabaseClient, id: string, status: string): 
   }
 }
 
+/** Ergebnis des Telegram-Texts (Teil vor „ · “ im Status). */
+type TgErgebnis = { teil: string; sent: number; total: number; note?: string; results: TgResult[] };
+
+/**
+ * Telegram-Text an alle Vereins-Chats (parallel, mit Frist und — 0207 — mit
+ * zweitem Versuch bei 5xx/Netz-/Zeitfehler). Wirft, wenn der Verteiler nicht
+ * lesbar ist (→ Status 'fehler', wird nachgesendet).
+ */
+async function telegramText(
+  sb: SupabaseClient, tgToken: string | undefined, ev: Alarm, ausloeser: string, t0: number, nachversand: boolean,
+): Promise<TgErgebnis> {
+  if (!tgToken) return { teil: 'kein_token', sent: 0, total: 0, note: 'telegram_token_fehlt', results: [] };
+  // Freigegebener Verteiler, ohne Chats gesperrter Mitglieder (0187) und
+  // ohne pausierte tote Chats (0199). Lesefehler ≠ „keine Chats“ (0207).
+  const chats = await vereinsChatsStreng(sb);
+  if (chats === null) throw new Error('verteiler_nicht_lesbar');
+  if (chats.length === 0) return { teil: 'keine_chats', sent: 0, total: 0, note: 'no chats subscribed', results: [] };
+  const namen: string[] = Array.isArray(ev.present_names) ? (ev.present_names as string[]) : [];
+  const text = [
+    '🚨 *EVAKUIERUNG ausgelöst*',
+    // Nachversand: ohne MarkdownV2-Sonderzeichen (. - ! ( ) …) formuliert.
+    ...(nachversand ? ['_Nachversand, der erste Versand kam bei keinem Chat an_'] : []),
+    `Auslöser: ${esc(ausloeser)}`,
+    `Zeit: ${esc(zeitText(ev.triggered_at))}`,
+    '',
+    `Anwesend \\(${namen.length}\\):`,
+    ...(namen.length ? namen.map((n) => `• ${esc(n)}`) : ['_keine Personen erfasst_']),
+  ].join('\n').slice(0, 4000);
+  const results = await tgBroadcast(tgToken, 'sendMessage', chats, (chat_id) => ({ chat_id, text, parse_mode: 'MarkdownV2' }), {
+    parallel: true,
+    timeoutMs: 8_000,
+    max429WarteMs: 3_000,
+    fristBis: t0 + FRIST_TG_MS,
+    toteMerken: false, // erst nach dem Status (Aufrufer)
+    wiederholen: true, // 0207: auch bei 5xx/Netz/Zeit ein zweites Mal, solange die Frist reicht
+  });
+  const sent = results.filter((r) => r.ok).length;
+  return {
+    teil: sent > 0 ? `gesendet ${sent}/${chats.length}` : `fehlgeschlagen 0/${chats.length}`,
+    sent,
+    total: chats.length,
+    results,
+  };
+}
+
 /**
  * Push an alle + Telegram-Text an alle Chats, parallel und mit Frist.
  * Nur aufrufen, wenn telegram_status beansprucht ist. Schreibt IMMER einen
@@ -164,43 +226,15 @@ async function textUndPush(sb: SupabaseClient, tgToken: string | undefined, ev: 
       { gesendet: 0, gesamt: 0, fehlt: 'zeit' },
     );
 
-    const tgP = (async (): Promise<string> => {
-      if (!tgToken) {
-        note = 'telegram_token_fehlt';
-        return 'kein_token';
-      }
-      // Freigegebener Verteiler, ohne Chats gesperrter Mitglieder (0187) und
-      // ohne pausierte tote Chats (0199).
-      const chats = await vereinsChats(sb);
-      total = chats.length;
-      if (chats.length === 0) {
-        note = 'no chats subscribed';
-        return 'keine_chats';
-      }
-      const namen: string[] = Array.isArray(ev.present_names) ? (ev.present_names as string[]) : [];
-      const text = [
-        '🚨 *EVAKUIERUNG ausgelöst*',
-        `Auslöser: ${esc(ausloeser)}`,
-        `Zeit: ${esc(zeitText(ev.triggered_at))}`,
-        '',
-        `Anwesend \\(${namen.length}\\):`,
-        ...(namen.length ? namen.map((n) => `• ${esc(n)}`) : ['_keine Personen erfasst_']),
-      ].join('\n').slice(0, 4000);
-      results = await tgBroadcast(tgToken, 'sendMessage', chats, (chat_id) => ({ chat_id, text, parse_mode: 'MarkdownV2' }), {
-        parallel: true,
-        timeoutMs: 8_000,
-        max429WarteMs: 3_000,
-        fristBis: t0 + FRIST_TG_MS,
-        toteMerken: false, // erst nach dem Status (unten)
-      });
-      sent = results.filter((r) => r.ok).length;
-      return sent > 0 ? `gesendet ${sent}/${total}` : `fehlgeschlagen 0/${total}`;
-    })();
+    const tgP = telegramText(sb, tgToken, ev, ausloeser, t0, false);
 
     const [p, tg] = await Promise.allSettled([pushP, tgP]);
     push = p.status === 'fulfilled' ? p.value : null;
-    if (tg.status === 'fulfilled') tgTeil = tg.value;
-    else console.error('[send-evacuation] Telegram-Versand abgebrochen', (tg.reason as Error)?.message ?? '');
+    if (tg.status === 'fulfilled') {
+      ({ teil: tgTeil, sent, total, note, results } = tg.value);
+    } else {
+      console.error('[send-evacuation] Telegram-Versand abgebrochen', (tg.reason as Error)?.message ?? '');
+    }
   } catch (e) {
     console.error('[send-evacuation] Versand abgebrochen', (e as Error)?.message ?? '');
   } finally {
@@ -214,6 +248,56 @@ async function textUndPush(sb: SupabaseClient, tgToken: string | undefined, ev: 
     push: push ?? { gesendet: 0, gesamt: 0, fehlt: 'fehler' },
     status: `${tgTeil} · ${pushTeil(push)}`,
   };
+}
+
+/** Push-Teil eines Status ('… · push 4/4' → 'push 4/4'), sonst null. */
+function pushTeilAus(status: string | null): string | null {
+  if (!status) return null;
+  const i = status.indexOf(' · ');
+  return i >= 0 ? status.slice(i + 3) : null;
+}
+
+/**
+ * Nur-Telegram-Nachversand (0207): nur aufrufen, wenn
+ * evakuierung_telegram_nachversand_beanspruchen den Alarm beansprucht hat.
+ * Push wird NICHT erneut verschickt — der Push-Teil des bisherigen Status
+ * bleibt stehen. Schreibt IMMER einen Endstatus (finally).
+ */
+async function telegramNachsenden(sb: SupabaseClient, tgToken: string | undefined, ev: Alarm, t0: number, nr: number) {
+  const alterPush = pushTeilAus(ev.telegram_status);
+  let tg: TgErgebnis | null = null;
+  const status = () => `${tg?.teil ?? 'fehler'}${alterPush ? ` · ${alterPush}` : ''}`;
+  try {
+    const ausloeser = await ausloeserName(sb, ev);
+    tg = await telegramText(sb, tgToken, ev, ausloeser, t0, true);
+  } catch (e) {
+    console.error('[send-evacuation] Telegram-Nachversand abgebrochen', (e as Error)?.message ?? '');
+  } finally {
+    await statusSchreiben(sb, ev.id, status());
+  }
+  await toteChatsMerken(sb, tg?.results ?? []);
+  console.warn('[send-evacuation] Telegram-Nachversand', nr, tg?.teil ?? 'fehler');
+  return {
+    nachversand: nr,
+    sent: tg?.sent ?? 0,
+    total: tg?.total ?? 0,
+    ...(tg?.note ? { note: tg.note } : {}),
+    status: status(),
+  };
+}
+
+/**
+ * Nur-Telegram-Nachversand beanspruchen (0207). Ergebnis: Nummer des
+ * Nachversuchs (1–2), 0 = nicht (noch zu früh, schon beansprucht, Zähler
+ * voll, Alarm beendet), null = Datenbankfehler. Fehlt die Funktion noch
+ * (Code vor der Migration ausgeliefert): 0 — dann wie bisher kein Nachversand.
+ */
+async function nachversandBeanspruchen(sb: SupabaseClient, ev: Alarm): Promise<number | null> {
+  const { data, error } = await sb.rpc('evakuierung_telegram_nachversand_beanspruchen', { p_alarm: ev.id });
+  if (!error) return typeof data === 'number' ? data : 0;
+  if (error.code === 'PGRST202' || error.code === '42883') return 0;
+  console.error('[send-evacuation] Nachversand beanspruchen fehlgeschlagen', error.code ?? '');
+  return null;
 }
 
 /** Foto als eigene Nachricht — genau einmal je Alarm (foto_status). */
@@ -325,6 +409,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (ev.telegram_status === 'sende') console.warn('[send-evacuation] hängenden Versand übernommen, Versuch', versuch);
       text = await textUndPush(sb, tgToken, ev, t0);
     }
+  } else if (NACHSENDBAR_RE.test(ev.telegram_status)) {
+    // 1b) Telegram kam bei KEINEM Chat an (oder ein Nachversand hängt): nur
+    //     Telegram nachsenden, ohne Push (0207). Frist (60 s bzw. 90 s) und
+    //     Zähler (höchstens 2×) prüft die Datenbank. Ein Datenbankfehler hier
+    //     bricht den Aufruf nicht ab (das Foto soll trotzdem raus).
+    const nr = await nachversandBeanspruchen(sb, ev);
+    if (nr !== null && nr > 0) text = await telegramNachsenden(sb, tgToken, ev, t0, nr);
   }
 
   // 2) Foto (Öl-Raum-Kamera) als eigene Nachricht — nie im Übergang.

@@ -20,7 +20,7 @@ import {
   type FahrerSetup, type GeistDaten, type ItemTyp, type Klasse, type RennErgebnis,
 } from '@/lib/kart/engine/typen';
 import {
-  istAbgelehnt, istVoruebergehend, ladeEinstellungen, speichereEinstellungen, useGeistSpeichern, useGpBestenliste,
+  istAbgelehnt, istGesperrt, istVoruebergehend, ladeEinstellungen, speichereEinstellungen, useGeistSpeichern, useGpBestenliste,
   useGpMelden, useMeinePokale, useTopGeister, type KartEinstellungen,
 } from '@/lib/kart/daten';
 import KartRennen, { fmtZeit, type RennAuftrag } from './KartRennen';
@@ -750,6 +750,8 @@ function ZeitfahrenErgebnis({ strecke, ergebnis, meineId, onNochmal, onMenue }: 
 
 /** Fehler beim Eintragen in Klartext — statt roher Codes wie „samples_too_large". */
 function eintragFehler(err: unknown): string {
+  // 0206: gesperrtes/unbestätigtes Konto — die Meldung beginnt mit „konto_gesperrt: …".
+  if (istGesperrt(err)) return 'dein Konto ist gesperrt oder noch nicht freigegeben. Bitte wende dich an den Vorstand.';
   const m = (err as { message?: unknown } | null)?.message;
   switch (typeof m === 'string' ? m : '') {
     case 'zu_schnell': return 'nur ein Cup alle drei Minuten.';

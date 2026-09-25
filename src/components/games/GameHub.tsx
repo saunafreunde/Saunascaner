@@ -11,6 +11,15 @@ import { Avatar } from '@/components/Avatar';
 import { LeaderboardSection } from './LeaderboardSection';
 import { PushPermission } from '@/components/PushPermission';
 
+/** Serverfehler der Spiele-RPCs lesbar machen (0206/0209: Sperre gesperrter
+ *  bzw. unbestätigter Konten). Unbekannte Fehler bleiben wie sie sind. */
+function spielFehlerText(e: unknown): string {
+  const msg = (e as Error)?.message ?? '';
+  if (msg.startsWith('gegner_gesperrt')) return 'Dieses Spiel gibt es nicht mehr — das Konto des Gegners ist gesperrt oder noch nicht freigegeben.';
+  if (msg.startsWith('konto_gesperrt')) return 'Dein Konto ist gesperrt oder noch nicht freigegeben — Spielen ist gerade nicht möglich.';
+  return msg || 'Unbekannter Fehler';
+}
+
 // Der Spiele-Hub nach der Neubewertung vom 16.08.2026: EIN Screen ohne
 // Scrollen — sechs Kacheln mit ehrlicher Dauer-Angabe, darüber genau eine
 // Kontext-Zeile. Vorher: 14 Breitkarten in einer Spalte, ein „Phase 1"-Text
@@ -138,7 +147,7 @@ export function GameHub() {
                         try {
                           await join.mutateAsync(o.match_id);
                           navigate(`/spiele/match/${o.match_id}`);
-                        } catch (e) { setJoinFehler((e as Error).message); }
+                        } catch (e) { setJoinFehler(spielFehlerText(e)); }
                       }}
                       disabled={join.isPending}
                       className="rounded-lg bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-forest-950 disabled:opacity-50"
@@ -181,7 +190,7 @@ function MatchZeile({ m }: { m: import('@/lib/games').ActiveMatchSummary }) {
             onClick={async () => {
               setFehler(null);
               try { await accept.mutateAsync(m.match_id); navigate(`/spiele/match/${m.match_id}`); }
-              catch (e) { setFehler((e as Error).message); }
+              catch (e) { setFehler(spielFehlerText(e)); }
             }}
             disabled={busy}
             className="rounded-lg bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-forest-950 disabled:opacity-50"
@@ -190,7 +199,7 @@ function MatchZeile({ m }: { m: import('@/lib/games').ActiveMatchSummary }) {
             Annehmen
           </button>
           <button
-            onClick={() => { setFehler(null); decline.mutate(m.match_id, { onError: (e) => setFehler((e as Error).message) }); }}
+            onClick={() => { setFehler(null); decline.mutate(m.match_id, { onError: (e) => setFehler(spielFehlerText(e)) }); }}
             disabled={busy}
             className="rounded-lg bg-forest-900/70 px-3 py-1.5 text-xs text-forest-300 ring-1 ring-forest-700/50 disabled:opacity-50"
             style={{ touchAction: 'manipulation' }}
@@ -213,7 +222,7 @@ function MatchZeile({ m }: { m: import('@/lib/games').ActiveMatchSummary }) {
             : `Einladung an ${m.opponent_name ?? '?'} — noch keine Antwort`}
         </span>
         <button
-          onClick={() => cancel.mutate(m.match_id, { onError: (e) => setFehler((e as Error).message) })}
+          onClick={() => cancel.mutate(m.match_id, { onError: (e) => setFehler(spielFehlerText(e)) })}
           disabled={busy}
           className="rounded-lg px-2.5 py-1.5 text-xs text-forest-400 ring-1 ring-forest-800/50 disabled:opacity-50"
           style={{ touchAction: 'manipulation' }}
@@ -387,7 +396,7 @@ function PvPStart({ kind, myId, onZu }: {
       const { data, error } = await supabase.rpc('games_create_match', { p_kind: kind, p_opponent: null });
       if (error) throw error;
       navigate(`/spiele/match/${data}`);
-    } catch (e) { setFehler((e as Error).message); }
+    } catch (e) { setFehler(spielFehlerText(e)); }
     finally { setBusy(false); }
   }
 
@@ -396,7 +405,7 @@ function PvPStart({ kind, myId, onZu }: {
     try {
       const matchId = await challenge.mutateAsync({ opponent: gegnerId, kind });
       navigate(`/spiele/match/${matchId}`);
-    } catch (e) { setFehler((e as Error).message); }
+    } catch (e) { setFehler(spielFehlerText(e)); }
   }
 
   return (

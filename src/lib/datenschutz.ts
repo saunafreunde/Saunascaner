@@ -24,5 +24,9 @@
 //                  Aufguss-Name, Übernahmen, Auslöser des Alarms),
 //                  Anwesenheits-PC, gekoppelte Geräte, Rechtsgrundlage der
 //                  Vereinsmeldungen.
-export const DATENSCHUTZ_FASSUNG = '2026-09-25.2';
+//   '2026-09-25.3' Audit-Runde 4 (0208): Vereinspostfach (was die App
+//                  speichert, wer es sieht, ALL-INKL als Postfach-Anbieter,
+//                  Frist 24 Monate), Anmeldung beim Telegram-Bot (Daten,
+//                  Rechtsgrundlage, Fristen 60 Tage / 12 Monate).
+export const DATENSCHUTZ_FASSUNG = '2026-09-25.3';
 export const DATENSCHUTZ_STAND = '25. September 2026';

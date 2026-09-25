@@ -26,10 +26,21 @@ Sobald du eine Mail im Vereins-Postfach öffnest, wird sie für die anderen Admi
 
 ### Antworten
 
-Beim Senden einer Antwort:
-- Status → „🟢 Beantwortet"
+Beim Senden einer Antwort **aus der App** (↩ Antworten im Ticket):
+- Status → „🟢 Beantwortet" — genau für dieses Ticket
 - Lock wird automatisch freigegeben
-- Wenn der Kunde später wieder antwortet → Status wieder „🔴 Offen" + Notification an alle Bearbeiter
+- Ist seit dem Öffnen schon eine **neuere Mail** des Kunden im Ticket angekommen, bleibt es „🔴 Offen" — die neue Mail ist ja noch unbeantwortet
+- Wenn der Kunde später auf die Unterhaltung antwortet → **dasselbe Ticket** wieder „🔴 Offen" + Notification an alle Bearbeiter
+
+Antworten, die du im **Webmail** (statt in der App) schreibst, ändern den Status nicht — das Ticket dann von Hand mit „✓ Schließen" erledigen.
+
+### Welche Mails in ein Ticket gehören
+
+Ein Ticket ist **eine Unterhaltung mit einer Person**:
+- Antwortet der Kunde auf seine eigene Mail oder auf eine Antwort des Vereins, landet die Mail im **selben Ticket** (erkannt über die Bezüge der Mail — In-Reply-To/References).
+- Antworten **mehrere Personen** auf dieselbe Vereinsmail (z. B. eine Rundmail oder eine Antwort an mehrere Adressen), bekommt **jede Person ihr eigenes Ticket** — keine Mail verschwindet hinter einer anderen.
+- Eine neue Mail ohne Bezug (neuer Betreff, nicht als Antwort geschrieben) ist ein **neues Ticket**.
+- Das Detail zeigt immer die **neueste** Mail des Tickets; ältere stehen meist zitiert darunter, sonst im Webmail.
 
 ### Tickets verwalten
 
@@ -38,6 +49,13 @@ Beim Senden einer Antwort:
 - **„✓ Schließen"** im Detail-Banner → Status manuell auf „Geschlossen" (bei Spam o.ä.)
 - **„↺ Wieder öffnen"** wenn der Kunde erneut schreibt — passiert sonst automatisch
 
+### Speicherfrist (Datenschutz)
+
+- Die App speichert zu jeder Mail nur die **Bearbeitungsliste** (Absender, Betreff, Zeitpunkte, Status, technische Nachrichten-Kennungen). Die Mails selbst bleiben im Postfach auf dem Mailserver (ALL-INKL).
+- **Erledigte Tickets** („🟢 Beantwortet" oder „⚪ Geschlossen") löscht die App automatisch (nachts), wenn die letzte Mail der Unterhaltung — eingegangen oder aus der App gesendet — **über 24 Monate** zurückliegt. Offene Tickets bleiben, bis sie jemand erledigt.
+- Mails, die älter als 24 Monate sind, legt der Abruf **nicht mehr als Ticket** an.
+- Bitte das Postfach selbst nach derselben Frist aufräumen (alte Mails im Webmail löschen) — die App löscht nur ihre Liste, nicht die Mails auf dem Server.
+
 ### Notifications
 
 Bei neuer Mail bekommen **alle Bearbeiter** gleichzeitig:
@@ -45,7 +63,7 @@ Bei neuer Mail bekommen **alle Bearbeiter** gleichzeitig:
 - Push (wenn aktiviert)
 - Zähler im Tab-Header (z.B. „🏢 Vereins-Postfach **3**")
 
-Gemeldet wird eine **neue Anfrage** und eine **neue Kundenmail zu einem beantworteten oder geschlossenen Ticket** — jeweils **genau einmal**, auch wenn der automatische Abruf und dein „↻ Synchronisieren" dieselbe Mail sehen. Schreibt der Kunde nach, während das Ticket noch „🔴 Offen" oder „🟡 In Bearbeitung" ist, kommt **keine** zweite Meldung; die Mail landet nur im Ticket. Gemeldet werden außerdem nur Mails, die beim Abruf **jünger als 3 Tage** sind: Ältere Mails (z. B. nach einer längeren Störung) erscheinen trotzdem als „🔴 Offen", aber ohne Glocke und Push — also ab und zu auch in die Liste schauen.
+Gemeldet wird eine **neue Anfrage**, eine **neue Kundenmail zu einem beantworteten oder geschlossenen Ticket** und eine **Antwort des Kunden auf eine Mail des Vereins** (auch wenn das Ticket noch „🔴 Offen" ist, z. B. weil im Webmail geantwortet wurde) — jeweils **genau einmal**, auch wenn der automatische Abruf und dein „↻ Synchronisieren" dieselbe Mail sehen. Schreibt der Kunde zu seiner eigenen Mail nach, während das Ticket noch „🔴 Offen" oder „🟡 In Bearbeitung" ist, kommt **keine** zweite Meldung; die Mail landet nur im Ticket. Gemeldet werden außerdem nur Mails, die beim Abruf **jünger als 3 Tage** sind: Ältere Mails (z. B. nach einer längeren Störung) erscheinen trotzdem als „🔴 Offen", aber ohne Glocke und Push — also ab und zu auch in die Liste schauen.
 
 ### Berechtigungen verwalten (nur Admin)
 

@@ -115,14 +115,25 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           Verfügbarkeiten und Stundensatz.
         </li>
         <li>
-          <Stark>Vereinspostfach:</Stark> E-Mails an den Verein werden in der App
-          gespeichert und von den zuständigen Vereinsmitgliedern bearbeitet.
+          <Stark>Vereinspostfach:</Stark> E-Mails an den Verein liegen im Postfach auf
+          unserem Mailserver (siehe 5.) und werden von den zuständigen
+          Vereinsmitgliedern gelesen und beantwortet, auch über die App. Die App speichert
+          dazu eine Bearbeitungsliste: Absender (Name und Adresse), Betreff, Zeitpunkte,
+          Bearbeitungsstand und die technischen Kennungen der Nachrichten (Message-ID),
+          damit Antworten derselben Unterhaltung zugeordnet werden.
         </li>
         <li>
           <Stark>Benachrichtigungen (freiwillig):</Stark> dein Posteingang in der App;
           wenn du Push aktivierst, die Push-Adresse deines Browsers und die
           Browserkennung; wenn du Telegram verknüpfst, deine Telegram-Nutzer-ID; für das
           Kalender-Abo ein persönlicher Zugangsschlüssel.
+        </li>
+        <li>
+          <Stark>Anmeldung beim Telegram-Bot:</Stark> Wer unserem Vereins-Bot in Telegram
+          „/start“ schreibt, um die Vereinsmeldungen zu bekommen — auch ohne Konto in der
+          App —, von dem speichern wir die Anfrage mit Chat-ID, Telegram-Nutzer-ID,
+          Vorname, Benutzername und Art des Chats (privat oder Gruppe), bis der Vorstand
+          sie freigibt oder ablehnt.
         </li>
         <li>
           <Stark>Gekoppelte Geräte:</Stark> Für die Tafel, die Tablets, den
@@ -186,9 +197,9 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         </li>
         <li>
           <Stark>Technische Daten, Reichweitenmessung, Fehlerberichte,
-          Änderungsprotokoll, gekoppelte Geräte, Vereinspostfach:</Stark> Art.&nbsp;6
-          Abs.&nbsp;1 lit.&nbsp;f DSGVO — sicherer, stabiler Betrieb und Bearbeitung von
-          Anfragen.
+          Änderungsprotokoll, gekoppelte Geräte, Vereinspostfach, Anmeldungen beim
+          Telegram-Bot:</Stark> Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;f DSGVO — sicherer,
+          stabiler Betrieb und Bearbeitung von Anfragen.
         </li>
       </ul>
 
@@ -226,7 +237,13 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         <li>
           <Stark>Der Vorstand</Stark> verwaltet die Konten und sieht dafür
           Kontaktdaten, Besuche, Bewertungen und das Änderungsprotokoll, außerdem die
-          gekoppelten Geräte und offene Kopplungsanfragen.
+          gekoppelten Geräte, offene Kopplungsanfragen und die Anmeldungen beim
+          Telegram-Bot.
+        </li>
+        <li>
+          <Stark>Das Vereinspostfach</Stark> (E-Mails an den Verein und die
+          Bearbeitungsliste) sehen nur die Vereinsmitglieder, die der Vorstand dafür
+          freigeschaltet hat.
         </li>
       </ul>
       <p className="mt-2">
@@ -250,8 +267,8 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           Grundlage von EU-Standardvertragsklauseln.
         </li>
         <li>
-          <Stark>ALL-INKL.COM — Neue Medien Münnich</Stark> (E-Mail-Versand über unseren
-          Vereins-Mailserver, Deutschland).
+          <Stark>ALL-INKL.COM — Neue Medien Münnich</Stark> (unser Vereins-Mailserver:
+          E-Mail-Versand und das Vereinspostfach, Deutschland).
         </li>
         <li>
           <Stark>Telegram</Stark> (Anbieter außerhalb der EU): Die Vereins-Chats unseres
@@ -315,6 +332,21 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         </li>
         <li>Änderungsprotokoll des Vorstands: 24 Monate.</li>
         <li>Protokoll verschickter E-Mails: 12 Monate.</li>
+        <li>
+          Vereinspostfach: Einträge der Bearbeitungsliste (Absender, Betreff, Zeitpunkte,
+          Nachrichten-Kennungen) zu erledigten — beantworteten oder geschlossenen —
+          Anfragen löscht die App 24 Monate nach der letzten eingegangenen bzw. aus der
+          App gesendeten E-Mail der Unterhaltung; ältere E-Mails nimmt sie nicht mehr in
+          die Liste auf. Offene Anfragen bleiben, bis sie erledigt sind. Die E-Mails
+          selbst liegen im Postfach auf dem Mailserver, bis die Bearbeiter sie dort
+          löschen.
+        </li>
+        <li>
+          Anmeldungen beim Telegram-Bot: nicht entschiedene nach 60 Tagen, abgelehnte
+          nach 12 Monaten (so lange meldet eine erneute Anfrage aus demselben Chat sich
+          nicht wieder beim Vorstand); bei freigegebenen Chats bleibt die Anfrage als
+          Vermerk, solange der Chat die Vereinsmeldungen bekommt.
+        </li>
         <li>Fehlerberichte der App: 30 Tage.</li>
         <li>
           Missbrauchsschutz bei Anmelde-, PIN- und Mail-Versuchen: einen Tag; ältere

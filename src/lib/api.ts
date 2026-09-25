@@ -3956,7 +3956,7 @@ export function useEndEvacuation() {
       const { error } = await need().rpc('evakuierung_beenden', { p_id: id, p_geraet: kioskGeraetToken() });
       if (error) {
         if (error.message?.includes('nicht_berechtigt')) {
-          throw new Error('Beenden ist nur für angemeldete Mitglieder oder gekoppelte Geräte möglich.');
+          throw new Error('nicht_berechtigt: Beenden dürfen nur angemeldete Mitglieder sowie das Öl-Raum-Tablet und das Anwesenheits-Panel.');
         }
         throw error;
       }

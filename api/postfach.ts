@@ -332,6 +332,31 @@ function normalizeThreadKey(raw: string | null | undefined): string | null {
   return cleaned.length > 0 ? cleaned : null;
 }
 
+// Bezüge einer eingehenden Mail für die Ticket-Zuordnung (0208): alle
+// Message-IDs aus In-Reply-To und References, der direkteste Bezug zuerst
+// (In-Reply-To, dann References von hinten). Das IMAP-ENVELOPE hat KEIN
+// References-Feld — der Header kommt per fetch({ headers: ['references'] })
+// als roher Buffer („References: <a@x>\r\n <b@y>“) und wird hier entfaltet.
+function bezugsKandidaten(inReplyTo: string | null | undefined, kopf: Buffer | undefined): string[] {
+  const ids = (s: string): string[] => [...(s.match(/<[^<>]+>/g) ?? [])];
+  const antwortAuf = inReplyTo ? ids(inReplyTo) : [];
+  if (inReplyTo && antwortAuf.length === 0 && inReplyTo.trim()) antwortAuf.push(inReplyTo.trim());
+  const refs = kopf ? ids(kopf.toString('utf8').replace(/\r?\n[ \t]+/g, ' ')) : [];
+  const alle = [...antwortAuf, ...refs.reverse()]
+    .map(normalizeThreadKey)
+    .filter((k): k is string => !!k && k.length <= 998);
+  return [...new Set(alle)].slice(0, 100);
+}
+
+// Reine Adresse aus „Name <a@b.de>“ bzw. „a@b.de“ (klein), sonst null.
+function reineAdresse(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const a = raw.replace(/^.*<([^>]+)>\s*$/, '$1').trim().toLowerCase();
+  return a.includes('@') ? a : null;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ─── send ────────────────────────────────────────────────────────────────
 async function handleSend(
   req: VercelRequest, res: VercelResponse, cred: Cred,
@@ -341,6 +366,7 @@ async function handleSend(
   const {
     to, cc, bcc, subject, text, html,
     in_reply_to, references, attachments,
+    ticket_id, antwort_uid,
   } = req.body as {
     to: string | string[];
     cc?: string | string[];
@@ -351,6 +377,9 @@ async function handleSend(
     in_reply_to?: string;
     references?: string[];
     attachments?: { filename: string; content: string; contentType?: string }[];
+    // Vereins-Postfach (0208): beantwortetes Ticket und UID der beantworteten Mail
+    ticket_id?: string | null;
+    antwort_uid?: number | null;
   };
   if (!to || (!text && !html)) return res.status(400).json({ error: 'to + text|html required' });
 
@@ -387,8 +416,33 @@ async function handleSend(
   )) {
     return res.status(400).json({ error: 'attachments must be [{ filename, content (base64), contentType? }]' });
   }
+  if (ticket_id !== undefined && ticket_id !== null
+      && (typeof ticket_id !== 'string' || !UUID_RE.test(ticket_id))) {
+    return res.status(400).json({ error: 'ticket_id must be a uuid' });
+  }
+  if (antwort_uid !== undefined && antwort_uid !== null
+      && !(typeof antwort_uid === 'number' && Number.isSafeInteger(antwort_uid) && antwort_uid > 0)) {
+    return res.status(400).json({ error: 'antwort_uid must be a positive integer' });
+  }
+  if (ticket_id && !sharedAccountId) {
+    return res.status(400).json({ error: 'ticket_id only for a shared account' });
+  }
 
   const svc = makeServiceClient();
+
+  // Vereins-Postfach (0208): Das Ticket muss zu DIESEM Postfach gehören — vor
+  // dem Versand prüfen, damit keine Antwort ein fremdes Ticket „erledigt“.
+  if (sharedAccountId && ticket_id) {
+    const { data: t, error: tErr } = await svc
+      .from('email_tickets')
+      .select('id')
+      .eq('id', ticket_id)
+      .eq('account_id', sharedAccountId)
+      .maybeSingle();
+    if (tErr) return res.status(500).json({ error: tErr.message });
+    if (!t) return res.status(400).json({ error: 'ticket_not_in_account' });
+  }
+
   const { data: m } = await svc.from('members').select('name').eq('id', memberId).maybeSingle();
   const fromName = m?.name ?? 'Saunafreunde';
 
@@ -421,38 +475,41 @@ async function handleSend(
   // Lassen wir erst weg — viele IMAP-Server appenden automatisch via "Sent on submission"
   // BCC-Logs könnten wir noch in email_log schreiben.
 
-  // Migration 0080: bei shared Account → Ticket-Reply-Hook aufrufen
-  // (Status → 'answered', Lock weg). Best-Effort, kein Block bei Fehler.
+  // Vereins-Postfach: Antwort dem Ticket zuordnen (0208, vorher 0080 über den
+  // Schlüssel = In-Reply-To, der ab der zweiten Mail eines Tickets nie traf).
+  // email_ticket_antwort_vermerken (nur service_role) setzt GENAU das Ticket
+  // mit ticket_id und diesem Postfach auf „Beantwortet“ — außer seit dem Laden
+  // kam eine neuere Kundenmail (antwort_uid) —, gibt die Sperre frei und merkt
+  // die Message-ID der Antwort, damit die Rückantwort des Kunden im selben
+  // Ticket landet. Ohne ticket_id (altes App-Bundle) sucht die DB über
+  // In-Reply-To = Message-ID der beantworteten Mail. Die Mail ist schon
+  // verschickt: Fehler hier nur protokollieren, nicht als Fehlschlag melden.
+  let ticketVermerkt: boolean | undefined;
   if (sharedAccountId) {
-    const threadKey = normalizeThreadKey(in_reply_to)
-      ?? normalizeThreadKey(references?.[0]);
-    if (threadKey) {
-      try {
-        const { data: ticketRows } = await svc
-          .from('email_tickets')
-          .select('id')
-          .eq('account_id', sharedAccountId)
-          .eq('thread_key', threadKey)
-          .limit(1);
-        const ticketId = ticketRows?.[0]?.id;
-        if (ticketId) {
-          // record_reply ist authenticated — wir nutzen Service-Role-Client
-          // mit RPC-Call (der intern auth.uid() liest). Hier müssen wir per
-          // Service-Role direkt updaten, da der Service-Client kein auth.uid hat.
-          await svc.from('email_tickets').update({
-            status: 'answered',
-            last_outbound_at: new Date().toISOString(),
-            locked_by: null,
-            locked_at: null,
-          }).eq('id', ticketId);
-        }
-      } catch (e) {
-        console.error('[postfach.send] ticket update failed:', (e as Error).message);
-      }
+    const empfaenger = [...toArr, ...ccArr]
+      .map((a) => reineAdresse(a))
+      .filter((a): a is string => !!a);
+    try {
+      const { data: vermerkt, error: vErr } = await svc.rpc('email_ticket_antwort_vermerken', {
+        p_account_id: sharedAccountId,
+        p_ticket_id: ticket_id ?? null,
+        p_in_reply_to: in_reply_to ?? null,
+        p_antwort_uid: antwort_uid ?? null,
+        p_message_id: info.messageId ?? null,
+        p_empfaenger: empfaenger,
+      });
+      if (vErr) console.error('[postfach.send] Ticket-Vermerk fehlgeschlagen:', vErr.message);
+      ticketVermerkt = !vErr && !!vermerkt;
+    } catch (e) {
+      console.error('[postfach.send] Ticket-Vermerk fehlgeschlagen:', (e as Error).message);
+      ticketVermerkt = false;
     }
   }
 
-  return res.status(200).json({ ok: true, messageId: info.messageId });
+  return res.status(200).json({
+    ok: true, messageId: info.messageId,
+    ...(ticketVermerkt !== undefined ? { ticket_vermerkt: ticketVermerkt } : {}),
+  });
 }
 
 // ─── poll-shared-tickets ─────────────────────────────────────────────────
@@ -461,8 +518,9 @@ async function handleSend(
 // Auth (Cron-Secret ODER eingeloggter Shared-Admin) wird im Entry-Point geprüft.
 //
 // Wiederholte oder gleichzeitige Abrufe (Cron alle 5 Min + Tab öffnen) sind
-// gefahrlos: Die DB meldet keine Mail doppelt (Meldung nur bei neuem Ticket
-// oder Wiederöffnen eines beantworteten/geschlossenen) — bekannte UIDs kehren früh
+// gefahrlos: Die DB meldet keine Mail doppelt (Meldung nur bei neuem Ticket,
+// Wiederöffnen eines beantworteten/geschlossenen oder einer Kundenantwort auf
+// eine Vereinsmail, 0208) — bekannte UIDs kehren früh
 // zurück, ein paralleles Anlegen desselben Tickets scheitert am Unique-Index
 // (hier nur als upsert_fehler gezählt), dedup_key je Empfänger (0185).
 //
@@ -515,20 +573,30 @@ async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse)
           const from = Math.max(total - 50 + 1, 1);
           const range = `${from}:${total}`;
           let count = 0;
-          for await (const msg of client.fetch(range, { envelope: true, uid: true, internalDate: true })) {
+          // headers: ['references'] → msg.headers (roher Buffer); das ENVELOPE
+          // kennt nur In-Reply-To und Message-ID (RFC 3501).
+          for await (const msg of client.fetch(range, {
+            envelope: true, uid: true, internalDate: true, headers: ['references'],
+          })) {
             const env = msg.envelope;
             if (!env) continue;
-            const refsArr = (env as { references?: string[] | string | null }).references;
-            const refs = Array.isArray(refsArr) ? refsArr : refsArr ? [refsArr] : [];
-            const threadKey = normalizeThreadKey(refs[0])
-              ?? normalizeThreadKey(env.inReplyTo as string | null | undefined)
-              ?? normalizeThreadKey(env.messageId as string | null | undefined);
+            // Schlüssel = EIGENE Message-ID der Mail (0208). Die Zuordnung zu
+            // einem bestehenden Ticket macht die DB über die Bezüge
+            // (In-Reply-To + References) und den Absender — so landet die
+            // Kundenantwort auf eine Vereinsantwort im selben Ticket, und
+            // Antworten verschiedener Personen verschmelzen nicht.
+            // Ohne Message-ID: Ersatzschlüssel aus der UID (sonst ginge die
+            // Mail verloren).
+            const threadKey = normalizeThreadKey(env.messageId as string | null | undefined)
+              ?? (msg.uid ? `uid-${msg.uid}@ohne-message-id` : null);
             if (!threadKey) continue;
+            const kandidaten = bezugsKandidaten(env.inReplyTo as string | null | undefined, msg.headers);
             const fromAddr = env.from?.[0]?.address ?? null;
             const fromName = env.from?.[0]?.name ?? null;
             const fromCombined = fromName ? `${fromName} <${fromAddr ?? ''}>` : fromAddr;
             // Eingangszeit (Server-Zeitstempel, sonst Date-Header): Über Mails, die
-            // älter als 3 Tage sind, benachrichtigt die DB niemanden (0185).
+            // älter als 3 Tage sind, benachrichtigt die DB niemanden (0185); für
+            // Mails älter als 24 Monate legt sie kein Ticket mehr an (0208).
             const eingang = msg.internalDate ?? env.date ?? null;
             const eingangMs = eingang ? new Date(eingang).getTime() : NaN;
             const { error: upErr } = await svc.rpc('email_ticket_upsert_from_inbound', {
@@ -538,6 +606,8 @@ async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse)
               p_from: fromCombined ?? 'Unbekannt',
               p_imap_uid: msg.uid ?? null,
               p_received_at: Number.isFinite(eingangMs) ? new Date(eingangMs).toISOString() : null,
+              p_kandidaten: kandidaten,
+              p_absender: reineAdresse(fromAddr),
             });
             if (upErr) {
               console.error('[postfach] Ticket-Upsert fehlgeschlagen:', upErr.message);

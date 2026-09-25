@@ -67,7 +67,7 @@ export function EvacuationOverlay({
       // sonst ratlos weiter, während der Alarm auf allen Geräten weiterläuft.
       const msg = (e as Error)?.message ?? '';
       setEndError(/nicht_berechtigt|42501/i.test(msg)
-        ? 'Dieses Gerät darf den Alarm nicht beenden. Bitte am Handy (eingeloggt) oder an einem gekoppelten Tablet beenden.'
+        ? 'Dieses Gerät darf den Alarm nicht beenden. Bitte am Handy (eingeloggt), am Öl-Raum-Tablet oder am Anwesenheits-Panel beenden.'
         : `Beenden hat nicht geklappt: ${msg || 'unbekannter Fehler'}. Bitte erneut versuchen.`);
     } finally {
       setEnding(false);

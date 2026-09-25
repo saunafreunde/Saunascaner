@@ -374,9 +374,11 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 // (auch nicht-eingeloggte Gäste auf öffentlichen Routen sehen den Alarm).
 //
 // "Alarm beenden"-Button im Overlay: nur für authentifizierte Vereinsmitglieder
-// (NICHT für Gast/Fan/anon) und für gekoppelte Kiosk-Geräte (0177) — sonst
-// könnte ein Gast den Notfall stoppen. Der Server prüft dasselbe
-// (evakuierung_beenden).
+// (NICHT für Gast/Fan/anon) und für gekoppelte Öl-Raum-Tablets bzw.
+// Anwesenheits-Panels — sonst könnte ein Gast den Notfall stoppen. Seit
+// Audit-Runde 4 (0207) NICHT mehr für Eingangs-Tablet, Scanner und Tafel:
+// dort stehen Gäste (das Eingangs-Tablet ist seit /willkommen gekoppelt). Der
+// Server prüft dasselbe (evakuierung_beenden → _evakuierung_berechtigt).
 // Wichtig: auf Mobile blockt der Vollbild-Overlay alle anderen Beenden-Buttons,
 // daher MUSS der Button im Overlay selbst sein.
 function GlobalEvacuationOverlay() {
@@ -393,14 +395,19 @@ function GlobalEvacuationOverlay() {
 
   const role = me.data?.role;
   // Alle Vereinsmitglieder dürfen beenden: Admin, Personal, ALLE Mitglieder
-  // (Helfer + Aufgießer), Gast-Aufgießer, gekoppelte Geräte.
-  // Ausgeschlossen: anon ohne Kopplung, gast, fan.
+  // (Helfer + Aufgießer), Gast-Aufgießer, dazu gekoppelte Geräte der Art
+  // 'oelraum' und 'panel' (0207).
+  // Ausgeschlossen: anon ohne Kopplung, gast, fan, gekoppelte Geräte im
+  // Gäste-Bereich ('eingang', 'scanner', 'tafel').
   // Scheiterte die Geräteprüfung (Netz kurz weg), aber ein Token liegt vor:
-  // Knopf trotzdem zeigen — evakuierung_beenden prüft das Token ohnehin, und
-  // ein gekoppeltes Tablet darf nicht eine Stunde lang ohne Beenden dastehen.
+  // Knopf trotzdem zeigen (die Art ist dann unbekannt) — evakuierung_beenden
+  // prüft Token und Art ohnehin, und ein gekoppeltes Öl-Raum-Tablet darf
+  // nicht eine Stunde lang ohne Beenden dastehen.
+  const geraetDarfBeenden = geraet.data?.status === 'ok'
+    && (geraet.data.art === 'oelraum' || geraet.data.art === 'panel');
   const canEnd = role === 'admin' || role === 'staff'
     || role === 'member' || role === 'guest_aufgieser'
-    || geraet.data?.status === 'ok'
+    || geraetDarfBeenden
     || (!geraet.data && geraet.isError && !!kioskGeraetToken());
 
   return (
