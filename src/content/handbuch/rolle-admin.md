@@ -101,7 +101,7 @@ Push geht **automatisch** an alle berechtigten Member (DB-Trigger).
 | 🟢 Anwesenheit | [/admin#presence](/admin#presence) | Live-Anwesenheit, manuelle Korrekturen |
 | 📅 Stamm-Slots | [/admin#recurring](/admin#recurring) | Recurring-Slot-Anträge freigeben |
 | 👥 Mitglieder | [/admin#members](/admin#members) | Rollen-Wechsel, Fan-Anträge, Sperren, Ausweise |
-| 👋 Gäste | [/admin#gaeste](/admin#gaeste) | Wer ist neu, wer kommt wieder, wer ist Karteileiche — plus Zugang mailen, PIN neu, zum Mitglied machen |
+| 👋 Gäste | [/admin#gaeste](/admin#gaeste) | Wer ist neu, wer kommt wieder, wer ist Karteileiche — plus Zugang mailen, PIN neu, zum Mitglied machen. Datenschutz: Gäste ohne Lebenszeichen seit über 12 Monaten werden zur Löschung vorgeschlagen (nie automatisch gelöscht); „🧹 Jetzt entfernen" räumt Profilbilder/Fotos gelöschter Konten und ersetzte Profilbilder aus dem Speicher |
 | ✉️ Einladungen | [/admin#invitations](/admin#invitations) | 7 Rollen-Buttons für Einladungs-Versand |
 | 📊 Statistik | [/admin#stats](/admin#stats) | Aufguss-Stats pro Aufgießer/Monat |
 | 📈 Auswertungen | [/admin#auswertungen](/admin#auswertungen) | 20 Charts (Aufgießer/Aktivität/Aromen/Mitglieder/Bewertungen/Social) |
@@ -136,7 +136,7 @@ Wenn du einen kritischen Bugfix deployed hast und nicht warten willst, bis sich 
 1. Du klickst → Bestätigung
 2. DB-Eintrag `app_reload_signal` wird gesetzt (Migration 0099)
 3. Auf jedem geöffneten Gerät pollt der `AppReloadWatcher` alle 30s diesen Signal-Stand
-4. Erkennt er Änderung → unregister Service-Worker, leert Caches, Hard-Reload mit Cache-Buster
+4. Erkennt er Änderung → aktualisiert den Service-Worker, nimmt die veraltete Startseite aus dem Cache, leert Bilder-/Wetter-Caches, Hard-Reload mit Cache-Buster. Der Service-Worker wird dabei **nicht** abgemeldet — sonst wären die Push-Benachrichtigungen des Geräts weg (Evakuierung!).
 5. User sieht in ~30s den neuen Stand — ohne dass er was tun muss
 
 **Nutze sparsam** — der Reload unterbricht laufende Aktivitäten. Vor allem: nicht in Stoßzeiten kurz vor einem Aufguss.

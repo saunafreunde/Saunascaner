@@ -23,12 +23,17 @@ export function UnvollstaendigeAufguesse({
   onNachpflegen,
   onLoeschen,
   busy = false,
+  gesperrt,
 }: {
   infusions: Infusion[];
   saunaName: (saunaId: string) => string;
   onNachpflegen: (inf: Infusion) => void;
   onLoeschen: (inf: Infusion) => void;
   busy?: boolean;
+  /** Darf dieser Aufguss hier nicht mehr geändert werden (60-Minuten-Sperre
+   *  des Servers)? Dann statt der Knöpfe, die sicher scheitern würden, der
+   *  Hinweis aufs Öl-Raum-Tablet — dort geht das Nachtragen weiter. */
+  gesperrt?: (inf: Infusion) => boolean;
 }) {
   const offen = useMemo(() => {
     const jetzt = Date.now();
@@ -69,6 +74,11 @@ export function UnvollstaendigeAufguesse({
                 {inf.title ? `„${inf.title}" · ` : ''}es fehlen {fehltText(fehlt)}
               </div>
             </div>
+            {gesperrt?.(inf) ? (
+              <span className="max-w-[16rem] text-xs text-amber-200/80">
+                🔒 Weniger als 60 Minuten bis zum Start — Zutaten jetzt am Öl-Raum-Tablet nachtragen.
+              </span>
+            ) : (
             <div className="flex flex-shrink-0 gap-2">
               <button
                 onClick={() => onNachpflegen(inf)}
@@ -86,6 +96,7 @@ export function UnvollstaendigeAufguesse({
                 🗑
               </button>
             </div>
+            )}
           </li>
         ))}
       </ul>

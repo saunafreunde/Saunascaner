@@ -1,6 +1,6 @@
 import { CATEGORY_LABELS, OILS, type Oil } from '@/lib/oils';
 import { OIL_INFO } from '@/lib/oilInfo';
-import { useDisabledOils, useInfusions, useSaunas } from '@/lib/api';
+import { useDisabledOils, useInfusions, useSaunas, TAFEL_FALLBACK_TAGE } from '@/lib/api';
 import { fmtClock, dayLabel } from '@/lib/time';
 
 /** „Ätherische Öle bei uns im Regal" — eine Karte im Slot-Karussell leerer
@@ -16,7 +16,8 @@ import { fmtClock, dayLabel } from '@/lib/time';
  *
  *  Datenquellen sind alle bereits anonym lesbar: der Öl-Katalog liegt rein
  *  clientseitig (lib/oils.ts + lib/oilInfo.ts), die geplanten Aufgüsse kommen
- *  aus useInfusions(), das die Tafel ohnehin schon lädt.
+ *  aus useInfusions(), das die Tafel ohnehin schon lädt — mit DEMSELBEN
+ *  fallbackTage wie Dashboard.tsx, sonst liefe ein zweiter Poll mit.
  */
 
 /** Jedes Öl hat sein EIGENES Motiv: public/oele/<slug>.webp.
@@ -105,7 +106,7 @@ function dreh<T>(arr: T[], k: number): T[] {
  *  nur jede zweite Karte, und die traf oft auch noch dasselbe Öl. */
 export function useSlotOil(kachelNr: number, tick: number, now: Date): Oil | null {
   const disabled = useDisabledOils();
-  const infusions = useInfusions();
+  const infusions = useInfusions({ fallbackTage: TAFEL_FALLBACK_TAGE });
   // Öle, die der Admin aus dem Bestand genommen hat, tauchen gar nicht erst
   // auf — es wäre ärgerlich, ein Öl zu bewerben das nicht mehr im Regal steht.
   const pool = OILS.filter((o) => !disabled.data?.[o.id]);
@@ -130,7 +131,7 @@ export function useSlotOil(kachelNr: number, tick: number, now: Date): Oil | nul
 
 /** Nächster geplanter Aufguss, in dem genau dieses Öl vorkommt. */
 function useNextUse(oilId: string, now: Date) {
-  const infusions = useInfusions();
+  const infusions = useInfusions({ fallbackTage: TAFEL_FALLBACK_TAGE });
   const saunas = useSaunas();
   const hit = (infusions.data ?? [])
     .filter((i) => !i.is_personal_fallback

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { DATENSCHUTZ_FASSUNG } from '@/lib/datenschutz';
 
 export function useAuth() {
   const qc = useQueryClient();
@@ -50,7 +51,9 @@ export function useAuth() {
     },
     signUp: async (email: string, password: string, name?: string, inviteCode?: string | null) => {
       if (!supabase) return { error: new Error('Supabase nicht konfiguriert') };
-      const data: Record<string, string> = { name: name ?? email };
+      // datenschutz_fassung: welche Fassung der Datenschutzhinweise bei der
+      // Registrierung verlinkt war (members.datenschutz_fassung, Migration 0186).
+      const data: Record<string, string> = { name: name ?? email, datenschutz_fassung: DATENSCHUTZ_FASSUNG };
       if (inviteCode && inviteCode.trim()) data.invite_code = inviteCode.trim().toUpperCase();
       return supabase.auth.signUp({
         email, password,

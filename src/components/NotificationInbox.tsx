@@ -24,6 +24,14 @@ const KIND_EMOJI: Record<string, string> = {
   saunafest_einteilung:   '🔥',
   saunafest_erinnerung:   '🔥',
   saunafest_video:        '🎬',
+  org_news_published:     '📣',
+  shift_swap_requested:   '🔄',
+  shift_swap_accepted:    '🔄',
+  shift_swap_rejected:    '🔄',
+  shift_swap_withdrawn:   '🔄',
+  shift_swap_notified_cp: '🔄',
+  shift_cancellation_taken: '🙋',
+  telegram_anfrage:       '✈️',
 };
 
 export function NotificationInbox({ onClose }: { onClose: () => void }) {
@@ -45,6 +53,13 @@ export function NotificationInbox({ onClose }: { onClose: () => void }) {
     if (n.kind === 'rating_reminder') return `/bewerten`;
     if (n.kind === 'kiosk_joker') return `/admin`;
     if (n.kind.startsWith('saunafest_')) return typeof p.url === 'string' ? p.url : '/planner#saunafest';
+    // Gleiche Ziele wie der Push (api/push-send.ts, queueInhalt)
+    if (n.kind === 'org_news_published') return '/gast';
+    if (n.kind === 'shift_swap_notified_cp' || n.kind === 'shift_cancellation_taken') return '/cp';
+    if (n.kind.startsWith('shift_')) return '/mitarbeiter';
+    if (n.kind === 'fan_upgrade_request') return '/admin#members';
+    if (n.kind.startsWith('fan_')) return '/fan';
+    if (n.kind === 'telegram_anfrage') return '/admin#handbook';
     return null;
   }
 

@@ -67,6 +67,8 @@ export function EditInfusionModal({
     initialAttrs.schnaps ? 'schnaps' : initialAttrs.sud.length > 0 ? 'sud' : 'oils');
   const [teamInfusion, setTeamInfusion] = useState(infusion.team_infusion);
   const [duration, setDuration] = useState<number>(infusion.duration_minutes);
+  // Banja-Ritual: Dauer folgt der Startzeit und ist hier nicht wählbar.
+  const istBanja = (infusion.attributes ?? []).includes('banja');
   const [showOilPicker, setShowOilPicker] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -125,14 +127,10 @@ export function EditInfusionModal({
 
   async function save() {
     setErrorMsg(null);
-    // Banja-Defense (Migration 0104 Server-Trigger spiegelt): wenn 'banja' im
-    // attrs-Array UND duration != 90 → früh blocken statt Server-Error nach
-    // Submit. Admin könnte sonst versehentlich Banja-Duration ändern und
-    // bekäme cryptische Trigger-Message.
-    if (attrs.includes('banja' as InfusionAttribute) && duration !== 90) {
-      setErrorMsg('♨️ Banja-Ritual muss genau 90 Minuten dauern. Entweder Dauer auf 90 setzen oder das Banja-Attribut entfernen.');
-      return;
-    }
+    // Banja: Die Dauer ergibt sich aus der Startzeit (90 Min um 19 Uhr, sonst
+    // 120 — lib/banja.ts, Trigger validate_infusion_banja_and_overlap) und ist
+    // hier nicht wählbar; gespeichert wird die bestehende Dauer (siehe unten).
+    // Vorher blockte hier eine alte 90-Minuten-Pflicht jedes 120-Min-Banja.
     // Dieselbe Pflicht wie im Planer (3 Öle + 2 Besonderheiten, Öl-Pflicht
     // entfällt bei Räuchern/Sud/Schnaps). Ohne diese Prüfung wäre der Dialog
     // das Schlupfloch: aus der Nachpflege-Liste landet man genau hier, und
@@ -150,13 +148,16 @@ export function EditInfusionModal({
       await update.mutateAsync({
         id: infusion.id,
         title: title.trim() || undefined,
-        description: description.trim() || null,
+        // Leeres Feld = Beschreibung löschen: '' schicken, nicht null — null
+        // heißt bei update_infusion „unverändert" (seit 0183 wird '' zu NULL).
+        description: description.trim(),
         // Standard-attrs + Custom-Attr-UUIDs + Schnaps zusammen in ein Array
         // (siehe lib/schnaps.ts warum der Schnaps hier mitreist)
         attributes: [...attrs, ...customAttrIds, ...sudAuswahl, ...(schnaps ? [schnapsAttrId(schnaps)] : [])],
         oils,
         team_infusion: teamInfusion,
-        duration_minutes: duration,
+        // Banja: bestehende Dauer unverändert lassen (siehe oben).
+        duration_minutes: istBanja ? infusion.duration_minutes : duration,
         saunameister_id: meisterChanged ? saunameisterId : null,
       });
       // Admin + Team: Co-Aufgießer atomar überschreiben
@@ -265,7 +266,7 @@ export function EditInfusionModal({
               value={description}
               onChange={(e) => setDescription(e.target.value.slice(0, 200))}
               rows={2}
-              className="mt-1 w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-2 text-sm text-forest-100 placeholder-forest-500 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+              className="mt-1 w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-2 text-base sm:text-sm text-forest-100 placeholder-forest-500 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
               placeholder={'Kurze Beschreibung'}
             />
             <div className="text-right text-[10px] text-forest-500 mt-1">{description.length}/200</div>
@@ -274,6 +275,14 @@ export function EditInfusionModal({
           {/* Dauer — User-Wunsch (Mai 2026): 20/30/45 wählbar, Default 20.
               Bei Alt-Daten (15/25/60 etc.) wird die aktuelle Dauer als
               zusätzlicher Button gezeigt damit sie nicht überschrieben wird. */}
+          {istBanja ? (
+            <div>
+              <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Dauer in Minuten</label>
+              <p className="mt-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-100 ring-1 ring-rose-500/30">
+                ♨️ Banja-Ritual: {infusion.duration_minutes} Minuten — ergibt sich aus der Startzeit und ist nicht änderbar.
+              </p>
+            </div>
+          ) : (
           <div>
             <label className="text-xs font-semibold text-forest-300 uppercase tracking-wider">Dauer in Minuten</label>
             <div className="mt-1.5 flex gap-1.5">
@@ -301,6 +310,7 @@ export function EditInfusionModal({
               )}
             </div>
           </div>
+          )}
 
           {/* Attribute */}
           <div>
@@ -421,7 +431,7 @@ export function EditInfusionModal({
                 <select
                   value={schnaps ?? ''}
                   onChange={(e) => setSchnaps(e.target.value || null)}
-                  className="mt-1.5 w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-3 text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="mt-1.5 w-full rounded-lg bg-forest-900/60 ring-1 ring-forest-700/50 px-3 py-3 text-base sm:text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 >
                   <option value="">— kein Schnaps —</option>
                   {SCHNAPS.map((s) => (
@@ -511,7 +521,7 @@ export function EditInfusionModal({
               <select
                 value={saunameisterId}
                 onChange={(e) => setSaunameisterId(e.target.value)}
-                className="mt-1 w-full rounded-lg bg-forest-900/60 ring-1 ring-violet-700/40 px-3 py-2 text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                className="mt-1 w-full rounded-lg bg-forest-900/60 ring-1 ring-violet-700/40 px-3 py-2 text-base sm:text-sm text-forest-100 focus:outline-none focus:ring-2 focus:ring-violet-400"
               >
                 <option value="">— niemand zugewiesen —</option>
                 {(meisterDir.data ?? []).map((x) => (

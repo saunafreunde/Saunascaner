@@ -27,8 +27,10 @@ Nein. Das Tablet bestätigt nur deinen Check-in — bewertet wird in der App unt
 Ruhe von zuhause aus bewerten, statt im Handtuch am Tablet zu stehen.
 
 ### Wer darf den Notfall-Alarm auslösen?
-🧖 Aufgießer, 🌍 Gast-Aufgießer, 👨‍🍳 Personal und ⚙️ Admins. Eine
-Doppelbestätigung verhindert versehentliches Auslösen.
+Jeder vor Ort — am gekoppelten Öl-Raum-Tablet. ⚙️ Admins können ihn
+zusätzlich im Planer und im Admin-Bereich auslösen. Eine Doppelbestätigung
+verhindert versehentliches Auslösen. Beenden können alle eingeloggten Vereinsmitglieder
+und gekoppelte Tablets.
 
 ### Neue Funktion ist da, aber meine App zeigt sie nicht
 Seite zweimal neu laden (auf dem Handy: von oben nach unten ziehen). Die App

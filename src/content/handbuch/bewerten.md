@@ -44,6 +44,7 @@ Auf `/bewerten` erscheint pro offenem Aufguss eine Karte mit:
 Nach dem Absenden:
 - Aufgießer bekommt sofort das **Echo-Modal** beim nächsten App-Aufruf
 - Deine Bewertung fließt in seinen 6-Kategorien-Radar ein (Kapitel 15)
+- Dein Kommentar erscheint **anonym** (ohne Namen und Foto, nur mit Datum) unter „Was Gäste sagen" im Profil des Aufgießers. Deine einzelnen Noten sehen nur du und der Vorstand.
 - Bei Anchor-Verknüpfung mit einem Feed-Post wird die Reaktion dort sichtbar
 
 ### Was Personal **nicht** kann

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import DOMPurify from 'isomorphic-dompurify';
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { mailHtmlAufbereiten, MAIL_IFRAME_SANDBOX } from '@/lib/mailHtml';
 import {
-  useAccountTickets, useLockEmailTicket, useUnlockEmailTicket, useSetEmailTicketStatus,
+  useAccountTickets, useLockEmailTicket, useUnlockEmailTicket, useSetEmailTicketStatus, useCurrentMember,
   type SharedAccount, type EmailTicket, type EmailTicketStatus,
 } from '@/lib/api';
 import {
@@ -34,6 +34,13 @@ export function SharedTicketsView({ accounts }: { accounts: SharedAccount[] }) {
   useEffect(() => { setSelectedTicket(null); }, [activeAccount]);
 
   const tickets = ticketsQ.data ?? [];
+  // Das Detail zeigt den AKTUELLEN Stand aus der Liste (alle 15 s neu + nach
+  // Sperren/Status), nicht den Schnappschuss vom Klick — sonst blieben fremde
+  // Sperren unsichtbar und nach „Übernehmen" stand weiter der alte Banner
+  // (Audit 25.09.2026). Fällt das Ticket aus dem Filter, bleibt die Kopie.
+  const liveTicket = selectedTicket
+    ? (tickets.find((t) => t.id === selectedTicket.id) ?? selectedTicket)
+    : null;
 
   if (accounts.length === 0) {
     return <div className="grid place-items-center h-64 text-forest-400">Du hast kein Vereins-Postfach.</div>;
@@ -109,10 +116,10 @@ export function SharedTicketsView({ accounts }: { accounts: SharedAccount[] }) {
 
         {/* Detail */}
         <section className={`${!selectedTicket && 'hidden md:flex'} md:flex flex-col flex-1 min-w-0 rounded-2xl bg-forest-950/70 ring-1 ring-forest-800/50 overflow-hidden`}>
-          {selectedTicket && activeAccount ? (
+          {liveTicket && activeAccount ? (
             <SharedTicketDetail
               accountId={activeAccount}
-              ticket={selectedTicket}
+              ticket={liveTicket}
               onClose={() => setSelectedTicket(null)}
               onReply={(d) => { setComposeDraft(d); setComposeOpen(true); }}
             />
@@ -217,6 +224,7 @@ function SharedTicketDetail({
   onReply: (d: { to: string; subject: string; body: string; inReplyTo: string; references: string[] }) => void;
 }) {
   const [showImages, setShowImages] = useState(false);
+  const me = useCurrentMember();
   const lockMutation = useLockEmailTicket();
   const unlockMutation = useUnlockEmailTicket();
   const setStatusMut = useSetEmailTicketStatus();
@@ -275,17 +283,13 @@ function SharedTicketDetail({
   // Note: wir nutzen die Frontend-Daten (ticket.locked_by) für Anzeige, server hat letzte Wahrheit
   const lockAge = ticket.locked_at ? Date.now() - new Date(ticket.locked_at).getTime() : 0;
   const lockExpired = lockAge > 10 * 60 * 1000;
-  const isLockedByOther = !!ticket.locked_by_name && !lockExpired;
+  // Die EIGENE Sperre ist keine fremde (Audit 25.09.2026): nach Neuladen,
+  // erneutem Antippen oder „Übernehmen" stand sonst „🔒 <eigener Name>" da und
+  // „Antworten" fehlte. Ohne geladenes eigenes Mitglied gilt die Sperre als fremd.
+  const isLockedByOther = !!ticket.locked_by && ticket.locked_by !== me.data?.id && !lockExpired;
 
-  // HTML-Sanitize
-  let sanitizedHtml: string | null = null;
-  if (messageQ.data?.html) {
-    let html = DOMPurify.sanitize(messageQ.data.html, { ADD_ATTR: ['target'] });
-    if (!showImages) {
-      html = html.replace(/<img\b[^>]*>/gi, '<span style="color:#94a3b8;font-style:italic;font-size:11px;">[Bild geblockt]</span>');
-    }
-    sanitizedHtml = html;
-  }
+  // HTML-Sanitize, Links in neuem Tab, Bildsperre per CSP (src/lib/mailHtml.ts)
+  const mail = messageQ.data?.html ? mailHtmlAufbereiten(messageQ.data.html, showImages) : null;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -298,7 +302,8 @@ function SharedTicketDetail({
           </span>
           {isLockedByOther && (
             <span className="text-xs text-amber-300 inline-flex items-center gap-1.5">
-              🔒 {ticket.locked_by_name} bearbeitet seit {formatDistanceToNow(new Date(ticket.locked_at!), { locale: de })}
+              🔒 {ticket.locked_by_name ?? 'Jemand'} bearbeitet
+              {ticket.locked_at && <> seit {formatDistanceToNow(new Date(ticket.locked_at), { locale: de })}</>}
             </span>
           )}
           <div className="ml-auto flex gap-1.5">
@@ -360,16 +365,16 @@ function SharedTicketDetail({
             </div>
           )}
           <div className="flex-1 overflow-y-auto p-4">
-            {sanitizedHtml ? (
+            {mail ? (
               <>
-                {!showImages && /\[Bild geblockt\]/.test(sanitizedHtml) && (
+                {!showImages && mail.bilderGeblockt && (
                   <div className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30 flex items-center justify-between">
                     <span>🛡️ Bilder geblockt</span>
                     <button onClick={() => setShowImages(true)} className="text-amber-100 font-semibold underline">Anzeigen</button>
                   </div>
                 )}
-                {/* FIX 0107 (Audit Phase 4 CRITICAL): sandbox="" — siehe Postfach.tsx */}
-                <iframe srcDoc={sanitizedHtml} sandbox="" className="w-full min-h-[400px] rounded-md bg-white" style={{ colorScheme: 'light' }} />
+                {/* FIX 0107 (Audit Phase 4 CRITICAL) + 25.09.2026: nur allow-popups — siehe Postfach.tsx */}
+                <iframe srcDoc={mail.html} sandbox={MAIL_IFRAME_SANDBOX} title="Inhalt der E-Mail" className="w-full min-h-[400px] rounded-md bg-white" style={{ colorScheme: 'light' }} />
               </>
             ) : (
               <pre className="text-sm text-forest-100 whitespace-pre-wrap font-sans leading-relaxed">{messageQ.data.text || '(leer)'}</pre>

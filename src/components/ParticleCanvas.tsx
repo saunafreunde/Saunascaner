@@ -11,12 +11,44 @@ interface Particle {
 
 interface ParticleCanvasProps {
   activeSaunaCount: number;
+  /** Nichts zeichnen (Joker-Sperre/Nacht). Die Schleife steht dann ganz still. */
+  pausiert?: boolean;
 }
 
-export function ParticleCanvas({ activeSaunaCount }: ParticleCanvasProps) {
+// Audit 25.09.2026 — die Tafel läuft 24/7 auf schwacher Hardware:
+//  • Die Schleife steht still, solange die Tafel unter dem Joker liegt
+//    (`pausiert`) oder der Tab verborgen ist. display:none am #root hält
+//    requestAnimationFrame NICHT an — vorher lief sie die ganze Nacht mit.
+//  • 30 statt 60 Bilder/s; die Bewegung je Bild ist dafür doppelt so groß,
+//    das Bild bleibt gleich. Dampf ist langsam, die Hälfte der Arbeit fällt weg.
+//  • Das Dampf-Wölkchen wird EINMAL vorgerendert und nur noch skaliert
+//    gezeichnet — vorher entstanden pro Bild ~40 neue RadialGradients
+//    (≈ 2.400 Objekte/s für den Garbage Collector).
+const BILD_MS = 1000 / 30;
+const SCHRITT = 2;          // Simulationsschritte je gezeichnetem Bild (60-Hz-Takt beibehalten)
+const SPRITE_R = 32;        // Radius des vorgerenderten Dampf-Sprites in px
+
+function dampfSprite(): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = c.height = SPRITE_R * 2;
+  const g = c.getContext('2d');
+  if (g) {
+    const grad = g.createRadialGradient(SPRITE_R, SPRITE_R, 0, SPRITE_R, SPRITE_R, SPRITE_R);
+    grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+    grad.addColorStop(1, 'rgba(200,220,220,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(SPRITE_R, SPRITE_R, SPRITE_R, 0, Math.PI * 2);
+    g.fill();
+  }
+  return c;
+}
+
+export function ParticleCanvas({ activeSaunaCount, pausiert = false }: ParticleCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (pausiert) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -29,6 +61,7 @@ export function ParticleCanvas({ activeSaunaCount }: ParticleCanvasProps) {
     resize();
     window.addEventListener('resize', resize);
 
+    const sprite = dampfSprite();
     const intensity = Math.max(0.4, Math.min(1, activeSaunaCount / 3));
     const steamCount = Math.floor(40 * intensity);
     const emberCount = Math.floor(25 * intensity);
@@ -60,16 +93,16 @@ export function ParticleCanvas({ activeSaunaCount }: ParticleCanvasProps) {
     for (let i = 0; i < emberCount; i++) particles.push(mkEmber(true));
 
     const EMBER_COLORS = ['#f08020', '#fbbf24', '#ef4444', '#fb923c'];
-    let rafId: number;
+    let rafId: number | null = null;
     let frame = 0;
+    let letztesBild = 0;
 
-    const tick = () => {
-      rafId = requestAnimationFrame(tick);
+    const zeichnen = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      frame++;
+      frame += SCHRITT;
 
       for (const p of particles) {
-        p.life++;
+        p.life += SCHRITT;
         const t = p.life / p.maxLife;
         p.opacity = t < 0.2
           ? (t / 0.2) * p.maxOpacity
@@ -77,8 +110,8 @@ export function ParticleCanvas({ activeSaunaCount }: ParticleCanvasProps) {
           ? p.maxOpacity
           : ((1 - t) / 0.3) * p.maxOpacity;
 
-        p.x += p.vx + Math.sin(p.life * 0.04 + p.x * 0.01) * 0.3;
-        p.y += p.vy;
+        p.x += (p.vx + Math.sin(p.life * 0.04 + p.x * 0.01) * 0.3) * SCHRITT;
+        p.y += p.vy * SCHRITT;
 
         if (p.life >= p.maxLife) {
           const fresh = p.type === 'steam' ? mkSteam() : mkEmber();
@@ -86,17 +119,9 @@ export function ParticleCanvas({ activeSaunaCount }: ParticleCanvasProps) {
           continue;
         }
 
-        ctx.save();
-        ctx.globalAlpha = p.opacity;
-
         if (p.type === 'steam') {
-          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
-          g.addColorStop(0, 'rgba(255,255,255,0.9)');
-          g.addColorStop(1, 'rgba(200,220,220,0)');
-          ctx.fillStyle = g;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.globalAlpha = p.opacity;
+          ctx.drawImage(sprite, p.x - p.radius, p.y - p.radius, p.radius * 2, p.radius * 2);
         } else {
           const flicker = 0.7 + Math.sin(frame * 0.35 + p.x * 0.1) * 0.3;
           ctx.globalAlpha = p.opacity * flicker;
@@ -105,18 +130,37 @@ export function ParticleCanvas({ activeSaunaCount }: ParticleCanvasProps) {
           ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
           ctx.fill();
         }
-
-        ctx.restore();
       }
+      ctx.globalAlpha = 1;
     };
 
-    tick();
+    const tick = (zeit: number) => {
+      rafId = requestAnimationFrame(tick);
+      if (zeit - letztesBild < BILD_MS) return;
+      letztesBild = zeit;
+      zeichnen();
+    };
+
+    const starten = () => {
+      if (rafId == null && document.visibilityState !== 'hidden') rafId = requestAnimationFrame(tick);
+    };
+    const anhalten = () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      rafId = null;
+    };
+    const sichtbarkeit = () => { if (document.visibilityState === 'hidden') anhalten(); else starten(); };
+
+    starten();
+    document.addEventListener('visibilitychange', sichtbarkeit);
     return () => {
-      cancelAnimationFrame(rafId);
+      anhalten();
+      document.removeEventListener('visibilitychange', sichtbarkeit);
       window.removeEventListener('resize', resize);
     };
-  }, [activeSaunaCount]);
+  }, [activeSaunaCount, pausiert]);
 
+  // Pausiert: gar keine Fläche — auch kein stehengebliebenes letztes Bild.
+  if (pausiert) return null;
   return (
     <canvas
       ref={canvasRef}

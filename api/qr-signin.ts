@@ -8,13 +8,26 @@
 // je IP in der Datenbank gezählt (kiosk_versuche) — Treffer bremsen nie, damit
 // der Eingang am Saunafest nicht stockt. Die Speicher-Bremse unten bleibt als
 // grobe erste Stufe.
+//
+// Gekoppelte Geräte (Migration 0177, Nachtrag Audit 25.09.2026 / 0189): Eingangs-
+// Tablet und Scanner schicken ihr Geräte-Token (Header x-kiosk-geraet) mit.
+//  * Die Speicher-Bremse bremst sie nicht (Tablet und Scanner teilen sich am
+//    Eingang eine IP).
+//  * PIN-Fehlversuche OHNE gekoppeltes Gerät zählen zusätzlich in einen
+//    gemeinsamen Topf („ungekoppelt", 20 je Stunde) — wer IPs wechselt, kommt
+//    so nicht mehr auf Tausende Versuche. Gilt erst, sobald ein Eingangs-Tablet
+//    oder Scanner gekoppelt ist (vorher liefen die echten Geräte ja selbst
+//    ungekoppelt).
+//  * tablet-signup (legt Konten an und verschickt Mails) nimmt nur noch das
+//    gekoppelte Eingangs-Tablet an — ebenfalls erst, sobald eins gekoppelt ist.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { authenticate } from './_auth.js';
 import { getBrandSettings, logEmailSend, sendSystemMail } from './_email_helpers.js';
 import { renderGastAccessEmail } from './_email_templates.js';
+import { clientIp, emailSchluessel, geraeteartGekoppelt, kioskGeraet, ohneAdressen } from './_schutz.js';
+import { queryParam } from './_query.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PIN_RE = /^\d{4}$/;
@@ -33,14 +46,8 @@ function isRateLimited(ip: string, max = 10): boolean {
   return false;
 }
 
-// Client-IP laut Vercel: x-real-ip bzw. der erste Eintrag von x-forwarded-for
-// werden von Vercel gesetzt und lassen sich vom Client nicht vorgeben.
-function clientIp(req: VercelRequest): string {
-  const real = req.headers['x-real-ip'];
-  const r = Array.isArray(real) ? real[0] : real;
-  if (r && r.trim()) return r.trim();
-  return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown';
-}
+// Client-IP: clientIp() aus _schutz.ts (x-real-ip bzw. erster Eintrag von
+// x-forwarded-for — setzt Vercel selbst, lässt sich nicht vorgeben).
 
 // Datenbank-Bremse (0173). Grenzen: unbekannte PINs je IP; Anmeldungen je IP;
 // Anmelde-Mails an ein bestehendes Konto je E-Mail (als sha256, nie im Klartext).
@@ -67,27 +74,64 @@ async function versuchMerken(admin: SupabaseClient, art: string, schluessel: str
   if (error) console.error('[qr-signin] kiosk_versuch_merken fehlgeschlagen', error.code ?? '');
 }
 
-function emailSchluessel(email: string): string {
-  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+// ─── Gekoppelte Geräte + gemeinsamer Topf für ungekoppelte PIN-Versuche ──
+// Welche Gerätearten PIN-Aktionen und die Tablet-Anmeldung ausführen.
+const PIN_GERAETE = ['eingang', 'scanner'];
+// Schlüssel des gemeinsamen Topfs — kann mit keiner IP zusammenfallen.
+const UNGEKOPPELT = 'ungekoppelt';
+const PIN_FEHL_UNGEKOPPELT_MAX = 20;
+const PIN_FEHL_UNGEKOPPELT_FENSTER_S = 60 * 60;
+
+/** Anfrage-Kontext der PIN-Aktionen: IP und ob ein gekoppeltes Gerät fragt. */
+type PinKontext = { ip: string; gekoppelt: boolean };
+
+async function pinGebremst(admin: SupabaseClient, k: PinKontext): Promise<boolean> {
+  if (await gebremst(admin, 'pin_fehl', k.ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) return true;
+  if (k.gekoppelt) return false;
+  // Übergang: solange weder Eingangs-Tablet noch Scanner gekoppelt ist, laufen
+  // die echten Geräte selbst ungekoppelt — dann nur die Bremse je IP.
+  const aktiv = (await geraeteartGekoppelt(admin, 'eingang')) || (await geraeteartGekoppelt(admin, 'scanner'));
+  if (!aktiv) return false;
+  return gebremst(admin, 'pin_fehl', UNGEKOPPELT, PIN_FEHL_UNGEKOPPELT_MAX, PIN_FEHL_UNGEKOPPELT_FENSTER_S);
+}
+
+async function pinFehlMerken(admin: SupabaseClient, k: PinKontext): Promise<void> {
+  await versuchMerken(admin, 'pin_fehl', k.ip);
+  if (!k.gekoppelt) await versuchMerken(admin, 'pin_fehl', UNGEKOPPELT);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   const ip = clientIp(req);
-  if (isRateLimited(ip)) return res.status(429).json({ error: 'too_many_requests' });
+  const speicherVoll = isRateLimited(ip);
 
   const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supaUrl || !serviceKey) return res.status(500).json({ error: 'server env missing' });
 
   const admin = createClient(supaUrl, serviceKey, { auth: { persistSession: false } });
-  const action = String(req.query.action ?? '');
+  const action = String(queryParam(req, 'action') ?? '');
 
-  if (action === 'pin-checkin') return handlePinCheckin(req, res, admin, ip);
-  if (action === 'pin-toggle') return handlePinToggle(req, res, admin, ip);
-  if (action === 'kiosk-rate') return handleKioskRate(req, res, admin, ip);
-  if (action === 'tablet-signup') return handleTabletSignup(req, res, admin, ip);
+  // Nur für die Kiosk-Aktionen fragen wir nach dem Gerät (eine Abfrage).
+  const kioskAktion = ['pin-checkin', 'pin-toggle', 'kiosk-rate', 'tablet-signup'].includes(action);
+  const geraet = kioskAktion ? await kioskGeraet(admin, req) : null;
+  const gekoppelt = !!geraet && PIN_GERAETE.includes(geraet.art);
+  // Grobe Speicher-Stufe — gekoppelte Vereinsgeräte bremst sie nicht.
+  if (speicherVoll && !gekoppelt) return res.status(429).json({ error: 'too_many_requests' });
+
+  const k: PinKontext = { ip, gekoppelt };
+  if (action === 'pin-checkin') return handlePinCheckin(req, res, admin, k);
+  if (action === 'pin-toggle') return handlePinToggle(req, res, admin, k);
+  if (action === 'kiosk-rate') return handleKioskRate(req, res, admin, k);
+  if (action === 'tablet-signup') {
+    // Legt Konten an und verschickt Mails: nur vom gekoppelten Eingangs-Tablet
+    // (Übergang: solange noch keins gekoppelt ist, wie bisher offen).
+    if (geraet?.art !== 'eingang' && (await geraeteartGekoppelt(admin, 'eingang'))) {
+      return res.status(403).json({ error: 'Dieses Gerät ist nicht als Eingangs-Tablet freigeschaltet. Bitte beim Personal melden.' });
+    }
+    return handleTabletSignup(req, res, admin, ip);
+  }
   if (action === 'resend-access') return handleResendAccess(req, res, admin);
 
   // Default: Mitglieder-QR-Scanner mit UUID member_code
@@ -145,18 +189,18 @@ async function handlePinCheckin(
   req: VercelRequest,
   res: VercelResponse,
   admin: SupabaseClient,
-  ip: string,
+  k: PinKontext,
 ) {
   const pin = String(req.body?.pin ?? '').trim();
   if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
-  if (await gebremst(admin, 'pin_fehl', ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) {
+  if (await pinGebremst(admin, k)) {
     return res.status(429).json({ error: 'zu_viele_fehlversuche' });
   }
 
   const { data: rows, error } = await admin.rpc('kiosk_checkin', { p_pin: pin });
   if (error) {
     if (error.message?.includes('pin_unbekannt')) {
-      await versuchMerken(admin, 'pin_fehl', ip);
+      await pinFehlMerken(admin, k);
       return res.status(404).json({ error: 'pin_unknown' });
     }
     return res.status(500).json({ error: error.message });
@@ -182,18 +226,18 @@ async function handlePinToggle(
   req: VercelRequest,
   res: VercelResponse,
   admin: SupabaseClient,
-  ip: string,
+  k: PinKontext,
 ) {
   const pin = String(req.body?.pin ?? '').trim();
   if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin_format' });
-  if (await gebremst(admin, 'pin_fehl', ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) {
+  if (await pinGebremst(admin, k)) {
     return res.status(429).json({ error: 'zu_viele_fehlversuche' });
   }
 
   const { data, error } = await admin.rpc('toggle_presence_by_checkin_pin', { p_pin: pin });
   if (error) {
     if (error.code === 'P0002' || error.message?.includes('unknown_or_revoked')) {
-      await versuchMerken(admin, 'pin_fehl', ip);
+      await pinFehlMerken(admin, k);
       return res.status(404).json({ error: 'unknown_or_revoked' });
     }
     if (error.message?.includes('invalid_pin_format')) return res.status(400).json({ error: 'invalid_pin_format' });
@@ -203,7 +247,7 @@ async function handlePinToggle(
   const r = (Array.isArray(data) ? data[0] : data) as
     { member_id?: string; name?: string; is_present?: boolean; needs_family_modal?: boolean } | null;
   if (!r?.member_id) {
-    await versuchMerken(admin, 'pin_fehl', ip);
+    await pinFehlMerken(admin, k);
     return res.status(404).json({ error: 'unknown_or_revoked' });
   }
   return res.status(200).json({
@@ -219,11 +263,11 @@ async function handleKioskRate(
   req: VercelRequest,
   res: VercelResponse,
   admin: SupabaseClient,
-  ip: string,
+  k: PinKontext,
 ) {
   const pin = String(req.body?.pin ?? '').trim();
   if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
-  if (await gebremst(admin, 'pin_fehl', ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) {
+  if (await pinGebremst(admin, k)) {
     return res.status(429).json({ error: 'zu_viele_fehlversuche' });
   }
 
@@ -251,7 +295,7 @@ async function handleKioskRate(
     p_comment: typeof b.comment === 'string' ? b.comment.slice(0, 500) : null,
   });
   if (error) return res.status(500).json({ error: error.message });
-  if (data === 'pin_unbekannt') await versuchMerken(admin, 'pin_fehl', ip);
+  if (data === 'pin_unbekannt') await pinFehlMerken(admin, k);
   if (data !== 'ok') return res.status(400).json({ error: String(data) });
 
   // Frische Liste zurückgeben — nach dem Speichern ist mindestens eine
@@ -272,9 +316,14 @@ async function handleTabletSignup(
   admin: SupabaseClient,
   ip: string,
 ) {
-  const { name, email, dsgvo, ref } = req.body as {
-    name?: string; email?: string; dsgvo?: boolean; ref?: string;
+  const { name, email, dsgvo, ref, fassung } = req.body as {
+    name?: string; email?: string; dsgvo?: boolean; ref?: string; fassung?: unknown;
   };
+  // Fassung der Datenschutzhinweise, die das Tablet angezeigt hat (JJJJ-MM-TT).
+  // handle_new_user legt das Konto an, der Trigger aus 0186 übernimmt sie nach
+  // members.datenschutz_fassung. Alte Tablet-Bundles schicken keine → leer.
+  const datenschutzFassung =
+    typeof fassung === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fassung) ? fassung : undefined;
   const cleanName = (name ?? '').trim().slice(0, 80);
   const cleanEmail = (email ?? '').trim().toLowerCase();
   if (!cleanName || cleanName.length < 2) return res.status(400).json({ error: 'name_required' });
@@ -303,47 +352,85 @@ async function handleTabletSignup(
     existing = users.find((u) => u.email?.toLowerCase() === cleanEmail);
     if (existing || users.length < 500) break;
   }
+  const gastMeta = {
+    name: cleanName,
+    signup_kind: 'gast',
+    gast_referral: (typeof ref === 'string' && ref.trim() ? ref.trim() : 'Tablet').slice(0, 80),
+    gast_origin: 'tablet_signup',
+    ...(datenschutzFassung ? { datenschutz_fassung: datenschutzFassung } : {}),
+  };
+  let userId: string;
   if (existing) {
     const { data: memberRow } = await admin
       .from('members')
       .select('id, checkin_pin, name, email, revoked_at')
       .eq('auth_user_id', existing.id)
       .maybeSingle();
-    // Kein Einchecken und keine PIN ohne PIN-Nachweis: die Person bekommt ihre
-    // Zugangsdaten per Mail und checkt danach wie alle mit der PIN ein.
-    // Höchstens eine Mail je Konto in 10 Minuten (sonst Mail-Bombe per Tablet).
-    let mailSent = true;
-    if (memberRow && memberRow.checkin_pin && !memberRow.revoked_at) {
-      const mailKey = emailSchluessel(cleanEmail);
-      if (!(await gebremst(admin, 'signup_mail', mailKey, 1, SIGNUP_MAIL_FENSTER_S))) {
-        await versuchMerken(admin, 'signup_mail', mailKey);
-        mailSent = await sendGastAccessMail(admin, {
-          memberId: memberRow.id,
-          // Adresse aus der Datenbank, nicht aus dem Formular.
-          email: (memberRow.email ?? cleanEmail).trim().toLowerCase(),
-          name: memberRow.name,
-          pin: memberRow.checkin_pin,
-          isReturning: true,
-        });
+    // Eine offene (nie bestätigte) Anmeldung übernimmt das Tablet nur, wenn sie
+    // selbst eine Gast-Anmeldung ohne Einladung war. Eine offene Registrierung
+    // über /login (evtl. mit Einladungs-Code) bleibt, wie sie ist — die Person
+    // bestätigt sie über ihre eigene Mail.
+    const meta0 = (existing.user_metadata ?? {}) as Record<string, unknown>;
+    const offeneGastAnmeldung = meta0.signup_kind === 'gast' && !meta0.invite_code;
+    if (memberRow || existing.email_confirmed_at || !offeneGastAnmeldung) {
+      // Kein Einchecken und keine PIN ohne PIN-Nachweis: die Person bekommt ihre
+      // Zugangsdaten per Mail und checkt danach wie alle mit der PIN ein.
+      // Höchstens eine Mail je Konto in 10 Minuten (sonst Mail-Bombe per Tablet).
+      let mailSent = true;
+      if (memberRow && memberRow.checkin_pin && !memberRow.revoked_at) {
+        const mailKey = emailSchluessel(cleanEmail);
+        if (!(await gebremst(admin, 'signup_mail', mailKey, 1, SIGNUP_MAIL_FENSTER_S))) {
+          await versuchMerken(admin, 'signup_mail', mailKey);
+          mailSent = await sendGastAccessMail(admin, {
+            memberId: memberRow.id,
+            // Adresse aus der Datenbank, nicht aus dem Formular.
+            email: (memberRow.email ?? cleanEmail).trim().toLowerCase(),
+            name: memberRow.name,
+            pin: memberRow.checkin_pin,
+            isReturning: true,
+          });
+        }
       }
+      return res.status(200).json({ existing: true, mailSent });
     }
-    return res.status(200).json({ existing: true, mailSent });
+    // Angefangen, aber nie bestätigt (z. B. QR-Anmeldung ohne Klick auf den
+    // Link): seit 0189 gibt es dafür noch kein Mitglieds-Konto und keine PIN.
+    // Die Person steht jetzt am Eingangs-Tablet — wie eine Neuanmeldung
+    // behandeln. Erst die Angaben, DANN bestätigen: beim Bestätigen legt
+    // handle_new_user das Gast-Konto aus genau diesen Angaben an.
+    // Neues Zufallspasswort: Wer die offene Anmeldung angelegt hat, hätte sonst
+    // nach dem Bestätigen hier ein bestätigtes Konto mit SEINEM Passwort für eine
+    // fremde Adresse (die Adresse wurde ja nie per Mail nachgewiesen). Die
+    // echte Person setzt ihr Passwort über den Link in der Zugangs-Mail.
+    const { error: metaErr } = await admin.auth.admin.updateUserById(existing.id, {
+      user_metadata: { ...gastMeta, invite_code: null },
+      password: cryptoRandomPassword(),
+    });
+    const { error: confErr } = metaErr
+      ? { error: metaErr }
+      : await admin.auth.admin.updateUserById(existing.id, { email_confirm: true });
+    if (confErr) {
+      console.error('[qr-signin] tablet-signup: offene Anmeldung nicht übernommen', confErr.status ?? '', ohneAdressen(confErr.message));
+      return res.status(500).json({ error: 'Anmeldung fehlgeschlagen' });
+    }
+    userId = existing.id;
+  } else {
+    // Neuen Auth-User erstellen mit signup_kind=gast Metadata. Bestätigt
+    // angelegt (die Person steht am Tablet) → handle_new_user legt das
+    // Gast-Konto samt PIN sofort an.
+    const tempPassword = cryptoRandomPassword();
+    const { data: signupData, error: signupErr } = await admin.auth.admin.createUser({
+      email: cleanEmail,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: gastMeta,
+    });
+    if (signupErr || !signupData.user) {
+      console.error('[qr-signin] tablet-signup: createUser fehlgeschlagen', signupErr?.status ?? '', ohneAdressen(signupErr?.message));
+      return res.status(500).json({ error: 'Anmeldung fehlgeschlagen' });
+    }
+    userId = signupData.user.id;
   }
-
-  // Neuen Auth-User erstellen mit signup_kind=gast Metadata (Trigger generiert PIN)
-  const tempPassword = cryptoRandomPassword();
-  const { data: signupData, error: signupErr } = await admin.auth.admin.createUser({
-    email: cleanEmail,
-    password: tempPassword,
-    email_confirm: true,
-    user_metadata: {
-      name: cleanName,
-      signup_kind: 'gast',
-      gast_referral: ref ?? 'Tablet',
-      gast_origin: 'tablet_signup',
-    },
-  });
-  if (signupErr) return res.status(500).json({ error: signupErr.message });
 
   // Kurz warten + Member-PIN abholen (Trigger sollte sofort gefeuert haben)
   let pin: string | null = null;
@@ -353,7 +440,7 @@ async function handleTabletSignup(
     const { data: m } = await admin
       .from('members')
       .select('id, checkin_pin')
-      .eq('auth_user_id', signupData.user!.id)
+      .eq('auth_user_id', userId)
       .maybeSingle();
     pin = m?.checkin_pin ?? null;
     memberId = m?.id ?? null;
@@ -474,7 +561,9 @@ async function sendGastAccessMail(
     });
     return true;
   } catch (e) {
-    console.warn('gast-access mail failed for', p.email, (e as Error).message);
+    // Ohne Adresse ins Log (Audit 25.09.2026) — wer betroffen ist, steht über
+    // memberId im email_log; nodemailer nennt die Adresse teils in der Meldung.
+    console.warn('[qr-signin] gast-access Mail fehlgeschlagen', p.memberId ?? 'neu', ohneAdressen((e as Error).message));
     await logEmailSend(admin, {
       recipient: p.email,
       subject: 'Gast-Zugang',

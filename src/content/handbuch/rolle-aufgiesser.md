@@ -52,7 +52,7 @@ Das **Traditionelle Banja-Ritual** ist ein langes Dampfritual. Seit dem
 | Parameter | Wert |
 |---|---|
 | Dauer | **120 Minuten** — außer um 19:00 Uhr, dann **90** (um 20:30 ist ohnehin Schluss) |
-| Startzeit | **jede** Aufgussstunde |
+| Startzeit | **jede** Aufgussstunde bis **19:00 Uhr** — das Ritual muss bis 20:30 enden (am Saunafest gilt das nicht) |
 | Sauna | **jede** |
 | Danach | **1 Stunde Ruhe** — die Sauna wird gelüftet und ist nicht buchbar |
 | Wechselsperre | **gilt nicht** — Banja lässt sich immer anlegen, auch wenn die andere Sauna „dran" wäre |
@@ -70,10 +70,14 @@ als Ruhephase frei.
    erlaubt
 4. **„♨️ Banja-Ritual buchen"** drücken
 
+Doch kein Banja? Unter „Details eintragen" steht dann **„✕ Doch kein Banja"** —
+das nimmt Banja und Wenik wieder heraus, und du trägst einen normalen Aufguss ein.
+
 **Automatische Personal-Aufguss-Übernahme**:
-Standen in den belegten Stunden noch Personal-Aufgüsse (👨‍🍳-Slots), übernimmt
-die Buchung sie automatisch und atomar (DB-Funktion `book_banja_ritual`).
-Ein **echter** Aufgießer in diesen Stunden blockiert dagegen.
+Standen in den belegten Stunden oder in der Ruhestunde danach noch
+Personal-Aufgüsse (👨‍🍳-Slots), räumt die Buchung sie automatisch und atomar
+ab (DB-Funktion `book_banja_ritual`). Ein **echter** Aufgießer in diesen
+Stunden — auch in der Ruhestunde — blockiert dagegen.
 
 **Auf der TV-Tafel**:
 - Die Banja-Karte hat ihr eigenes Motiv (Birken- und Eichenwedel, Holzkübel,
@@ -85,9 +89,10 @@ Ein **echter** Aufgießer in diesen Stunden blockiert dagegen.
   den Abend
 
 **Wann ist Banja nicht buchbar?**
-- Wenn in einer der beiden Stunden schon ein echter Aufguss steht
+- Wenn in einer der beiden Stunden oder in der Ruhestunde danach schon ein echter Aufguss steht
+- Wenn es nach 20:30 Uhr enden würde (Start nach 19:00 Uhr)
 - Wenn der Slot vergangen ist
-- Wenn du kein Aufgießer/Admin bist
+- Wenn du kein Aufgießer/Admin bist oder (als Aufgießer) keine Banja-Freigabe hast — Admins dürfen immer
 
 ### Aufguss anlegen
 
@@ -163,10 +168,12 @@ Wenn du einen gelben 🟡 Slot anklickst, wechselt der Button auf **„🔄 Pers
 
 1. Planner → **„📅 Stamm-Slot & Urlaub"**
 2. **„Neuen Stamm-Slot beantragen"**
-3. Wochentag, Stunde, Sauna wählen
+3. Wochentag und Stunde wählen — die Sauna ergibt sich von selbst: Stamm-Slots gibt es nur in der **Garantie-Sauna** dieser Stunde (dort, wo sonst das Personal gießt). Montag ist kein Stamm-Tag.
 4. Optional: **Vorlage** verknüpfen
 5. Notiz („Mein Stamm-Slot seit 5 Jahren")
-6. **„Antrag stellen"** → Admin gibt frei → 8 Wochen automatisch reserviert
+6. **„Antrag stellen"** → Admin gibt frei → du stehst **sofort** für die nächsten 8 Wochen im Plan, danach rollend jede Woche
+
+Hat schon jemand anderes einen Stamm-Slot zur selben Stunde, lehnt die App den Antrag ab. Einzelne Personal-Aufgüsse übernehmen andere Aufgießer nur, solange du im Urlaub bist.
 
 ### Urlaub eintragen
 
@@ -175,7 +182,13 @@ Wenn du einen gelben 🟡 Slot anklickst, wechselt der Button auf **„🔄 Pers
 3. Notiz („Urlaub Ostsee")
 4. **„Speichern"**
 
-→ Deine Stamm-Slot-Aufgüsse im Zeitraum werden automatisch freigegeben + Push „🏖️ Urlaubsslots frei" an alle Aufgießer.
+→ Deine Stamm-Slot-Aufgüsse im Zeitraum werden automatisch freigegeben + Push „🏖️ Urlaubsslots frei" an alle Aufgießer. Hat ein Kollege einen davon übernommen, bleibt er seiner — auch wenn du den Urlaub verlängerst oder den Stamm-Slot kündigst.
+
+→ **Urlaub gelöscht** (z. B. doch nicht verreist): Deine Stamm-Aufgüsse im Zeitraum kommen automatisch zurück, soweit sie noch niemand übernommen hat.
+
+### Personal-Aufguss übernehmen: Dauer
+
+Die gewählte **Dauer** (20/30/45 … Minuten) gilt auch, wenn du einen Personal-Aufguss übernimmst — im Planer und am Öl-Raum-Tablet. Reicht die Dauer in den nächsten Aufguss hinein, lehnt die App das mit einer Meldung ab.
 
 ### Echo-Modal nach Bewertung
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useToggleMyPresence, useCurrentMember } from '@/lib/api';
+import { useSetMyPresence, useCurrentMember } from '@/lib/api';
 import { hasFamilyMembership } from '@/lib/roles';
 import { CheckinFamilyModal } from '@/components/CheckinFamilyModal';
 
@@ -7,23 +7,29 @@ import { CheckinFamilyModal } from '@/components/CheckinFamilyModal';
 // Zeigt großen Button: "Ich bin in der Sauna" oder "Ich gehe jetzt".
 // Nach Check-in mit Familien-Mitgliedschaft öffnet sich automatisch das
 // Familien-Auswahl-Modal (Migration 0076).
+//
+// Seit 25.09.2026 (Migration 0188): Der Knopf schickt den Zustand, den er
+// ANZEIGT („Ich bin da" → anwesend, „Ich gehe jetzt" → abwesend), statt blind
+// umzuschalten. War man inzwischen am Tablet eingecheckt, bleibt man es.
+// Vorher tat der Knopf gar nichts (toggle_my_presence scheiterte immer), und
+// der Fehler wurde verschluckt — jetzt steht er sichtbar darunter.
 export function MyPresenceToggle() {
   const me = useCurrentMember();
-  const toggle = useToggleMyPresence();
+  const setPresence = useSetMyPresence();
   const [showFamilyModal, setShowFamilyModal] = useState(false);
   const isPresent = !!me.data?.is_present;
 
   if (!me.data) return null;
 
   async function onClick() {
-    const willBeCheckedIn = !isPresent; // Voraussagen
+    const want = !isPresent;
     try {
-      await toggle.mutateAsync();
-      if (willBeCheckedIn && hasFamilyMembership(me.data)) {
+      await setPresence.mutateAsync(want);
+      if (want && hasFamilyMembership(me.data)) {
         setShowFamilyModal(true);
       }
     } catch {
-      /* Error vom Hook gehandhabt */
+      /* Fehler steht unter dem Knopf (setPresence.error) */
     }
   }
 
@@ -57,20 +63,25 @@ export function MyPresenceToggle() {
         </div>
         <button
           onClick={onClick}
-          disabled={toggle.isPending}
+          disabled={setPresence.isPending}
           className={`rounded-2xl px-5 py-3 font-semibold whitespace-nowrap shadow-lg transition active:scale-95 disabled:opacity-50 ${
             isPresent
               ? 'bg-red-500 text-white hover:bg-red-400 shadow-red-900/30'
               : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-emerald-50 hover:from-emerald-400 hover:to-emerald-500 shadow-emerald-900/30'
           }`}
         >
-          {toggle.isPending
+          {setPresence.isPending
             ? '…'
             : isPresent
               ? '🚪 Ich gehe jetzt'
               : '✅ Ich bin da'}
         </button>
       </div>
+      {setPresence.error && (
+        <p className="text-xs text-red-300 mt-2">
+          Anwesenheit konnte nicht gespeichert werden – bitte erneut versuchen.
+        </p>
+      )}
 
       <CheckinFamilyModal
         open={showFamilyModal}

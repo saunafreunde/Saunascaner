@@ -13,18 +13,20 @@ async function fetchStats(memberId: string): Promise<MemberStats> {
   return data as MemberStats;
 }
 
-async function awardIfNew(memberId: string, badgeId: string): Promise<boolean> {
-  const { data, error } = await need().rpc('award_badge', {
-    p_member_id: memberId,
-    p_badge_id: badgeId,
-    p_metadata: {},
-  });
+// Seit Migration 0181 vergibt der Client Abzeichen nur noch über award_my_badge:
+// immer an das EIGENE Mitglied (der Server ermittelt es über die Anmeldung), nur
+// die 19 selbst vergebbaren Abzeichen, und der Server prüft die Schwelle selbst
+// nach. Die Rechnung hier bleibt, damit nicht für jedes Abzeichen ein Aufruf
+// losgeht — sie entscheidet aber nichts mehr allein.
+async function awardIfNew(badgeId: string): Promise<boolean> {
+  const { data, error } = await need().rpc('award_my_badge', { p_badge_id: badgeId });
   if (error) return false;
   return data === true;
 }
 
 // Prüft alle automatisch vergebenen Badges und gibt neu freigeschaltete zurück.
-// Wird nach createInfusion() oder joinTeamInfusion() aufgerufen.
+// Wird nach createInfusion() oder joinTeamInfusion() aufgerufen — immer mit der
+// eigenen Mitglieds-ID (Statistik-Abfrage); vergeben wird serverseitig nur an sich selbst.
 export async function checkAndAwardBadges(memberId: string): Promise<BadgeDefinition[]> {
   let stats: MemberStats;
   try {
@@ -41,7 +43,7 @@ export async function checkAndAwardBadges(memberId: string): Promise<BadgeDefini
     const count =
       badge.category === 'infusion' ? stats.total_infusions : stats.team_infusions;
     if (count >= badge.threshold) {
-      const awarded = await awardIfNew(memberId, badge.id);
+      const awarded = await awardIfNew(badge.id);
       if (awarded) newBadges.push(badge);
     }
   }
@@ -97,7 +99,7 @@ export async function checkAndAwardBadges(memberId: string): Promise<BadgeDefini
   for (const { badge, condition } of specialChecks) {
     if (!badge) continue;
     if (condition) {
-      const awarded = await awardIfNew(memberId, badge.id);
+      const awarded = await awardIfNew(badge.id);
       if (awarded) newBadges.push(badge);
     }
   }

@@ -1,7 +1,6 @@
-import { formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useAufgieserRatingComments } from '@/lib/api';
-import { Avatar } from '@/components/Avatar';
 
 interface Props {
   aufgieserId: string;
@@ -9,6 +8,10 @@ interface Props {
 
 // Karussell mit den letzten Bewertungs-Kommentaren — Social-Proof für den Aufgießer.
 // Horizontaler Scroll mit Snap auf Mobile, Grid auf Desktop.
+//
+// Anonym (Handbuch: „bewerten … anonym", Audit 25.09.2026): kein Name, kein
+// Foto, nur das Datum. Die Datenbank liefert seit Migration 0186 ohnehin
+// keine Bewerter-Daten mehr (list_aufgieser_rating_comments).
 export function RatingCommentsCarousel({ aufgieserId }: Props) {
   const q = useAufgieserRatingComments(aufgieserId, 10);
   const list = q.data ?? [];
@@ -19,7 +22,7 @@ export function RatingCommentsCarousel({ aufgieserId }: Props) {
     <section className="rounded-2xl bg-forest-950/85 ring-1 ring-forest-800/60 p-4">
       <div className="flex items-end justify-between mb-3">
         <h3 className="text-xs font-semibold uppercase tracking-widest text-amber-400/90">⭐ Was Gäste sagen</h3>
-        <span className="text-[10px] text-forest-400 tabular-nums">{list.length} jüngste Stimmen</span>
+        <span className="text-[10px] text-forest-400 tabular-nums">{list.length} jüngste Stimmen · anonym</span>
       </div>
 
       <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-2 px-2 scrollbar-thin">
@@ -29,11 +32,16 @@ export function RatingCommentsCarousel({ aufgieserId }: Props) {
             className="snap-start flex-shrink-0 w-[280px] rounded-xl bg-forest-900/60 ring-1 ring-forest-800/40 p-4"
           >
             <div className="flex items-center gap-2 mb-2">
-              <Avatar name={c.author_name} avatarPath={c.author_avatar} size="sm" />
+              <div
+                aria-hidden
+                className="h-8 w-8 flex-shrink-0 rounded-full bg-forest-800 ring-1 ring-forest-700/60 flex items-center justify-center text-base"
+              >
+                🧖
+              </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-forest-100 truncate">{c.author_name}</div>
+                <div className="text-sm font-semibold text-forest-100 truncate">Ein Saunagast</div>
                 <div className="text-[10px] text-forest-400">
-                  {formatDistanceToNow(new Date(c.rated_at), { addSuffix: true, locale: de })}
+                  {format(new Date(c.rated_at), 'd. MMMM yyyy', { locale: de })}
                 </div>
               </div>
               <div className="text-right">

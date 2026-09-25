@@ -85,7 +85,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       targets.map((s) =>
         webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh_key, auth: s.auth_key } },
-          payload
+          payload,
+          // Zeitgrenze je Push-Dienst; die Erinnerung ist nach dem Fenster wertlos.
+          { timeout: 8000, TTL: 3 * 3600 }
         )
       )
     );

@@ -35,6 +35,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   infusion_not_finished: 'Dieser Aufguss läuft noch.',
   self_rating_not_allowed: 'Bei diesem Aufguss hast du selbst gewedelt — den kannst du nicht bewerten.',
   infusion_not_found: 'Aufguss nicht gefunden.',
+  stunde_schon_bewertet: 'Für diese Stunde hast du schon einen Aufguss bewertet — pro Stunde zählt eine Bewertung.',
+  not_logged_in: 'Du bist nicht mehr angemeldet. Bitte melde dich neu an.',
+  rating_only_for_self: 'Du kannst nur in deinem eigenen Namen bewerten.',
 };
 
 export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess }: RatingFormProps) {
@@ -76,17 +79,24 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
     if (!allFilled) return;
     setErrorMsg(null);
 
-    const result = await submitRating.mutateAsync({
-      infusion_id:    infusion.id,
-      member_id:      memberId,
-      chemie:         ratings.chemie!,
-      luftbewegung:   ratings.luftbewegung!,
-      wedeltechnik:   ratings.wedeltechnik!,
-      hitzeniveau:    ratings.hitzeniveau!,
-      musik:          ratings.musik!,
-      duftentwicklung: ratings.duftentwicklung!,
-      comment:        comment.trim() || null,
-    });
+    let result: string;
+    try {
+      result = await submitRating.mutateAsync({
+        infusion_id:    infusion.id,
+        member_id:      memberId,
+        chemie:         ratings.chemie!,
+        luftbewegung:   ratings.luftbewegung!,
+        wedeltechnik:   ratings.wedeltechnik!,
+        hitzeniveau:    ratings.hitzeniveau!,
+        musik:          ratings.musik!,
+        duftentwicklung: ratings.duftentwicklung!,
+        comment:        comment.trim() || null,
+      });
+    } catch {
+      // Netz- oder Serverfehler: sichtbar machen statt still zu verschlucken
+      setErrorMsg('Die Bewertung konnte nicht gespeichert werden. Bitte versuche es gleich noch einmal.');
+      return;
+    }
 
     if (result === 'ok') {
       // Echo-Modal nur beim Erst-Submit (nicht beim Editieren)
@@ -160,13 +170,15 @@ export function RatingForm({ infusion, meisterName, memberId, onClose, onSuccess
 
           {/* Comment */}
           <div>
-            <label className="text-xs text-forest-400 block mb-1">Kommentar (optional)</label>
+            <label className="text-xs text-forest-400 block mb-1">
+              Kommentar (optional) — erscheint ohne deinen Namen im Profil des Aufgießers
+            </label>
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value.slice(0, 200))}
               placeholder="Was hat besonders gut gefallen?"
               rows={3}
-              className="w-full rounded-xl bg-forest-900/60 border border-forest-700/40 px-3 py-2 text-sm text-slate-200 placeholder-forest-500 resize-none focus:outline-none focus:ring-1 focus:ring-forest-500"
+              className="w-full rounded-xl bg-forest-900/60 border border-forest-700/40 px-3 py-2 text-base sm:text-sm text-slate-200 placeholder-forest-500 resize-none focus:outline-none focus:ring-1 focus:ring-forest-500"
             />
             <div className="text-right text-xs text-forest-500 mt-1">{comment.length}/200</div>
           </div>

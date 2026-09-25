@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
+import { kioskGeraetHeader } from '@/lib/kioskGeraet';
 import { KioskBewerten, type BewertbarerAufguss } from '@/components/kiosk/KioskBewerten';
+import { DatenschutzInhalt } from '@/components/DatenschutzInhalt';
+import { DATENSCHUTZ_FASSUNG } from '@/lib/datenschutz';
 
 // /checkin/signup — Schnell-Anmeldung am Tablet.
 // Name + Email + DSGVO → Backend erstellt Gast-Account, gibt PIN aus.
@@ -9,6 +12,9 @@ const FRIST_MS = 10_000;
 // Auf der PIN-Anzeige länger als am Formular — der Gast muss die vier
 // Ziffern erst lesen (und sich ggf. merken), bevor der Bildschirm springt.
 const FRIST_PIN_MS = 20_000;
+// Datenschutzhinweise lesen braucht Zeit — danach springt der Bildschirm
+// trotzdem zurück, damit Name und E-Mail nicht stundenlang stehen bleiben.
+const FRIST_INFO_MS = 180_000;
 
 export default function CheckinSignup() {
   const nav = useNavigate();
@@ -16,6 +22,9 @@ export default function CheckinSignup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [dsgvo, setDsgvo] = useState(false);
+  // Datenschutzhinweise als Overlay: kein Wegnavigieren, damit Vollbild- und
+  // Joker-Sperre des Tablets aktiv bleiben.
+  const [infoOffen, setInfoOffen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pinResult, setPinResult] = useState<
@@ -31,10 +40,11 @@ export default function CheckinSignup() {
   const [fristKey, setFristKey] = useState(0);
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
+  const contactEmail = brand.data?.org?.contact_email ?? 'info@sauna-fds.de';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
 
   const fristNeu = () => setFristKey((k) => k + 1);
-  const fristDauerMs = pinResult || schonRegistriert ? FRIST_PIN_MS : FRIST_MS;
+  const fristDauerMs = pinResult || schonRegistriert ? FRIST_PIN_MS : infoOffen ? FRIST_INFO_MS : FRIST_MS;
 
   // Leerlauf: nach Ablauf zurück zur Landing-Page. Pausiert während einer
   // laufenden Anmeldung (busy) und sobald direkt ins Bewerten gesprungen
@@ -50,13 +60,18 @@ export default function CheckinSignup() {
     setError(null);
     if (!name.trim() || name.trim().length < 2) return setError('Bitte deinen Namen eingeben.');
     if (!email.includes('@')) return setError('Gültige E-Mail-Adresse erforderlich.');
-    if (!dsgvo) return setError('DSGVO-Einwilligung erforderlich.');
+    if (!dsgvo) return setError('Bitte bestätige, dass du die Datenschutzhinweise gelesen hast.');
     setBusy(true);
     try {
       const r = await fetch('/api/qr-signin?action=tablet-signup', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), dsgvo, ref: 'Tablet' }),
+        // Nur das gekoppelte Eingangs-Tablet darf Konten anlegen (0177/0189).
+        headers: { 'content-type': 'application/json', ...kioskGeraetHeader() },
+        body: JSON.stringify({
+          name: name.trim(), email: email.trim(), dsgvo, ref: 'Tablet',
+          // Welche Fassung der Hinweise hier stand (members.datenschutz_fassung, 0186).
+          fassung: DATENSCHUTZ_FASSUNG,
+        }),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -273,8 +288,18 @@ export default function CheckinSignup() {
                 className="w-full rounded-xl bg-forest-900/70 ring-1 ring-forest-700/60 px-4 py-3 text-forest-100 placeholder-forest-500 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
                 required
               />
-              <p className="mt-1 text-[10px] text-forest-500">Wird nur zur Wiederherstellung des PIN genutzt — keine Werbung.</p>
+              <p className="mt-1 text-[10px] text-forest-500">
+                Für deinen PIN, den Zugang zur App und Vereins-Infos. Keine Werbung, keine Weitergabe.
+              </p>
             </div>
+            {/* Kurzfassung direkt bei der Erhebung (Art. 13 DSGVO), der volle Text
+                im Overlay. */}
+            <p className="rounded-xl bg-forest-900/50 ring-1 ring-forest-800/50 px-3 py-2 text-[11px] leading-relaxed text-forest-300/90">
+              Verantwortlich: {orgName}. Wir speichern Name, E-Mail, PIN, wann du hier
+              eincheckst (auch für die Evakuierungsliste im Notfall) und deine Bewertungen —
+              solange dein Konto besteht. Löschen kannst du es jederzeit selbst in der App
+              oder per Mail an {contactEmail}.
+            </p>
             <label className="flex items-start gap-3 text-xs text-forest-300/90 cursor-pointer">
               <input
                 type="checkbox"
@@ -283,7 +308,15 @@ export default function CheckinSignup() {
                 className="mt-0.5 h-4 w-4 rounded border-forest-600 bg-forest-900 text-amber-500"
               />
               <span>
-                Ich willige in die Verarbeitung meiner Daten gemäß DSGVO ein. Account jederzeit löschbar.
+                Ich habe die{' '}
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setInfoOffen(true); fristNeu(); }}
+                  className="underline text-amber-400 hover:text-amber-300"
+                >
+                  Datenschutzhinweise
+                </button>{' '}
+                gelesen.
               </span>
             </label>
             {error && (
@@ -313,6 +346,28 @@ export default function CheckinSignup() {
           {orgName}
         </p>
       </div>
+
+      {infoOffen && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Datenschutzhinweise"
+          onScroll={fristNeu}
+        >
+          <div className="mx-auto max-w-2xl rounded-3xl bg-forest-950 p-6 text-sm leading-relaxed text-forest-200/90 ring-1 ring-forest-800/60">
+            <h2 className="text-xl font-semibold text-forest-100">Datenschutzhinweise</h2>
+            <DatenschutzInhalt orgName={orgName} contactEmail={contactEmail} kiosk />
+            <button
+              type="button"
+              onClick={() => { setInfoOffen(false); fristNeu(); }}
+              className="mt-6 w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-3 font-semibold text-amber-950 hover:from-amber-400 hover:to-amber-500"
+            >
+              Schließen
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

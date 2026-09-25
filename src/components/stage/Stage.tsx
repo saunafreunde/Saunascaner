@@ -1,8 +1,9 @@
-import { Suspense, useEffect, useState } from 'react';
+import { memo, Suspense, useEffect, useState } from 'react';
 import { useTvStageState } from '@/lib/api';
 import { activeScenesForState } from '@/lib/season';
 import { SCENE_REGISTRY } from './scenes';
 import { EffectPlayer } from './effects/EffectPlayer';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Nackte Tafel-Bühne: keine permanente Basis mehr. Render nur:
 // - Aktive Scene-Layer (saisonal-auto + admin-manuell)
@@ -11,7 +12,9 @@ import { EffectPlayer } from './effects/EffectPlayer';
 // Die alten Basis-Komponenten (StageBackdrop/Core/Gliders) sind nicht mehr
 // permanent — sie kommen über die Scene „schwarzwald-heim" auf Wunsch zurück.
 
-export function Stage() {
+// memo: Stage hat keine Props — ohne memo rendert sie bei jedem Sekundentakt
+// des Dashboards mit, obwohl sich nur ihre eigenen Daten auf sie auswirken.
+export const Stage = memo(function Stage() {
   const state = useTvStageState();
 
   // Datum-basierte Saison: alle 60s neu evaluieren
@@ -32,6 +35,12 @@ export function Stage() {
     console.log('[Stage] state', { active, lastEffect });
   }
 
+  // Jede Szene und jeder Effekt hat eine EIGENE Fehlergrenze (Audit 25.09.2026):
+  // Vorher riss eine kaputte Szene — Render-Fehler oder ein nicht ladbarer
+  // Programmteil — die ganze Tafel in „Tafel lädt neu …", bei einem dauerhaften
+  // Fehler in Endlosschleife. Jetzt fehlt nur diese Szene; sie versucht es nach
+  // 5 min erneut. Ein Effekt ist einmalig und wird nicht wiederholt.
+  // fallback als Funktion: `null` wäre falsy und zeigte den Standard-Fehlerkasten.
   return (
     <>
       {active.map((sceneId) => {
@@ -39,16 +48,20 @@ export function Stage() {
         if (!entry) return null;
         const SceneComponent = entry.component;
         return (
-          <Suspense key={sceneId} fallback={null}>
-            <SceneComponent />
-          </Suspense>
+          <ErrorBoundary key={sceneId} label={`Szene ${sceneId}`} fallback={() => null}>
+            <Suspense fallback={null}>
+              <SceneComponent />
+            </Suspense>
+          </ErrorBoundary>
         );
       })}
       {lastEffect && (
-        <Suspense fallback={null}>
-          <EffectPlayer key={lastEffect.nonce} effect={lastEffect} />
-        </Suspense>
+        <ErrorBoundary key={lastEffect.nonce} label="Effekt" autoResetMs={0} fallback={() => null}>
+          <Suspense fallback={null}>
+            <EffectPlayer effect={lastEffect} />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </>
   );
-}
+});

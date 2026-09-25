@@ -1,13 +1,15 @@
 import { useMyPendingNotifications, useMarkNotificationSeen } from '@/lib/api';
 
 // App-Inbox für ungelesene Notifications.
-// Wird oben im /mitarbeiter und /cp eingeblendet, wenn pending Items da sind.
+// Wird oben in /cp eingeblendet, wenn ungelesene Einträge da sind.
+// „✓" markiert als gelesen (read_at, wie die Glocke — Migration 0188); der
+// Eintrag verschwindet sofort.
 export function NotificationsInbox() {
   const list = useMyPendingNotifications();
   const mark = useMarkNotificationSeen();
 
-  // Nur ungelesene zeigen (created_at < 7 Tage ist Filter im RPC, aber wir zeigen
-  // nur die mit kind, die für Mitarbeiter relevant sind)
+  // Der RPC liefert nur Ungelesenes der letzten 7 Tage; hier zusätzlich nur
+  // Einträge mit Titel oder Text
   const pending = (list.data ?? []).filter(
     (n) => n.kind && (n.payload?.title || n.payload?.body)
   );
@@ -59,7 +61,7 @@ export function NotificationsInbox() {
       </ul>
       {pending.length > 5 && (
         <div className="text-[10px] text-forest-500 text-center mt-2">
-          + {pending.length - 5} weitere — älteste werden nach 7 Tagen automatisch entfernt
+          + {pending.length - 5} weitere — Ungelesenes verschwindet hier nach 7 Tagen
         </div>
       )}
     </section>

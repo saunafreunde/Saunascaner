@@ -6,6 +6,7 @@ import {
 } from '@/lib/games';
 import { GAME_REGISTRY, GAME_LABELS } from '@/components/games/registry';
 import { useCurrentMember } from '@/lib/api';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function GameMatch() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -52,9 +53,13 @@ export default function GameMatch() {
         />
       )}
       {m && meta && !istPending && (
-        <Suspense fallback={<div className="text-center text-forest-300 p-8">Lade Spiel…</div>}>
-          <meta.component matchId={matchId} />
-        </Suspense>
+        // Eigene Fehlergrenze: ein Absturz im Spiel ersetzt nur das Brett, nicht
+        // die ganze App samt Navigation (App-Root-Grenze hat keinen Auto-Reset).
+        <ErrorBoundary label="Spiel" autoResetMs={0}>
+          <Suspense fallback={<div className="text-center text-forest-300 p-8">Lade Spiel…</div>}>
+            <meta.component matchId={matchId} />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </PageBackground>
   );

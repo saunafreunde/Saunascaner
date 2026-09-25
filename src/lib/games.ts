@@ -112,10 +112,13 @@ export function useGameMatch(matchId: string | null | undefined) {
     refetchIntervalInBackground: true,
   });
 
-  // Realtime: pro Match ein dedizierter Channel
+  // Realtime: eigener Channel je Hook-Instanz (Audit 25.09.2026). GameMatch UND
+  // die Spielkomponente rufen useGameMatch auf; realtime-js gibt bei gleichem
+  // Topic den schon abonnierten Channel zurück, und .on('postgres_changes')
+  // wirft dann — die ganze App stürzte ab, sobald das Brett erschien.
   useEffect(() => {
     if (!matchId || !supabase) return;
-    const ch = supabase.channel(`match-${matchId}`)
+    const ch = supabase.channel(`match-${matchId}-${Math.random().toString(36).slice(2, 10)}`)
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'games_match', filter: `id=eq.${matchId}` },
         () => qc.invalidateQueries({ queryKey: ['game-match', matchId] }))
@@ -128,9 +131,12 @@ export function useGameMatch(matchId: string | null | undefined) {
 
 // ─── Query: aktive Matches des aktuellen Users (Hub + Smart-Slot) ────────
 
-export function useActiveMatchesForMe() {
+// enabled=false, solange kein Mitglied angemeldet ist (Bottom-Nav) — sonst
+// pollte anon alle 10 s und bekam 401 (Audit 25.09.2026).
+export function useActiveMatchesForMe(enabled = true) {
   return useQuery({
     queryKey: ['games-active-mine'],
+    enabled,
     queryFn: async () => {
       const { data, error } = await need().rpc('games_get_active_matches_for_me');
       if (error) throw error;

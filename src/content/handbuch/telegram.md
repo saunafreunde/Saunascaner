@@ -8,6 +8,14 @@ Bot-Username: **@saunafreunde_bot**
 2. Auf den Link klicken → Telegram öffnet sich
 3. Bot bestätigt: „✅ Konto verknüpft"
 
+### Vereins-Meldungen nur nach Freigabe
+
+Personal-Aufgüsse, Geburtstage, Umfrageergebnisse und im Notfall die Liste der Anwesenden gehen an alle **freigegebenen** Chats. Wer beim Bot `/start` sendet (oder sein Konto verknüpft), ist deshalb nicht sofort dabei: Die Anmeldung landet bei den Admins, und erst nach deren **Freigabe** kommen Rundnachrichten an. Der Bot sagt dir, wenn deine Anmeldung noch wartet.
+
+- **Admins** geben frei unter [Admin → Handbuch → Telegram](/admin#handbook) („🔐 Wer bekommt die Vereins-Meldungen?") und bekommen neue Anmeldungen in der 🔔-Glocke bzw. per Push.
+- `/stop` meldet dich ab. `/unlink` (oder in der App **Profil → Telegram-Bot → „Verknüpfung lösen"**) löst die Verknüpfung und beendet damit auch die Vereins-Meldungen in deinem privaten Chat mit dem Bot — ebenso, wenn dein App-Konto gelöscht wird.
+- Dein PIN (`/pin`) kommt nur im **privaten** Chat mit dem Bot — nie in einer Gruppe.
+
 ### Befehle
 
 | Befehl | Was er macht |
@@ -44,4 +52,4 @@ Antwort geht direkt in den Aufguss-Datensatz und löst beim Aufgießer das Echo-
 
 ### Notfall-Push
 
-Bei Evakuierung schickt der Bot eine **Vollbild-rote Push-Nachricht** an alle verknüpften Chats inkl. Liste der aktuell Anwesenden.
+Bei Evakuierung schickt der Bot eine Nachricht an alle freigegebenen Chats inkl. Liste der aktuell Anwesenden.

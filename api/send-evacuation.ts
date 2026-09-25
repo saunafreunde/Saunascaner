@@ -13,10 +13,13 @@
 //    Anwesenheitsliste vom Server gesetzt). Body-Felder außer dem Foto werden
 //    ignoriert.
 //  * Genau einmal je Alarm: telegram_status wird vor dem Senden „beansprucht".
+//  * Seit 25.09.2026 geht mit dem Telegram-Text auch der Web-Push an alle
+//    Abos raus (api/_webpush.ts) — der Browser schickt keinen eigenen mehr.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { authenticate, serviceClient } from './_auth.js';
-import { tgBroadcast } from './_telegram.js';
+import { tgBroadcast, vereinsChats } from './_telegram.js';
+import { pushAnAlle } from './_webpush.js';
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // Telegram erlaubt 10 MB für sendPhoto
 const ALARM_FENSTER_MS = 15 * 60_000;
@@ -70,17 +73,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .select('id');
   if (!claim || claim.length === 0) return res.status(200).json({ ok: true, via: 'telegram', schon_gesendet: true, sent: 0 });
 
-  const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
-  const chats: number[] = Array.isArray(cfg?.value?.chat_ids) ? cfg.value.chat_ids : [];
-  if (chats.length === 0) {
-    await sb.from('evacuation_events').update({ telegram_status: 'keine_chats' }).eq('id', ev.id);
-    return res.status(200).json({ ok: true, via: 'telegram', sent: 0, note: 'no chats subscribed' });
-  }
-
   let ausloeser = 'Kiosk-Gerät';
   if (ev.triggered_by) {
     const { data: m } = await sb.from('members').select('name').eq('id', ev.triggered_by).maybeSingle();
     if (m?.name) ausloeser = m.name;
+  }
+
+  // Web-Push an ALLE Abos — genau einmal je Alarm (wir haben ihn eben
+  // beansprucht) und egal, wer ausgelöst hat: auch das Öl-Raum-Tablet ohne
+  // Login. Vorher schickte nur der Admin-Knopf im Browser einen Rundruf.
+  const push = await pushAnAlle(sb, {
+    title: '🚨 EVAKUIERUNG',
+    body: `Bitte sofort das Gebäude verlassen — ausgelöst von ${ausloeser}`,
+    url: '/dashboard',
+    tag: 'evacuation',
+    requireInteraction: true,
+  }).catch(() => ({ gesendet: 0, gesamt: 0, fehlt: 'fehler' }));
+
+  // Freigegebener Verteiler, ohne Chats gesperrter Mitglieder (0187).
+  const chats = await vereinsChats(sb);
+  if (chats.length === 0) {
+    await sb.from('evacuation_events').update({ telegram_status: 'keine_chats' }).eq('id', ev.id);
+    return res.status(200).json({ ok: true, via: 'telegram', sent: 0, note: 'no chats subscribed', push });
   }
   const namen: string[] = Array.isArray(ev.present_names) ? ev.present_names : [];
 
@@ -126,5 +140,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sent = results.filter((r) => r.ok).length;
   await sb.from('evacuation_events').update({ telegram_status: `gesendet ${sent}/${chats.length}` }).eq('id', ev.id);
-  return res.status(200).json({ ok: true, via: 'telegram', sent, total: chats.length, withPhoto: !!photoBuffer });
+  return res.status(200).json({ ok: true, via: 'telegram', sent, total: chats.length, withPhoto: !!photoBuffer, push });
 }

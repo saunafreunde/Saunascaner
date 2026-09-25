@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DampfRueckkehr } from '@/components/DampfRueckkehr';
 import { GlutFazit, GlutRegler } from '@/components/GlutRegler';
 import { fmtClock } from '@/lib/time';
+import { kioskGeraetHeader } from '@/lib/kioskGeraet';
 
 // Bewerten am Eingangs-Tablet — OHNE Anmeldung (Migration 0137).
 //
@@ -98,7 +99,7 @@ export function KioskBewerten({
     try {
       const r = await fetch('/api/qr-signin?action=kiosk-rate', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...kioskGeraetHeader() },
         body: JSON.stringify({ pin, infusion_id: offen.id, ...noten }),
       });
       const data = await r.json();

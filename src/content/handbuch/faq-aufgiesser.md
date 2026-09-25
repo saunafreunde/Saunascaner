@@ -2,9 +2,11 @@
 
 ### Was ist ein „Stamm-Slot"?
 Eine **fest reservierte wöchentliche Aufguss-Zeit** für dich, etwa „jeden Dienstag
-18 Uhr in der Kelo". Wird einmal vom Admin freigegeben und danach automatisch
-8 Wochen im Voraus eingetragen. Bei Urlaub trägst du eine Abwesenheit ein —
-dann können andere diese Slots übernehmen.
+18 Uhr in der Kelo". Stamm-Slots gibt es nur in der **Garantie-Sauna** der
+jeweiligen Stunde. Wird einmal vom Admin freigegeben — ab da stehst du sofort
+für die nächsten 8 Wochen im Plan, danach rollend jede Woche. Bei Urlaub trägst
+du eine Abwesenheit ein — dann können andere diese Slots übernehmen. Löschst du
+den Urlaub wieder, bekommst du die noch nicht übernommenen Aufgüsse zurück.
 
 ### Wie unterscheiden sich Aufgießer und Gast-Aufgießer?
 🧖 **Aufgießer** sind Vereinsmitglieder. 🌍 **Gast-Aufgießer** kommen aus anderen

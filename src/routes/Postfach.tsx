@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import DOMPurify from 'isomorphic-dompurify';
+import { mailHtmlAufbereiten, MAIL_IFRAME_SANDBOX } from '@/lib/mailHtml';
 import { format, isToday, isYesterday } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
@@ -330,15 +330,8 @@ function MailDetail({
   const msg = messageQ.data;
   const fromStr = msg.from.map((a) => a.name ? `${a.name} <${a.address}>` : a.address).join(', ');
 
-  // HTML-Sanitize + optional Bilder blocken
-  let sanitizedHtml: string | null = null;
-  if (msg.html) {
-    let html = DOMPurify.sanitize(msg.html, { ADD_ATTR: ['target'] });
-    if (!showImages) {
-      html = html.replace(/<img\b[^>]*>/gi, '<span style="color:#94a3b8;font-style:italic;font-size:11px;">[Bild geblockt]</span>');
-    }
-    sanitizedHtml = html;
-  }
+  // HTML-Sanitize, Links in neuem Tab, Bildsperre per CSP (src/lib/mailHtml.ts)
+  const mail = msg.html ? mailHtmlAufbereiten(msg.html, showImages) : null;
 
   async function handleDelete() {
     if (!confirm('Mail in den Papierkorb verschieben?')) return;
@@ -403,9 +396,9 @@ function MailDetail({
       )}
 
       <div className="flex-1 overflow-y-auto p-4">
-        {sanitizedHtml ? (
+        {mail ? (
           <>
-            {!showImages && /\[Bild geblockt\]/.test(sanitizedHtml) && (
+            {!showImages && mail.bilderGeblockt && (
               <div className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30 flex items-center justify-between">
                 <span>🛡️ Bilder wurden zum Schutz vor Tracking blockiert.</span>
                 <button onClick={() => setShowImages(true)} className="text-amber-100 font-semibold underline">
@@ -415,11 +408,14 @@ function MailDetail({
             )}
             {/* FIX 0107 (Audit Phase 4 CRITICAL): vorher sandbox="allow-same-origin" →
                 Email-HTML konnte via DOMPurify-bypassbaren style/meta-Tags auf Parent-DOM
-                zugreifen (Cookies, LocalStorage). Voll-Sandbox blockiert das. Bilder
-                funktionieren weiterhin (absolute URLs werden vom Browser geladen). */}
+                zugreifen (Cookies, LocalStorage). Voll-Sandbox blockiert das.
+                Seit 25.09.2026 nur allow-popups(-to-escape-sandbox), damit Links
+                sich in einem neuen Tab öffnen — nie allow-scripts/allow-same-origin.
+                Was geladen werden darf, regelt die CSP im srcdoc (mailHtml.ts). */}
             <iframe
-              srcDoc={sanitizedHtml}
-              sandbox=""
+              srcDoc={mail.html}
+              sandbox={MAIL_IFRAME_SANDBOX}
+              title="Inhalt der E-Mail"
               className="w-full min-h-[400px] rounded-md bg-white"
               style={{ colorScheme: 'light' }}
             />

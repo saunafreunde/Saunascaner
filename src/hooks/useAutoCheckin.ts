@@ -22,11 +22,31 @@
 //
 // Kein Toast/Confirm — der User hat opt-in im Profil getoggelt, kennt das Verhalten.
 // Push-Notification "✓ Eingecheckt" wird nicht extra geschickt (Standard-Check-in macht das auch nicht).
+//
+// Audit 25.09.2026 (Migration 0188):
+//   - Sperrfrist: Wer ausgecheckt hat (App, Tablet, Panel), wird 3 Stunden lang
+//     NICHT automatisch wieder eingecheckt — vorher checkte ein Handy, das beim
+//     Rausgehen noch im Vereins-WLAN hing, sofort wieder ein. Der Server
+//     entscheidet (reason 'recently_checked_out' + retry_after_s); die App
+//     fragt dann erst nach Ablauf wieder.
+//   - iPhone/iPad: Safari/WebKit verrät die WLAN-Adresse nicht (mDNS-Name statt
+//     IP) — die Probe liefert dort nie etwas. Auf iOS läuft der Hook deshalb gar
+//     nicht erst, und das Profil sagt ehrlich, dass es dort nicht geht.
 
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCurrentMember } from '@/lib/api';
+
+/** Kann dieses Gerät die WLAN-Erkennung überhaupt? Auf iPhone/iPad nicht
+ *  (alle iOS-Browser nutzen WebKit; iPadOS meldet sich als „Macintosh" mit Touch). */
+export function autoCheckinMoeglich(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const istIos = /iPhone|iPad|iPod/i.test(ua)
+    || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints ?? 0) > 1);
+  return !istIos;
+}
 
 /** Sammelt lokale LAN-IP via WebRTC ICE-Candidate-Probe. Timeout 1500ms.
  *  Returnt null wenn Browser blockt, kein STUN antwortet, oder keine IPv4 dabei.
@@ -71,11 +91,14 @@ export function useAutoCheckin(): void {
   const me = useCurrentMember();
   const qc = useQueryClient();
   const lastAttemptAtRef = useRef<number>(0);
+  // Server-Sperrfrist nach dem Auschecken: vorher gar nicht erst proben.
+  const naechsterVersuchAbRef = useRef<number>(0);
 
   useEffect(() => {
     if (!supabase) return;
     if (!me.data?.auto_checkin_enabled) return;
     if (me.data.is_present) return;
+    if (!autoCheckinMoeglich()) return;
 
     let cancelled = false;
 
@@ -83,6 +106,7 @@ export function useAutoCheckin(): void {
       // Throttle: max 1× pro Minute pro Mount (vermeidet Spam bei rapidem Focus/Blur)
       const nowMs = Date.now();
       if (nowMs - lastAttemptAtRef.current < 60_000) return;
+      if (nowMs < naechsterVersuchAbRef.current) return;
       lastAttemptAtRef.current = nowMs;
 
       const ip = await probeLocalIp();
@@ -90,7 +114,14 @@ export function useAutoCheckin(): void {
       try {
         const { data, error } = await supabase!.rpc('auto_checkin_via_wifi', { p_local_ip: ip });
         if (error) return;
-        const result = (data ?? null) as { ok: boolean; reason: string; changed?: boolean } | null;
+        const result = (data ?? null) as {
+          ok: boolean; reason: string; changed?: boolean; retry_after_s?: number;
+        } | null;
+        if (result?.reason === 'recently_checked_out') {
+          const s = Number(result.retry_after_s);
+          naechsterVersuchAbRef.current = Date.now() + (Number.isFinite(s) && s > 0 ? s : 3600) * 1000;
+          return;
+        }
         if (result?.ok && result.changed) {
           // Caches refreshen damit UI sofort "anwesend" zeigt
           qc.invalidateQueries({ queryKey: ['current-member'] });

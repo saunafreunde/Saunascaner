@@ -42,10 +42,14 @@ gh repo create saunafreunde-app --private --source=. --push
 
 ### Supabase URL Allowlist
 Dashboard → Authentication → URL Configuration → **Redirect URLs**:
+- `https://app.sauna-fds.de/**`
 - `https://<dein-vercel-domain>.vercel.app/**`
-- `http://localhost:5173/**`
 
-Sonst klappen Magic-Links / Passwort-Resets nicht.
+Sonst klappen Magic-Links / Passwort-Resets nicht. **Kein** `localhost` und
+keine Platzhalter wie `https://*.vercel.app/**` im Produktionsprojekt — sonst
+könnte ein Login-Link auf eine fremde Adresse zeigen. (`api/email.ts` lässt
+seit 25.09.2026 ohnehin nur die eigene App als Ziel zu; GoTrues eigene
+Endpunkte prüfen aber nur diese Liste.)
 
 ## 3. Telegram (optional, Phase 4)
 **Empfehlung Produktion:** Edge Function in Supabase, Token serverseitig.

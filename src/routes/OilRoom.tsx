@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationWithPhoto } from '@/lib/telegram';
 import {
-  useSaunas, useInfusions, useScheduleSettings, useMeisterDirectory,
+  useSaunas, useInfusions, OELRAUM_FALLBACK_TAGE, useScheduleSettings, useMeisterDirectory,
   usePresentAufgieserPublic, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
   useAllCustomOils, useAllCustomAttrs, useSudKraeuter, useSudMixe,
   useBrandSync, brandAssetUrl,
@@ -32,8 +32,8 @@ const RUECKFALL_MS = 3 * 60 * 1000;
 const SW_PRUEF_MS = 30 * 60 * 1000;
 
 /** Sekunden-genau wäre Verschwendung: die Anzeige rechnet in Minuten, und das
- *  Gerät läuft rund um die Uhr. Die Aufguss-Daten selbst kommen über den
- *  5-s-Poll von useInfusions herein, nicht über diesen Takt. */
+ *  Gerät läuft rund um die Uhr. Die Aufguss-Daten selbst kommen per Realtime
+ *  bzw. über den Poll von useInfusions herein, nicht über diesen Takt. */
 const TAKT_MS = 10_000;
 
 export default function OilRoom() {
@@ -58,9 +58,12 @@ export default function OilRoom() {
   // Alle hier oben, nicht erst im Formular: die Anzeige braucht sie im
   // Ruhezustand, und der ist der Normalfall.
   const saunasQ = useSaunas();
-  const infusionsQ = useInfusions();
-  const scheduleQ = useScheduleSettings();
-  const meisterQ = useMeisterDirectory();
+  // Personal-Fallbacks nur so weit, wie die Tagesleiste der Eingabe reicht
+  // (maxTageVoraus 28); echte Aufgüsse kommen weiterhin alle.
+  const infusionsQ = useInfusions({ fallbackTage: OELRAUM_FALLBACK_TAGE });
+  // poll: das Tablet bleibt wochenlang gemountet.
+  const scheduleQ = useScheduleSettings({ poll: true });
+  const meisterQ = useMeisterDirectory({ poll: true });
   const presentQ = usePresentAufgieserPublic();
   const kraeuterQ = useSudKraeuter();
   const mixeQ = useSudMixe();

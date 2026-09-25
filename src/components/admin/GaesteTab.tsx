@@ -18,6 +18,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
   useGaesteUebersicht, useUpdateMember, useDeleteMember, type GastRow,
+  useStorageLoeschliste, useStorageLoeschlisteAbarbeiten,
 } from '@/lib/api';
 import { ZugangsdatenButtons } from '@/components/admin/ZugangsdatenButtons';
 
@@ -72,6 +73,21 @@ function kurz(iso: string | null): string {
   return format(new Date(iso), 'd. MMM yyyy', { locale: de });
 }
 
+// Datenschutz (Audit 25.09.2026): Gäste-Konten werden nie automatisch
+// gelöscht. Wer seit über 12 Monaten kein Lebenszeichen gegeben hat (kein
+// Besuch, keine Anmeldung, keine Bewertung), wird hier zur Löschung
+// vorgeschlagen — entscheiden und löschen tut der Vorstand.
+const LOESCH_VORSCHLAG_MONATE = 12;
+
+function loeschVorschlag(g: GastRow): boolean {
+  if (g.status === 'mitglied_geworden') return false;
+  const zuletzt = g.zuletzt_gesehen ?? g.gast_seit;
+  if (!zuletzt) return false;
+  const grenze = new Date();
+  grenze.setMonth(grenze.getMonth() - LOESCH_VORSCHLAG_MONATE);
+  return new Date(zuletzt) < grenze;
+}
+
 export function GaesteTab() {
   const gaesteQ = useGaesteUebersicht();
   const update = useUpdateMember();
@@ -79,8 +95,12 @@ export function GaesteTab() {
   const [filter, setFilter] = useState<StatusKey | 'alle'>('alle');
   const [suche, setSuche] = useState('');
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [nurVorschlag, setNurVorschlag] = useState(false);
+  const loeschliste = useStorageLoeschliste();
+  const abarbeiten = useStorageLoeschlisteAbarbeiten();
 
   const alle = useMemo(() => gaesteQ.data ?? [], [gaesteQ.data]);
+  const vorschlaege = useMemo(() => alle.filter(loeschVorschlag).length, [alle]);
 
   // Zähler immer aus den Daten, nie gemerkt: Gäste können sich über
   // delete_my_gast_account() auch selbst löschen.
@@ -95,11 +115,12 @@ export function GaesteTab() {
     const q = suche.trim().toLowerCase();
     return alle
       .filter((g) => filter === 'alle' || g.status === filter)
+      .filter((g) => !nurVorschlag || loeschVorschlag(g))
       .filter((g) => !q
         || g.name.toLowerCase().includes(q)
         || (g.email ?? '').toLowerCase().includes(q)
         || g.herkunft.toLowerCase().includes(q));
-  }, [alle, filter, suche]);
+  }, [alle, filter, suche, nurVorschlag]);
 
   // Wie viele sind aktuell wirklich Gast? „Mitglied geworden" zählt nicht mit,
   // sonst stimmt die Kopfzahl nicht mit dem überein, was der Verein Gäste nennt.
@@ -121,11 +142,24 @@ export function GaesteTab() {
     }
   }
 
+  async function dateienEntfernen() {
+    setMeldung(null);
+    try {
+      const rest = await abarbeiten.mutateAsync();
+      setMeldung(rest === 0
+        ? '✓ Alle vorgemerkten Dateien sind aus dem Speicher entfernt.'
+        : `${rest} Dateien konnten nicht entfernt werden — später noch einmal versuchen.`);
+    } catch (e) {
+      setMeldung(`Entfernen fehlgeschlagen: ${(e as Error).message}`);
+    }
+  }
+
   async function loeschen(g: GastRow) {
     const nr = g.member_number ? `(Nr. ${g.member_number})` : '';
     const ok = window.confirm(
       `Gast "${g.name}" ${nr} wirklich endgültig löschen?\n\n` +
       `• Alle Bewertungen, Fotos, Badges und Anwesenheiten dieser Person werden gelöscht.\n` +
+      `• In Protokoll und Evakuierungslisten wird der Name ersetzt.\n` +
       `• Aufgüsse bleiben erhalten.\n` +
       `• Die Nummer wird beim nächsten Neuzugang neu vergeben.\n` +
       `• Die E-Mail-Adresse wird wieder frei für eine Neu-Anmeldung.\n\n` +
@@ -201,6 +235,40 @@ export function GaesteTab() {
           placeholder="🔍 Name, E-Mail oder Herkunft…"
           className="mt-3 w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
         />
+
+        {/* Datenschutz-Pflege: nur sichtbar, wenn es etwas zu tun gibt. */}
+        {vorschlaege > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-rose-950/30 px-3 py-2 text-[11px] text-rose-100 ring-1 ring-rose-500/30">
+            <span>
+              🗑 {vorschlaege} {vorschlaege === 1 ? 'Gast war' : 'Gäste waren'} seit über{' '}
+              {LOESCH_VORSCHLAG_MONATE} Monaten nicht mehr da. Datenschutz: bitte prüfen und
+              nicht mehr benötigte Konten löschen.
+            </span>
+            <button
+              type="button"
+              onClick={() => setNurVorschlag((v) => !v)}
+              className="rounded-lg bg-rose-600/30 px-2.5 py-1 font-semibold ring-1 ring-rose-500/40 hover:bg-rose-600/50"
+            >
+              {nurVorschlag ? 'Alle zeigen' : 'Nur diese zeigen'}
+            </button>
+          </div>
+        )}
+        {(loeschliste.data ?? 0) > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-forest-900/70 px-3 py-2 text-[11px] text-forest-200 ring-1 ring-forest-700/50">
+            <span>
+              🧹 {loeschliste.data} {loeschliste.data === 1 ? 'Datei' : 'Dateien'} von gelöschten
+              Konten oder ersetzte Profilbilder liegen noch im Speicher.
+            </span>
+            <button
+              type="button"
+              onClick={dateienEntfernen}
+              disabled={abarbeiten.isPending}
+              className="rounded-lg bg-forest-500 px-2.5 py-1 font-semibold text-forest-950 hover:bg-forest-400 disabled:opacity-50"
+            >
+              {abarbeiten.isPending ? 'Entferne…' : 'Jetzt entfernen'}
+            </button>
+          </div>
+        )}
 
         {meldung && (
           <p className="mt-3 text-xs text-forest-200">{meldung}</p>
@@ -319,6 +387,12 @@ function GastKarte({ g, onZumMitglied, onLoeschen, busy }: {
         <p className="mt-2 rounded-lg bg-amber-950/40 px-2.5 py-1.5 text-[11px] text-amber-200 ring-1 ring-amber-500/30">
           ⚠️ Hat die App noch nie geöffnet — die Zugangsmail kam vermutlich nicht an
           (oder liegt im Spam). Mit „✉️ Zugang" neu schicken.
+        </p>
+      )}
+      {loeschVorschlag(g) && (
+        <p className="mt-2 rounded-lg bg-rose-950/40 px-2.5 py-1.5 text-[11px] text-rose-200 ring-1 ring-rose-500/30">
+          🗑 Seit über {LOESCH_VORSCHLAG_MONATE} Monaten kein Lebenszeichen — Löschung empfohlen
+          (Datenschutz: nicht länger speichern als nötig).
         </p>
       )}
       {istGast && !g.hat_pin && (

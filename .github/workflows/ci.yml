@@ -1,0 +1,49 @@
+# CI-Prüfung für jeden Push auf main und jeden Pull Request (Audit 25.09.2026).
+#
+# 1. npm ci          — installiert exakt nach package-lock.json
+# 2. npm run lint    — tsc, Import-Zyklen, Syntax der api/-Funktionen
+# 3. npm audit       — bricht ab, sobald eine Laufzeit-Abhängigkeit (ohne
+#                      devDependencies) eine Lücke der Stufe „high“ oder
+#                      „critical“ hat
+#
+# Bewusst NICHT im Vercel-Build: ein neu veröffentlichtes Advisory soll keinen
+# Deploy blockieren, sondern hier rot werden und einen PR auslösen.
+# Hier wird nicht gebaut (kein vite build) — das macht Vercel beim Deploy.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruefen:
+    name: Lint und Sicherheitsprüfung
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint (tsc, Zyklen, api-Syntax)
+        run: npm run lint
+
+      - name: npm audit (Laufzeit-Abhängigkeiten, ab „high“)
+        run: npm audit --omit=dev --audit-level=high

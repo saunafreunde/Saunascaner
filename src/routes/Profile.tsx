@@ -4,6 +4,7 @@ import { format, parse } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { de } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
+import { autoCheckinMoeglich } from '@/hooks/useAutoCheckin';
 import { PageBackground } from '@/components/PageBackground';
 import { AdminQuickNav } from '@/components/AdminQuickNav';
 import { MemberQuickNav } from '@/components/MemberQuickNav';
@@ -379,15 +380,33 @@ export default function Profile() {
 
 // Auto-Check-in via WLAN-Subnet (Migration 0108+0109)
 // Opt-in: wenn aktiv und User im Sauna-WLAN → silent toggle is_present=true
+// Seit 25.09.2026 (0188): 3 Stunden Pause nach dem Auschecken; auf iPhone/iPad
+// geht es technisch nicht (WebKit verrät die WLAN-Adresse nicht) — dort steht
+// statt des Schalters ein ehrlicher Hinweis.
 function AutoCheckinToggleCard({ enabled }: { enabled: boolean }) {
   const setAuto = useSetMyAutoCheckin();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const moeglich = autoCheckinMoeglich();
   async function onToggle(next: boolean) {
     setBusy(true); setErr(null);
     try { await setAuto.mutateAsync(next); }
     catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
+  }
+  if (!moeglich) {
+    return (
+      <div className="rounded-2xl bg-forest-950/60 ring-1 ring-forest-800/40 p-5">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🤖</span>
+          <h3 className="text-forest-100 font-semibold">Automatischer Check-in</h3>
+        </div>
+        <p className="text-xs text-forest-400 mt-1 leading-relaxed">
+          Auf iPhone und iPad geht das leider nicht: Apple lässt Web-Apps nicht erkennen, in welchem WLAN du bist.
+          {' '}Bitte checke dort mit dem Knopf in der App oder mit deiner PIN am Eingangs-Tablet ein — und beim Gehen wieder aus.
+        </p>
+      </div>
+    );
   }
   return (
     <div className="rounded-2xl bg-forest-950/60 ring-1 ring-forest-800/40 p-5">
@@ -400,6 +419,8 @@ function AutoCheckinToggleCard({ enabled }: { enabled: boolean }) {
           <p className="text-xs text-forest-400 mt-1 leading-relaxed">
             Wenn aktiv: Sobald du dich mit deinem Handy ins Sauna-WLAN einloggst, wirst du automatisch eingecheckt — kein PIN, kein Tap.
             {' '}Sicher: erkennt das Sauna-Netz am Subnet, dein Standort wird nicht abgefragt.
+            {' '}Nach dem Auschecken macht die Automatik 3 Stunden Pause, damit du beim Rausgehen nicht gleich wieder eingecheckt wirst.
+            {' '}Auschecken musst du selbst (Knopf in der App oder PIN am Tablet).
           </p>
         </div>
         <button

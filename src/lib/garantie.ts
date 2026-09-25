@@ -73,6 +73,18 @@ export function isGarantieSlot(date: Date, opts: GarantieOpts = {}): boolean {
   return garantieTemperatureFor(date, opts) !== null;
 }
 
+/** Garantie-Temperatur für einen Wochentag + eine Stunde, unabhängig vom
+ *  Datum — für Stamm-Slots (Spiegel von garantie_sauna_for_slot, Migration
+ *  0184). Feiertage und Saunafest bleiben außen vor: Der Stamm-Rhythmus
+ *  hängt nur an Wochentag und Stunde. 04.01.2026 ist ein Sonntag (dow 0). */
+export function garantieTemperatureForWeekdayHour(
+  weekday: number,
+  hour: number,
+  opts: Pick<GarantieOpts, 'mondayOpen'> = {},
+): 80 | 100 | null {
+  return garantieTemperatureFor(new Date(2026, 0, 4 + weekday, hour, 0, 0), { mondayOpen: opts.mondayOpen });
+}
+
 // Hilfsfunktion: alle Slot-Stunden eines Wochentags (für UI-Default + Sperr-Check).
 // Bei Mo + mondayOpen=true → wie Sa/So. Bei isHoliday=true → 11-20 (überschreibt alles).
 export function slotHoursForWeekday(weekday: number, opts: GarantieOpts = {}): number[] {

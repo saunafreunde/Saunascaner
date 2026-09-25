@@ -4,31 +4,96 @@ import { useAppReloadSignal } from '@/lib/api';
 const STORAGE_KEY = 'app-reload-signal-seen';
 const VERSUCH_KEY = 'app-reload-bundle-versuch';
 
-/** Cache leeren und hart neu laden — höchstens einmal je Aufruf. */
-function cacheLeerenUndNeuLaden(marke: string) {
+/** Präfix des Workbox-Precaches (App-Hülle: index.html, JS, CSS). */
+const PRECACHE_PREFIX = 'workbox-precache';
+
+/**
+ * Service Worker nach einer neuen Fassung fragen — NICHT abmelden!
+ * Bis 25.09.2026 stand hier `unregister()`. Chrome und Firefox löschen beim
+ * Abmelden das Push-Abo des Geräts: Nach jedem Deploy kamen auf Android keine
+ * Evakuierungs-, Spiel- und Saunafest-Pushes mehr an, still und ohne Hinweis.
+ * `update()` holt die neue sw.js; die übernimmt dank skipWaiting + clientsClaim
+ * (vite.config.ts) von selbst. Höchstens `maxMs` warten.
+ */
+async function serviceWorkerAktualisieren(maxMs: number): Promise<void> {
+  if (!('serviceWorker' in navigator)) return;
+  const regs = await navigator.serviceWorker.getRegistrations();
+  await Promise.race([
+    Promise.all(regs.map((r) => r.update().catch(() => undefined))),
+    new Promise((resolve) => setTimeout(resolve, maxMs)),
+  ]);
+}
+
+/**
+ * Caches so aufräumen, dass der nächste Seitenaufruf das Server-Bundle bekommt.
+ * - Eine gecachte index.html, die NICHT das Server-Bundle nennt, fliegt aus dem
+ *   Precache. Workbox holt die Startseite dann aus dem Netz (fallbackToNetwork),
+ *   auch solange noch der alte Service Worker die Seite steuert.
+ * - Eine index.html, die das Server-Bundle schon nennt (der neue Service Worker
+ *   war schneller), bleibt liegen — so startet die App weiterhin ohne Netz.
+ * - Alle übrigen Precache-Einträge bleiben ebenfalls liegen.
+ * - `laufzeitCaches`: zusätzlich Bilder-, Avatar- und Wetter-Cache leeren
+ *   (Admin-Knopf „App-Update ausrollen“).
+ */
+async function cachesAufraeumen(zielBundle: string | null, laufzeitCaches: boolean): Promise<void> {
+  if (!('caches' in window)) return;
+  for (const name of await caches.keys()) {
+    if (!name.startsWith(PRECACHE_PREFIX)) {
+      if (laufzeitCaches) await caches.delete(name);
+      continue;
+    }
+    const cache = await caches.open(name);
+    for (const req of await cache.keys()) {
+      if (new URL(req.url).pathname !== '/index.html') continue;
+      const res = await cache.match(req);
+      const html = res ? await res.text().catch(() => '') : '';
+      if (zielBundle && html.includes(`src="${zielBundle}"`)) continue;
+      await cache.delete(req);
+    }
+  }
+}
+
+/**
+ * Auf das neue Bundle umschalten und neu laden — höchstens einmal je Aufruf.
+ * Das Push-Abo und der übrige Offline-Vorrat bleiben dabei erhalten.
+ */
+function aufNeuesBundleUmschalten(
+  marke: string,
+  opts: { serverBundle?: string | null; laufzeitCaches: boolean },
+) {
   (async () => {
+    const start = Date.now();
     try {
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map((r) => r.unregister()));
-      }
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
+      await serviceWorkerAktualisieren(2500);
+      const bundle = opts.serverBundle !== undefined ? opts.serverBundle : await serverBundle();
+      await cachesAufraeumen(bundle, opts.laufzeitCaches);
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.warn('[AppReloadWatcher] Cache-Clear teilweise fehlgeschlagen', e);
+      console.warn('[AppReloadWatcher] Aufräumen teilweise fehlgeschlagen', e);
     }
-    // 3s warten dann reload (mit Cache-Bypass)
+    // Insgesamt ~3 s nach dem Auslöser neu laden, ?_t= als Cache-Buster.
     setTimeout(() => {
-      // location.reload() ohne Argumente macht in modernen Browsern
-      // bereits eine Force-Revalidation. Plus ?_t= als Cache-Buster.
       const url = new URL(window.location.href);
       url.searchParams.set('_t', marke);
       window.location.replace(url.toString());
-    }, 3000);
+    }, Math.max(0, 3000 - (Date.now() - start)));
   })();
+}
+
+/**
+ * Welches Haupt-Skript nennt die index.html auf dem Server gerade?
+ * null offline, im Dev-Modus oder bei einem Fehler.
+ */
+async function serverBundle(): Promise<string | null> {
+  try {
+    // ?_v= umgeht den Workbox-Precache (der kennt nur die nackte URL) und den HTTP-Cache.
+    const res = await fetch(`/index.html?_v=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const html = await res.text();
+    return html.match(/<script[^>]+type="module"[^>]+src="(\/assets\/[^"]+\.js)"/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -37,19 +102,11 @@ function cacheLeerenUndNeuLaden(marke: string) {
  * Server-Bundles, wenn er abweicht — sonst null (auch offline oder im Dev-Modus).
  */
 async function neueresBundleAufDemServer(): Promise<string | null> {
-  try {
-    const meins = document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.src;
-    if (!meins) return null;
-    // ?_v= umgeht den Workbox-Precache (der kennt nur die nackte URL) und den HTTP-Cache.
-    const res = await fetch(`/index.html?_v=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const html = await res.text();
-    const server = html.match(/<script[^>]+type="module"[^>]+src="(\/assets\/[^"]+\.js)"/)?.[1];
-    if (!server) return null;
-    return meins.endsWith(server) ? null : server;
-  } catch {
-    return null;
-  }
+  const meins = document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.src;
+  if (!meins) return null;
+  const server = await serverBundle();
+  if (!server) return null;
+  return meins.endsWith(server) ? null : server;
 }
 
 /**
@@ -58,6 +115,8 @@ async function neueresBundleAufDemServer(): Promise<string | null> {
  * geschrieben. Dieser Hook merkt den letzten gesehenen Wert im
  * localStorage und führt bei Änderung einen Hard-Reload + Cache-Clear
  * durch — damit alle iPhone-/PWA-User die neue Version bekommen.
+ * Der Service Worker wird dabei nur aktualisiert, nie abgemeldet — sonst
+ * wäre das Push-Abo des Geräts weg (siehe serviceWorkerAktualisieren).
  *
  * Das Signal erreicht nur Geräte, auf denen die App offen ist oder im
  * Hintergrund liegt. Wer sie ganz geschlossen hatte, bekam beim nächsten
@@ -88,7 +147,7 @@ export function AppReloadWatcher() {
       } catch { return; /* ohne Speicher kein Schleifenschutz → lieber nicht neu laden */ }
       // eslint-disable-next-line no-console
       console.log('[AppReloadWatcher] Neueres Bundle auf dem Server — Hard-Reload in 3s …', server);
-      cacheLeerenUndNeuLaden(String(Date.now()));
+      aufNeuesBundleUmschalten(String(Date.now()), { serverBundle: server, laufzeitCaches: false });
     });
     return () => { alive = false; };
   }, []);
@@ -112,7 +171,7 @@ export function AppReloadWatcher() {
       // eslint-disable-next-line no-console
       console.log('[AppReloadWatcher] Admin hat App-Reload getriggert — Hard-Reload in 3s …');
       try { localStorage.setItem(STORAGE_KEY, String(current)); } catch { /* ignore */ }
-      cacheLeerenUndNeuLaden(String(current));
+      aufNeuesBundleUmschalten(String(current), { laufzeitCaches: true });
     }
   }, [sig.data]);
 

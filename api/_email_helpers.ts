@@ -80,6 +80,10 @@ function makeTransporter(opts: {
     pool: false,
     connectionTimeout: 15_000,
     greetingTimeout: 10_000,
+    // Inhalte und Anhänge kommen nur als Text oder Buffer (Logo): nodemailer
+    // darf weder Serverdateien noch URLs selbst einlesen (Audit 25.09.2026).
+    disableFileAccess: true,
+    disableUrlAccess: true,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
 }
@@ -225,6 +229,10 @@ export function makeServiceClient(): SupabaseClient {
 }
 
 // ─── Log-Helper (schreibt nach email_log via RPC) ────────────────────────
+// log_email_send ist seit 0187 nur für service_role ausführbar und prüft kein
+// auth.uid() mehr — vorher warf es für den Service-Client still eine
+// Ausnahme, und email_log blieb leer. Ein Fehler bricht den Mailversand nicht
+// ab, wird aber geloggt (ohne Empfängeradresse).
 export async function logEmailSend(
   service: SupabaseClient,
   p: {
@@ -239,7 +247,7 @@ export async function logEmailSend(
     senderMemberId?: string;
   }
 ) {
-  await service.rpc('log_email_send', {
+  const { error } = await service.rpc('log_email_send', {
     p_recipient: p.recipient,
     p_subject: p.subject,
     p_template_name: p.templateName,
@@ -250,4 +258,5 @@ export async function logEmailSend(
     p_sender_email: p.senderEmail ?? null,
     p_sender_member_id: p.senderMemberId ?? null,
   });
+  if (error) console.error('[email-log] nicht geschrieben:', p.templateName, p.status, error.code, error.message);
 }

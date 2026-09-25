@@ -96,16 +96,16 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // Übrige Supabase-Requests (API/RPC): NetworkFirst
-          {
-            urlPattern: ({ url }) => url.hostname.includes('supabase.co'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 64, maxAgeSeconds: 60 * 5 },
-            },
-          },
+          // Übrige Supabase-Requests (REST, Anmeldung, Functions, signierte
+          // Storage-URLs) bewusst OHNE Regel — sie gehen direkt ans Netz.
+          // Bis 25.09.2026 stand hier ein NetworkFirst-Cache „supabase-api“.
+          // Sein Schlüssel war nur die URL (Supabase sendet kein
+          // Vary: Authorization): bei >5 s Netz-Latenz kam die Antwort eines
+          // früheren Kontos oder eine bis zu 5 min alte zurück, persönliche
+          // Antworten blieben nach dem Abmelden auf dem Gerät, und der
+          // TV-Stick schrieb durch den 5-s-Poll ~3,5 GB am Tag in den Cache.
+          // Den alten Cache räumt public/push-handler.js beim Aktivieren weg.
+          // Nur öffentliche Bilder (Regel oben) werden zwischengespeichert.
           {
             urlPattern: ({ url }) => url.hostname.includes('open-meteo.com'),
             handler: 'StaleWhileRevalidate',
@@ -124,12 +124,18 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // Nie ein Paket mit dynamischem import() in einen manualChunk legen!
+        // Vite hängt dann seinen Preload-Helfer (__vitePreload) in genau diesen
+        // Chunk, und das Haupt-Bundle importiert ihn beim Start statisch.
+        // So lud bis 25.09.2026 jeder Aufruf — auch die TV-Tafel und jedes
+        // Gäste-Handy — vorab ~0,56 MB jsPDF + html2canvas ('pdf-vendor'),
+        // obwohl nur die PDF-Funktionen sie brauchen. Ebenso betroffen wäre
+        // qr-scanner (lädt seinen Worker per import()). jsPDF, html2canvas,
+        // qr-scanner und qrcode verteilt Rollup jetzt selbst auf Lazy-Chunks.
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'query-vendor': ['@tanstack/react-query'],
           'motion-vendor': ['framer-motion'],
-          'pdf-vendor': ['jspdf', 'html2canvas'],
-          'qr-vendor': ['qr-scanner', 'qrcode'],
           'supabase-vendor': ['@supabase/supabase-js'],
         },
       },

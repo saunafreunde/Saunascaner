@@ -170,9 +170,11 @@ export function JokerSchoner({ display, oeffnetUm, beruehrungen, letztesDisplay,
   // Alles unter dem Schoner stilllegen: keine Klicks, kein Fokus, keine
   // Tastatur — „ohne Freigabe geht nix". Der Schoner selbst hängt per Portal
   // am <body> und bleibt bedienbar.
-  // display:none obendrauf: die Tafel darunter (Bühne, Partikel, Videos) soll
-  // nachts nicht weiterrendern. Der React-Baum bleibt gemountet — Realtime und
-  // Daten laufen weiter, nach der Freigabe steht sofort der aktuelle Stand da.
+  // display:none obendrauf: spart Layout, Paint und CSS-Animationen darunter.
+  // requestAnimationFrame-Schleifen und JS-Timer hält es NICHT an — die Tafel
+  // bremst sich deshalb selbst (Dashboard.tsx: Partikel pausiert, Uhr minütlich).
+  // Der React-Baum bleibt gemountet — Realtime und Daten laufen weiter, nach
+  // der Freigabe steht sofort der aktuelle Stand da.
   useEffect(() => {
     const root = document.getElementById('root');
     if (!root) return;

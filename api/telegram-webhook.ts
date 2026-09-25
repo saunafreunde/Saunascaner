@@ -1,7 +1,9 @@
 // Vercel Serverless Function — POST /api/telegram-webhook
 // Empfängt Telegram-Updates und verarbeitet:
 //   /start <token>     — Account-Verknüpfung mit Saunafreunde-Member
-//   /start             — Chat-ID für Broadcasts registrieren (Bestandsverhalten)
+//   /start             — Vereins-Meldungen beantragen: neue Chats kommen erst nach
+//                        Freigabe durch einen Admin in den Verteiler (0187,
+//                        Admin → Handbuch → Telegram); bestehende Chats bleiben
 //   /stop              — Chat-ID abmelden
 //   /heute, /morgen    — Aufguss-Übersicht
 //   /meine             — eigene geplante Aufgüsse
@@ -14,15 +16,51 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getBrandSettings } from './_email_helpers.js';
 import { authenticate } from './_auth.js';
 import { cronHeaderOk, cronSecretFehlt, geheimnisGleich } from './_cron.js';
+import { escHtml as h, vereinsChats } from './_telegram.js';
+import { queryParam } from './_query.js';
 
 const TG_API = (token: string) => `https://api.telegram.org/bot${token}`;
 
-async function tgSend(token: string, chatId: number, text: string, opts: { parse_mode?: string; reply_markup?: unknown } = {}) {
-  await fetch(`${TG_API(token)}/sendMessage`, {
+// Telegram erlaubt 4.096 Zeichen je Nachricht; darunter bleiben mit Luft.
+const TG_MAX_ZEICHEN = 3800;
+const FEHLER_TEXT = '❌ Da ist etwas schiefgelaufen. Bitte später noch einmal versuchen.';
+
+/**
+ * Nachricht senden. Liefert true nur, wenn Telegram sie angenommen hat —
+ * vorher galt jede Antwort als Erfolg (auch 400 „can't parse entities“ oder
+ * 403 „bot was blocked“), und Slots galten trotzdem als angekündigt.
+ * Bei 429 (zu schnell) einmal kurz warten und erneut senden.
+ * Alle Texte aus der Datenbank gehen durch h() (parse_mode HTML).
+ */
+async function tgSend(token: string, chatId: number, text: string, opts: { parse_mode?: string; reply_markup?: unknown } = {}): Promise<boolean> {
+  const init: RequestInit = {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: opts.parse_mode ?? 'HTML', reply_markup: opts.reply_markup }),
-  });
+  };
+  for (let versuch = 1; versuch <= 2; versuch++) {
+    let r: Response;
+    try {
+      r = await fetch(`${TG_API(token)}/sendMessage`, init);
+    } catch (e) {
+      console.error('[telegram-webhook] sendMessage Netzfehler:', (e as Error).message);
+      return false;
+    }
+    if (r.ok) return true;
+    const antwort = await r.text().catch(() => '');
+    if (r.status === 429 && versuch === 1) {
+      let warteS = 1;
+      try { warteS = Number((JSON.parse(antwort) as { parameters?: { retry_after?: number } }).parameters?.retry_after) || 1; } catch { /* Standard */ }
+      if (warteS <= 5) {
+        await new Promise((res) => setTimeout(res, warteS * 1000));
+        continue;
+      }
+    }
+    // Ohne chat_id und ohne Nachrichtentext loggen.
+    console.error(`[telegram-webhook] sendMessage ${r.status}: ${antwort.slice(0, 200)}`);
+    return false;
+  }
+  return false;
 }
 
 async function tgAnswerCallback(token: string, callbackQueryId: string, text: string, alert = false) {
@@ -34,11 +72,12 @@ async function tgAnswerCallback(token: string, callbackQueryId: string, text: st
 }
 
 async function tgEditMessage(token: string, chatId: number, messageId: number, text: string, reply_markup?: unknown) {
-  await fetch(`${TG_API(token)}/editMessageText`, {
+  const r = await fetch(`${TG_API(token)}/editMessageText`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML', reply_markup }),
-  });
+  }).catch(() => null);
+  if (r && !r.ok) console.error(`[telegram-webhook] editMessageText ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`);
 }
 
 function fmtTime(iso: string): string {
@@ -117,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   //     last_error_date + last_error_message + max_connections
   //   - geheimnis_aktiv: ob TELEGRAM_WEBHOOK_SECRET gesetzt ist (nie der Wert)
   // Wenn last_error_message gesetzt ist oder url leer → Webhook ist defekt.
-  if (req.method === 'GET' && req.query.diag === '1') {
+  if (req.method === 'GET' && queryParam(req, 'diag') === '1') {
     const zugang = await adminOderCron(req);
     if (!zugang.ok) return res.status(zugang.status).json({ error: zugang.error });
     const [meRes, whRes] = await Promise.all([
@@ -139,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // schickt es dann bei jedem Update im Header X-Telegram-Bot-Api-Secret-Token.
   // Die URL bleibt ohne Query — so taucht das Geheimnis weder in
   // getWebhookInfo noch in Zugriffs-Logs auf.
-  if (req.method === 'GET' && req.query.reregister === '1') {
+  if (req.method === 'GET' && queryParam(req, 'reregister') === '1') {
     const zugang = await adminOderCron(req);
     if (!zugang.ok) return res.status(zugang.status).json({ error: zugang.error });
     const baseUrl = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
@@ -175,7 +214,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET ?announce=1 → Cron-Hook (Personal-Fallback-Announce)
   // Beide Cron-Hooks verlangen x-cron-secret aus dem Vault (pg_cron, 0168/0169),
   // fail closed über api/_cron.ts.
-  if (req.method === 'GET' && req.query.announce === '1') {
+  if (req.method === 'GET' && queryParam(req, 'announce') === '1') {
     if (!cronHeaderOk(req)) {
       if (cronSecretFehlt()) console.error('[telegram-webhook] announce abgelehnt: CRON_SECRET fehlt oder ist zu kurz');
       return res.status(401).json({ error: 'cron secret mismatch' });
@@ -185,7 +224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // GET ?rating_push=1 → Cron-Hook (Rating-Push 15 Min nach Aufguss-Ende)
-  if (req.method === 'GET' && req.query.rating_push === '1') {
+  if (req.method === 'GET' && queryParam(req, 'rating_push') === '1') {
     if (!cronHeaderOk(req)) {
       if (cronSecretFehlt()) console.error('[telegram-webhook] rating_push abgelehnt: CRON_SECRET fehlt oder ist zu kurz');
       return res.status(401).json({ error: 'cron secret mismatch' });
@@ -195,7 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // POST ?action=broadcast_handbook → Handbuch-Link an alle Chats
-  if (req.method === 'POST' && req.query.action === 'broadcast_handbook') {
+  if (req.method === 'POST' && queryParam(req, 'action') === 'broadcast_handbook') {
     // Auth via Bearer-Token: nur Admin darf broadcasten
     const authHeader = req.headers.authorization ?? '';
     const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -217,16 +256,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `📖 <b>Mitglieder-Handbuch</b>\n\n` +
       `Liebe Saunafreunde, hier findet ihr das komplette Handbuch zu unserer App — Aufgüsse planen, WM-Tipspiel, Kalender-Abo, alles drin:\n\n` +
       `🌲 ${origin}/hilfe\n\n` +
-      `— ${brand.org.name}`;
+      `— ${h(brand.org.name)}`;
 
-    const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
-    const cfgVal = (cfg?.value as { chat_ids?: number[] } | null) ?? null;
-    const chatIds = cfgVal?.chat_ids ?? [];
+    const chatIds = await vereinsChats(sb);
     if (chatIds.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no chats registered' });
 
-    const results = await Promise.allSettled(chatIds.map((id) => tgSend(token, id, text)));
-    const sent = results.filter((r) => r.status === 'fulfilled').length;
-    return res.status(200).json({ ok: true, sent, failed: results.length - sent });
+    // Nacheinander (Telegram-Grenze) und nur echte Zustellungen zählen.
+    let sent = 0;
+    for (const id of chatIds) {
+      if (await tgSend(token, id, text)) sent++;
+    }
+    return res.status(200).json({ ok: true, sent, failed: chatIds.length - sent });
   }
 
   if (req.method !== 'POST') return res.status(405).end();
@@ -250,10 +290,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 // ─── Announce Personal-Fallbacks in Telegram-Channel ─────────────────────
 async function announceFallbacks(sb: SupabaseClient, token: string): Promise<number> {
-  // Welche Channels bekommen Announcements? Aus system_config.telegram_chats
-  const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
-  const cfgVal = (cfg?.value as { chat_ids?: number[] } | null) ?? null;
-  const chatIds = cfgVal?.chat_ids ?? [];
+  // Welche Chats bekommen Announcements? Der freigegebene Vereins-Verteiler.
+  const chatIds = await vereinsChats(sb);
   if (chatIds.length === 0) return 0;
 
   // Personal-Fallbacks in den nächsten 90 Minuten, die noch nicht angekündigt sind
@@ -272,7 +310,7 @@ async function announceFallbacks(sb: SupabaseClient, token: string): Promise<num
     const startTime = fmtClock(slot.start_time);
     const text =
       `🔥 <b>Personal-Aufguss ohne Aufgießer</b>\n\n` +
-      `<b>${startTime} Uhr</b> · ${slot.sauna_name} ${slot.temperature_c}°C\n\n` +
+      `<b>${startTime} Uhr</b> · ${h(slot.sauna_name)} ${h(slot.temperature_c)}°C\n\n` +
       `Niemand hat diesen Slot übernommen. Wer macht ihn?`;
     const reply_markup = {
       inline_keyboard: [[
@@ -280,17 +318,47 @@ async function announceFallbacks(sb: SupabaseClient, token: string): Promise<num
       ]],
     };
 
+    // Nur als angekündigt markieren, wenn mindestens ein Chat die Nachricht
+    // angenommen hat — sonst versucht es der nächste 15-Minuten-Lauf erneut
+    // (das 90-Minuten-Fenster begrenzt das auf wenige Versuche).
+    let angekommen = false;
     for (const chatId of chatIds) {
-      try {
-        await tgSend(token, chatId, text, { reply_markup });
-      } catch (e) {
-        console.error(`failed to announce to chat ${chatId}`, e);
-      }
+      if (await tgSend(token, chatId, text, { reply_markup })) angekommen = true;
+    }
+    if (!angekommen) {
+      console.error('[telegram-webhook] Personal-Slot-Ankündigung an keinen Chat zugestellt — nächster Lauf versucht es erneut');
+      continue;
     }
     await sb.rpc('mark_telegram_announced', { p_infusion_id: slot.infusion_id });
     announced++;
   }
   return announced;
+}
+
+// ─── Verteiler: Anmeldung mit Admin-Freigabe (0187) ──────────────────────
+// Ergebnis von telegram_chat_anmelden: 'aktiv' | 'neu' | 'wartet' |
+// 'abgelehnt' | 'voll'. Bei einem Fehler 'fehler'. Eine Ablehnung wird dem
+// Chat nicht verraten (gleicher Text wie „wartet“).
+async function chatAnmelden(sb: SupabaseClient, msg: TelegramMessage): Promise<string> {
+  const { data, error } = await sb.rpc('telegram_chat_anmelden', {
+    p_chat_id: msg.chat?.id,
+    p_telegram_user_id: msg.from?.id ?? null,
+    // Gruppe: deren Titel; privat: Vorname des Absenders (beides nur zur Anzeige für die Admins).
+    p_vorname: (msg.chat?.type && msg.chat.type !== 'private' ? msg.chat.title : undefined) ?? msg.from?.first_name ?? null,
+    p_benutzername: msg.from?.username ?? null,
+    p_chat_typ: msg.chat?.type ?? null,
+  });
+  if (error) {
+    console.error('[telegram-webhook] telegram_chat_anmelden:', error.message);
+    return 'fehler';
+  }
+  return typeof data === 'string' ? data : 'fehler';
+}
+
+function verteilerHinweis(status: string): string {
+  if (status === 'aktiv') return 'Du bekommst die Vereins-Meldungen (Personal-Aufgüsse, Notfall-Alarm, Ankündigungen).';
+  if (status === 'fehler') return 'Die Anmeldung für die Vereins-Meldungen hat gerade nicht geklappt — bitte später noch einmal /start senden.';
+  return 'Deine Anmeldung für die Vereins-Meldungen ist eingegangen. Ein Admin schaltet dich frei — bis dahin bekommst du hier noch keine Rundnachrichten.';
 }
 
 // ─── Message Handler ─────────────────────────────────────────────────────
@@ -304,41 +372,41 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
   const startMatch = text.match(/^\/start(?:@\w+)?\s+([0-9a-f-]{36})$/i);
   if (startMatch) {
     const linkToken = startMatch[1];
-    try {
-      const { data } = await sb.rpc('claim_telegram_link', { p_token: linkToken, p_telegram_user_id: fromId });
-      const member = Array.isArray(data) ? data[0] : data;
-      if (member) {
-        await tgSend(token, chatId,
-          `✅ <b>Konto verknüpft!</b>\n\nHallo ${member.name}, dein Telegram ist jetzt mit Saunascaner verknüpft.\n\n` +
-          `Verfügbare Befehle:\n` +
-          `/heute — Aufgüsse heute\n/morgen — Aufgüsse morgen\n/meine — Meine Aufgüsse\n/unlink — Verknüpfung lösen`);
-        // Auch klassisch für Broadcasts registrieren
-        await sb.rpc('register_telegram_chat', { p_chat_id: chatId });
-        return;
-      }
-    } catch (e) {
-      const msg = (e as Error).message;
-      if (msg.includes('invalid_or_expired_token')) {
+    // supabase-js wirft nicht — der Fehler steht in `error`.
+    const { data, error } = await sb.rpc('claim_telegram_link', { p_token: linkToken, p_telegram_user_id: fromId });
+    const member = Array.isArray(data) ? data[0] : data;
+    if (error || !member) {
+      if (!error || (error.message ?? '').includes('invalid_or_expired_token')) {
         await tgSend(token, chatId, '❌ Token ungültig oder schon eingelöst. Generiere einen neuen in der App: <i>Profil → Telegram verknüpfen</i>.');
-        return;
+      } else {
+        console.error('[telegram-webhook] claim_telegram_link:', error.message);
+        await tgSend(token, chatId, FEHLER_TEXT);
       }
-      await tgSend(token, chatId, '❌ Fehler bei Verknüpfung: ' + msg);
       return;
     }
+    // Vereins-Meldungen: neue Chats erst nach Admin-Freigabe (0187).
+    const status = await chatAnmelden(sb, msg);
+    await tgSend(token, chatId,
+      `✅ <b>Konto verknüpft!</b>\n\nHallo ${h(member.name)}, dein Telegram ist jetzt mit Saunascaner verknüpft.\n\n` +
+      `${verteilerHinweis(status)}\n\n` +
+      `Verfügbare Befehle:\n` +
+      `/heute — Aufgüsse heute\n/morgen — Aufgüsse morgen\n/meine — Meine Aufgüsse\n/unlink — Verknüpfung lösen`);
+    return;
   }
 
-  // Plain /start — Broadcast-Registrierung + Verknüpfen-Button wenn unverknüpft
+  // Plain /start — Vereins-Meldungen beantragen + Verknüpfen-Button wenn unverknüpft
   if (text === '/start' || text.startsWith('/start@')) {
-    await sb.rpc('register_telegram_chat', { p_chat_id: chatId });
+    const status = await chatAnmelden(sb, msg);
     const brand = await getBrandSettings(sb);
-    const { data: linkedMember } = await sb.from('members').select('id, name').eq('telegram_user_id', fromId).maybeSingle();
+    const { data: linkedMember } = await sb.from('members').select('id, name').eq('telegram_user_id', fromId).is('revoked_at', null).maybeSingle();
     if (linkedMember) {
       await tgSend(token, chatId,
-        `🌲 <b>Hallo ${linkedMember.name}!</b>\n\nDein Konto ist verknüpft, du bekommst Benachrichtigungen.\n\nSchreibe /help um alle Befehle zu sehen.`);
+        `🌲 <b>Hallo ${h(linkedMember.name)}!</b>\n\nDein Konto ist verknüpft. ${verteilerHinweis(status)}\n\nSchreibe /help um alle Befehle zu sehen.`);
     } else {
       await tgSend(token, chatId,
-        `🌲 <b>Willkommen bei ${brand.org.name}!</b>\n\n` +
-        `Du bist für Benachrichtigungen registriert. Damit du Personal-Aufgüsse übernehmen und Aufgüsse direkt im Chat bewerten kannst, verknüpfe dein Konto:`,
+        `🌲 <b>Willkommen bei ${h(brand.org.name)}!</b>\n\n` +
+        `${verteilerHinweis(status)}\n\n` +
+        `Damit du Personal-Aufgüsse übernehmen und Aufgüsse direkt im Chat bewerten kannst, verknüpfe dein Konto:`,
         {
           reply_markup: {
             inline_keyboard: [[
@@ -357,10 +425,17 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
     return;
   }
 
-  // /unlink — Telegram-Account-Verknüpfung lösen
+  // /unlink — Telegram-Account-Verknüpfung lösen. Im privaten Chat endet
+  // damit auch der Empfang der Vereins-Meldungen (vorher blieb der Chat im
+  // Verteiler, auch nach einer Sperre); neu beantragen geht mit /start.
   if (text === '/unlink') {
     await sb.from('members').update({ telegram_user_id: null, telegram_link_token: null }).eq('telegram_user_id', fromId);
-    await tgSend(token, chatId, '🔓 Konto-Verknüpfung gelöst.');
+    if (msg.chat?.type === 'private' && chatId === fromId) {
+      await sb.rpc('unregister_telegram_chat', { p_chat_id: chatId });
+      await tgSend(token, chatId, '🔓 Konto-Verknüpfung gelöst. Vereins-Meldungen bekommst du hier nicht mehr — mit /start kannst du sie neu beantragen.');
+    } else {
+      await tgSend(token, chatId, '🔓 Konto-Verknüpfung gelöst.');
+    }
     return;
   }
 
@@ -398,8 +473,13 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
     return;
   }
 
-  // /pin — eigenen Tablet-PIN anzeigen (braucht Verknüpfung)
-  if (text === '/pin') {
+  // /pin — eigenen Tablet-PIN anzeigen (braucht Verknüpfung). Nur im privaten
+  // Chat: in einer Gruppe läse sonst jeder den PIN mit.
+  if (text === '/pin' || text.startsWith('/pin@')) {
+    if (msg.chat?.type !== 'private') {
+      await tgSend(token, chatId, '🔒 Deinen PIN gibt es nur im privaten Chat mit dem Bot.');
+      return;
+    }
     const { data: rows } = await sb.rpc('get_my_checkin_pin_by_telegram', { p_telegram_user_id: fromId });
     const pinRow = Array.isArray(rows) ? rows[0] : rows;
     if (!pinRow?.pin) {
@@ -407,7 +487,7 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
       return;
     }
     await tgSend(token, chatId,
-      `🔢 <b>Dein Sauna-Tablet-PIN</b>\n\n<code>${pinRow.pin}</code>\n\n` +
+      `🔢 <b>Dein Sauna-Tablet-PIN</b>\n\n<code>${h(pinRow.pin)}</code>\n\n` +
       `Damit checkst du am Sauna-Tablet ein. Niemandem zeigen!`);
     return;
   }
@@ -452,8 +532,8 @@ function helpText(): string {
     `/unlink — Verknüpfung lösen\n\n` +
     `<b>🌐 App-Links</b>\n` +
     `/feed — Mini-Insta-Feed öffnen\n\n` +
-    `<b>🔔 Broadcasts</b>\n` +
-    `/start — Benachrichtigungen aktivieren\n` +
+    `<b>🔔 Vereins-Meldungen</b>\n` +
+    `/start — beantragen (ein Admin schaltet frei)\n` +
     `/stop — abmelden\n\n` +
     `<i>Bei „✋ Ich übernehme"- und ⭐-Buttons in Nachrichten: einfach tippen — funktioniert nur mit verknüpftem Konto.</i>`
   );
@@ -480,10 +560,11 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
       const row = Array.isArray(result) ? result[0] : result;
       if (row) {
         await tgAnswerCallback(token, cb.id, `✓ Übernommen! Du machst jetzt den Aufguss um ${cb.message?.text?.match(/\d{2}:\d{2}/)?.[0] ?? ''} Uhr.`, true);
-        // Original-Nachricht updaten — Button entfernen, Status anzeigen
+        // Original-Nachricht updaten — Button entfernen, Status anzeigen.
+        // cb.message.text ist Klartext: vor dem erneuten Senden als HTML escapen.
         const oldText = cb.message?.text ?? '';
         await tgEditMessage(token, chatId, messageId,
-          `${oldText}\n\n✅ <b>Übernommen von ${row.member_name}</b>`,
+          `${h(oldText)}\n\n✅ <b>Übernommen von ${h(row.member_name)}</b>`,
           undefined);
         return;
       }
@@ -502,13 +583,14 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
         await tgAnswerCallback(token, cb.id, 'Der Slot wurde schon übernommen.', true);
         // Aktualisierte Anzeige nachholen
         const oldText = cb.message?.text ?? '';
-        await tgEditMessage(token, chatId, messageId, `${oldText}\n\n✅ Bereits übernommen.`, undefined);
+        await tgEditMessage(token, chatId, messageId, `${h(oldText)}\n\n✅ Bereits übernommen.`, undefined);
       } else if (msg.includes('not_authorized')) {
         await tgAnswerCallback(token, cb.id, '⚠️ Nur Aufgießer/Personal können Slots übernehmen.', true);
       } else if (msg.includes('slot_in_past')) {
         await tgAnswerCallback(token, cb.id, 'Dieser Slot ist schon vorbei.', true);
       } else {
-        await tgAnswerCallback(token, cb.id, '❌ Fehler: ' + msg, true);
+        console.error('[telegram-webhook] Knopf fehlgeschlagen:', msg);
+        await tgAnswerCallback(token, cb.id, FEHLER_TEXT, true);
       }
       return;
     }
@@ -537,7 +619,8 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
       } else if (msg.includes('infusion_already_started')) {
         await tgAnswerCallback(token, cb.id, 'Aufguss hat schon begonnen.', true);
       } else {
-        await tgAnswerCallback(token, cb.id, '❌ Fehler: ' + msg, true);
+        console.error('[telegram-webhook] Knopf fehlgeschlagen:', msg);
+        await tgAnswerCallback(token, cb.id, FEHLER_TEXT, true);
       }
       return;
     }
@@ -560,7 +643,7 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
       await tgAnswerCallback(token, cb.id, `⭐ ${stars}/5 für „${title}" gespeichert. Danke!`, false);
       const oldText = cb.message?.text ?? '';
       await tgEditMessage(token, chatId, messageId,
-        `${oldText}\n\n✅ <b>Deine Bewertung: ${'⭐'.repeat(stars)}${'☆'.repeat(5-stars)}</b>`,
+        `${h(oldText)}\n\n✅ <b>Deine Bewertung: ${'⭐'.repeat(stars)}${'☆'.repeat(5-stars)}</b>`,
         { inline_keyboard: [[
           { text: '✏️ Detailliert in App', url: `https://saunascaner.vercel.app/planner` },
         ]]});
@@ -570,13 +653,21 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
       if (msg.includes('telegram_not_linked')) {
         await tgAnswerCallback(token, cb.id, '⚠️ Konto nicht verknüpft.', true);
       } else if (msg.includes('self_rating_not_allowed')) {
-        await tgAnswerCallback(token, cb.id, 'Eigene Aufgüsse kannst du nicht bewerten.', true);
+        await tgAnswerCallback(token, cb.id, 'Bei diesem Aufguss hast du selbst mitgewedelt – den kannst du nicht bewerten.', true);
       } else if (msg.includes('rating_window_expired')) {
-        await tgAnswerCallback(token, cb.id, 'Bewertungsfenster ist zu (3h nach Ende).', true);
+        // Aufgießer: 3 Std. nach Ende; alle anderen: bis 12 Uhr am Folgetag (wie in der App)
+        await tgAnswerCallback(token, cb.id, 'Das Bewertungsfenster ist schon geschlossen.', true);
       } else if (msg.includes('infusion_not_finished')) {
         await tgAnswerCallback(token, cb.id, 'Aufguss läuft noch.', true);
+      } else if (msg.includes('not_attended_that_day')) {
+        await tgAnswerCallback(token, cb.id, 'Du warst an diesem Tag nicht eingecheckt – Bewertung nicht möglich.', true);
+      } else if (msg.includes('stunde_schon_bewertet')) {
+        await tgAnswerCallback(token, cb.id, 'Für diese Stunde hast du schon einen Aufguss bewertet.', true);
+      } else if (msg.includes('infusion_not_found')) {
+        await tgAnswerCallback(token, cb.id, 'Diesen Aufguss gibt es nicht mehr.', true);
       } else {
-        await tgAnswerCallback(token, cb.id, '❌ Fehler: ' + msg, true);
+        console.error('[telegram-webhook] Knopf fehlgeschlagen:', msg);
+        await tgAnswerCallback(token, cb.id, FEHLER_TEXT, true);
       }
       return;
     }
@@ -644,7 +735,7 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
     .gte('start_time', start.toISOString())
     .lt('start_time', end.toISOString())
     .order('start_time');
-  if (error) { await tgSend(token, chatId, '❌ Fehler: ' + error.message); return; }
+  if (error) { console.error('[telegram-webhook] Tagesliste:', error.message); await tgSend(token, chatId, FEHLER_TEXT); return; }
 
   // 2) Aktive Saunen + erlaubte Stunden für den Tag → freie Slots ermitteln
   const { data: saunas } = await sb.from('saunas').select('id, name, temperature_label').eq('is_active', true);
@@ -679,17 +770,17 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
   const planUrl = 'https://saunascaner.vercel.app/planner';
 
   // Pro Slot (Sauna × Stunde) eine Nachricht
-  for (const h of hours) {
+  for (const stunde of hours) {
     for (const sa of (saunas ?? [])) {
-      const i = infByKey.get(`${sa.id}|${h}`);
-      const hh = String(h).padStart(2, '0');
-      const isFuture = berlinInstant(targetYmd, h).getTime() > Date.now();
+      const i = infByKey.get(`${sa.id}|${stunde}`);
+      const hh = String(stunde).padStart(2, '0');
+      const isFuture = berlinInstant(targetYmd, stunde).getTime() > Date.now();
 
       if (!i) {
         // FREIER Slot
         if (!isFuture) continue; // vergangene leere Slots überspringen
         freeCount++;
-        const text = `🟢 <b>${hh}:00</b> · ${sa.name} ${sa.temperature_label}\n<i>— frei —</i>`;
+        const text = `🟢 <b>${hh}:00</b> · ${h(sa.name)} ${h(sa.temperature_label)}\n<i>— frei —</i>`;
         await tgSend(token, chatId, text, {
           reply_markup: {
             inline_keyboard: [[{ text: '📲 In App belegen', url: planUrl }]],
@@ -699,10 +790,10 @@ async function sendDayList(sb: SupabaseClient, token: string, chatId: number, da
       }
 
       const isMine = myMemberId && i.saunameister_id === myMemberId;
-      const name = i.is_personal_fallback ? '👨‍🍳 Personal' : (isMine ? `<i>du selbst</i>` : meisterName(i.saunameister_id));
+      const name = i.is_personal_fallback ? '👨‍🍳 Personal' : (isMine ? `<i>du selbst</i>` : h(meisterName(i.saunameister_id)));
       const team = i.team_infusion ? ' 👥' : '';
       const mineMark = isMine ? ' ✓' : '';
-      const text = `🔥 <b>${hh}:00</b> · ${sa.name} ${sa.temperature_label}\n${i.title}${team}${mineMark} — ${name}`;
+      const text = `🔥 <b>${hh}:00</b> · ${h(sa.name)} ${h(sa.temperature_label)}\n${h(i.title)}${team}${mineMark} — ${name}`;
 
       const buttons: Array<{ text: string; callback_data: string }> = [];
       if (isFuture && !isMine && !i.is_personal_fallback) {
@@ -740,7 +831,7 @@ async function sendWeekList(sb: SupabaseClient, token: string, chatId: number) {
     .lt('start_time', end.toISOString())
     .order('start_time');
 
-  if (error) { await tgSend(token, chatId, '❌ Fehler: ' + error.message); return; }
+  if (error) { console.error('[telegram-webhook] Wochenliste:', error.message); await tgSend(token, chatId, FEHLER_TEXT); return; }
   if (!data || data.length === 0) { await tgSend(token, chatId, 'Diese Woche keine Aufgüsse.'); return; }
 
   const meisterIds = Array.from(new Set(data.map((i) => i.saunameister_id).filter(Boolean) as string[]));
@@ -762,12 +853,27 @@ async function sendWeekList(sb: SupabaseClient, token: string, chatId: number) {
     parts.push(`\n<b>${day}</b>`);
     for (const i of list) {
       const s = (i.saunas as unknown as { name: string; temperature_label: string }) ?? { name: '?', temperature_label: '?' };
-      const name = i.is_personal_fallback ? '👨‍🍳 Personal' : meisterName(i.saunameister_id);
+      const name = i.is_personal_fallback ? '👨‍🍳 Personal' : h(meisterName(i.saunameister_id));
       const team = i.team_infusion ? ' 👥' : '';
-      parts.push(`${fmtClock(i.start_time)} · ${s.name} ${s.temperature_label} · ${i.title}${team} — ${name}`);
+      parts.push(`${fmtClock(i.start_time)} · ${h(s.name)} ${h(s.temperature_label)} · ${h(i.title)}${team} — ${name}`);
     }
   }
-  await tgSend(token, chatId, parts.join('\n'));
+  // Eine volle Woche ist länger als die 4.096 Zeichen, die Telegram je
+  // Nachricht annimmt (bisher kam dann still gar nichts an) → an
+  // Zeilengrenzen aufteilen. Tags stehen nur in ganzen Zeilen, es wird also
+  // kein <b> zerschnitten.
+  const teile: string[] = [];
+  let aktuell = '';
+  for (const p of parts) {
+    if (aktuell && aktuell.length + p.length + 1 > TG_MAX_ZEICHEN) {
+      teile.push(aktuell);
+      aktuell = p.replace(/^\n/, '');
+    } else {
+      aktuell = aktuell ? `${aktuell}\n${p}` : p;
+    }
+  }
+  if (aktuell) teile.push(aktuell);
+  for (const t of teile) await tgSend(token, chatId, t);
 }
 
 function fmtDayKey(iso: string): string {
@@ -792,8 +898,8 @@ async function sendRatingPushes(sb: SupabaseClient, token: string): Promise<numb
   for (const r of list) {
     const text =
       `⭐ <b>Bewertung — wie war's?</b>\n\n` +
-      `<b>${r.infusion_title}</b>\n` +
-      `${r.meister_name} · ${fmtClock(r.end_time)}\n\n` +
+      `<b>${h(r.infusion_title)}</b>\n` +
+      `${h(r.meister_name)} · ${fmtClock(r.end_time)}\n\n` +
       `Schnell-Bewertung — alle 6 Kategorien auf einen Stern-Wert. Detaillierter geht's in der App.`;
     const reply_markup = {
       inline_keyboard: [
@@ -809,12 +915,11 @@ async function sendRatingPushes(sb: SupabaseClient, token: string): Promise<numb
         ],
       ],
     };
-    try {
-      await tgSend(token, r.telegram_user_id, text, { reply_markup });
+    // Nur bei echter Zustellung als gesendet vermerken — sonst versucht es
+    // der nächste 5-Minuten-Lauf im Bewertungsfenster erneut.
+    if (await tgSend(token, r.telegram_user_id, text, { reply_markup })) {
       await sb.rpc('mark_telegram_rating_pushed', { p_member_id: r.member_id, p_infusion_id: r.infusion_id });
       sent++;
-    } catch (e) {
-      console.error('rating push failed', r.member_id, e);
     }
   }
   return sent;
@@ -829,15 +934,15 @@ async function sendMyInfusions(sb: SupabaseClient, token: string, chatId: number
     .order('start_time')
     .limit(15);
 
-  if (error) { await tgSend(token, chatId, '❌ Fehler: ' + error.message); return; }
+  if (error) { console.error('[telegram-webhook] /meine:', error.message); await tgSend(token, chatId, FEHLER_TEXT); return; }
   if (!data || data.length === 0) {
-    await tgSend(token, chatId, `Hi ${memberName}, du hast keine geplanten Aufgüsse.`);
+    await tgSend(token, chatId, `Hi ${h(memberName)}, du hast keine geplanten Aufgüsse.`);
     return;
   }
 
   const lines = data.map((i) => {
     const s = (i.saunas as unknown as { name: string; temperature_label: string }) ?? { name: '?', temperature_label: '?' };
-    return `🔥 <b>${fmtTime(i.start_time)}</b>\n   ${i.title} — ${s.name} ${s.temperature_label}${i.team_infusion ? ' 👥' : ''}`;
+    return `🔥 <b>${fmtTime(i.start_time)}</b>\n   ${h(i.title)} — ${h(s.name)} ${h(s.temperature_label)}${i.team_infusion ? ' 👥' : ''}`;
   });
   await tgSend(token, chatId, `<b>🧖 Deine kommenden Aufgüsse</b>\n\n${lines.join('\n\n')}`);
 }
@@ -849,8 +954,9 @@ type TelegramUpdate = {
 };
 type TelegramMessage = {
   message_id: number;
-  from?: { id: number; first_name?: string };
-  chat?: { id: number };
+  from?: { id: number; first_name?: string; username?: string };
+  // type: 'private' | 'group' | 'supergroup' | 'channel' (Telegram-API)
+  chat?: { id: number; type?: string; title?: string };
   text?: string;
 };
 type TelegramCallbackQuery = {

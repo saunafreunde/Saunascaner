@@ -1,164 +1,261 @@
-import { useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { setRealtimeKernAktiv } from '@/lib/realtimeStatus';
 
-// Subscribes to realtime changes on the operational tables and invalidates
-// the matching React Query caches. Mount once near the app root.
+// Realtime → React-Query-Caches invalidieren. Einmal nahe der App-Wurzel mounten.
 //
-// FIX 0107 (Audit Phase 9.A): vorher KEIN Subscription-State-Handler →
-// stille Total-Disconnects nach Supabase-Tenant-Park/JWT-Refresh-Fail/WLAN-Drop.
-// Jetzt: bei CHANNEL_ERROR/CLOSED/TIMED_OUT → Channel entfernen + nach 2s
-// re-subscriben. Logged in Production damit man im Vercel-Log sieht ob ein
-// Tafel-Browser Reconnect-Storm hat.
-export function useRealtimeSync() {
-  const qc = useQueryClient();
-  const reconnectAttempts = useRef(0);
+// Audit 25.09.2026: Der frühere EINE Kanal abonnierte zwölf Tabellen, die nie
+// in der Publication supabase_realtime standen (u. a. members). Der Server legt
+// alle Abos eines Kanals in einer Transaktion an und rollt beim ersten
+// unbekannten Tisch ALLES zurück — seit Mai kam deshalb kein einziges Ereignis
+// an, auch nicht für Saunen, Aufgüsse oder die Evakuierung. Der Client meldete
+// trotzdem „SUBSCRIBED" (die Ablehnung kommt nur als 'system'-Nachricht).
+// Die Kommentare an den 3-/5-s-Polls („Supabase parkt den Tenant") hatten die
+// falsche Ursache im Blick.
+//
+// Jetzt:
+//  • Getrennte Kanäle je Themenbereich — lehnt der Server einen ab (z. B. weil
+//    eine Migration fehlt), laufen die anderen weiter.
+//  • Nur Tabellen, die in supabase_realtime stehen (Stand Migration 0182).
+//    Neue Tabelle? Erst per Migration veröffentlichen, dann hier eintragen.
+//    members bleibt bewusst draußen (persönliche Daten, Spaltenrechte).
+//  • Mitglieder-Kanäle nur mit Anmeldung — die anonyme Tafel sieht die Zeilen
+//    per RLS ohnehin nicht, der Server müsste sie trotzdem für sie prüfen.
+//  • 'system'-Nachricht auswerten: erst „Subscribed to PostgreSQL" heißt, dass
+//    Ereignisse wirklich kommen. Das steuert die Poll-Takte (lib/realtimeStatus).
+//  • Nach einer Wiederverbindung die Daten des Kanals einmal nachladen —
+//    Ereignisse aus der Lücke sind sonst verloren.
+//  • Ereignisse werden kurz gebündelt: der nächtliche Materialisierer legt viele
+//    Aufgüsse in einem Rutsch an, das soll EIN Nachladen auslösen, nicht fünfzig.
+//
+// FIX 0107 bleibt: bei CHANNEL_ERROR/CLOSED/TIMED_OUT Kanal entfernen und mit
+// Backoff neu aufbauen.
+
+type Bindung = {
+  tabelle: string;
+  event?: '*' | 'INSERT' | 'UPDATE';
+  /** Diese Query-Keys (Präfixe) werden bei jedem Ereignis invalidiert. */
+  keys: QueryKey[];
+};
+
+type KanalSpec = {
+  name: string;
+  /** Kernkanal der Displays: sein Zustand steuert die Poll-Takte. */
+  kern?: boolean;
+  bindungen: Bindung[];
+};
+
+// ─── Für alle, auch die anonyme Tafel und die Kiosk-Tablets ─────────────────
+const OEFFENTLICHE_KANAELE: KanalSpec[] = [
+  {
+    name: 'tafel',
+    kern: true,
+    bindungen: [
+      { tabelle: 'saunas', keys: [['saunas']] },
+      { tabelle: 'infusions', keys: [['infusions']] },
+      // Team-Partner treten meist erst am Aufgusstag bei — ohne dieses Abo sah
+      // die Tafel sie nie (Schlüssel hängt nur an den Aufguss-IDs).
+      { tabelle: 'infusion_co_aufgieser', keys: [['co-aufgieser']] },
+      // anon sieht per RLS nur tv_settings + brand_settings (Info-Karten,
+      // Hintergründe); schedule_settings kommt nur bei Admins an.
+      { tabelle: 'system_config', keys: [['tv-settings'], ['brand-settings'], ['schedule-settings']] },
+      { tabelle: 'evacuation_events', keys: [['evacuation']] },
+      // TV-Bühne (Migration 0071): Admin steuert vom Handy, Tafel reagiert live
+      { tabelle: 'tv_stage_state', keys: [['tv-stage-state']] },
+    ],
+  },
+  {
+    // Migration 0182 — eigener Kanal, damit ein fehlendes Einspielen nicht die Tafel trifft.
+    name: 'kalender',
+    bindungen: [
+      // Saunafest: „Plan bestätigen", neue Festtage, Meldeschluss
+      { tabelle: 'saunafest_tage', keys: [['saunafest-tage']] },
+      { tabelle: 'holidays', keys: [['holidays']] },
+    ],
+  },
+];
+
+// ─── Nur für angemeldete Personen ─────────────────────────────────────────
+const MITGLIEDER_KANAELE: KanalSpec[] = [
+  {
+    name: 'mitglied',
+    bindungen: [
+      // Saunafest (Migration 0163): eigene Zeiträume (Admin: alle) + Tagesübersicht
+      { tabelle: 'saunafest_verfuegbarkeit', keys: [['saunafest-zeitraeume'], ['saunafest-uebersicht']] },
+      // Game-Hub (Migration 0073): Lobby + Active-List; einzelne Matches haben
+      // in /spiele/match/:id einen eigenen Kanal (lib/games.ts)
+      { tabelle: 'games_match', keys: [['games-active-mine'], ['games-open']] },
+      // Posteingang (Migration 0077; Lese-Policy für eigene Zeilen seit 0182).
+      // Nur INSERT/UPDATE (neu, gelesen): DELETE-Ereignisse prüft Realtime nicht
+      // per RLS und schickt sie an ALLE Abonnenten — das Aufräumen alter
+      // Benachrichtigungen wäre sonst ein Schwall für jedes Handy.
+      { tabelle: 'notification_queue', event: 'INSERT', keys: [['my-notifications'], ['my-notifications-unread']] },
+      { tabelle: 'notification_queue', event: 'UPDATE', keys: [['my-notifications'], ['my-notifications-unread']] },
+      // Feed-Kommentare (Migration 0078)
+      { tabelle: 'feed_post_comments', keys: [['feed-comments']] },
+      // DM-Liste + Zähler (Migration 0079); eine offene Unterhaltung hat in
+      // /dm/:id einen eigenen Kanal
+      { tabelle: 'dm_messages', keys: [['dm-conversations'], ['dm-unread']] },
+      // Geteilte Postfächer (Migration 0080): Sperren + Statuswechsel live bei allen Admins
+      { tabelle: 'email_tickets', keys: [['account-tickets'], ['my-shared-accounts']] },
+    ],
+  },
+  {
+    // Migration 0182 — eigener Kanal, damit ein fehlendes Einspielen nicht die übrigen trifft.
+    name: 'sozial',
+    bindungen: [
+      { tabelle: 'member_achievements', event: 'INSERT', keys: [['achievements'], ['member-stats-full']] },
+      { tabelle: 'aufgieser_comments', keys: [['aufgieser-comments']] },
+      { tabelle: 'aufgieser_comment_likes', keys: [['aufgieser-comments']] },
+      { tabelle: 'aufgieser_photos', keys: [['aufgieser-photos']] },
+      { tabelle: 'infusion_reactions', keys: [['infusion-reactions']] },
+      { tabelle: 'infusion_announcements', keys: [['infusion-announcements']] },
+      { tabelle: 'aufguss_wishes', keys: [['aufguss-wishes']] },
+      { tabelle: 'aufguss_wish_likes', keys: [['aufguss-wishes']] },
+    ],
+  },
+];
+
+/** So lange werden Ereignisse gesammelt, bevor invalidiert wird. */
+const BUENDEL_MS = 600;
+/** Backoff für den Neuaufbau: 2 s · 5 s · 10 s · 30 s · max 60 s */
+const BACKOFF_MS = [2_000, 5_000, 10_000, 30_000, 60_000];
+
+type SystemNachricht = { extension?: string; status?: string; message?: unknown };
+
+/** Ist gerade jemand angemeldet? Ändert sich nur beim An-/Abmelden
+ *  (Token-Refresh baut die Kanäle nicht neu auf). */
+function useAngemeldet(): boolean {
+  const [angemeldet, setAngemeldet] = useState(false);
   useEffect(() => {
     if (!supabase) return;
-    let cancelled = false;
-    let currentChannel: RealtimeChannel | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let lebt = true;
+    supabase.auth.getSession()
+      .then(({ data }) => { if (lebt) setAngemeldet(!!data.session); })
+      .catch(() => { /* ohne Sitzung bleibt es bei den öffentlichen Kanälen */ });
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+      if (lebt) setAngemeldet(!!s);
+    });
+    return () => {
+      lebt = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+  return angemeldet;
+}
 
-    // Helper: removeChannel returnt Promise<'ok'|'timed out'|'error'> — wir
-    // wollen Fehler einfach schlucken, kein await-rejected nach unmount.
-    const safeRemove = (channel: RealtimeChannel): void => {
-      if (!supabase) return;
-      try {
-        const result = supabase.removeChannel(channel);
-        // result kann Promise oder sync sein — both handle silent
-        if (result && typeof (result as Promise<unknown>).then === 'function') {
-          (result as Promise<unknown>).catch(() => { /* ignore */ });
+/** Startet die Kanäle und liefert die Aufräum-Funktion. */
+function kanaeleStarten(specs: KanalSpec[], qc: QueryClient): () => void {
+  const sb = supabase;
+  if (!sb) return () => {};
+
+  // Invalidierungen bündeln (ein kurzer Einmal-Timer je Schub, kein Dauertakt).
+  const offen = new Map<string, QueryKey>();
+  let buendelTimer: ReturnType<typeof setTimeout> | null = null;
+  const invalidieren = (keys: QueryKey[]): void => {
+    for (const k of keys) offen.set(JSON.stringify(k), k);
+    if (buendelTimer) return;
+    buendelTimer = setTimeout(() => {
+      buendelTimer = null;
+      const alle = [...offen.values()];
+      offen.clear();
+      for (const k of alle) void qc.invalidateQueries({ queryKey: k });
+    }, BUENDEL_MS);
+  };
+
+  // removeChannel liefert ein Promise — Fehler schlucken, kein unhandled rejection nach Unmount.
+  const sicherEntfernen = (ch: RealtimeChannel): void => {
+    try {
+      const res = sb.removeChannel(ch);
+      if (res && typeof (res as Promise<unknown>).then === 'function') {
+        (res as Promise<unknown>).catch(() => { /* ignorieren */ });
+      }
+    } catch { /* ignorieren */ }
+  };
+
+  const stopper = specs.map((spec) => {
+    let beendet = false;
+    let aktuell: RealtimeChannel | null = null;
+    let versuche = 0;
+    let warSchonAktiv = false;
+    let neuTimer: ReturnType<typeof setTimeout> | null = null;
+    const alleKeys = spec.bindungen.flatMap((b) => b.keys);
+    const aktivMelden = (aktiv: boolean) => { if (spec.kern) setRealtimeKernAktiv(aktiv); };
+
+    const aufbauen = (): void => {
+      if (beendet) return;
+      const ch = sb.channel(`${spec.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+      for (const b of spec.bindungen) {
+        ch.on('postgres_changes', { event: b.event ?? '*', schema: 'public', table: b.tabelle },
+          () => invalidieren(b.keys));
+      }
+      // realtime-js meldet SUBSCRIBED schon beim Beitritt. Ob der Server die
+      // Abos wirklich angelegt hat, steht erst in dieser Nachricht.
+      ch.on('system', {}, (p: SystemNachricht) => {
+        if (beendet || aktuell !== ch || p?.extension !== 'postgres_changes') return;
+        if (p.status === 'ok') {
+          versuche = 0;
+          // Nach einer Lücke (Wiederverbindung) einmal alles nachladen.
+          if (warSchonAktiv) invalidieren(alleKeys);
+          warSchonAktiv = true;
+          aktivMelden(true);
+        } else if (p.status === 'error') {
+          // Bewusst KEIN Neuaufbau: das ist fast immer ein Konfigurationsfehler
+          // (Tabelle nicht veröffentlicht) und endete in einer Schleife. Die
+          // Polls übernehmen im kurzen Takt.
+          // eslint-disable-next-line no-console
+          console.warn(`[realtime] Kanal „${spec.name}": Server lehnt die Abos ab`, p.message);
+          aktivMelden(false);
         }
-      } catch { /* ignore */ }
+      });
+      aktuell = ch;
+      ch.subscribe((status) => {
+        // Nachzügler eines schon ersetzten oder selbst entfernten Kanals ignorieren
+        // (removeChannel löst CLOSED aus — sonst doppelter Backoff oder der neue
+        // Kanal würde gleich wieder abgeräumt).
+        if (beendet || aktuell !== ch) return;
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          // eslint-disable-next-line no-console
+          console.warn(`[realtime] Kanal „${spec.name}" getrennt:`, status, '· Versuch', versuche);
+          aktivMelden(false);
+          aktuell = null;
+          sicherEntfernen(ch);
+          const warte = BACKOFF_MS[Math.min(versuche, BACKOFF_MS.length - 1)];
+          versuche += 1;
+          if (neuTimer) clearTimeout(neuTimer);
+          neuTimer = setTimeout(aufbauen, warte);
+        }
+      });
     };
 
-    const subscribe = () => {
-      if (cancelled || !supabase) return;
-      const ch = supabase
-        .channel(`app-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'saunas' },
-        () => qc.invalidateQueries({ queryKey: ['saunas'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'infusions' },
-        () => qc.invalidateQueries({ queryKey: ['infusions'] }))
-      // members: is_present-Toggle (Self-Check-in, Scanner-Check-in) muss live
-      // bei allen anderen Geräten ankommen — sonst sieht der User sich nicht
-      // in der Anwesenheitsliste obwohl er auf dem Handy eingecheckt ist.
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['present'] });
-          qc.invalidateQueries({ queryKey: ['members'] });
-          qc.invalidateQueries({ queryKey: ['current-member'] });
-        })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_config' },
-        () => qc.invalidateQueries({ queryKey: ['tv-settings'] }))
-      // Saunafest (Migration 0163): eigene Zeiträume (Admin: alle) + Tagesübersicht
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'saunafest_verfuegbarkeit' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['saunafest-zeitraeume'] });
-          qc.invalidateQueries({ queryKey: ['saunafest-uebersicht'] });
-        })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'evacuation_events' },
-        () => qc.invalidateQueries({ queryKey: ['evacuation'] }))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'member_achievements' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['achievements'] });
-          qc.invalidateQueries({ queryKey: ['member-stats-full'] });
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'infusion_attendances' },
-        () => qc.invalidateQueries({ queryKey: ['member-stats-full'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufgieser_comments' },
-        () => qc.invalidateQueries({ queryKey: ['aufgieser-comments'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufgieser_comment_likes' },
-        () => qc.invalidateQueries({ queryKey: ['aufgieser-comments'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufgieser_photos' },
-        () => qc.invalidateQueries({ queryKey: ['aufgieser-photos'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'infusion_reactions' },
-        () => qc.invalidateQueries({ queryKey: ['infusion-reactions'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'infusion_announcements' },
-        () => qc.invalidateQueries({ queryKey: ['infusion-announcements'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufguss_wishes' },
-        () => qc.invalidateQueries({ queryKey: ['aufguss-wishes'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'aufguss_wish_likes' },
-        () => qc.invalidateQueries({ queryKey: ['aufguss-wishes'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tasks' },
-        () => qc.invalidateQueries({ queryKey: ['support-tasks'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_task_helpers' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['support-tasks'] });
-          qc.invalidateQueries({ queryKey: ['support-task-helpers'] });
-        })
-      // TV-Bühne (Migration 0071): Admin steuert vom Handy, Tafel reagiert live
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tv_stage_state' },
-        () => qc.invalidateQueries({ queryKey: ['tv-stage-state'] }))
-      // Game-Hub (Migration 0073): Lobby + Active-List müssen aktuell sein
-      // (einzelne Matches haben in /spiele/match/:id einen dedizierten Channel)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'games_match' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['games-active-mine'] });
-          qc.invalidateQueries({ queryKey: ['games-open'] });
-        })
-      // Notification-Inbox (Migration 0077): live-updaten wenn neue
-      // Notification reinkommt oder mark_read passiert.
-      // Saunafest (0163/0164): saunafest_tage hat kein eigenes Abo. „Plan
-      // bestätigen" schreibt plan_bestaetigt_at und die Nachrichten in DERSELBEN
-      // Transaktion — kommt eine saunafest_*-Nachricht an, ist der Plan-Stand
-      // schon gespeichert. Dann die Festtage frisch laden (sonst zeigt ein
-      // offener Planer bis zu 10 min weiter den Entwurf).
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notification_queue' },
-        (p) => {
-          qc.invalidateQueries({ queryKey: ['my-notifications'] });
-          qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
-          const kind = (p.new as { kind?: string } | null)?.kind ?? '';
-          if (kind.startsWith('saunafest_')) qc.invalidateQueries({ queryKey: ['saunafest-tage'] });
-        })
-      // Feed-Kommentare (Migration 0078): pro post_id invalidieren
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_post_comments' },
-        () => qc.invalidateQueries({ queryKey: ['feed-comments'] }))
-      // DM-Hub-Liste (Migration 0079): einzelne Conversation hat eigenen
-      // Channel in /dm/:id — hier nur Inbox + Bottom-Nav-Counter aktuell halten
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['dm-conversations'] });
-          qc.invalidateQueries({ queryKey: ['dm-unread'] });
-        })
-      // Shared-Email-Tickets (Migration 0080): Lock-Updates + Status-Wechsel
-      // sollen live bei allen Admins ankommen, damit niemand doppelt bearbeitet
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'email_tickets' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['account-tickets'] });
-          qc.invalidateQueries({ queryKey: ['my-shared-accounts'] });
-        })
-        .subscribe((status) => {
-          if (cancelled) return;
-          if (status === 'SUBSCRIBED') {
-            reconnectAttempts.current = 0; // erfolgreich → Backoff resetten
-            return;
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            // eslint-disable-next-line no-console
-            console.warn('[realtime] disconnected:', status, '· attempt', reconnectAttempts.current);
-            if (currentChannel) {
-              safeRemove(currentChannel);
-              currentChannel = null;
-            }
-            // Exponential Backoff: 2s · 5s · 10s · 30s · max 60s
-            const delays = [2000, 5000, 10000, 30000, 60000];
-            const delay = delays[Math.min(reconnectAttempts.current, delays.length - 1)];
-            reconnectAttempts.current += 1;
-            if (reconnectTimer) clearTimeout(reconnectTimer);
-            reconnectTimer = setTimeout(subscribe, delay);
-          }
-        });
-      currentChannel = ch;
-    };
-
-    subscribe();
+    aufbauen();
 
     return () => {
-      cancelled = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (currentChannel) safeRemove(currentChannel);
+      beendet = true;
+      if (neuTimer) clearTimeout(neuTimer);
+      if (aktuell) sicherEntfernen(aktuell);
+      aktuell = null;
+      aktivMelden(false);
     };
-  }, [qc]);
+  });
+
+  return () => {
+    for (const stop of stopper) stop();
+    if (buendelTimer) clearTimeout(buendelTimer);
+    offen.clear();
+  };
+}
+
+export function useRealtimeSync() {
+  const qc = useQueryClient();
+  const angemeldet = useAngemeldet();
+
+  useEffect(() => kanaeleStarten(OEFFENTLICHE_KANAELE, qc), [qc]);
+
+  useEffect(() => {
+    if (!angemeldet) return;
+    return kanaeleStarten(MITGLIEDER_KANAELE, qc);
+  }, [qc, angemeldet]);
 }

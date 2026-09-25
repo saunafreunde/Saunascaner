@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { kioskGeraetHeader } from '@/lib/kioskGeraet';
 import { KioskBewerten, type BewertbarerAufguss } from '@/components/kiosk/KioskBewerten';
 
 // /checkin — öffentliche Kiosk-URL, PIN-Pad für das Eingangs-Tablet.
@@ -67,7 +68,9 @@ export default function CheckinPin() {
     try {
       const r = await fetch('/api/qr-signin?action=pin-checkin', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        // Gekoppeltes Eingangs-Tablet weist sich aus (0177) — dann bremst der
+        // Server es nicht mit dem Topf für ungekoppelte Geräte.
+        headers: { 'content-type': 'application/json', ...kioskGeraetHeader() },
         body: JSON.stringify({ pin: currentPin }),
       });
       const data = await r.json();

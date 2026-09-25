@@ -1,0 +1,48 @@
+# Dependabot hält die Abhängigkeiten aktuell (Audit 25.09.2026).
+#
+# Einmal pro Woche, gebündelt: kleine Updates (minor/patch) kommen als EIN
+# Sammel-PR, Sicherheits-Updates ebenfalls gebündelt. Major-Sprünge (z. B.
+# vite, react, react-router) bleiben einzelne PRs — die brauchen einen Blick
+# ins Changelog und einen grünen Vercel-Preview-Build, bevor sie gemergt werden.
+#
+# Jeder PR läuft durch .github/workflows/ci.yml (npm ci, npm run lint,
+# npm audit --omit=dev --audit-level=high).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+    groups:
+      npm-sicherheit:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      npm-klein:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"

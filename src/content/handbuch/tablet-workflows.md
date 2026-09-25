@@ -9,7 +9,10 @@ Großer 85"-Fernseher im Vereinsraum. Zeigt aktuelle Aufgüsse im Glassmorphism-
 QR-Code-Scanner am Eingang. Mitglied scannt seinen QR-Ausweis → automatisches Check-In/Check-Out.
 
 ### 🛢️ Öl-Raum — `/oil-room`
-Tablet im Öl-Raum. Läuft **anonym ohne Login** (Long-Press zum Entsperren statt PIN). Zeigt den aktuellen + nächsten Aufguss inkl. der vom Aufgießer gewählten Öle — Personal sieht sofort welche Flaschen rauszustellen sind. Aufguss anlegen/canceln direkt am Tablet via `create_infusion_kiosk` / `cancel_infusion_kiosk` RPCs.
+Tablet im Öl-Raum. Läuft **ohne Login**. Zeigt den aktuellen + nächsten Aufguss inkl. der vom Aufgießer gewählten Öle — Personal sieht sofort welche Flaschen rauszustellen sind. Aufgüsse anlegen, ergänzen, übernehmen und absagen geht direkt am Tablet — **aber nur, wenn das Tablet gekoppelt ist** (Admin → Displays → 🔐 Kiosk-Geräte, Link bzw. QR-Code auf dem Tablet öffnen). Ein ungekoppeltes Tablet zeigt oben einen gelben Hinweis und kann nur anzeigen.
+
+### 🚪 Anwesenheits-Panel — `/panel`
+PC im Vereinsraum für Mitglieder ohne Handy: alle Mitglieder als Kacheln, Antippen schaltet anwesend/abwesend. Funktioniert **nur auf einem als „Anwesenheits-Panel" gekoppelten Gerät** — das frühere Passwort gibt es nicht mehr.
 
 ### 🔢 PIN-Check-in und Bewerten — `/checkin`
 Das Tablet am Eingang. PIN tippen → du giltst als anwesend und siehst sofort die Aufgüsse des Tages, die du bewerten kannst. Funktioniert für alle Rollen.
@@ -19,7 +22,9 @@ Das Tablet am Eingang. PIN tippen → du giltst als anwesend und siehst sofort d
 Zum Bewerten kannst du jederzeit erneut den PIN eintippen. Nach jeder Bewertung zieht Dampf über den Bildschirm und das Tablet ist wieder frei. Bleibt jemand stehen, schließt sich der Bildschirm nach 45 Sekunden von selbst — ein Balken läuft dabei von grün nach rot, und der **RAUS**-Knopf beendet sofort.
 
 ### 🆕 Gast-Self-Sign-Up — `/checkin/signup`
-Für alle, die zum ersten Mal da sind. Name + E-Mail + Datenschutz → PIN erscheint sofort auf dem Schirm, die Zugangsdaten für die App kommen per Mail.
+Für alle, die zum ersten Mal da sind. Name + E-Mail + Datenschutz → PIN erscheint sofort auf dem Schirm, die Zugangsdaten für die App kommen per Mail. Über dem Häkchen steht eine Kurzfassung (wer verantwortlich ist, was gespeichert wird, wie man löscht); ein Tipp auf „Datenschutzhinweise" öffnet den vollen Text direkt auf dem Tablet — ohne die Vollbild-Sperre zu verlassen. Welche Fassung bestätigt wurde, speichert die App mit dem Konto.
+
+**Eingangs-Tablet und Scanner koppeln (Admins):** wie beim Öl-Raum unter Admin → Displays → 🔐 Kiosk-Geräte, Geräteart „Eingangs-Tablet" bzw. „Eingangs-Scanner". Sobald ein Eingangs-Tablet gekoppelt ist, nimmt die Schnell-Anmeldung nur noch dieses Gerät an (sonst könnte jeder im Internet Konten für fremde Adressen anlegen). Falsche PINs von ungekoppelten Geräten landen außerdem in einem gemeinsamen Topf (20 je Stunde für alle zusammen) — ist er voll, sind ungekoppelte Geräte eine Weile gesperrt, gekoppelte nie.
 
 ### 📱 Willkommens-Tablet im Gäste-Bereich — `/willkommen`
 **Neu:** Das **dritte Tablet** im Gäste-Bereich. Läuft anonym ohne Login. Zwei große Schwarzwald-Branding-Buttons:

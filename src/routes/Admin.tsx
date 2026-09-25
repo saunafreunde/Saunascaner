@@ -12,6 +12,7 @@ import { AuswertungenTab } from '@/components/admin/AuswertungenTab';
 import { OrgNewsAdminTab } from '@/components/admin/OrgNewsAdminTab';
 import { AromaRecipesAdminTab } from '@/components/admin/AromaRecipesAdminTab';
 import { ActivityLogTab } from '@/components/admin/ActivityLogTab';
+import { ClientFehlerCard } from '@/components/admin/ClientFehlerCard';
 import { PostfachDialog } from '@/components/admin/PostfachDialog';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { HandbookTab } from '@/components/admin/HandbookTab';
@@ -264,7 +265,7 @@ export default function Admin() {
         {tab === 'uebersichten' && <OverviewExport />}
         {tab === 'news' && <OrgNewsAdminTab />}
         {tab === 'aroma' && <AromaRecipesAdminTab />}
-        {tab === 'activity' && <ActivityLogTab />}
+        {tab === 'activity' && <><ActivityLogTab /><div className="mt-4"><ClientFehlerCard /></div></>}
         {tab === 'stage' && <StageAdminTab />}
         {tab === 'infokarten' && <InfoKartenTab />}
         {tab === 'shared_email' && <SharedEmailAccountsTab />}
@@ -962,7 +963,8 @@ function MembersTab() {
                       const ok = window.confirm(
                         `Mitglied "${m.name}" ${numLabel} wirklich endgültig löschen?\n\n` +
                         `• Alle Tipps, Fotos, Bewertungen, Badges, Anwesenheit dieses Mitglieds werden gelöscht.\n` +
-                        `• Aufgüsse bleiben erhalten (Saunameister wird auf "unbekannt" gesetzt).\n` +
+                        `• Vergangene Aufgüsse bleiben erhalten (Saunameister wird auf "unbekannt" gesetzt).\n` +
+                        `• Geplante Aufgüsse zur Garantie-Stunde werden wieder Personal-Aufgüsse, alle anderen geplanten Aufgüsse werden entfernt.\n` +
                         `• Die Mitgliedsnummer wird beim nächsten Neuzugang neu vergeben.\n` +
                         `• Die E-Mail-Adresse wird wieder frei für eine Neu-Registrierung.\n\n` +
                         `Diese Aktion kann nicht rückgängig gemacht werden.`,
@@ -1652,7 +1654,7 @@ function StatsTab() {
       <div className="rounded-2xl bg-forest-950/70 p-4 ring-1 ring-forest-800/50 backdrop-blur">
         <h3 className="text-sm font-semibold text-forest-100">Anwesenheit (nächtliche Reset-Zählung)</h3>
         <ul className="mt-3 space-y-1 text-sm">
-          {!presence.data?.length && <li className="text-xs text-forest-300/60">Keine Daten — Cron-Job noch nicht gelaufen.</li>}
+          {presence.isError ? <li className="text-xs text-rose-300">Konnte nicht geladen werden.</li> : presence.isSuccess && !presence.data.length && <li className="text-xs text-forest-300/60">Keine nächtliche Räumung im Zeitraum (vom 29.05. bis zum Update Ende September 2026 wurde nicht mitgezählt).</li>}
           {(presence.data ?? []).map((r) => (
             <li key={r.day} className="flex justify-between">
               <span className="tabular-nums">{r.day}</span>

@@ -18,10 +18,13 @@ import { isAdmin, isAufgieser, isGast, isPersonalPlaner, isStaff, isVereinsMitgl
 type NavItem = { path: string; label: string; icon: string; badge?: number };
 
 function useSmartSlot(memberId: string | null): NavItem {
-  const mailQ = useMyEmailAccount();
+  // Ohne Mitglied (nicht angemeldet) nichts abfragen — die Hooks laufen vor dem
+  // „if (!m) return null" in MobileBottomNav (Audit 25.09.2026).
+  const an = !!memberId;
+  const mailQ = useMyEmailAccount(an);
   const ratableQ = useRatableInfusions(memberId);
-  const activeGamesQ = useActiveMatchesForMe();
-  const dmUnreadQ = useUnreadDmsCount();
+  const activeGamesQ = useActiveMatchesForMe(an);
+  const dmUnreadQ = useUnreadDmsCount(an);
 
   const mail = mailQ.data;
   const mailUnread = mail?.unread_count ?? 0;

@@ -18,6 +18,9 @@ export function PushPermission({ memberId }: Props) {
   const [supported, setSupported] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [subscribed, setSubscribed] = useState(false);
+  // Erst wenn das Gerät geantwortet hat, ob ein Abo besteht — sonst blitzte der
+  // Hinweis „Push ist gerade aus" bei jedem Öffnen auch bei aktivem Push auf.
+  const [aboGeprueft, setAboGeprueft] = useState(false);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -26,9 +29,14 @@ export function PushPermission({ memberId }: Props) {
     setSupported(ok);
     if (!ok) return;
     setPermission(Notification.permission);
-    navigator.serviceWorker.ready.then((reg) =>
-      reg.pushManager.getSubscription().then((s) => setSubscribed(!!s))
-    );
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((s) => { setSubscribed(!!s); setAboGeprueft(true); })
+      .catch((e) => {
+        // Stand unbekannt → keinen Hinweis zeigen; „Aktivieren" bleibt möglich.
+        // eslint-disable-next-line no-console
+        console.warn('[PushPermission] Abo-Stand nicht lesbar', e);
+      });
   }, []);
 
   if (!supported) {
@@ -107,6 +115,16 @@ export function PushPermission({ memberId }: Props) {
       )}
       {!subscribed && permission !== 'denied' && (
         <p className="text-xs text-forest-300">Bekomme Live-Erinnerungen für Evakuierung, neue Aufgüsse, Tipp-Reminder & ablaufende Bewertungs-Fenster.</p>
+      )}
+      {/* Bis 25.09.2026 hat jedes App-Update das Push-Abo auf Android still
+          gelöscht. Die Erlaubnis blieb, nur die Verbindung fehlte. Nicht
+          automatisch neu verbinden — wer Push selbst ausgeschaltet hat, soll
+          es auch aus lassen können. Stattdessen ein Hinweis. */}
+      {aboGeprueft && !subscribed && permission === 'granted' && !feedback && (
+        <p className="text-xs text-amber-200/90">
+          Auf diesem Gerät ist Push gerade aus. Hast du es nicht selbst ausgeschaltet (z. B. nach einem
+          App-Update)? Dann tippe einmal auf „Aktivieren“, damit Alarme wieder ankommen.
+        </p>
       )}
       <div className="flex flex-wrap gap-2">
         {!subscribed ? (

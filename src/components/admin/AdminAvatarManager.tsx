@@ -97,7 +97,7 @@ export function AdminAvatarManager({ member }: Props) {
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
+        disabled={uploading || setAvatar.isPending}
         title={member.avatar_locked
           ? 'Bild ändern (überschreibt das gesperrte Bild)'
           : 'Bild hochladen'}
@@ -111,8 +111,9 @@ export function AdminAvatarManager({ member }: Props) {
         <button
           type="button"
           onClick={handleRemove}
+          disabled={setAvatar.isPending}
           title="Eigenes Bild entfernen (zurück auf Default-Avatar)"
-          className="rounded-md bg-forest-900/80 px-1.5 py-1 text-[11px] font-medium text-rose-300 ring-1 ring-forest-700/40 hover:bg-rose-950/60 transition"
+          className="rounded-md bg-forest-900/80 px-1.5 py-1 text-[11px] font-medium text-rose-300 ring-1 ring-forest-700/40 hover:bg-rose-950/60 disabled:opacity-40 transition"
         >
           ✕
         </button>
@@ -126,7 +127,7 @@ export function AdminAvatarManager({ member }: Props) {
         title={member.avatar_locked
           ? 'Sperre aufheben (Mitglied kann Bild dann selbst ändern)'
           : 'Sperren — danach kann nur Admin das Bild ändern'}
-        className={`rounded-md px-1.5 py-1 text-[11px] font-medium ring-1 transition ${
+        className={`rounded-md px-1.5 py-1 text-[11px] font-medium ring-1 transition disabled:opacity-40 ${
           member.avatar_locked
             ? 'bg-amber-500/15 text-amber-300 ring-amber-500/40 hover:bg-amber-500/25'
             : 'bg-forest-900/80 text-forest-300 ring-forest-700/40 hover:bg-forest-800'

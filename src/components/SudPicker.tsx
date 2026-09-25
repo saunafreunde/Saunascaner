@@ -216,7 +216,7 @@ export function SudPicker({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={istRaeucher ? 'z.B. Weißer Salbei' : 'z.B. Holunderblüte'}
-              className="flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+              className="flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-base sm:text-sm text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -254,7 +254,7 @@ export function SudPicker({
             value={mixName}
             onChange={(e) => setMixName(e.target.value)}
             placeholder="Name der Mischung, z.B. Waldspaziergang"
-            className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+            className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-base sm:text-sm text-forest-100 ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
           />
           <button
             type="button"

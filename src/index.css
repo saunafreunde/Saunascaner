@@ -2,6 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Schrift Inter, selbst gehostet (Audit 25.09.2026) ─────────────────
+   Vorher kam sie per <link> von rsms.me: jeder Aufruf schickte die IP an
+   einen Drittanbieter (DSGVO, vgl. LG München I zu Google Fonts), und das
+   fremde Stylesheet blockierte das erste Rendern — auch auf der TV-Tafel.
+   Die Dateien in public/fonts/ sind Inter 4.001 als variable Schrift
+   (Achse wght 100–900, Textfassung): EINE Datei deckt alle Stärken ab,
+   die die App nutzt (400–900). Aufgeteilt wie bei Google Fonts in „latin"
+   und „latin-ext"; der Browser lädt latin-ext nur, wenn ein Zeichen daraus
+   vorkommt. Kursiv gibt es nicht als eigene Datei — der Browser neigt die
+   Schrift selbst. Der Familienname bleibt 'Inter', damit tailwind.config.ts,
+   die Canvas-Messung der Tafel-Titel (InfusionCard: '900 100px Inter') und
+   die SVG-Texte unverändert passen. Die Dateinamen tragen die Version, weil
+   vercel.json /fonts/ ein Jahr „immutable" cachen lässt: neue Datei →
+   neuer Name. Lizenz: SIL Open Font License 1.1 (public/fonts/LIZENZ.txt). */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-4.001-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-4.001-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 html, body, #root { height: 100%; }
 body { font-family: 'Inter', system-ui, sans-serif; }
 

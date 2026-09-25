@@ -1,0 +1,10 @@
+Schrift „Inter“ (Version 4.001, variable Schrift, Teilmengen latin und latin-ext)
+
+Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+
+Die Schrift steht unter der SIL Open Font License, Version 1.1.
+Lizenztext: https://openfontlicense.org/open-font-license-official-text/
+
+Die Dateien sind unverändert aus der Google-Fonts-Auslieferung von Inter
+(fonts.gstatic.com/s/inter/v20) übernommen und werden hier nur selbst
+gehostet, damit beim Aufruf der App keine Anfrage an einen Drittanbieter geht.

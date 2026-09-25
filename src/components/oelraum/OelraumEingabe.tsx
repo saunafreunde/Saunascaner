@@ -369,6 +369,8 @@ export function OelraumEingabe({
           attributes: payload,
           oils: oelListe,
           team_infusion: teamAufguss,
+          // Die gewählte Dauer gilt seit 0184 auch bei der Übernahme.
+          duration_minutes: dauer,
         });
         leeren();
         setErfolg({ text: 'Personal-Slot übernommen.', eingecheckt: !warDa });

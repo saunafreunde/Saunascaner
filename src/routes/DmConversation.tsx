@@ -28,10 +28,12 @@ export default function DmConversation() {
   const conv = (convQ.data ?? []).find((c) => c.conversation_id === conversationId);
   const messages = msgQ.data ?? [];
 
-  // Realtime-Sub: pro Match ein eigener Channel
+  // Realtime-Sub: eigener Channel je Mount. Eindeutiges Topic, weil realtime-js
+  // bei gleichem Topic einen noch nicht ganz verlassenen Channel zurückgeben
+  // kann — .on('postgres_changes') wirft dann (Absturz wie bei den Spielen).
   useEffect(() => {
     if (!conversationId || !supabase) return;
-    const ch = supabase.channel(`dm-${conversationId}`)
+    const ch = supabase.channel(`dm-${conversationId}-${Math.random().toString(36).slice(2, 10)}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'dm_messages', filter: `conversation_id=eq.${conversationId}` },
         () => {

@@ -56,7 +56,7 @@ Ein Vereinsmitglied empfiehlt dich — Admin legt dich an und schickt dir den Ma
 
 1. **Name** eintragen (Vorname oder Spitzname, mind. 2 Zeichen)
 2. **E-Mail-Adresse** eintragen
-3. **DSGVO-Checkbox** bestätigen (Link zu [Datenschutzerklärung](https://app.sauna-fds.de/datenschutz))
+3. Bestätigen, dass du die [Datenschutzhinweise](https://app.sauna-fds.de/datenschutz) gelesen hast (am Eingangs-Tablet öffnet der Link die Hinweise direkt auf dem Bildschirm)
 4. **„Anmelden"** klicken
 5. Magic-Link landet in deinem Postfach
 6. Klick auf den Link → sofort drin
@@ -148,10 +148,14 @@ In der Profil-Box gibt es einen **PushPermission**-Block — aktivierst du das, 
 In deinem Gast-Bereich findest du ganz unten den ausklappbaren Abschnitt **„Datenschutz & Account-Löschung"** — ein Klick + Bestätigung löscht **alle deine Daten**:
 - Member-Eintrag
 - Auth-Account
-- Follows, Reactions, Bewertungen
+- Follows, Reactions, Bewertungen, Beiträge, Nachrichten
 - Anwesenheits-History
+- Profilbild und Fotos
+- Benachrichtigungen, die dich nennen (z. B. „X folgt dir")
 
-Cascade-Löschung via RPC `delete_my_gast_account()`. Es bleibt nichts zurück.
+In Protokoll und Evakuierungslisten wird dein Name durch „gelöschtes Konto" bzw. „gelöschte Person" ersetzt. Löschung via RPC `delete_my_account()` (Migration 0186). Nicht zurückholen lassen sich Nachrichten, die schon über Telegram verschickt wurden.
+
+**Speicherfristen** (auch ohne Löschung): Benachrichtigungen 90 Tage, Besuchstage 24 Monate, Namenslisten von Evakuierungsalarmen 90 Tage. Gäste, die über 12 Monate nicht mehr da waren, schlägt die App dem Vorstand zur Löschung vor. Details: [Datenschutzhinweise](https://app.sauna-fds.de/datenschutz).
 
 ### Upgrade zum Mitglied
 

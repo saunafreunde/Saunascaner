@@ -20,9 +20,12 @@ import {
   getBrandSettings,
 } from './_email_helpers.js';
 import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail, renderSetPasswordEmail } from './_email_templates.js';
+import { clientIp, drosselBuchen, emailSchluessel, ohneAdressen } from './_schutz.js';
+import { queryParam } from './_query.js';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const action = String(req.query.action ?? '');
+  const action = String(queryParam(req, 'action') ?? '');
   try {
     switch (action) {
       case 'send-invite':       return await handleSendInvite(req, res);
@@ -129,7 +132,7 @@ Im Handbuch findest du u.a.: Anmelden mit Login-Link · Aufgüsse planen · Stam
 
 // ─── calendar (public iCal-Feed via Token) ───────────────────────────────
 async function handleCalendarFeed(req: VercelRequest, res: VercelResponse) {
-  const token = String(req.query.token ?? '');
+  const token = String(queryParam(req, 'token') ?? '');
   if (!token || !/^[0-9a-f-]{36}$/i.test(token)) {
     res.setHeader('Content-Type', 'text/plain');
     return res.status(400).send('Invalid token');
@@ -207,83 +210,170 @@ function buildICS(events: Array<{
   return lines.join('\r\n');
 }
 
+// ─── Bremse für Mails an frei eingegebene Adressen (Audit 25.09.2026, 0189) ─
+// magic-link und reset-link verschicken ohne Anmeldung Mails von
+// info@sauna-fds.de an eine frei eingegebene Adresse. Vorher ungebremst
+// (Mail-Bombing, Sperrlisten-Gefahr für die Vereinsdomain). Jetzt Grenzen in
+// der Datenbank: je IP (jede Anfrage), je Adresse (nur als sha256) und für
+// alle zusammen. Ist die ADRESSE voll, kommt dieselbe Antwort wie beim
+// Versand — sonst ließe sich abfragen, wer ein Konto hat.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAIL_IP_STUNDE = 30;     // wie die Tablet-Anmeldung: Vereins-WLAN am Saunafest
+const MAIL_ADR_STUNDE = 3;
+const MAIL_ADR_TAG = 8;
+const MAIL_ALLE_STUNDE = 60;   // echte Nutzung: etwa eine Mail am Tag
+const ZU_VIELE_MAILS = 'Gerade kommen sehr viele Anfragen an – bitte in einer Stunde noch einmal versuchen.';
+
+type MailBremse = 'frei' | 'zu_viele' | 'adresse_voll';
+
+async function mailBremse(svc: SupabaseClient, req: VercelRequest, email: string): Promise<MailBremse> {
+  // Datenbankfehler (oder 0189 noch nicht eingespielt): durchlassen wie bisher —
+  // Login- und Passwort-Links sind wichtiger als die Bremse.
+  const ip = await drosselBuchen(svc, 'mail', [{ schluessel: 'ip:' + clientIp(req), max: MAIL_IP_STUNDE, fensterS: 3600 }]);
+  if (ip === null) return 'frei';
+  if (ip !== 0) return 'zu_viele';
+  const adr = 'adr:' + emailSchluessel(email);
+  const r = await drosselBuchen(svc, 'mail', [
+    { schluessel: adr, max: MAIL_ADR_STUNDE, fensterS: 3600 },
+    { schluessel: adr, max: MAIL_ADR_TAG, fensterS: 86400 },
+    { schluessel: 'alle', max: MAIL_ALLE_STUNDE, fensterS: 3600 },
+  ]);
+  if (r === null || r === 0) return 'frei';
+  return r === 3 ? 'zu_viele' : 'adresse_voll';
+}
+
+/** E-Mail aus dem Body: getrimmt, klein, plausibel — sonst null. */
+function emailAusBody(v: unknown): string | null {
+  const e = typeof v === 'string' ? v.trim().toLowerCase() : '';
+  return EMAIL_RE.test(e) && e.length <= 254 ? e : null;
+}
+
+/** Kurzer Freitext aus dem Body (Name, Herkunft): ohne Steuerzeichen, gekappt. */
+function textAusBody(v: unknown, max: number): string | null {
+  if (typeof v !== 'string') return null;
+  // eslint-disable-next-line no-control-regex
+  const t = v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max).trim();
+  return t || null;
+}
+
+/** redirect_to nur auf die eigene App und bekannte Pfade — der Link in der Mail
+ *  darf nie woanders hinführen (vorher ungeprüft an GoTrue durchgereicht). */
+function sicherRedirect(raw: unknown, pfade: string[], standardPfad: string): string {
+  const app = (process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app').replace(/\/+$/, '');
+  const erlaubt = new Set(['https://app.sauna-fds.de', 'https://saunascaner.vercel.app']);
+  try { erlaubt.add(new URL(app).origin); } catch { /* PUBLIC_APP_URL kaputt → nur die festen */ }
+  if (typeof raw === 'string') {
+    try {
+      const u = new URL(raw);
+      if (erlaubt.has(u.origin) && pfade.includes(u.pathname)) return u.origin + u.pathname;
+    } catch { /* ungültig → Standard */ }
+  }
+  return app + standardPfad;
+}
+
 // ─── magic-link (öffentlich, keine Auth nötig) ───────────────────────────
 // Generiert via Supabase Admin-API einen Magic-Link UND versendet ihn
 // selbst über info@sauna-fds.de mit eigenem Schwarzwald-Template.
+// Einziger Aufrufer: GastSignup (QR-Plakate). Seit 25.09.2026:
+//  * gebremst (siehe mailBremse), Antwort immer { ok: true } — ob die Adresse
+//    schon ein Konto hat, verrät sie nicht mehr (vorher is_signup);
+//  * bei einer neuen Adresse entsteht nur der Anmelde-Datensatz; das
+//    Mitglieds-Konto (PIN, Freigabe, Einwilligung) legt handle_new_user erst
+//    an, wenn die Person den Link anklickt (Migration 0189);
+//  * keine Einladungs-Codes mehr über diesen öffentlichen Weg (Einladungen
+//    laufen über /login), Freitexte gekürzt.
 async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
-  const {
-    email, redirect_to, invite_code,
-    signup_kind, name, gast_referral, gast_origin,
-  } = req.body as {
-    email: string;
-    redirect_to?: string;
-    invite_code?: string;
-    signup_kind?: 'gast';
-    name?: string;
-    gast_referral?: string;
-    gast_origin?: string;
-  };
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  const email = emailAusBody(b.email);
+  if (!email) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse eingeben.' });
 
   const svc = makeServiceClient();
+  const bremse = await mailBremse(svc, req, email);
+  if (bremse === 'zu_viele') return res.status(429).json({ error: ZU_VIELE_MAILS });
+  if (bremse === 'adresse_voll') return res.status(200).json({ ok: true });
 
-  // Prüfen ob User existiert — entscheidet ob magiclink (für Existing) oder invite (für Neue).
-  // listUsers ist paginiert (Default 50!) — ohne Loop würde ab User 51 jeder
-  // Bestands-User fälschlich als neu gelten und generateLink('signup') fehlschlagen.
-  const emailLc = email.toLowerCase();
-  let userExists = false;
+  // Gibt es die Adresse schon? listUsers ist paginiert (Default 50!) — ohne
+  // Loop würde ab User 51 jeder Bestands-User fälschlich als neu gelten.
+  let vorhanden: User | undefined;
   for (let page = 1; page <= 40; page++) {
     const { data: userPage, error: listErr } = await svc.auth.admin.listUsers({ page, perPage: 500 });
-    if (listErr) return res.status(500).json({ error: 'user lookup failed: ' + listErr.message });
+    if (listErr) {
+      console.error('[magic-link] listUsers fehlgeschlagen', listErr.status ?? '', ohneAdressen(listErr.message));
+      return res.status(500).json({ error: 'Der Link konnte gerade nicht erstellt werden. Bitte später noch einmal versuchen.' });
+    }
     const users = userPage?.users ?? [];
-    if (users.some((u) => u.email?.toLowerCase() === emailLc)) { userExists = true; break; }
-    if (users.length < 500) break;
+    vorhanden = users.find((u) => u.email?.toLowerCase() === email);
+    if (vorhanden || users.length < 500) break;
   }
 
-  const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
-  const redirectTo = redirect_to ?? `${origin}/planner`;
+  const redirectTo = sicherRedirect(b.redirect_to, ['/gast', '/planner'], '/planner');
 
-  // Metadata für handle_new_user-Trigger
-  const meta: Record<string, string> = {};
-  if (invite_code) meta.invite_code = invite_code.toUpperCase();
-  if (signup_kind) meta.signup_kind = signup_kind;
-  if (name) meta.name = name;
-  if (gast_referral) meta.gast_referral = gast_referral;
-  if (gast_origin) meta.gast_origin = gast_origin;
+  // Metadaten für handle_new_user — nur, was GastSignup schickt, gekürzt.
+  const istGast = b.signup_kind === 'gast';
+  const herkunft = textAusBody(b.gast_origin, 20);
+  const meta: Record<string, string | null> = {
+    name: textAusBody(b.name, 80),
+    signup_kind: istGast ? 'gast' : null,
+    gast_referral: istGast ? textAusBody(b.gast_referral, 80) : null,
+    gast_origin: istGast ? (herkunft && /^[a-z0-9_]+$/.test(herkunft) && herkunft !== 'tablet_signup' ? herkunft : 'qr') : null,
+    // Welche Fassung der Datenschutzhinweise GastSignup gezeigt hat (0186:
+    // ein Trigger auf members übernimmt sie beim Anlegen des Kontos).
+    datenschutz_fassung: istGast && typeof b.datenschutz_fassung === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.datenschutz_fassung)
+      ? b.datenschutz_fassung : null,
+  };
+
+  // Schon angelegt, aber nie bestätigt? Die Adresse ist dann nie nachgewiesen:
+  //  * Passwort immer neu würfeln — sonst hätte, wer die offene Anmeldung mit
+  //    einer fremden Adresse angelegt hat, nach dem Klick der echten Person auf
+  //    diesen Link ein bestätigtes Konto mit SEINEM Passwort.
+  //  * Angaben nur bei einer offenen Gast-Anmeldung ohne Einladung ersetzen
+  //    (die jüngste Anfrage gilt, nicht die eines Fremden). Eine offene
+  //    Registrierung über /login samt Einladungs-Code bleibt, wie sie ist.
+  if (vorhanden && !vorhanden.email_confirmed_at) {
+    const alt = (vorhanden.user_metadata ?? {}) as Record<string, unknown>;
+    const offeneGastAnmeldung = alt.signup_kind === 'gast' && !alt.invite_code;
+    const { error: updErr } = await svc.auth.admin.updateUserById(vorhanden.id, {
+      password: cryptoRandomPassword(),
+      ...(offeneGastAnmeldung && istGast ? { user_metadata: { ...meta, invite_code: null } } : {}),
+    });
+    if (updErr) {
+      console.error('[magic-link] offene Anmeldung nicht aktualisiert', updErr.status ?? '', ohneAdressen(updErr.message));
+      return res.status(500).json({ error: 'Der Link konnte gerade nicht erstellt werden. Bitte später noch einmal versuchen.' });
+    }
+  }
 
   // Magic-Link generieren (KEIN Auto-Send durch Supabase!)
   // Discriminated union: 'signup' braucht password, 'magiclink' nicht.
-  const generateOptions = {
-    redirectTo,
-    data: Object.keys(meta).length > 0 ? meta : undefined,
-  };
-  const { data: linkData, error: linkErr } = userExists
-    ? await svc.auth.admin.generateLink({ type: 'magiclink', email, options: generateOptions })
+  const neueDaten = Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== null)) as Record<string, string>;
+  const { data: linkData, error: linkErr } = vorhanden
+    ? await svc.auth.admin.generateLink({ type: 'magiclink', email, options: { redirectTo } })
     : await svc.auth.admin.generateLink({
         type: 'signup',
         email,
         password: cryptoRandomPassword(),
-        options: generateOptions,
+        options: { redirectTo, data: Object.keys(neueDaten).length > 0 ? neueDaten : undefined },
       });
   if (linkErr || !linkData?.properties?.action_link) {
-    return res.status(500).json({ error: linkErr?.message ?? 'could not generate link' });
+    console.error('[magic-link] generateLink fehlgeschlagen', linkErr?.status ?? '', ohneAdressen(linkErr?.message ?? 'kein action_link'));
+    return res.status(500).json({ error: 'Der Link konnte gerade nicht erstellt werden. Bitte später noch einmal versuchen.' });
   }
 
   const brand = await getBrandSettings(svc);
   const { html, text, subject } = renderMagicLinkEmail({
     magicLink: linkData.properties.action_link,
-    isSignup: !userExists,
+    isSignup: !vorhanden || !vorhanden.email_confirmed_at,
     brand,
   });
 
   try {
     await sendSystemMail({ to: email, subject, html, text });
   } catch (e) {
-    return res.status(500).json({ error: 'send failed: ' + (e as Error).message });
+    console.error('[magic-link] Versand fehlgeschlagen', ohneAdressen((e as Error).message));
+    return res.status(500).json({ error: 'Die Mail konnte gerade nicht verschickt werden. Bitte später noch einmal versuchen.' });
   }
 
-  return res.status(200).json({ ok: true, is_signup: !userExists });
+  return res.status(200).json({ ok: true });
 }
 
 function cryptoRandomPassword(): string {
@@ -298,22 +388,29 @@ function cryptoRandomPassword(): string {
 // Generiert einen Recovery-Link via Admin-API und verschickt ihn über den
 // EIGENEN Mailer (info@sauna-fds.de) — gleiche zuverlässige Zustellung wie
 // beim Magic-Link. Antwortet IMMER generisch (kein User-Enumeration-Leak).
+// Seit 25.09.2026 gebremst wie magic-link (mailBremse) und ohne E-Mail-Adresse
+// im Server-Log (vorher landete jede Tippfehler-Adresse im Klartext bei Vercel).
 async function handleResetLink(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
-  const { email, redirect_to } = req.body as { email?: string; redirect_to?: string };
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  const email = emailAusBody(b.email);
+  if (!email) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse eingeben.' });
 
   const svc = makeServiceClient();
-  const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
-  const redirectTo = redirect_to ?? `${origin}/reset-password`;
+  const bremse = await mailBremse(svc, req, email);
+  if (bremse === 'zu_viele') return res.status(429).json({ error: ZU_VIELE_MAILS });
+  if (bremse === 'adresse_voll') return res.status(200).json({ ok: true });
+
+  const redirectTo = sicherRedirect(b.redirect_to, ['/reset-password'], '/reset-password');
 
   try {
     const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
       type: 'recovery', email, options: { redirectTo },
     });
     if (linkErr || !linkData?.properties?.action_link) {
-      // Unbekannte E-Mail o.ä. → generisch OK antworten (kein Leak). Server-Log genügt.
-      console.warn('reset-link: generateLink failed for', email, linkErr?.message);
+      // Unbekannte E-Mail o.ä. → generisch OK antworten (kein Leak). Ins Log nur
+      // der Fehlercode, nie die Adresse.
+      console.warn('[reset-link] kein Link erzeugt', linkErr?.status ?? '', ohneAdressen(linkErr?.message ?? 'kein action_link'));
       return res.status(200).json({ ok: true });
     }
     const brand = await getBrandSettings(svc);
@@ -324,8 +421,9 @@ async function handleResetLink(req: VercelRequest, res: VercelResponse) {
     });
     await sendSystemMail({ to: email, subject, html, text });
   } catch (e) {
-    // Fehler trotzdem generisch behandeln (kein Enumeration-Leak), aber loggen.
-    console.error('reset-link send failed:', (e as Error).message);
+    // Fehler trotzdem generisch behandeln (kein Enumeration-Leak), aber loggen —
+    // ohne Adresse (nodemailer nennt sie teils in der Meldung).
+    console.error('[reset-link] Versand fehlgeschlagen', ohneAdressen((e as Error).message));
   }
   return res.status(200).json({ ok: true });
 }
@@ -487,12 +585,19 @@ async function handleSendInvite(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'send failed: ' + (err as Error).message });
   }
 
-  // Erfolgreich versendet — invitations.sent_* setzen, log_email_send schreiben
-  await auth.service.rpc('mark_invitation_sent', {
+  // Erfolgreich versendet — invitations.sent_* setzen, log_email_send schreiben.
+  // mark_invitation_sent ist seit 0187 nur für service_role; der Absender kommt
+  // als Parameter (vorher per auth.uid() — beim Service-Client NULL, die
+  // Funktion warf still 'not_admin', und keine Einladung stand je als gesendet).
+  // Die Admin-Prüfung steht oben in diesem Handler.
+  const { error: markErr } = await auth.service.rpc('mark_invitation_sent', {
     p_invitation_id: invitation_id,
     p_recipient_email: recipient_email,
     p_via: sentVia,
+    p_sender_member_id: auth.member.id,
   });
+  // Die Mail ist schon raus — nur protokollieren, nicht abbrechen.
+  if (markErr) console.error('[invite] mark_invitation_sent fehlgeschlagen:', markErr.code, markErr.message);
   await logEmailSend(auth.service, {
     recipient: recipient_email,
     subject,

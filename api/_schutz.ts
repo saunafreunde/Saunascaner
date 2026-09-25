@@ -1,0 +1,98 @@
+// Schutz-Helfer für öffentliche Endpunkte (Audit 25.09.2026, Migration 0189).
+// Nur serverseitig — nicht aus dem Frontend importieren.
+//
+//  * clientIp: die IP, die Vercel selbst setzt (lässt sich nicht vorgeben)
+//  * drosselBuchen: Bremse in der Datenbank (gilt für alle Instanzen)
+//  * kioskGeraet: gekoppeltes Kiosk-Gerät aus dem Header x-kiosk-geraet (0177)
+//  * ohneAdressen: E-Mail-Adressen aus Log-Texten entfernen
+import type { VercelRequest } from '@vercel/node';
+import { createHash } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/** Client-IP laut Vercel: x-real-ip bzw. der erste Eintrag von x-forwarded-for. */
+export function clientIp(req: VercelRequest): string {
+  const real = req.headers['x-real-ip'];
+  const r = Array.isArray(real) ? real[0] : real;
+  if (r && r.trim()) return r.trim();
+  const fwd = req.headers['x-forwarded-for'];
+  const f = Array.isArray(fwd) ? fwd[0] : fwd;
+  return f?.split(',')[0]?.trim() || 'unknown';
+}
+
+/** sha256 der (kleingeschriebenen) E-Mail — Drossel-Schlüssel, nie die Adresse selbst. */
+export function emailSchluessel(email: string): string {
+  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+}
+
+/** Entfernt E-Mail-Adressen und Zeilenumbrüche aus Texten für die Server-Logs
+ *  (Fehlermeldungen von nodemailer/GoTrue enthalten die Adresse teils selbst). */
+export function ohneAdressen(s: unknown): string {
+  return String(s ?? '')
+    .replace(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+/g, '<email>')
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, 300);
+}
+
+/** Ein Zähl-Topf: höchstens `max` Buchungen je `fensterS` Sekunden (höchstens 1 Tag). */
+export type Topf = { schluessel: string; max: number; fensterS: number };
+
+/**
+ * Bucht einen Versuch in allen Töpfen — oder in keinem, wenn einer voll ist
+ * (public.api_drossel_buchen, 0189; nur service_role).
+ * Ergebnis: 0 = gebucht, n = der n-te Topf (1-basiert) ist voll,
+ * null = Datenbankfehler (der Aufrufer entscheidet: durchlassen oder sperren).
+ */
+export async function drosselBuchen(
+  sb: SupabaseClient,
+  art: 'ki_titel' | 'mail' | 'pin_fehl' | 'signup' | 'signup_mail',
+  toepfe: Topf[],
+): Promise<number | null> {
+  const { data, error } = await sb.rpc('api_drossel_buchen', {
+    p_art: art,
+    p_schluessel: toepfe.map((t) => t.schluessel),
+    p_max: toepfe.map((t) => t.max),
+    p_fenster_sekunden: toepfe.map((t) => t.fensterS),
+  });
+  if (error) {
+    console.error('[schutz] api_drossel_buchen fehlgeschlagen', error.code ?? '', ohneAdressen(error.message));
+    return null;
+  }
+  return typeof data === 'number' ? data : Number(data ?? 0);
+}
+
+/** Gekoppeltes Kiosk-Gerät (Header x-kiosk-geraet, Migration 0177): Art und ein
+ *  Drossel-Schlüssel (sha256 des Tokens, nicht das Token selbst) — sonst null. */
+export async function kioskGeraet(
+  sb: SupabaseClient,
+  req: VercelRequest,
+): Promise<{ art: string; schluessel: string } | null> {
+  const h = req.headers['x-kiosk-geraet'];
+  const token = Array.isArray(h) ? h[0] : h;
+  if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
+  const { data, error } = await sb.rpc('kiosk_geraet_art', { p_token: token });
+  if (error || typeof data !== 'string' || !data) return null;
+  return { art: data, schluessel: createHash('sha256').update(token).digest('hex').slice(0, 40) };
+}
+
+// Ob schon ein Gerät einer Art gekoppelt ist, ändert sich selten — eine
+// Minute im Speicher der Instanz genügt und spart je Anfrage eine Abfrage.
+const gekoppeltCache = new Map<string, { wert: boolean; bis: number }>();
+
+/** Ist mindestens ein (nicht widerrufenes) Gerät dieser Art gekoppelt?
+ *  Bei einem Datenbankfehler: false (die Übergangsregel bleibt dann offen). */
+export async function geraeteartGekoppelt(sb: SupabaseClient, art: string): Promise<boolean> {
+  const c = gekoppeltCache.get(art);
+  if (c && c.bis > Date.now()) return c.wert;
+  const { count, error } = await sb
+    .from('kiosk_geraete')
+    .select('id', { count: 'exact', head: true })
+    .eq('art', art)
+    .is('widerrufen_at', null);
+  if (error) {
+    console.error('[schutz] kiosk_geraete zählen fehlgeschlagen', error.code ?? '');
+    return false;
+  }
+  const wert = (count ?? 0) > 0;
+  gekoppeltCache.set(art, { wert, bis: Date.now() + 60_000 });
+  return wert;
+}

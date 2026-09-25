@@ -113,9 +113,10 @@ export function SaunafestZone({ member, isAdmin }: { member: Member; isAdmin: bo
 
   // Aus Push/Posteingang (/planner#saunafest, bzw. umgeleitet nach
   // /unterstuetzer, /mitarbeiter): Der Plan kann seit dem letzten Laden
-  // bestätigt worden sein — saunafest_tage hat kein Realtime-Abo, staleTime
-  // 10 min, und ein schon offener Planer lädt beim Antippen nicht neu. Darum
-  // je Navigation frisch laden (nicht, wenn gerade ohnehin geladen wird —
+  // bestätigt worden sein. saunafest_tage hat seit Migration 0182 ein
+  // Realtime-Abo (Kanal „kalender") — war die App im Hintergrund oder die
+  // Verbindung weg, kann das Ereignis aber verpasst sein (staleTime 10 min).
+  // Darum je Navigation frisch laden (nicht, wenn gerade ohnehin geladen wird —
   // etwa beim ersten Laden der Seite aus dem Push heraus).
   useEffect(() => {
     if (!darf || location.hash !== '#saunafest') return;

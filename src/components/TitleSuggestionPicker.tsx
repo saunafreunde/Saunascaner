@@ -16,6 +16,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generateInfusionTitles, type StyledTitle } from '@/lib/titleGenerator';
 import { zutatenLeer, type TitelZutaten } from '@/lib/titelZutaten';
+import { authHeaders } from '@/lib/api';
+import { kioskGeraetHeader } from '@/lib/kioskGeraet';
 import { Portal } from '@/components/Portal';
 
 interface Props {
@@ -60,12 +62,17 @@ export function TitleSuggestionPicker({ zutaten, vorhandeneTitel = [], onPick, o
     const ctrl = new AbortController();
     setLaedt(true);
     setKiFehler(null);
-    fetch('/api/ai?action=suggest-title', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zutaten, variation: seed }),
-      signal: ctrl.signal,
-    })
+    // Seit 25.09.2026 nur mit Anmeldung (Planer, Bearbeiten, Saunafest) oder
+    // als gekoppeltes Öl-Raum-Tablet (Header x-kiosk-geraet) — sonst könnte
+    // jeder im Internet das KI-Guthaben des Vereins verbrauchen.
+    authHeaders()
+      .catch(() => ({ 'content-type': 'application/json' } as Record<string, string>))
+      .then((headers) => fetch('/api/ai?action=suggest-title', {
+        method: 'POST',
+        headers: { ...headers, ...kioskGeraetHeader() },
+        body: JSON.stringify({ zutaten, variation: seed }),
+        signal: ctrl.signal,
+      }))
       .then(async (r) => {
         const daten = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(daten?.error ?? `HTTP ${r.status}`);

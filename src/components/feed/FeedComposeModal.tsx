@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import {
-  useInfusions, useCreateFeedPost, uploadAsset,
+  useInfusions, useCreateFeedPost, uploadAsset, deleteAsset, serverHatAbgelehnt,
 } from '@/lib/api';
 import { OIL_BY_ID, OIL_BY_NUMBER, OILS_BY_CATEGORY, CATEGORY_LABELS, CATEGORY_ORDER } from '@/lib/oils';
 import { Portal } from '@/components/Portal';
@@ -72,17 +72,23 @@ export function FeedComposeModal({ defaultInfusionId = null, onClose, onPosted }
     if (!file) { setError('Bitte Bild auswählen.'); return; }
     if (caption.length > CAPTION_MAX) { setError(`Caption zu lang (max ${CAPTION_MAX}).`); return; }
     setBusy(true);
+    let path: string | null = null;
     try {
-      const path = await uploadAsset(file, 'feed-posts');
+      path = await uploadAsset(file, 'feed-posts');
       await create.mutateAsync({
         imagePath: path,
         caption: caption.trim() || null,
         infusionId,
         oils,
       });
+      path = null; // gehört jetzt zum Beitrag
       onPosted?.();
       onClose();
     } catch (e) {
+      // Beitrag abgelehnt → hochgeladenes Bild wieder entfernen, statt es als
+      // Karteileiche im Bucket zu lassen (eigene Dateien, Migration 0180).
+      // Bei einem Netzfehler bleibt es: Der Beitrag kann trotzdem angelegt sein.
+      if (path && serverHatAbgelehnt(e)) { try { await deleteAsset(path); } catch { /* ignore */ } }
       setError((e as Error).message);
     } finally {
       setBusy(false);

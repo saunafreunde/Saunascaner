@@ -18,8 +18,21 @@
 //   OPENROUTER_MODEL    (optional, sonst MODELL_VORGABE)
 //
 // Der frueher genutzte ANTHROPIC_API_KEY wird hier nicht mehr gelesen.
+//
+// Zugang und Bremse (Audit 25.09.2026, Migration 0189): vorher konnte jeder im
+// Internet ohne Anmeldung beliebig viele und beliebig lange Anfragen schicken
+// und damit das OpenRouter-Guthaben leerraeumen. Jetzt:
+//  * nur eingeloggte Mitglieder, die planen duerfen (nicht Gast/Fan), ODER ein
+//    gekoppeltes Oel-Raum-Tablet (Header x-kiosk-geraet, Migration 0177);
+//  * Eingaben gekuerzt (Listen, Textlaengen, Gesamtgroesse);
+//  * Bremse in der Datenbank je Mitglied bzw. Geraet plus ein Tagesdeckel fuer
+//    alle — ist ein Topf voll, zeigt der Dialog die Regel-Titel;
+//  * Fehlermeldungen von OpenRouter bleiben im Server-Log.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { authenticate, serviceClient } from './_auth.js';
+import { drosselBuchen, kioskGeraet } from './_schutz.js';
+import { queryParam } from './_query.js';
 
 /** Schnelles Modell OHNE Denkphase. Versuch mit anthropic/claude-sonnet-5 am
  *  18.09.2026: es denkt ueber OpenRouter standardmaessig nach, verbrauchte das
@@ -79,7 +92,7 @@ async function openrouter(system: string, user: string, opts: {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const action = String(req.query.action ?? '');
+  const action = String(queryParam(req, 'action') ?? '');
   try {
     if (action === 'suggest-title') return await suggestTitle(req, res);
     return res.status(400).json({ error: `unknown action: ${action}` });
@@ -95,12 +108,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: msg,
       stack: err?.stack?.split('\n').slice(0, 3).join(' | '),
     });
-    return res.status(500).json({
-      error: msg,
-      errorName: err?.name,
-      errorStatus: err?.status,
-    });
+    // Die Einzelheiten (Anbieter, Kontostand, Grenzen) bleiben im Log oben —
+    // der Aufrufer bekommt nur einen allgemeinen Satz (Audit 25.09.2026).
+    return res.status(502).json({ error: 'KI gerade nicht erreichbar' });
   }
+}
+
+// ─── Zugang und Bremse ─────────────────────────────────────────────────
+// Rollen, die Aufgüsse planen bzw. am Saunafest eintragen dürfen.
+const PLAN_ROLLEN = ['admin', 'staff', 'member', 'guest_aufgieser'];
+
+// Echte Nutzung: rund 15 Aufrufe am Tag (Vercel-Logs, Sept. 2026). Die Töpfe
+// haben reichlich Luft; ein voller Topf heißt nur „Regel-Titel statt KI".
+const KI_MITGLIED = { stunde: 30, tag: 100 };
+const KI_GERAET = { stunde: 60, tag: 200 };   // ein Öl-Raum-Tablet für alle Aufgießer
+const KI_ALLE_TAG = 300;                      // Deckel: höchstens ~2 USD am Tag
+const MAX_BODY_ZEICHEN = 8000;
+
+type Zugang = { ok: true; schluessel: string; grenze: { stunde: number; tag: number } }
+  | { ok: false; status: number; error: string };
+
+async function zugang(req: VercelRequest, sb: NonNullable<ReturnType<typeof serviceClient>>): Promise<Zugang> {
+  const geraet = await kioskGeraet(sb, req);
+  if (geraet?.art === 'oelraum') return { ok: true, schluessel: 'g:' + geraet.schluessel, grenze: KI_GERAET };
+  if (req.headers.authorization) {
+    const auth = await authenticate(req);
+    if (!auth.ok) return { ok: false, status: auth.status, error: 'Bitte neu anmelden' };
+    if (!PLAN_ROLLEN.includes(auth.member.role)) return { ok: false, status: 403, error: 'nicht_berechtigt' };
+    return { ok: true, schluessel: 'm:' + auth.member.id, grenze: KI_MITGLIED };
+  }
+  return { ok: false, status: 401, error: 'Anmeldung nötig' };
+}
+
+/** Text säubern: Zeilenumbrüche und Steuerzeichen raus, Länge kappen. */
+function kurz(v: unknown, max = 60): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  // eslint-disable-next-line no-control-regex
+  const t = v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max).trim();
+  return t || undefined;
+}
+
+function kurzListe(v: unknown, n = 12): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => kurz(x)).filter((x): x is string => !!x).slice(0, n);
+}
+
+/** Nur die bekannten Felder, gekürzt — echte Aufgüsse haben höchstens 10
+ *  Besonderheiten und 3 Öle, Namen bis rund 25 Zeichen. */
+function zutatenSaeubern(roh: unknown): Zutaten {
+  const r = (roh && typeof roh === 'object' ? roh : {}) as Record<string, unknown>;
+  return {
+    besonderheiten: kurzListe(r.besonderheiten),
+    oele: kurzListe(r.oele),
+    schnaps: kurz(r.schnaps) ?? null,
+    sud: kurzListe(r.sud),
+    raeucherwerk: kurzListe(r.raeucherwerk),
+    sauna: kurz(r.sauna, 40),
+    temperatur: kurz(r.temperatur, 20),
+    uhrzeit: kurz(r.uhrzeit, 10),
+    jahreszeit: kurz(r.jahreszeit, 20),
+  };
 }
 
 // Fünf Stile nach dem Vorbild der Titel, die im Verein wirklich gut ankommen
@@ -182,16 +249,29 @@ function zutatenText(z: Zutaten): string {
 async function suggestTitle(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
-  const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) ?? {};
+  const sb = serviceClient();
+  if (!sb) return res.status(503).json({ error: 'KI gerade nicht verfügbar' });
+  const z0 = await zugang(req, sb);
+  if (!z0.ok) return res.status(z0.status).json({ error: z0.error });
+
+  let body: Record<string, unknown>;
+  try {
+    const roh: unknown = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    body = (roh && typeof roh === 'object' ? roh : {}) as Record<string, unknown>;
+  } catch {
+    return res.status(400).json({ error: 'ungültige Anfrage' });
+  }
+  if (JSON.stringify(body).length > MAX_BODY_ZEICHEN) {
+    return res.status(413).json({ error: 'Zu viele Angaben für einen Titel' });
+  }
 
   // Neues Format bevorzugt; die alten Felder bleiben lesbar, damit ein Client
   // mit altem Bundle (Service Worker!) nicht ins Leere laeuft.
-  const z: Zutaten = (body.zutaten && typeof body.zutaten === 'object')
-    ? body.zutaten
-    : {
-        besonderheiten: Array.isArray(body.attributes) ? body.attributes : [],
-        oele: Array.isArray(body.oils) ? body.oils : [],
-      };
+  const z: Zutaten = zutatenSaeubern(
+    body.zutaten && typeof body.zutaten === 'object'
+      ? body.zutaten
+      : { besonderheiten: body.attributes, oele: body.oils },
+  );
   const beschreibung = zutatenText(z);
 
   if (beschreibung.length === 0) {
@@ -205,6 +285,19 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       ],
       title: '🌿 Klassischer Aufguss',
     });
+  }
+
+  // Erst hier wird es kostenpflichtig: Topf je Mitglied/Gerät (Stunde + Tag)
+  // und ein Tagesdeckel für alle. Datenbankfehler = gesperrt (kostet sonst
+  // Geld); der Dialog zeigt dann die Regel-Titel.
+  const voll = await drosselBuchen(sb, 'ki_titel', [
+    { schluessel: z0.schluessel, max: z0.grenze.stunde, fensterS: 3600 },
+    { schluessel: z0.schluessel, max: z0.grenze.tag, fensterS: 86400 },
+    { schluessel: 'alle', max: KI_ALLE_TAG, fensterS: 86400 },
+  ]);
+  if (voll === null) return res.status(503).json({ error: 'KI gerade nicht verfügbar' });
+  if (voll !== 0) {
+    return res.status(429).json({ error: 'Heute schon viele KI-Vorschläge – bitte später noch einmal' });
   }
 
   const stylesPrompt = STYLES
@@ -242,7 +335,7 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
       // Ein Zufallswert pro Aufruf, damit "Neu wuerfeln" auch bei identischer
       // Auswahl andere Titel bringt — ohne den liefert das Modell bei gleicher
       // Eingabe sehr aehnliche Ergebnisse.
-      + '\n\n(Variation ' + String(body.variation ?? Date.now()).slice(-5)
+      + '\n\n(Variation ' + (String(body.variation ?? '').replace(/\D/g, '').slice(-5) || String(Date.now()).slice(-5))
       + ' — bitte andere Einfälle als beim letzten Mal.)',
     { maxTokens: 800, temperature: 1.0 },
   );
@@ -310,11 +403,14 @@ async function suggestTitle(req: VercelRequest, res: VercelResponse) {
     }
     return s;
   };
+  // Harte Obergrenze je Titel: eine Tafel-Zeile hat ~40 Zeichen. Schützt auch
+  // davor, den Endpunkt als allgemeinen Text-Generator zu missbrauchen.
   let titles = kandidaten
     .filter((paar) => paar.length > 0)
     .slice(0, 5)
     .map((paar) => paar.map(kuerzen).sort((a, b) => verstoesse(a) - verstoesse(b))[0])
-    .filter((t) => verstoesse(t) < 100);
+    .filter((t) => verstoesse(t) < 100)
+    .map((t) => t.slice(0, 60).trim());
 
   // Kam nichts Verwertbares, scheitert der Aufruf — der Dialog zeigt dann seine
   // Regel-Titel (vorher: fünfmal „Klassischer Aufguss").

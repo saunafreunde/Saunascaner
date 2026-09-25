@@ -18,7 +18,8 @@
 //   webhook   POST von fal — geschützt über inf + Einmal-Token (in der DB steht
 //             nur der sha256-Hash). Das Ergebnis wird NICHT aus dem Body
 //             genommen, sondern mit FAL_KEY über response_url geholt.
-//   poll      GET/POST ohne Anmeldung (pg_cron alle 5 min, Migration 0165) —
+//   poll      GET/POST nur mit Header x-cron-secret (pg_cron alle 5 min,
+//             Migrationen 0165/0187; fail closed über api/_cron.ts) —
 //             nimmt KEINE Eingaben, arbeitet nur liegengebliebene Aufträge ab
 //             und räumt die Dateien gelöschter Fest-Aufgüsse weg (0166).
 //   diagnose  GET, Bearer, nur Admin — ist FAL_KEY gesetzt? (nie der Schlüssel)
@@ -42,6 +43,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { authenticate, serviceClient } from './_auth.js';
+import { cronHeaderOk, cronSecretFehlt } from './_cron.js';
+import { queryParam } from './_query.js';
 
 // ─── Einstellungen ───────────────────────────────────────────────────────
 const MODELL_BILD = 'fal-ai/nano-banana-2';
@@ -140,7 +143,7 @@ type Grenzen = { maxVersuche: number; maxJeFest: number };
 
 // ─── Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const action = ersterWert(req.query.action);
+  const action = ersterWert(queryParam(req, 'action'));
   try {
     if (action === 'start') return await start(req, res);
     if (action === 'webhook') return await webhook(req, res);
@@ -386,8 +389,8 @@ async function start(req: VercelRequest, res: VercelResponse) {
 async function webhook(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const infusionId = ersterWert(req.query.inf);
-  const token = ersterWert(req.query.t);
+  const infusionId = ersterWert(queryParam(req, 'inf'));
+  const token = ersterWert(queryParam(req, 't'));
   if (!istUuid(infusionId) || !/^[0-9a-f]{64}$/.test(token)) {
     return res.status(401).json({ error: 'nicht berechtigt' });
   }
@@ -429,6 +432,12 @@ async function webhook(req: VercelRequest, res: VercelResponse) {
 // ─── poll (Sicherheitsnetz, ohne Eingaben) ───────────────────────────────
 async function poll(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'GET oder POST' });
+  // Nur der pg_cron-Job (Header x-cron-secret aus dem Vault, 0187). Vorher
+  // konnte jeder den Poll in Schleife aufrufen (DB-, Storage- und fal-Abfragen).
+  if (!cronHeaderOk(req)) {
+    if (cronSecretFehlt()) protokoll('poll abgelehnt: CRON_SECRET fehlt oder ist kürzer als 32 Zeichen');
+    return res.status(401).json({ error: 'unauthorized' });
+  }
   const sb = serviceClient();
   if (!sb) return res.status(500).json({ error: 'env missing' });
 

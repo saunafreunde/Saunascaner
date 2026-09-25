@@ -80,7 +80,7 @@ Vercel + GitHub: siehe [DEPLOY.md](DEPLOY.md)
 - `presence_audit` (reset_at, reset_count, member_ids[])
 
 ## Cron
-Täglich 02:00 Berliner Zeit: `reset_presence_nightly()` schreibt Audit + setzt alle `is_present` auf false.
+Nachts (pg_cron `anwesenheit-nachtreset`, zeitumstellungsfest): um 00:30 Berliner Zeit — nach einem Saunafest erst 01:30, spätestens 04:30 — schreibt `reset_presence_nightly()` das Audit (`presence_audit`) und setzt alle `is_present` auf false (Migration 0185).
 
 ## Phase-Status
 - ✅ Phase A: Supabase live, Auth, Realtime, alle Routen verbunden

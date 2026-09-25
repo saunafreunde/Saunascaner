@@ -101,7 +101,7 @@ export default function CustomAttrCreator({ memberId, onClose }: Props) {
               maxLength={14}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="z.B. Vulkanaufguss"
-              className="w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+              className="w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
             />
             <p className="text-[10px] text-forest-400/60 mt-1">{label.length}/14</p>
           </div>

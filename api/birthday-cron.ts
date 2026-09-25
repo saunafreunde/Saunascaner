@@ -12,7 +12,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import webpush from 'web-push';
 import { serviceClient } from './_auth.js';
 import { cronBearerOk, cronSecretFehlt } from './_cron.js';
-import { tgBroadcast } from './_telegram.js';
+import { escHtml, tgBroadcast, vereinsChats } from './_telegram.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cron-Schutz, fail closed (api/_cron.ts): der Vercel-Cron schickt bei
@@ -35,14 +35,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const list = (birthdays ?? []) as { member_id: string; name: string; sauna_name: string | null }[];
   if (list.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no birthdays today' });
 
-  // Telegram-Chats aus system_config
-  const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
-  const chats: number[] = Array.isArray(cfg?.value?.chat_ids) ? cfg.value.chat_ids : [];
+  // Freigegebener Telegram-Verteiler (0187: neue Chats erst nach Admin-Freigabe)
+  const chats = await vereinsChats(sb);
   if (chats.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no chats' });
 
   let telegramSent = 0;
   for (const person of list) {
-    const display = person.sauna_name ? `${person.name} („${person.sauna_name}")` : person.name;
+    // Namen sind frei eingebbar → für parse_mode HTML entschärfen.
+    const display = person.sauna_name ? `${escHtml(person.name)} („${escHtml(person.sauna_name)}")` : escHtml(person.name);
     const text = `🎂 Heute hat <b>${display}</b> Geburtstag!\nWir wünschen einen wunderbaren Tag — auf viele weitere Aufgüsse! 🥂`;
     const results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({
       chat_id, text, parse_mode: 'HTML',
@@ -82,7 +82,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         subs.map((s) =>
           webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh_key, auth: s.auth_key } },
-            payload
+            payload,
+            // Zeitgrenze je Push-Dienst; ein Geburtstagsgruß gilt nur heute.
+            { timeout: 8000, TTL: 12 * 3600 }
           )
         )
       );

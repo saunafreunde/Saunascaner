@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useBrandSettings, brandAssetUrl, publicAssetUrl } from '@/lib/api';
+import { useCurrentMember, wartetAufMitglied, useBrandSettings, brandAssetUrl, publicAssetUrl } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 type Mode = 'signin' | 'signup' | 'bootstrap';
@@ -25,7 +25,11 @@ export default function Login() {
     role === 'member' && !isAufgieserFlag ? '/unterstuetzer' :
     '/planner';
   const rawNext = new URLSearchParams(loc.search).get('next') ?? defaultNext;
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : defaultNext;
+  // Nur Pfade dieser App: kein „//host“, kein Backslash („/\host“ lesen Browser
+  // als fremde Adresse, react-router 6 prüft das nicht) und keine Steuerzeichen
+  // (Tab/Zeilenumbruch fallen in URLs weg, aus „/\t/host“ würde „//host“).
+  // Audit 25.09.2026.
+  const next = /^\/(?![/\\])/.test(rawNext) && !/[\\\u0000-\u001f]/.test(rawNext) ? rawNext : defaultNext;
   const inviteCode = new URLSearchParams(loc.search).get('invite');
 
   const [mode, setMode] = useState<Mode>(inviteCode ? 'signup' : 'signin');
@@ -35,16 +39,27 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [needsBootstrap, setNeedsBootstrap] = useState(false);
+  // Direkt nach der Anmeldung steht im Cache noch „kein Mitglied" aus der Zeit
+  // davor, während die Mitgliederzeile neu geladen wird. Erst danach weiter —
+  // sonst stimmt das Ziel nicht zur Rolle und „Konto wartet auf Freigabe"
+  // blitzt auf (Audit 25.09.2026).
+  const awaitingMember = !!user && wartetAufMitglied(member);
+  // Ersteinrichtung (erster Super-Admin) nur noch ausdrücklich über /login?setup=1.
+  // Früher sprang sie automatisch an, wenn keine Mitgliederzeile da war — das
+  // war nie erreichbar (current_member lieferte ein NULL-Objekt) und wäre für
+  // ein Konto ohne Mitgliederzeile auf einer laufenden Installation falsch:
+  // dort zeigt RequireAuth „Konto wartet auf Freigabe".
+  const setupWunsch = new URLSearchParams(loc.search).get('setup') === '1';
+  const needsBootstrap = setupWunsch && ready && !!user && !awaitingMember && !member.data;
 
   useEffect(() => {
     if (!ready || !user) return;
-    if (member.isLoading) return;
-    if (!member.data) { setNeedsBootstrap(true); return; }
+    if (awaitingMember) return;
+    if (!member.data && setupWunsch) return;
     nav(next, { replace: true });
-  }, [ready, user, member.data, member.isLoading, next, nav]);
+  }, [ready, user, member.data, awaitingMember, setupWunsch, next, nav]);
 
-  if (ready && user && member.data) return <Navigate to={next} replace />;
+  if (ready && user && member.data && !awaitingMember) return <Navigate to={next} replace />;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -185,7 +200,20 @@ export default function Login() {
                 minLength={8}
               />
 
-              <PrimaryButton busy={busy}>
+              {/* Pflichtinformation bei der Erhebung (Art. 13 DSGVO). Die
+                  Fassung geht mit der Registrierung an die Datenbank
+                  (useAuth.signUp → members.datenschutz_fassung). */}
+              {mode === 'signup' && (
+                <p className="text-[11px] leading-relaxed text-forest-400">
+                  Mit dem Anlegen des Kontos verarbeiten wir deine Angaben wie in den{' '}
+                  <Link to="/datenschutz" className="underline text-amber-400 hover:text-amber-300">
+                    Datenschutzhinweisen
+                  </Link>{' '}
+                  beschrieben.
+                </p>
+              )}
+
+              <PrimaryButton busy={busy || awaitingMember}>
                 {mode === 'signin' ? '🔑 Anmelden' : '🌲 Konto anlegen'}
               </PrimaryButton>
 

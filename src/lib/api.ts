@@ -5,7 +5,8 @@ import type { SudKraut, SudMix } from '@/lib/sud';
 import type { InfusionAttribute } from './attributes';
 import { type BrandSettings, mergeBrandDefaults, defaultBrandSettings } from '@/types/branding';
 import type { TvStageState } from './season';
-import { kioskGeraetToken } from './kioskGeraet';
+import { kioskGeraetHeader, kioskGeraetToken } from './kioskGeraet';
+import { pollTakt } from './realtimeStatus';
 
 function need() {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -26,16 +27,17 @@ export function useTvStageState() {
       if (error) throw error;
       return (data ?? { manual_scenes: [], suppress_auto_season: false, last_effect: null }) as TvStageState;
     },
-    // Realtime-Invalidation ist der primäre Update-Pfad; refetchInterval als
-    // Fallback falls die Subscription hängt (Supabase parkt inaktive Tenants
-    // alle paar Minuten — Reconnect dauert ein paar Sekunden, in denen
-    // Events verloren gehen können). 3s Polling fängt das ab.
+    // Realtime-Invalidation ist der primäre Update-Pfad (Kanal „tafel" in
+    // hooks/useRealtime.ts). Der Poll ist nur das Netz darunter: 3 s, solange
+    // der Kanal nicht bestätigt ist (Verbindungsabbruch, Ablehnung), sonst
+    // 30 s als Sicherheitsnetz (Audit 25.09.2026 — vorher lief der 3-s-Poll
+    // rund um die Uhr, weil der Kanal unbemerkt tot war).
     // refetchIntervalInBackground: true — kritisch, weil die TV-Tafel im
     // Browser-Tab im Hintergrund läuft (Admin klickt parallel im Vordergrund).
     // Sonst pausiert React Query das Polling und Effects sind beim Tab-Switch
     // schon stale (>60s).
     staleTime: 0,
-    refetchInterval: 3_000,
+    refetchInterval: pollTakt(3_000, 30_000),
     refetchIntervalInBackground: true,
   });
 }
@@ -91,6 +93,10 @@ export function useSaunas() {
       if (error) throw error;
       return data as Sauna[];
     },
+    // Sauna an/aus kommt per Realtime (Kanal „tafel"). Ohne bestätigten Kanal
+    // jede Minute nachsehen — sonst zeigte die 24/7-Tafel eine abgeschaltete
+    // Sauna bis zum nächsten Neuladen (Audit 25.09.2026).
+    refetchInterval: pollTakt(60_000, 10 * 60_000),
   });
 }
 
@@ -120,24 +126,50 @@ export function useUpdateSauna() {
 }
 
 // ─── Infusions ────────────────────────────────────────────────────────────
-export function useInfusions() {
+
+/** Personal-Fallbacks, die die TV-Tafel braucht: nextSlotStarts
+ *  (SaunaTileColumn) springt ab 21:15 höchstens bis dayOffset 7 → Beginn vor
+ *  heute 0 Uhr + 8 Tage; 9 = Puffer. Ändert sich maxDayOffset dort, hier mitziehen. */
+export const TAFEL_FALLBACK_TAGE = 9;
+/** Öl-Raum-Tablet: maxTageVoraus (OelraumEingabe) ist höchstens 28 → Beginn vor
+ *  heute 0 Uhr + 29 Tage. Ändert sich maxTageVoraus dort, hier mitziehen. */
+export const OELRAUM_FALLBACK_TAGE = 29;
+
+/** Alle Aufgüsse ab heute 0 Uhr.
+ *
+ *  `fallbackTage` (nur für die Displays): echte Aufgüsse weiterhin ALLE, von den
+ *  Personal-Fallbacks aber nur die ersten N Tage. Der nächtliche Materialisierer
+ *  legt Fallbacks ~8 Wochen voraus an (~380 von ~390 Zeilen, ~220 KB je Abruf);
+ *  die Tafel braucht davon 8 Tage, der Öl-Raum 28 (Audit 25.09.2026: −80 % bzw.
+ *  −46 % Daten je Abruf). Alle Aufrufer EINES Geräts müssen denselben Wert
+ *  nehmen, sonst laufen zwei Polls nebeneinander. Der Key beginnt mit
+ *  ['infusions'] — Realtime und alle Mutationen invalidieren die Variante mit. */
+export function useInfusions(opts?: { fallbackTage?: number }) {
+  const fallbackTage = opts?.fallbackTage;
   return useQuery({
-    queryKey: ['infusions'],
+    queryKey: fallbackTage == null ? ['infusions'] : ['infusions', 'fallback-bis', fallbackTage],
     queryFn: async () => {
       const since = new Date();
       since.setHours(0, 0, 0, 0);
-      const { data, error } = await need()
+      let q = need()
         .from('infusions')
         .select('*')
-        .gte('end_time', since.toISOString())
-        .order('start_time');
+        .gte('end_time', since.toISOString());
+      if (fallbackTage != null) {
+        const bis = new Date(since);
+        bis.setDate(bis.getDate() + fallbackTage); // lokal gerechnet → sommerzeitfest
+        // Anführungszeichen: der Zeitstempel enthält '.' und ':' (PostgREST-Syntax).
+        q = q.or(`is_personal_fallback.eq.false,start_time.lt."${bis.toISOString()}"`);
+      }
+      const { data, error } = await q.order('start_time');
       if (error) throw error;
       return data as Infusion[];
     },
-    // 5s-Polling als Realtime-Fallback — TV-Tafel zeigt neue Aufgüsse
-    // garantiert binnen 5s an, auch wenn Supabase-Realtime parkiert.
-    // Memory: feedback_saunascaner_tv_buehne (Supabase-Tenant-Parking-Issue).
-    refetchInterval: 5_000,
+    // Neue/geänderte Aufgüsse kommen per Realtime (Kanal „tafel"). Der Poll ist
+    // das Netz darunter: 5 s, solange der Kanal nicht bestätigt ist, sonst 30 s.
+    // Vorher lief der 5-s-Poll rund um die Uhr auf jedem Gerät — der Kanal war
+    // seit Mai unbemerkt tot, nicht „geparkt" (Audit 25.09.2026).
+    refetchInterval: pollTakt(5_000, 30_000),
     refetchIntervalInBackground: true,
     staleTime: 0,
   });
@@ -243,6 +275,8 @@ const UPDATE_INFUSION_ERROR_LABELS: Record<string, string> = {
   lock_window_active: 'Bearbeiten gesperrt — weniger als 60 Min bis Start (Admin kontaktieren).',
   not_admin_for_meister_change: 'Nur Admins dürfen den Saunameister wechseln.',
   target_not_aufgieser: 'Der gewählte User ist kein Aufgießer.',
+  // 0183: Ein Personal-Aufguss wird übernommen, nicht zugewiesen.
+  personal_fallback: 'Personal-Aufgüsse lassen sich nicht zuweisen – bitte im Planer übernehmen.',
 };
 
 export function useUpdateInfusion() {
@@ -314,6 +348,9 @@ const TRANSFER_INFUSION_ERROR_LABELS: Record<string, string> = {
   lock_window_active: 'Übergeben gesperrt — weniger als 60 Min bis Start (Admin kontaktieren).',
   target_not_aufgieser: 'Empfänger ist kein Aufgießer.',
   already_owner: 'Der Aufguss gehört dem Empfänger bereits.',
+  // 0183
+  personal_fallback: 'Personal-Aufgüsse lassen sich nicht übergeben – bitte im Planer übernehmen.',
+  target_not_banja: 'Ein Banja-Ritual geht nur an Aufgießer mit Banja-Freigabe.',
 };
 
 export function useTransferInfusion() {
@@ -502,42 +539,10 @@ export function useDeleteOilWeighing() {
   });
 }
 
-// ─── AI-Titel-Vorschlag (Claude Haiku) ──────────────────────────────────
-// Ruft den Anthropic-Endpoint /api/ai?action=suggest-title auf und gibt
-// 5 sehr unterschiedliche Titel-Vorschläge zurück. Bei Fehler (Netzwerk,
-// fehlender API-Key, Rate-Limit) wirft der Hook — der Caller kann dann
-// auf den regelbasierten generateInfusionTitle() zurückfallen.
-//
-// 29.05.2026: Returnt jetzt string[] statt string. Backend liefert beide
-// (titles + title für Backward-Compat). Hook ist nicht-rückwärtskompatibel,
-// alle Caller müssen migriert werden.
-
-export function useSuggestInfusionTitle() {
-  return useMutation({
-    mutationFn: async (input: { attributes: string[]; oils: string[] }) => {
-      const r = await fetch('/api/ai?action=suggest-title', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-      // FIX 30.05.2026: vorher warf if(!r.ok) sofort und las den Body nicht —
-      // Frontend sah nur "AI-Fehler 500" statt der echten Anthropic-Message.
-      // Jetzt: Body IMMER parsen, falls error-Feld da → echten Text werfen.
-      let json: { titles?: string[]; title?: string; error?: string } | null = null;
-      try { json = await r.json(); } catch { /* leere/kaputte Response */ }
-      if (!r.ok) {
-        const msg = json?.error ?? `AI-Fehler ${r.status}`;
-        throw new Error(msg);
-      }
-      if (json?.error) throw new Error(json.error);
-      if (Array.isArray(json?.titles) && json.titles.length > 0) {
-        return json.titles.map((t) => t.trim()).filter(Boolean);
-      }
-      if (json?.title) return [json.title.trim()];
-      return [];
-    },
-  });
-}
+// KI-Titel-Vorschläge: der Aufruf von /api/ai?action=suggest-title lebt in
+// components/TitleSuggestionPicker.tsx (mit Anmeldung bzw. Öl-Raum-Gerät).
+// Der frühere Hook useSuggestInfusionTitle hatte keinen Aufrufer mehr und
+// schickte keine Anmeldung mit — entfernt am 25.09.2026.
 
 // ─── Kiosk-Varianten (Öl-Raum-Tablet, ohne Auth) ──────────────────────────
 // Identifiziert den Aufgießer per p_saunameister_id (vom Frontend übergeben)
@@ -639,12 +644,18 @@ export function useTakeoverFallbackKiosk(saunameisterId: string | null) {
       oils: (string | null)[] | null;
       /** Seit Migration 0158 — vorher setzte die Übernahme am Tablet fest „kein Team". */
       team_infusion?: boolean;
+      /** Seit Migration 0184 — vorher blieb jede Übernahme bei den 15 Minuten
+       *  des Personal-Platzhalters, egal was am Tablet gewählt war. */
+      duration_minutes?: number;
     }) => {
       if (!saunameisterId) throw new Error('Kein Aufgießer ausgewählt.');
-      const { error } = await need().rpc('takeover_personal_fallback_kiosk', {
+      // Eigener Wrapper mit Dauer (0184); der alte takeover_personal_fallback_kiosk
+      // bleibt für ältere, noch zwischengespeicherte Tablet-Stände bestehen.
+      const { error } = await need().rpc('takeover_personal_fallback_kiosk_mit_dauer', {
         p_infusion_id: i.infusion_id,
         p_saunameister_id: saunameisterId,
         p_title: i.title,
+        p_duration_minutes: i.duration_minutes ?? null,
         p_attributes: i.attributes,
         p_oils: i.oils ?? null,
         p_team_infusion: i.team_infusion ?? false,
@@ -954,6 +965,10 @@ export function useSaunafestTage() {
       return (data ?? []) as SaunafestTag[];
     },
     staleTime: 10 * 60_000, // sechs Termine pro Saison
+    // Änderungen kommen per Realtime (Kanal „kalender", Migration 0182). Die
+    // stündliche Abfrage ist nur das Netz darunter — die 24/7-Tafel sah einen
+    // neu angelegten Festtag sonst erst nach dem nächsten Neuladen.
+    refetchInterval: 60 * 60_000,
   });
 }
 
@@ -1407,6 +1422,9 @@ export function useHolidays() {
       return (data ?? []) as Holiday[];
     },
     staleTime: 10 * 60_000, // Feiertage ändern sich selten
+    // Realtime (Kanal „kalender", Migration 0182) + stündliches Netz, damit die
+    // 24/7-Tafel einen neuen Feiertag (11-Uhr-Slots) ohne Neuladen kennt.
+    refetchInterval: 60 * 60_000,
   });
 }
 
@@ -1691,9 +1709,12 @@ export function useConversationMessages(convId: string | null | undefined) {
   });
 }
 
-export function useUnreadDmsCount() {
+// enabled=false für Aufrufer, die ohne Mitglied gemountet sind (Bottom-Nav):
+// sonst pollte auch anon alle 15 s (Audit 25.09.2026).
+export function useUnreadDmsCount(enabled = true) {
   return useQuery({
     queryKey: ['dm-unread'],
+    enabled,
     queryFn: async () => {
       const { data, error } = await need().rpc('count_unread_dms');
       if (error) throw error;
@@ -1964,12 +1985,15 @@ export function useAdminSetMemberAvatar() {
       });
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['all-members'] });
-      qc.invalidateQueries({ queryKey: ['current-member'] });
-      qc.invalidateQueries({ queryKey: ['member'] });
-      qc.invalidateQueries({ queryKey: ['members-directory'] });
-    },
+    // Die Admin-Liste hängt an ['members'] (useAllMembers) — ['all-members']
+    // gab es nie (Audit 25.09.2026). Promise zurückgeben: die Mutation bleibt
+    // „pending", bis die Zeile neu geladen ist.
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['members'] }),
+      qc.invalidateQueries({ queryKey: ['current-member'] }),
+      qc.invalidateQueries({ queryKey: ['member'] }),
+      qc.invalidateQueries({ queryKey: ['members-directory'] }),
+    ]),
   });
 }
 
@@ -1985,10 +2009,13 @@ export function useAdminSetAvatarLock() {
       if (error) throw error;
       return Boolean(data);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['all-members'] });
-      qc.invalidateQueries({ queryKey: ['current-member'] });
-    },
+    // Wie oben: ['members'] ist der Schlüssel der Admin-Liste. Bis die Zeile
+    // neu geladen ist, bleibt das Schloss gesperrt (isPending) — sonst schickte
+    // ein zweiter Klick wieder den alten Zielwert.
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['members'] }),
+      qc.invalidateQueries({ queryKey: ['current-member'] }),
+    ]),
   });
 }
 
@@ -2158,6 +2185,7 @@ export async function sendPushTo(memberIds: string[], payload: { title: string; 
   if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
 }
 
+/** Freier Rundruf an alle Push-Abos — seit 25.09.2026 nur für Admins (z. B. Evakuierung). */
 export async function sendBroadcastPush(payload: {
   title: string;
   body: string;
@@ -2169,6 +2197,27 @@ export async function sendBroadcastPush(payload: {
     method: 'POST',
     headers: await authHeaders(),
     body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
+}
+
+/**
+ * Rundruf aus dem Planer über eine Server-Vorlage (api/push-send, 0187): der
+ * Server baut Text, Empfänger und Ziel aus der Datenbank und schickt jede
+ * Vorlage je Bezug nur einmal. So dürfen auch Aufgießer ohne Admin-Rechte
+ * benachrichtigen, ohne freien Text an alle schicken zu können.
+ *   team_aufguss     → alle anderen Aufgießer (Co-Aufgießer gesucht)
+ *   stammslot_antrag → die Admins
+ *   urlaubsslots     → alle anderen Aufgießer
+ */
+export async function sendVorlagePush(p:
+  | { vorlage: 'team_aufguss'; sauna_id: string; start_time: string }
+  | { vorlage: 'stammslot_antrag'; slot_id: string }
+  | { vorlage: 'urlaubsslots'; absence_id: string }) {
+  const r = await fetch('/api/push-send', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify(p),
   });
   if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
 }
@@ -2189,13 +2238,41 @@ export function useCurrentMember() {
   return useQuery({
     queryKey: ['current-member'],
     queryFn: async () => {
-      const { data, error } = await need().rpc('current_member');
+      const sb = need();
+      // Ohne Anmeldung gar nicht erst fragen (Audit 25.09.2026): current_member()
+      // ist „RETURNS members" und liefert für anon eine Zeile voller NULLs. Das
+      // war im Frontend ein „Mitglied" ohne id und ohne Freigabe — nach jedem
+      // Login blitzte „Konto wartet auf Freigabe" auf, und Tafel/Kiosk fragten
+      // bei jedem Laden Mitglieder-Daten ab. Jetzt gilt: kein Mitglied = null.
+      const { data: sitzung, error: sitzungsFehler } = await sb.auth.getSession();
+      // Sitzung vorhanden, aber gerade nicht auffrischbar (offline, schwaches
+      // WLAN, Auth-Server weg): auth-js liefert dann session=null MIT Fehler
+      // und behält die Sitzung. Das ist KEIN „nicht angemeldet" — sonst zeigte
+      // die App „Konto wartet auf Freigabe" und der letzte Stand ginge verloren.
+      // Als Fehler bleibt er im Cache, und es wird alle 30 s erneut versucht.
+      if (sitzungsFehler) throw sitzungsFehler;
+      if (!sitzung.session) return null;
+      const { data, error } = await sb.rpc('current_member');
       if (error) throw error;
       // current_member returns a row of public.members
-      const m = Array.isArray(data) ? data[0] : data;
-      return (m ?? null) as Member | null;
+      const m = (Array.isArray(data) ? data[0] : data) as Member | null | undefined;
+      return m?.id ? m : null;
     },
+    // Anwesenheit, Rolle, Freigabe ändern sich auch außerhalb der App (Tablet,
+    // Admin). Beim Zurückkehren in die App frisch holen — ein günstiger Aufruf.
+    refetchOnWindowFocus: true,
   });
+}
+
+/** Wartet die App noch auf die Mitgliederzeile? Direkt nach der Anmeldung
+ *  steht im Cache noch „kein Mitglied" (null) aus der Zeit davor, während der
+ *  Neuabruf läuft — das darf weder „Konto wartet auf Freigabe" noch die
+ *  Ersteinrichtung auslösen. Nach einem Fehler (offline) wird NICHT gewartet:
+ *  die Wiederholung alle 30 s soll die Seite nicht jedes Mal ausblenden. */
+export function wartetAufMitglied(q: {
+  isLoading: boolean; isFetching: boolean; isError: boolean; data: Member | null | undefined;
+}): boolean {
+  return q.isLoading || (q.isFetching && !q.data && !q.isError);
 }
 
 // Mitglieder-Verzeichnis für die Galerie-Seite (RPC umgeht RLS, gibt nur sichere Felder)
@@ -2208,11 +2285,14 @@ export type MemberDirectoryEntry = {
   role: MemberRole;
   is_aufgieser: boolean;
   is_present: boolean;
+  // Seit 0179 nur Tag + Monat (Jahr immer 2000) — nie als Alter verwenden.
   birthday: string | null;
   motto: string | null;
   avatar_path: string | null;
   home_group: string | null;
-  // Migration 0076: Mitarbeiter-Flag + Familien-Mitgliedschaft
+  // Migration 0076: Mitarbeiter-Flag + Familien-Mitgliedschaft.
+  // Seit 0179: family_has_partner = „hat Familie" (Gäste sehen immer false),
+  // family_children_count immer 0 — genaue Werte nur admin_list_members().
   is_cp_employee: boolean;
   family_has_partner: boolean;
   family_children_count: number;
@@ -2252,7 +2332,10 @@ export type MeisterDirectoryEntry = {
    *  Frontend faellt auf die Vorgabe zurueck (nameplateAus). */
   nameplate_config: unknown;
 };
-export function useMeisterDirectory() {
+/** `poll`: für Dauer-Anzeigen (Tafel, Öl-Raum), die wochenlang gemountet
+ *  bleiben — members steht nicht in der Realtime-Publication, neue
+ *  Aufgießer, Avatare und Mottos kämen sonst erst mit dem Neuladen an. */
+export function useMeisterDirectory(opts?: { poll?: boolean }) {
   return useQuery({
     queryKey: ['meister-directory'],
     queryFn: async () => {
@@ -2260,6 +2343,7 @@ export function useMeisterDirectory() {
       if (error) throw error;
       return (data ?? []) as MeisterDirectoryEntry[];
     },
+    ...(opts?.poll ? { refetchInterval: 10 * 60_000, refetchIntervalInBackground: true } : {}),
   });
 }
 
@@ -2841,14 +2925,30 @@ export function useMyPendingNotifications() {
   });
 }
 
+// „✓ gelesen" im CP-Posteingang. Seit 0188 setzt der Server read_at (wie die
+// Glocke) statt processed_at (Versand-Flag des Push-Dispatchers), und die Liste
+// zeigt nur Ungelesenes. Der Eintrag verschwindet sofort (optimistisch) und
+// kommt bei einem Fehler zurück.
 export function useMarkNotificationSeen() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<void, Error, string, { vorher?: AppNotification[] }>({
     mutationFn: async (id: string) => {
       const { error } = await need().rpc('mark_notification_seen', { p_id: id });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-notifications'] }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['my-notifications'], exact: true });
+      const vorher = qc.getQueryData<AppNotification[]>(['my-notifications']);
+      qc.setQueryData<AppNotification[]>(['my-notifications'], (alt) => (alt ?? []).filter((n) => n.id !== id));
+      return { vorher };
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.vorher) qc.setQueryData(['my-notifications'], ctx.vorher);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['my-notifications'] });
+      qc.invalidateQueries({ queryKey: ['my-notifications-unread'] });
+    },
   });
 }
 
@@ -2914,6 +3014,50 @@ export function useBroadcastHandbookTelegram() {
   });
 }
 
+// ─── Telegram-Verteiler: Freigabe neuer Chats (Migration 0187) ───────────
+// /start beim Bot trägt einen Chat nicht mehr sofort ein, sondern als Anfrage.
+// Admins geben frei oder lehnen ab (Admin → Handbuch → Telegram).
+export type TelegramChatEintrag = {
+  chat_id: number;
+  status: 'aktiv' | 'wartet' | 'abgelehnt';
+  vorname: string | null;
+  benutzername: string | null;
+  chat_typ: string | null;
+  angefragt_at: string | null;
+  mitglied_name: string | null;
+  mitglied_gesperrt: boolean | null;
+};
+
+export function useTelegramChatsAdmin(enabled = true) {
+  return useQuery({
+    queryKey: ['telegram-chats-admin'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('telegram_chats_admin_liste');
+      if (error) throw error;
+      return (data ?? []) as TelegramChatEintrag[];
+    },
+  });
+}
+
+export function useTelegramChatEntscheiden() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { chat_id: number; aktion: 'freigeben' | 'ablehnen' }) => {
+      const { error } = await need().rpc('telegram_chat_entscheiden', { p_chat_id: p.chat_id, p_aktion: p.aktion });
+      if (error) {
+        const msg = (error as { message?: string }).message ?? '';
+        if (msg.includes('anfrage_nicht_gefunden')) throw new Error('Diese Anfrage gibt es nicht mehr — bitte neu laden.');
+        if (msg.includes('not_admin')) throw new Error('Nur Admins dürfen Telegram-Chats freigeben.');
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['telegram-chats-admin'] });
+    },
+  });
+}
+
 export function useSendWelcomeEmail() {
   return useMutation({
     mutationFn: async (p: { member_id: string; role_label: string }) => {
@@ -2949,9 +3093,10 @@ export type EmailAccount = {
   created_at: string;
 };
 
-export function useMyEmailAccount() {
+export function useMyEmailAccount(enabled = true) {
   return useQuery({
     queryKey: ['my-email-account'],
+    enabled,
     queryFn: async () => {
       const { data, error } = await need().rpc('my_email_account');
       if (error) throw error;
@@ -3287,15 +3432,74 @@ export function useDeleteMember() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (memberId: string) => {
+      // Seit 0186 liefert delete_member die Dateien des Kontos (Profilbild,
+      // Fotos) als Löschliste — SQL darf den Speicher nicht selbst leeren.
       const { error } = await need().rpc('delete_member', { p_member_id: memberId });
       if (error) throw error;
+      // Das Konto ist gelöscht; bleiben Dateien liegen, arbeitet der Reiter
+      // „Gäste" sie später ab. Deshalb hier kein Fehler nach außen.
+      try {
+        await speicherLoeschlisteAbarbeiten();
+      } catch (e) {
+        console.warn('[datenschutz] Dateien des gelöschten Kontos noch nicht entfernt', e);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['members'] });
       qc.invalidateQueries({ queryKey: ['present'] });
       qc.invalidateQueries({ queryKey: ['pending'] });
       qc.invalidateQueries({ queryKey: ['members-directory'] });
+      qc.invalidateQueries({ queryKey: ['storage-loeschliste'] });
     },
+  });
+}
+
+// ─── Löschliste für Dateien (Migration 0186) ─────────────────────────────
+// SQL darf storage.objects nicht löschen (storage.protect_delete). Die
+// Datenbank merkt sich deshalb Dateien gelöschter Konten und verwaiste
+// persönliche Dateien (ersetzte Profilbilder …) in storage_loeschliste; ein
+// Admin entfernt sie über die Storage-API. storage_loeschliste_offen() trägt
+// vorher aus, was schon weg ist oder wieder verwendet wird.
+
+async function dateienEntfernen(pfade: string[]): Promise<void> {
+  for (let i = 0; i < pfade.length; i += 100) {
+    const { error } = await need().storage.from('assets').remove(pfade.slice(i, i + 100));
+    if (error) throw error;
+  }
+}
+
+/** Nur für Admins: offene Einträge der Löschliste entfernen. Gibt zurück,
+ *  wie viele danach noch offen sind (0 = alles erledigt). */
+async function speicherLoeschlisteAbarbeiten(): Promise<number> {
+  const { data, error } = await need().rpc('storage_loeschliste_offen');
+  if (error) throw error;
+  const offen = (data ?? []) as string[];
+  if (offen.length === 0) return 0;
+  await dateienEntfernen(offen);
+  const { data: rest, error: restErr } = await need().rpc('storage_loeschliste_offen');
+  if (restErr) throw restErr;
+  return ((rest ?? []) as string[]).length;
+}
+
+/** Admin: wie viele Dateien warten auf Entfernung? */
+export function useStorageLoeschliste(enabled = true) {
+  return useQuery({
+    queryKey: ['storage-loeschliste'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('storage_loeschliste_offen');
+      if (error) throw error;
+      return ((data ?? []) as string[]).length;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useStorageLoeschlisteAbarbeiten() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: speicherLoeschlisteAbarbeiten,
+    onSettled: () => qc.invalidateQueries({ queryKey: ['storage-loeschliste'] }),
   });
 }
 
@@ -3342,20 +3546,53 @@ export function usePresentAufgieserPublic() {
   });
 }
 
-// ─── Self-Presence (Migration 0050) ──────────────────────────────────────
+// ─── Self-Presence (Migration 0050, Zielzustand seit 0188) ───────────────
+// Die App schickt den GEWÜNSCHTEN Zustand („Ich bin da" = true, „Ich gehe
+// jetzt" = false), nicht „umschalten". Zeigt die App einen veralteten Stand
+// (am Tablet schon eingecheckt), bleibt man trotzdem eingecheckt, statt
+// versehentlich ausgecheckt zu werden. toggle_my_presence gibt es nicht mehr.
+export async function setMyPresence(present: boolean): Promise<boolean> {
+  const { data, error } = await need().rpc('set_my_presence', { p_present: present });
+  if (error) throw error;
+  return Boolean(data);
+}
 
-export function useToggleMyPresence() {
+export function useSetMyPresence() {
   const qc = useQueryClient();
-  return useMutation<boolean, Error, void>({
-    mutationFn: async () => {
-      const { data, error } = await need().rpc('toggle_my_presence');
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
-      return row?.is_present as boolean;
-    },
-    onSuccess: () => {
+  return useMutation<boolean, Error, boolean>({
+    mutationFn: setMyPresence,
+    // Auch nach einem Fehler neu laden — dann stimmt wenigstens die Anzeige.
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['current-member'] });
       qc.invalidateQueries({ queryKey: ['present'] });
+      qc.invalidateQueries({ queryKey: ['present-full'] });
+    },
+  });
+}
+
+// ─── Technische Fehler aus dem Frontend (Migration 0188, nur Admin) ──────
+// Geschrieben von src/lib/fehlerbericht.ts (Tafel, Kiosk, App).
+export type ClientFehler = {
+  id: number;
+  erstmals_am: string;
+  zuletzt_am: string;
+  anzahl: number;
+  quelle: string;
+  route: string;
+  meldung: string;
+  stack: string | null;
+  geraet: string | null;
+  angemeldet: boolean;
+};
+
+export function useClientFehler(tage = 7, enabled = true) {
+  return useQuery({
+    queryKey: ['client-fehler', tage],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('client_fehler_liste', { p_tage: tage });
+      if (error) throw error;
+      return (data ?? []) as ClientFehler[];
     },
   });
 }
@@ -3384,10 +3621,12 @@ export async function togglePresenceByEntryCode(code: string) {
 // werden Fehlversuche je IP gebremst. Der direkte RPC-Weg ist gesperrt (0174),
 // er ließ sich mit dem öffentlichen Schlüssel ohne Bremse durchprobieren.
 // Fehlertexte bleiben die alten Kennungen, damit Scanner.tsx sie erkennt.
+// Gekoppelter Scanner schickt sein Geräte-Token mit (0177): dann greift der
+// gemeinsame Topf für ungekoppelte Fehlversuche nicht (api/qr-signin.ts).
 export async function togglePresenceByCheckinPin(pin: string) {
   const r = await fetch('/api/qr-signin?action=pin-toggle', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...kioskGeraetHeader() },
     body: JSON.stringify({ pin }),
   });
   const data = (await r.json().catch(() => ({}))) as {
@@ -3445,8 +3684,14 @@ export type CoAufgieserEntry = {
 
 export function useCoAufgieser(infusionIds: string[]) {
   return useQuery({
-    queryKey: ['co-aufgieser', ...infusionIds.sort()],
+    // Kopie sortieren — sort() allein veränderte das Array des Aufrufers.
+    queryKey: ['co-aufgieser', ...[...infusionIds].sort()],
     enabled: infusionIds.length > 0,
+    // Beitritte kommen per Realtime (Kanal „tafel"): der Key hängt nur an den
+    // Aufguss-IDs, ein Beitritt am Aufgusstag änderte ihn nie — die Tafel zeigte
+    // den Team-Partner praktisch nie (Audit 25.09.2026). Netz darunter: 1 min
+    // ohne bestätigten Kanal, sonst 10 min.
+    refetchInterval: pollTakt(60_000, 10 * 60_000),
     queryFn: async () => {
       if (!infusionIds.length) return [] as CoAufgieserEntry[];
       const { data, error } = await need()
@@ -3479,6 +3724,10 @@ export function useJoinTeamInfusion() {
         // Unique-Constraint: schon dabei
         if (error.code === '23505') {
           throw new Error('Du bist bereits in diesem Team-Aufguss eingebucht.');
+        }
+        // RLS (Migration 0179): nur kommende Team-Aufgüsse anderer Aufgießer
+        if (error.code === '42501') {
+          throw new Error('Beitritt nicht möglich — der Aufguss ist vorbei oder kein Team-Aufguss.');
         }
         throw error;
       }
@@ -3642,10 +3891,12 @@ export type TvSettings = {
 };
 
 // ─── brand_settings (zentrale Vereins-Identität, Migration 0039) ────────
-/** `poll`: für Dauer-Anzeigen (Öl-Raum-Tablet), die wochenlang gemountet
- *  bleiben. Ohne Takt sähen sie eine im Admin geänderte Einstellung erst
- *  beim nächsten Neuladen — so geschehen am 03.09.2026 mit dem
- *  Tageszeit-Hintergrund. Normale Seiten laden beim Mount, das reicht. */
+/** `poll`: für Dauer-Anzeigen (Öl-Raum-Tablet, TV-Tafel), die wochenlang
+ *  gemountet bleiben. Ohne Takt sähen sie eine im Admin geänderte Einstellung
+ *  erst beim nächsten Neuladen — so geschehen am 03.09.2026 mit dem
+ *  Tageszeit-Hintergrund. Änderungen kommen per Realtime (system_config im
+ *  Kanal „tafel"); der Takt ist das Netz darunter: 1 min ohne bestätigten
+ *  Kanal, sonst 10 min. Normale Seiten laden beim Mount, das reicht. */
 export function useBrandSettings(opts?: { poll?: boolean }) {
   return useQuery({
     queryKey: ['brand-settings'],
@@ -3658,7 +3909,7 @@ export function useBrandSettings(opts?: { poll?: boolean }) {
       if (error) throw error;
       return mergeBrandDefaults(data?.value as Partial<BrandSettings> | undefined);
     },
-    ...(opts?.poll ? { refetchInterval: 60_000, refetchIntervalInBackground: true } : {}),
+    ...(opts?.poll ? { refetchInterval: pollTakt(60_000, 10 * 60_000), refetchIntervalInBackground: true } : {}),
   });
 }
 
@@ -3725,7 +3976,10 @@ export type ScheduleSettings = {
 
 const SCHEDULE_DEFAULTS: ScheduleSettings = { monday_open: false, tiles_per_column: 3 };
 
-export function useScheduleSettings() {
+/** `poll`: für Dauer-Anzeigen (Tafel, Öl-Raum). schedule_settings ist für anon
+ *  per RLS nicht lesbar, Realtime erreicht die Displays hier also nicht — ohne
+ *  Takt rasterte der TV nach „4 Kacheln" oder „Montag offen" bis zum Neuladen falsch. */
+export function useScheduleSettings(opts?: { poll?: boolean }) {
   return useQuery<ScheduleSettings>({
     queryKey: ['schedule-settings'],
     queryFn: async () => {
@@ -3739,6 +3993,7 @@ export function useScheduleSettings() {
       };
     },
     staleTime: 60_000,
+    ...(opts?.poll ? { refetchInterval: 5 * 60_000, refetchIntervalInBackground: true } : {}),
   });
 }
 
@@ -3784,15 +4039,17 @@ export type KioskSperreStatus = {
   jetzt_ms?: number;
 };
 
+async function kioskSperreStatusLaden(): Promise<KioskSperreStatus> {
+  const { data, error } = await need().rpc('kiosk_sperre_status');
+  if (error) throw error;
+  return data as KioskSperreStatus;
+}
+
 export function useKioskSperreStatus(opts?: { enabled?: boolean; intervalMs?: number }) {
   return useQuery<KioskSperreStatus>({
     queryKey: ['kiosk-sperre'],
     enabled: opts?.enabled ?? true,
-    queryFn: async () => {
-      const { data, error } = await need().rpc('kiosk_sperre_status');
-      if (error) throw error;
-      return data as KioskSperreStatus;
-    },
+    queryFn: kioskSperreStatusLaden,
     // Kein Realtime-Kanal für das anonyme Tablet: Polling ist hier der
     // Update-Pfad (Freigabe vom Handy wirkt nach spätestens einem Intervall).
     refetchInterval: opts?.intervalMs ?? 10_000,
@@ -3800,6 +4057,21 @@ export function useKioskSperreStatus(opts?: { enabled?: boolean; intervalMs?: nu
     staleTime: 0,
     retry: false,
   });
+}
+
+/** Liegt gerade der Joker über dem Display? Liest nur mit, was der
+ *  KioskSperreRunner (App.tsx) ohnehin abfragt — kein eigener Abruf, kein
+ *  zweiter Takt (ein zweites useKioskSperreStatus pollte doppelt). Ohne Daten
+ *  (Laden, Fehler, kein Display-Pfad): false. */
+export function useKioskGesperrtMitlesen(): boolean {
+  const q = useQuery<KioskSperreStatus>({
+    queryKey: ['kiosk-sperre'],
+    queryFn: kioskSperreStatusLaden,
+    enabled: false,
+    staleTime: 0,
+    retry: false,
+  });
+  return q.data?.gesperrt === true;
 }
 
 /** Display wurde im gesperrten Zustand angetippt — der Server meldet es (gedrosselt) allen Admins. */
@@ -4314,24 +4586,9 @@ export function useMonthlyLeaderboard() {
   });
 }
 
-export function useAwardBadge() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ memberId, badgeId, metadata = {} }: { memberId: string; badgeId: string; metadata?: Record<string, unknown> }) => {
-      const { data, error } = await need().rpc('award_badge', {
-        p_member_id: memberId,
-        p_badge_id: badgeId,
-        p_metadata: metadata,
-      });
-      if (error) throw error;
-      return data as boolean;
-    },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['achievements', vars.memberId] });
-      qc.invalidateQueries({ queryKey: ['achievements', 'all'] });
-    },
-  });
-}
+// Abzeichen vergibt der Client nur noch über award_my_badge (src/lib/checkBadges.ts,
+// Migration 0181): award_badge ist seitdem rein intern — der Server prüft, ob das
+// Abzeichen dem eigenen Mitglied wirklich zusteht.
 
 // ─── Ratings ─────────────────────────────────────────────────────────────────
 
@@ -4369,11 +4626,19 @@ export type RatableInfusion = {
   already_rated: boolean;
 };
 
+// Rückgabewerte von submit_rating (Migration 0179). Direktes Schreiben in
+// infusion_ratings ist seit 0179 gesperrt — Bewertungen nur über diese RPC.
 export type SubmitRatingResult =
   | 'ok'
+  | 'not_logged_in'
+  | 'rating_only_for_self'
+  | 'infusion_not_found'
   | 'self_rating_not_allowed'
   | 'infusion_not_finished'
+  | 'not_attended_that_day'
   | 'rating_window_expired'
+  | 'rating_window_expired_aufgieser'
+  | 'stunde_schon_bewertet'
   | 'not_present';
 
 export function useRatableInfusions(memberId: string | null | undefined) {
@@ -4385,21 +4650,6 @@ export function useRatableInfusions(memberId: string | null | undefined) {
       const { data, error } = await need().rpc('get_ratable_infusions', { p_member_id: memberId! });
       if (error) throw error;
       return (data ?? []) as RatableInfusion[];
-    },
-  });
-}
-
-export function useInfusionRatings(infusionId: string | null | undefined) {
-  return useQuery({
-    queryKey: ['ratings', infusionId ?? 'none'],
-    enabled: !!infusionId,
-    queryFn: async () => {
-      const { data, error } = await need()
-        .from('infusion_ratings')
-        .select('*')
-        .eq('infusion_id', infusionId!);
-      if (error) throw error;
-      return data as InfusionRating[];
     },
   });
 }
@@ -4498,10 +4748,34 @@ export function publicAssetUrl(path: string | null | undefined): string | null {
   return data.publicUrl;
 }
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
+// Muss zu allowed_mime_types des Buckets „assets" passen (Migration 0180).
+// Kein SVG: Eine SVG-Datei kann Skript enthalten, und der Typfilter des
+// Buckets gilt für alle Ordner — auch für die, in die jeder Gast hochlädt.
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-// Skip recompression for vector/animated formats
-const SKIP_COMPRESS = new Set(['image/svg+xml', 'image/gif']);
+// Animierte GIFs nicht neu kodieren (der Canvas behielte nur das erste Bild)
+const SKIP_COMPRESS = new Set(['image/gif']);
+
+/** Obergrenze je Datei — wie file_size_limit des Buckets (Migration 0180). */
+const ASSET_MAX_BYTES = 25 * 1024 * 1024;
+
+/** Storage meldet Grenzen und fehlende Rechte auf Englisch („The object
+ *  exceeded the maximum allowed size", „new row violates row-level security
+ *  policy"). Hier wird daraus ein Satz, mit dem Vereinsmitglieder etwas
+ *  anfangen können. Unbekannte Fehler gehen unverändert durch. */
+function uploadFehler(error: Error): Error {
+  const m = (error.message ?? '').toLowerCase();
+  if (m.includes('maximum allowed size') || m.includes('too large')) {
+    return new Error('Die Datei ist zu groß — erlaubt sind höchstens 25 MB.');
+  }
+  if (m.includes('mime type') || m.includes('not supported')) {
+    return new Error('Dieses Dateiformat wird nicht angenommen. Erlaubt sind Bilder (JPEG, PNG, WebP, GIF) und Videos (MP4, WebM).');
+  }
+  if (m.includes('row-level security') || m.includes('unauthorized')) {
+    return new Error('Hochladen nicht erlaubt — dein Konto darf hier keine Dateien ablegen.');
+  }
+  return error;
+}
 
 async function compressImage(
   file: File,
@@ -4549,13 +4823,18 @@ const FEINE_ORDNER = ['tile-bgs', 'slot-gallery', 'oelraum'];
 
 export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error(`Ungültiger Dateityp: ${file.type}. Erlaubt: JPEG, PNG, WebP, GIF, SVG.`);
+    throw new Error(`Ungültiger Dateityp: ${file.type || 'unbekannt'}. Erlaubt: JPEG, PNG, WebP, GIF.`);
   }
   const fein = FEINE_ORDNER.some((f) => folder === f || folder.startsWith(f + '/'));
   const compressed = await compressImage(
     file,
     fein ? { maxEdge: 2560, quality: 0.92, maxBytes: 1_500_000 } : {},
   );
+  if (compressed.size > ASSET_MAX_BYTES) {
+    throw new Error(
+      `Bild ist ${(compressed.size / 1024 / 1024).toFixed(1)} MB groß — erlaubt sind 25 MB.`,
+    );
+  }
   const ext = compressed.name.split('.').pop() ?? 'bin';
   const path = `${folder}/${crypto.randomUUID()}.${ext}`;
   const { error } = await need().storage.from('assets').upload(path, compressed, {
@@ -4563,7 +4842,7 @@ export async function uploadAsset(file: File, folder = 'ads'): Promise<string> {
     upsert: false,
     contentType: compressed.type,
   });
-  if (error) throw error;
+  if (error) throw uploadFehler(error);
   return path;
 }
 
@@ -4595,7 +4874,7 @@ export async function uploadVideo(file: File, folder = 'info-karten'): Promise<s
     upsert: false,
     contentType: file.type,
   });
-  if (error) throw error;
+  if (error) throw uploadFehler(error);
   return path;
 }
 
@@ -4608,6 +4887,19 @@ export async function deleteAsset(path: string): Promise<void> {
   // im Bucket — sichtbar wurde davon nie etwas.
   const { error } = await need().storage.from('assets').remove([path]);
   if (error) throw error;
+}
+
+/** Hat der Server eine Anfrage sicher abgelehnt, also nichts gespeichert?
+ *  Bei jedem echten Fehler antwortet die Datenbank mit einem Code („P0001",
+ *  „42501", „PGRST…") und hat vorher alles zurückgerollt. Ohne Code war es ein
+ *  Netzfehler: Die Anfrage kann trotzdem angekommen und gespeichert sein.
+ *  Nur im ersten Fall darf eine eben hochgeladene Datei wieder gelöscht werden,
+ *  sonst zeigt ein doch angelegter Beitrag ein fehlendes Bild. Liegen
+ *  gebliebene Dateien setzt der Datenschutz-Job (0186) später auf die
+ *  Löschliste. */
+export function serverHatAbgelehnt(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && code.length > 0;
 }
 
 // ─── Calendar-Feed (iCal) + Telegram-Linking (Migration 0038) ───────────
@@ -4693,6 +4985,22 @@ export function useMyRecurringSlots(memberId: string | null | undefined) {
   });
 }
 
+/** Fehlercodes der Stamm-Slot- und Urlaubs-RPCs (Migration 0184) in
+ *  verständliche Meldungen übersetzen. Unbekanntes geht unverändert durch. */
+function stammFehler(error: { message?: string }): Error {
+  const msg = error.message ?? '';
+  if (msg.includes('wrong_sauna_for_slot')) return new Error('Zu dieser Uhrzeit läuft der Garantie-Aufguss in der anderen Sauna — Stamm-Aufgüsse werden nur dort eingetragen.');
+  if (msg.includes('no_garantie_slot')) return new Error('Zu dieser Uhrzeit gibt es keinen Garantie-Aufguss — hier ist kein Stamm-Slot möglich.');
+  if (msg.includes('slot_taken')) return new Error('Diesen Stamm-Slot hat schon ein anderer Aufgießer.');
+  if (msg.includes('not_pending_or_unknown')) return new Error('Der Antrag ist nicht mehr offen — bitte Seite neu laden.');
+  if (msg.includes('not_authenticated') || msg.includes('member_not_found')) return new Error('Nicht angemeldet — bitte neu anmelden.');
+  if (msg.includes('not_authorized')) return new Error('Das darfst nur du selbst oder ein Admin.');
+  if (msg.includes('not_admin')) return new Error('Nur für Admins.');
+  if (msg.includes('slot_not_found')) return new Error('Stamm-Slot nicht gefunden — bitte Seite neu laden.');
+  if (msg.includes('absence_not_found')) return new Error('Urlaubseintrag nicht gefunden — bitte Seite neu laden.');
+  return error as Error;
+}
+
 export function useApplyRecurringSlot() {
   const qc = useQueryClient();
   return useMutation({
@@ -4712,7 +5020,7 @@ export function useApplyRecurringSlot() {
         if (msg.includes('invalid_hour')) throw new Error('Ungültige Stunde — nur 11:00 bis 20:00.');
         if (msg.includes('invalid_sauna')) throw new Error('Die gewählte Sauna ist nicht aktiv.');
         if (msg.includes('invalid_template')) throw new Error('Die gewählte Vorlage existiert nicht oder gehört einem anderen Aufgießer.');
-        throw error;
+        throw stammFehler(error);
       }
       return data as string;
     },
@@ -4721,9 +5029,9 @@ export function useApplyRecurringSlot() {
 }
 
 // ─── Banja-Ritual buchen (Migration 0105) ─────────────────────────────────
-// Atomare Buchung: Löscht bestehende Personal-Fallbacks für 19+20:00 in der
-// 80°C-Sauna und legt 90-Min-Banja an. Behandelt damit den Bug, dass ein
-// Personal-Fallback auf 19/20:00 die Banja-Buchung sonst blockiert hätte.
+// Atomare Buchung: Löscht Personal-Fallbacks im Ritual und in der Ruhestunde
+// danach und legt das Banja an (90 Min um 19 Uhr, sonst 120; Ende spätestens
+// 20:30, außer am Saunafest — Regeln in lib/banja.ts, Migration 0183).
 export function useBookBanjaRitual() {
   const qc = useQueryClient();
   return useMutation({
@@ -4779,6 +5087,11 @@ export function useTakeoverPersonalFallback() {
       attributes?: string[];
       oils?: (string | null)[] | null;
       team_infusion?: boolean;
+      /** Gewählte Dauer (Migration 0184) — vorher blieb es bei den 15 Minuten
+       *  des Personal-Platzhalters. */
+      duration_minutes?: number;
+      /** Nur Admin: Aufguss gleich einem anderen Aufgießer zuweisen (0184). */
+      saunameister_id?: string | null;
     }) => {
       const { error } = await need().rpc('takeover_personal_fallback', {
         p_infusion_id: p.infusion_id,
@@ -4787,13 +5100,20 @@ export function useTakeoverPersonalFallback() {
         p_attributes: p.attributes ?? [],
         p_oils: p.oils ?? null,
         p_team_infusion: p.team_infusion ?? false,
+        p_duration_minutes: p.duration_minutes ?? null,
+        p_saunameister_id: p.saunameister_id ?? null,
       });
       if (error) {
         const msg = (error as { message?: string }).message ?? '';
-        if (msg.includes('not_aufgieser')) throw new Error('Nur Aufgießer können Personal-Aufgüsse übernehmen.');
-        if (msg.includes('not_a_fallback')) throw new Error('Dieser Aufguss ist kein Personal-Aufguss.');
+        // Zuerst die Admin-Zuweisung: „target_not_aufgieser" enthält auch „not_aufgieser".
+        if (msg.includes('target_not_aufgieser')) throw new Error('Das gewählte Mitglied ist kein aktiver Aufgießer.');
+        if (msg.includes('not_admin_for_meister_change')) throw new Error('Nur Admins können den Aufguss einem anderen Aufgießer zuweisen.');
+        if (msg.includes('not_aufgieser') || msg.includes('not_authorized')) throw new Error('Nur Aufgießer können Personal-Aufgüsse übernehmen.');
+        if (msg.includes('member_not_found')) throw new Error('Nicht angemeldet — bitte neu anmelden.');
+        if (msg.includes('not_a_fallback')) throw new Error('Dieser Aufguss ist kein Personal-Aufguss mehr — bitte Anzeige aktualisieren.');
         if (msg.includes('slot_in_past')) throw new Error('Slot liegt in der Vergangenheit.');
         if (msg.includes('title_required')) throw new Error('Titel fehlt.');
+        if (msg.includes('invalid_duration')) throw new Error('Ungültige Dauer.');
         throw error;
       }
     },
@@ -4806,7 +5126,7 @@ export function useApproveRecurringSlot() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await need().rpc('approve_recurring_slot', { p_id: id });
-      if (error) throw error;
+      if (error) throw stammFehler(error);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['recurring-slots'] });
@@ -4820,7 +5140,7 @@ export function useRejectRecurringSlot() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await need().rpc('reject_recurring_slot', { p_id: id });
-      if (error) throw error;
+      if (error) throw stammFehler(error);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recurring-slots'] }),
   });
@@ -4831,7 +5151,7 @@ export function useRevokeMyRecurringSlot() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await need().rpc('revoke_my_recurring_slot', { p_id: id });
-      if (error) throw error;
+      if (error) throw stammFehler(error);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['recurring-slots'] });
@@ -4874,7 +5194,7 @@ export function useAddAbsence() {
         const msg = (error as { message?: string }).message ?? '';
         if (msg.includes('not_aufgieser')) throw new Error('Nur Aufgießer können Urlaub eintragen.');
         if (msg.includes('invalid_range')) throw new Error('End-Datum muss nach Start-Datum liegen.');
-        throw error;
+        throw stammFehler(error);
       }
       const result = data as { absence_id: string; freed_slots: FreedSlot[] };
       return result;
@@ -4891,9 +5211,14 @@ export function useDeleteAbsence() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await need().rpc('delete_absence', { p_id: id });
-      if (error) throw error;
+      if (error) throw stammFehler(error);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['absences'] }),
+    // Seit 0184 gibt das Löschen die Stamm-Aufgüsse im Zeitraum zurück —
+    // deshalb auch den Plan neu laden.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['absences'] });
+      qc.invalidateQueries({ queryKey: ['infusions'] });
+    },
   });
 }
 
@@ -4915,8 +5240,9 @@ export function useMaterializeHorizon() {
   const qc = useQueryClient();
   return useMutation<number, Error, number>({
     mutationFn: async (weeks: number) => {
+      // Seit 0184 nur für Admins, p_weeks wird serverseitig auf 1–12 gedeckelt.
       const { data, error } = await need().rpc('materialize_infusion_horizon', { p_weeks: weeks });
-      if (error) throw error;
+      if (error) throw stammFehler(error);
       return (data ?? 0) as number;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
@@ -5385,8 +5711,10 @@ export type AufgieserRatingComment = {
   rating_id: string;
   infusion_id: string;
   infusion_title: string;
+  /** Nur tagesgenau (0186). */
   rated_at: string;
-  author_name: string;
+  /** Seit 0186 immer null — Bewertungskommentare sind anonym. */
+  author_name: string | null;
   author_avatar: string | null;
   comment: string;
   avg_score: number;
@@ -5439,7 +5767,18 @@ export function useAddAufgieserPhoto() {
         caption: caption?.trim() || null,
         sort_order: nextSort,
       });
-      if (error) throw error;
+      if (error) {
+        // Eintrag abgelehnt → hochgeladenes Bild nicht als Karteileiche liegen
+        // lassen (eigene Dateien darf man seit Migration 0180 selbst löschen).
+        // Bei einem Netzfehler bleibt es, der Eintrag kann ja angekommen sein.
+        if (serverHatAbgelehnt(error)) {
+          try { await deleteAsset(path); } catch { /* ignore */ }
+        }
+        if (error.message?.includes('photo_limit_reached')) {
+          throw new Error('Die Galerie ist voll — höchstens 8 Fotos. Lösche erst ein altes Foto.');
+        }
+        throw error;
+      }
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['aufgieser-photos', vars.memberId] });
@@ -6404,8 +6743,20 @@ export function usePendingAromaRecipes() {
 export function useDeleteMyAccount() {
   return useMutation({
     mutationFn: async () => {
-      const { error } = await need().rpc('delete_my_account');
+      const { data, error } = await need().rpc('delete_my_account');
       if (error) throw error;
+      // Eigene Dateien (Profilbild, Fotos) gleich mit entfernen — das Token
+      // gilt noch bis zu seinem Ablauf. Was nicht klappt (z. B. ein vom
+      // Vorstand hochgeladenes Profilbild), bleibt auf der Löschliste und
+      // wird vom Vorstand entfernt (Migration 0186).
+      const pfade = Array.isArray(data) ? (data as string[]) : [];
+      if (pfade.length > 0) {
+        try {
+          await dateienEntfernen(pfade);
+        } catch (e) {
+          console.warn('[datenschutz] Dateien bleiben auf der Löschliste', e);
+        }
+      }
     },
   });
 }

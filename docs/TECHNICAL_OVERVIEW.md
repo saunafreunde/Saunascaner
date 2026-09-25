@@ -144,7 +144,7 @@ notification_queue ─── Trigger _notify_new_follower (0077)
 | `email_accounts` | 0036 | Personal + Shared Email-Accounts (Vault-Password) |
 | `email_tickets` | 0080 | Helpdesk-Workflow für `info@sauna-fds.de` |
 | `shared_email_admins` | 0080 | Multi-Admin-Berechtigung |
-| `email_log` | 0035 | Sent-Mail-Audit |
+| `email_log` | 0036 (+0187) | Sent-Mail-Audit (schreibt seit 0187 wirklich; 12 Monate Aufbewahrung) |
 | `staff_availability` | 0067 | Personal-Verfügbarkeit |
 | `personal_shifts` | 0067 | Schicht-Tabelle |
 | `shift_swap_requests` | 0068 | Tausch-Workflow |
@@ -156,7 +156,7 @@ notification_queue ─── Trigger _notify_new_follower (0077)
 | `polls` + `poll_responses` | 0007 | Abfragen |
 | `evacuation_events` (47) | 0058 | Notfall-Audit-Trail |
 | `attendance_events` (90) | 0048 | Check-in/out-Audit-Trail |
-| `presence_audit` | — | Backup für Test-Reset |
+| `presence_audit` | 0001+0185 | Protokoll der nächtlichen Räumung (wer war nachts noch eingecheckt); Quelle der Admin-Statistik „Anwesenheit" |
 | `activity_log` (339) | 0065 | Admin-Audit-Trail (RLS admin-only) |
 | `notification_queue` (414) | 0042+0077 | Async Buffer für Push (Cron in `api/push-send.ts`) |
 | `push_subscriptions` (3) | — | VAPID-Endpoints pro Browser |
@@ -295,7 +295,7 @@ Alle 58 Tabellen haben **RLS aktiviert**. Standard-Patterns:
 2. **INSERT mit Berechtigung**: WITH CHECK auf Helper-Funktion (z.B. `infusions_insert_saunameister` ruft `is_aufgieser()` oder `is_admin()`)
 3. **UPDATE/DELETE nur Owner oder Admin**: `using (member_id = (SELECT id FROM members WHERE auth_user_id = auth.uid()) OR is_admin())`
 4. **Service-Role-Only** (für Cron-Jobs): `using (false)` + explizite RPCs mit Service-Role-Caller
-5. **`members`: nur Spaltenrechte (seit 0172/0176, 24./25.09.2026).** `members_read_self` ist `USING (true)` für authenticated — deshalb dürfen anon/authenticated KEIN Tabellen-SELECT haben, sondern nur SELECT auf das Vereinsprofil. Gesperrt sind die Geheimnisse `checkin_pin`, `member_code` (Login-Code!), `entry_code`, `calendar_feed_token`, `telegram_link_token` und die persönlichen Daten `email`, `birthday`, `fan_address`, `hourly_rate_eur`, `monthly_hour_limit_eur`, `paid_until`, `fan_since`, `telegram_user_id`, `gast_*`, `family_*`, `present_with_partner`, `present_children_count`. Zugriff nur über DEFINER-RPCs: `current_member()` (eigene Zeile), `get_my_checkin_pin()`, `generate_my_telegram_link_token()`, `admin_member_code()`, `admin_list_members()` (Admin-Mitgliederliste, jsonb ohne Geheimnisse), serverseitig service_role. Regeln: nie `select('*')` auf members (auch nicht `.update().select()`); neue Spalte → bewusst entscheiden und ggf. in der Migration `GRANT SELECT (spalte) ON public.members TO anon, authenticated`; nie wieder `GRANT SELECT ON public.members` bzw. `GRANT ALL ON ALL TABLES` an anon/authenticated (VPS-Umzug!). Fehlerbild bei Verstoß: 42501 „permission denied for table members" (nicht „for column"). `members` steht NICHT in der Realtime-Publikation (das Abo in `useRealtime.ts` ist ein No-op); aufnehmen nur, solange diese Spaltenrechte gelten — Realtime filtert Spalten per `has_column_privilege`, ohne 0172 bekäme jeder Abonnent PIN und Login-Code.
+5. **`members`: nur Spaltenrechte (seit 0172/0176, 24./25.09.2026).** `members_read_self` ist `USING (true)` für authenticated — deshalb dürfen anon/authenticated KEIN Tabellen-SELECT haben, sondern nur SELECT auf das Vereinsprofil. Gesperrt sind die Geheimnisse `checkin_pin`, `member_code` (Login-Code!), `entry_code`, `calendar_feed_token`, `telegram_link_token` und die persönlichen Daten `email`, `birthday`, `fan_address`, `hourly_rate_eur`, `monthly_hour_limit_eur`, `paid_until`, `fan_since`, `telegram_user_id`, `gast_*`, `family_*`, `present_with_partner`, `present_children_count`. Zugriff nur über DEFINER-RPCs: `current_member()` (eigene Zeile), `get_my_checkin_pin()`, `generate_my_telegram_link_token()`, `admin_member_code()`, `admin_list_members()` (Admin-Mitgliederliste, jsonb ohne Geheimnisse), serverseitig service_role. Regeln: nie `select('*')` auf members (auch nicht `.update().select()`); neue Spalte → bewusst entscheiden und ggf. in der Migration `GRANT SELECT (spalte) ON public.members TO anon, authenticated`; nie wieder `GRANT SELECT ON public.members` bzw. `GRANT ALL ON ALL TABLES` an anon/authenticated (VPS-Umzug!). Fehlerbild bei Verstoß: 42501 „permission denied for table members" (nicht „for column"). `members` steht NICHT in der Realtime-Publikation (ein Abo darauf legte bis 25.09.2026 den ganzen globalen Kanal lahm und ist entfernt, siehe §7.1); aufnehmen nur, solange diese Spaltenrechte gelten — Realtime filtert Spalten per `has_column_privilege`, ohne 0172 bekäme jeder Abonnent PIN und Login-Code.
 ### 5.2 TV-Tafel-RLS (anon)
 
 Die Tafel läuft anonym (`auth.uid() = NULL`). Jede Policy mit `auth.uid()` blockt sie. Pattern für Tafel-sichtbare Daten:
@@ -318,21 +318,34 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE v_member_id uuid;
 BEGIN
-  SELECT id INTO v_member_id FROM public.members WHERE auth_user_id = auth.uid() LIMIT 1;
-  IF v_member_id IS NULL THEN RAISE EXCEPTION 'Nicht eingeloggt'; END IF;
+  SELECT id INTO v_member_id FROM public.members
+   WHERE auth_user_id = auth.uid() AND revoked_at IS NULL LIMIT 1;
+  IF v_member_id IS NULL THEN RAISE EXCEPTION 'not_authenticated' USING ERRCODE = '42501'; END IF;
   -- ... permission check via is_admin()/is_aufgieser()/etc.
+  -- Eigentümer IMMER NULL-sicher vergleichen: owner IS DISTINCT FROM v_member_id
+  -- (nie "owner <> v_member_id" — ohne Anmeldung ist das NULL und die Sperre greift nicht)
   -- ... business logic
 END;
 $$;
-REVOKE EXECUTE ON FUNCTION public.foo FROM public;
-GRANT EXECUTE ON FUNCTION public.foo TO authenticated;
+REVOKE ALL ON FUNCTION public.foo(...) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.foo(...) TO authenticated, service_role;
 ```
 
 Wichtige Variante für Kiosk (`/oil-room`, `/checkin`): `GRANT EXECUTE TO anon` + `p_<entity>_id`-Parameter statt `auth.uid()`-Lookup. Siehe `feedback_saunascaner_kiosk_pattern.md`.
 
+#### Funktions-Grants (seit 0181, 25.09.2026) — verbindlich
+
+- **`REVOKE … FROM public` allein nimmt anon NICHTS weg.** anon, authenticated und service_role haben auf jeder Funktion ein *eigenes* EXECUTE (Supabase-Voreinstellung). Immer ausdrücklich `FROM PUBLIC, anon` bzw. für rein interne Funktionen `FROM PUBLIC, anon, authenticated` schreiben. Bis 0181 standen dadurch 255 DEFINER-Funktionen für jeden im Internet offen.
+- **Neue Funktionen (seit 0181):** `ALTER DEFAULT PRIVILEGES` gibt neuen Funktionen von `postgres` nur noch EXECUTE für `authenticated` und `service_role` — **nicht mehr für PUBLIC/anon.** Wer eine Funktion für eine öffentliche Seite (Tafel, Öl-Raum, Scanner, Panel, Koppeln, Eingangs-Tablet, Login/Registrierung) anlegt, MUSS in derselben Migration `GRANT EXECUTE ON FUNCTION … TO anon` schreiben. Dasselbe gilt für neue RLS-Helfer, die in einer Policy für `anon`/`public` stehen — sonst scheitert die ganze Abfrage mit „permission denied for function". Achtung bei `DROP FUNCTION` + `CREATE` (geänderte Signatur): das ist eine NEUE Funktion, die alten Rechte sind weg. `CREATE OR REPLACE` behält die Rechte. Das PUBLIC-EXECUTE fehlt neuen Funktionen von `postgres` in *allen* Schemas (Postgres kann es nur global entziehen) — nach einem `CREATE EXTENSION` oder einer Funktion außerhalb von `public` die Rechte prüfen.
+- **Wer bleibt für anon offen:** RLS-Helfer (`is_*`, `current_member`, `_games_current_member_id`) und die RPCs der öffentlichen Seiten (Liste und Begründung in `0181_definer_rechte.sql`, Abschnitt 8/10). Alles andere ist nur für angemeldete Nutzer.
+- **Rein interne Funktionen** (nur von anderen DEFINER-Funktionen, Triggern oder pg_cron gerufen, z. B. `award_badge`, `log_activity`, `_games_post_*`, `cron_*`): `REVOKE ALL … FROM PUBLIC, anon, authenticated` + `GRANT EXECUTE … TO service_role`. Die aufrufenden Funktionen gehören `postgres` und laufen weiter.
+- **Reine Admin-RPCs:** als erste Anweisung `select public._nur_admin();` (SQL) bzw. `perform public._nur_admin();` (plpgsql) — wirft 42501 für Nicht-Admins (so bei allen `stats_*`, `list_pending_members`, `poll_results`).
+- **Prüfabfrage nach jeder Migration** (jede Zeile muss begründet anon-offen sein):
+  `select p.oid::regprocedure from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.prorettype <> 'trigger'::regtype and has_function_privilege('anon', p.oid, 'EXECUTE') order by 1;`
+
 ### 5.4 Service-Role-Only-RPCs
 
-Für Cron-Jobs (`email_ticket_upsert_from_inbound`, `cron_notify_rating_window_open`): `GRANT EXECUTE TO service_role`. Wird von `pg_cron` mit `net.http_post` an Vercel-Endpoints gerufen.
+Für Cron-Jobs (`email_ticket_upsert_from_inbound`, `rating_pending_reminders`): `REVOKE ALL … FROM PUBLIC, anon, authenticated` + `GRANT EXECUTE TO service_role`. pg_cron-Jobs rufen Funktionen direkt als `postgres` (z. B. `cron_notify_rating_window_open`, `process_fan_membership_expiry`) oder per `net.http_post` die Vercel-Endpoints.
 
 ### 5.5 Auth-Hardening (15.05.2026)
 
@@ -379,19 +392,23 @@ Für Cron-Jobs (`email_ticket_upsert_from_inbound`, `cron_notify_rating_window_o
 
 Pattern aus 4 produktiven Implementierungen (TV-Bühne, Game-Match, DM, Email-Ticket) — siehe `feedback_realtime_channel_strategy.md`:
 
-1. **Detail-View** bekommt dedizierten Channel mit Filter: z.B. `dm-${conversationId}` oder `match-${matchId}` mit `filter: 'id=eq.<id>'`
-2. **Globaler `app-realtime`-Channel** invalidiert nur Listen (keine Detail-Daten)
-3. Channels werden in dedizierten Routes subscribed (nicht im Hub) — schont Concurrent-Subscription-Limit von Supabase Free-Plan
-4. REPLICA IDENTITY FULL für UPDATE-Tables (`dm_messages`, `tv_stage_state`, `email_tickets`, `games_match`)
-5. `refetchIntervalInBackground: true` als TanStack-Query-Default → Polling-Fallback wenn Realtime parkt
+1. **Detail-View** bekommt dedizierten Channel mit Filter: z.B. `dm-${conversationId}-<zufall>` oder `match-${matchId}-<zufall>` mit `filter: 'id=eq.<id>'`. Topic IMMER eindeutig je Hook-Instanz: realtime-js gibt bei gleichem Topic den schon abonnierten Channel zurück, `.on('postgres_changes')` wirft dann (PvP-Absturz bis 25.09.2026).
+2. **Globale Kanäle je Themenbereich** (`src/hooks/useRealtime.ts`, seit Audit 25.09.2026) invalidieren nur Listen: `tafel` (saunas, infusions, infusion_co_aufgieser, system_config, evacuation_events, tv_stage_state — für alle, auch die anonyme Tafel), `kalender` (saunafest_tage, holidays), nur mit Anmeldung `mitglied` (saunafest_verfuegbarkeit, games_match, notification_queue, feed_post_comments, dm_messages, email_tickets) und `sozial` (Kommentare, Fotos, Wünsche, Reaktionen, Abzeichen). Ereignisse werden ~0,6 s gebündelt.
+3. **Nur veröffentlichte Tabellen abonnieren** (`pg_publication_tables`, Publication `supabase_realtime`). Der Server legt alle Abos eines Kanals in EINER Transaktion an — eine einzige nicht veröffentlichte Tabelle rollt den ganzen Kanal zurück, der Client meldet trotzdem SUBSCRIBED. So war der globale Kanal von Mai bis 25.09.2026 tot. Neue Tabelle: erst per Migration `ALTER PUBLICATION supabase_realtime ADD TABLE …` (Muster 0182), dann das Abo. `members` bleibt draußen. **Achtung DELETE:** Realtime prüft bei DELETE keine RLS und schickt jedem Abonnenten den Primärschlüssel, soweit seine Rolle die Spalten lesen darf — auch anon mit dem öffentlichen Schlüssel. Steckt `member_id` im Schlüssel (Likes, Reaktionen, „Ich komme"), vor dem Veröffentlichen `REVOKE ALL … FROM anon` (0182: infusion_announcements, infusion_reactions, aufgieser_comment_likes, aufguss_wish_likes, feed_post_reactions — Leser sind dort nur DEFINER-RPCs).
+4. **`'system'`-Nachricht auswerten:** erst `status: 'ok'` („Subscribed to PostgreSQL") heißt, dass Ereignisse kommen; `status: 'error'` wird geloggt (`[realtime] Kanal „…": Server lehnt die Abos ab`). Der Zustand des `tafel`-Kanals steuert die Poll-Takte (`src/lib/realtimeStatus.ts`, `pollTakt(ohne, mit)`).
+5. REPLICA IDENTITY FULL für UPDATE-Tables (`dm_messages`, `tv_stage_state`, `email_tickets`, `games_match`)
+6. Nach Wiederverbindung lädt jeder Kanal seine Daten einmal nach (Ereignisse aus der Lücke wären sonst verloren).
 
 ### 7.2 Stale-Window für transiente Events
 
 Tafel-Bühnen-Effekte haben 60s-Stale-Filter — Events älter als 60s werden ignoriert. Supabase-Realtime-Tenants parken alle paar Minuten und liefern dann „alte" Events nach. Plus 3s-Polling-Fallback. Siehe `feedback_saunascaner_tv_buehne.md`.
 
-### 7.3 5-Sekunden-Polling
+### 7.3 Polling als Netz unter Realtime
 
-`useInfusions()` (api.ts) pollt alle 5s + Realtime. Bei Connection-Lost übernimmt der Poll. Für Mobile: `refetchIntervalInBackground: true` aktiv.
+- `useInfusions()` pollt 5 s, solange der `tafel`-Kanal nicht bestätigt ist, sonst 30 s; `useTvStageState()` 3 s / 30 s; `useSaunas()`, `useCoAufgieser()`, `useBrandSettings({ poll })` 1 min / 10 min. Evakuierung bleibt fest bei 5 s (sicherheitskritisch).
+- Displays laden Personal-Fallbacks nur so weit voraus, wie sie sie brauchen: `useInfusions({ fallbackTage: TAFEL_FALLBACK_TAGE })` (9, Tafel inkl. OilCard) bzw. `OELRAUM_FALLBACK_TAGE` (29, Öl-Raum). Echte Aufgüsse kommen immer alle. Alle Aufrufer eines Geräts müssen denselben Wert nehmen, sonst laufen zwei Polls.
+- Dauer-Anzeigen (Tafel, Öl-Raum) rufen `useMeisterDirectory`/`useScheduleSettings`/`useBrandSettings` mit `{ poll: true }` auf; Feiertage und Saunafest-Tage haben Realtime + stündliches Netz.
+- `queryClient.ts`: Abfragen im Fehlerzustand werden alle 30 s neu versucht (außer bei Rechte-/bewusst abgelehnten Fehlern) — die Tafel erholt sich nach Netz-/Supabase-Ausfall selbst.
 
 ### 7.4 Realtime-Tables (Liste)
 
@@ -412,7 +429,7 @@ REPLICA IDENTITY FULL aktiv für:
 | Kategorie | Anzahl | Beispiele |
 |---|---|---|
 | Aufguss-Management | ~25 | `create_infusion`, `update_infusion`, `cancel_my_infusion`, `transfer_infusion`, `takeover_personal_fallback`, `book_banja_ritual`, `submit_rating`, `react_to_infusion`, `get_ratable_infusions` |
-| Anwesenheit | ~10 | `toggle_my_presence`, `toggle_presence_by_checkin_pin`, `toggle_presence_by_entry_code`, `list_present_aufgieser`, `list_present_full`, `set_my_present_family` |
+| Anwesenheit | ~10 | `set_my_presence(p_present)` (Zielzustand statt Umschalten, 0188 — `toggle_my_presence` entfernt), `auto_checkin_via_wifi` (3 h Sperrfrist nach dem Auschecken, 0188), `toggle_presence_by_checkin_pin`, `toggle_presence_by_entry_code`, `list_present_aufgieser`, `list_present_full`, `set_my_present_family` |
 | Member-Lifecycle | ~15 | `handle_new_user`, `approve_member`, `approve_gast`, `approve_fan`, `approve_helper`, `delete_member`, `delete_my_account`, `delete_my_gast_account`, `set_my_motto`, `set_my_avatar`, `set_my_default_mood`, `rotate_my_checkin_pin` |
 | Achievements | ~6 | `award_badge`, `check_attendance_achievements`, `check_rating_achievements`, `check_follow_achievements`, `check_support_achievements`, `check_pioneer_gast` |
 | Social | ~15 | `follow_member`, `unfollow_member`, `get_my_following`, `get_top_fans`, `create_feed_post`, `react_to_feed_post`, `create_post_comment`, `delete_my_comment`, `dm_get_or_create_conversation`, `dm_send_message`, `dm_mark_read`, `list_my_conversations`, `count_unread_dms`, `count_unread_notifications` |
@@ -422,7 +439,7 @@ REPLICA IDENTITY FULL aktiv für:
 | Stats | ~25 | `stats_aufgieser_leaderboard`, `stats_infusions_by_month`, `stats_top_oils`, `stats_weekday_hour_heatmap`, `stats_follower_network`, `stats_guest_retention_funnel` etc. |
 | Tafel-Bühne | 3 | `set_stage_manual_scenes`, `set_stage_scene_toggle`, `trigger_stage_effect` |
 | Admin | ~10 | `admin_set_co_aufgieser`, `admin_delete_feed_post`, `set_is_personal_planer`, `set_attribute_color`, `set_oil_color`, `set_oil_disabled`, `trigger_app_reload`, `set_schedule_settings` |
-| Telegram | ~6 | `register_telegram_chat`, `unregister_telegram_chat`, `claim_telegram_link`, `telegram_quick_rate`, `takeover_personal_fallback_by_telegram`, `telegram_announce_attendance` |
+| Telegram | ~9 | `register_telegram_chat`, `unregister_telegram_chat`, `telegram_chat_anmelden`, `telegram_chats_admin_liste`, `telegram_chat_entscheiden` (0187), `claim_telegram_link`, `telegram_quick_rate`, `takeover_personal_fallback_by_telegram`, `telegram_announce_attendance` |
 
 ### 8.2 Vercel-Functions (`api/*.ts`)
 
@@ -433,15 +450,17 @@ Insgesamt 17 Functions — komprimiert wegen Hobby-Plan-12-Limit:
 | `_auth.ts` | Private: Service-Role-Client-Builder + Member-Lookup |
 | `_email_helpers.ts` | Private: IMAP/SMTP-Connection + dompurify |
 | `_email_templates.ts` | Private: HTML-Templates |
-| `ai.ts` | Claude Haiku Title-Generator |
+| `_query.ts` | Private (Audit 25.09.2026): `queryParam(req, name)` liest Query-Parameter per WHATWG-URL. **Nie `req.query` verwenden** — Vercels Getter ruft `url.parse()` auf, Node 24 loggt dann je Kaltstart `[DEP0169]` auf Level error (~480/Woche, echte Fehler gingen darin unter) |
+| `_schutz.ts` | Private (Audit 25.09.2026, 0189): `clientIp`, `drosselBuchen` (RPC `api_drossel_buchen` auf `kiosk_versuche`, prüft und bucht mehrere Töpfe in einem Schritt), `kioskGeraet` (Header `x-kiosk-geraet` → `kiosk_geraet_art`), `ohneAdressen` (E-Mails aus Log-Texten) |
+| `ai.ts` | KI-Titel über OpenRouter. Seit 0189 nur mit Anmeldung (Rollen admin/staff/member/guest_aufgieser) oder als gekoppeltes Öl-Raum-Tablet; Eingaben gekürzt; Drossel je Mitglied 30/h + 100/Tag, je Gerät 60/h + 200/Tag, alle 300/Tag (fail closed → Regel-Titel) |
 | `birthday-cron.ts` | Push an Geburtstagskinder + Aufgießer-Benachrichtigung |
-| `email.ts` | Multi-Action (send/draft/...) für persönliches Postfach |
+| `email.ts` | Multi-Action (send/draft/...) für persönliches Postfach. Öffentlich: `magic-link` (GastSignup) und `reset-link` — seit 0189 gebremst (je IP 30/h, je Adresse-Hash 3/h + 8/Tag, alle 60/h), Antwort immer `{ok:true}` (keine Konten-Abfrage), `redirect_to` nur auf die eigene App. Das Mitglieds-Konto (PIN, Freigabe, Einwilligung, Einladung) legt `handle_new_user` erst bei bestätigter E-Mail an (Trigger `on_auth_user_confirmed`) |
 | `postfach.ts` | Multi-Action (folders/messages/send/mark/move/delete/attachment/poll-shared-tickets) für persönlich + shared |
 | `push-reminder-cron.ts` | Aufgießer-Reminder vor Slot-Start |
 | `push-send.ts` | Cron-Endpoint: konsumiert `notification_queue` → web-push |
 | `push-subscribe.ts` | Browser-Subscribe-Endpoint |
 | `push-vapid-public.ts` | Public-Key-Endpoint |
-| `qr-signin.ts` | QR-basierter Sign-in für Gäste |
+| `qr-signin.ts` | QR-basierter Sign-in für Gäste, PIN-Check-in/-Bewerten/-Scanner, Tablet-Anmeldung. PIN-Fehlversuche: 8/15 min je IP (0173) + seit 0189 ein gemeinsamer Topf „ungekoppelt" (20/h) für Aufrufe ohne gekoppeltes Eingangs-Tablet/Scanner; `tablet-signup` nur vom gekoppelten Eingangs-Tablet (beides erst aktiv, sobald ein solches Gerät gekoppelt ist). Eine offene, nie bestätigte Gast-Anmeldung (QR-Link nicht angeklickt) übernimmt `tablet-signup` mit neuem Zufallspasswort und bestätigt sie; offene Registrierungen über /login (evtl. mit Einladung) bleiben unangetastet. Ebenso würfelt `magic-link` bei jeder offenen Anmeldung das Passwort neu (sonst bekäme, wer sie mit fremder Adresse angelegt hat, nach dem Klick ein bestätigtes Konto mit seinem Passwort) |
 | `send-evacuation.ts` | Telegram-Push bei Evakuierungs-Alarm |
 | `send-notification.ts` | Manueller Push-Trigger |
 | `send-poll-results.ts` | Poll-Ergebnis-Email an Admin |
@@ -484,11 +503,28 @@ Insgesamt 17 Functions — komprimiert wegen Hobby-Plan-12-Limit:
 
 **Aufgießer-Absences** (Migration 0028): `start_date` - `end_date` pro Member. Materialize überspringt Stamm-Slots in Absence-Zeiträumen (→ Personal-Fallback).
 
+**Stand 0184 (Audit 25.09.2026) — Stamm, Urlaub, Übernahme, Mitglied löschen:**
+- Stamm-Slots nur in der Garantie-Sauna der Stunde (`garantie_sauna_for_slot(weekday, hour)`); `apply_recurring_slot`/`approve_recurring_slot` lehnen andere Saunen (`wrong_sauna_for_slot`), Stunden ohne Garantie (`no_garantie_slot`) und einen zweiten aktiven Slot zur selben Stunde (`slot_taken`) ab. Frontend-Spiegel: `garantieTemperatureForWeekdayHour` in `lib/garantie.ts`.
+- `approve_recurring_slot` übernimmt sofort die vorhandenen Personal-Platzhalter des Slots (`_stamm_fallbacks_uebernehmen`, zeilenweise, Konflikt = Stunde überspringen; Termine, die in weniger als 60 Minuten beginnen, bleiben beim Personal — so kurzfristig kann der Aufgießer nicht mehr absagen), danach `materialize_infusion_horizon(8)`.
+- `materialize_infusion_horizon`: aus der App nur Admins (anon/authenticated ohne Admin → `not_admin`), pg_cron/service_role frei; `p_weeks` auf 1–12 gedeckelt; gesperrte Mitglieder bekommen keine Stamm-Aufgüsse.
+- Stamm-Automatik (materialize + Übernahme bei Freigabe/Urlaub-Löschen) setzt `app.stamm_automatik = 'an'` → `notify_followers_of_infusion` kündigt diese Aufgüsse nicht an (vorher 02:30-Pushes für Termine in 8 Wochen).
+- `revoke_my_recurring_slot`/`add_absence` setzen nur **eigene** Stamm-Aufgüsse des Besitzers zurück (`_aufguss_ans_personal`: Personal-Stand, 15 Min, Team-Plätze weg); Übernahmen durch Kollegen bleiben. `revoke_my_recurring_slot`/`delete_absence` NULL-sicher (`not_authenticated`). `delete_absence` gibt die Stamm-Aufgüsse im Zeitraum zurück.
+- `takeover_personal_fallback(…, p_duration_minutes, p_saunameister_id)` (alte 6-Parameter-Fassung gelöscht, nicht überladen) und `takeover_personal_fallback_kiosk_intern(…, p_duration_minutes)`; Tablet ruft `takeover_personal_fallback_kiosk_mit_dauer` (der 0177-Wrapper ohne Dauer bleibt für alte Tablet-Stände).
+- Mitglied löschen: Trigger `trg_mitglied_loeschen_aufguesse_freigeben` (BEFORE DELETE auf `members`) — künftige Garantie-Aufgüsse zur vollen Stunde werden Personal-Slots, andere künftige Aufgüsse werden entfernt, Co-Plätze frei. Laufende/vergangene bleiben (FK SET NULL).
+
 ### 9.2 Banja-Ritual (Spezial-Aufguss)
 
 Implementiert in Migrationen 0104 + 0105 + 0106, plus Frontend in `Planner.tsx` + `SaunaTileColumn.tsx` + `InfusionCard.tsx`.
 
-**Konstanten** (Planner.tsx Z.119+):
+**Stand 0183 (Audit 25.09.2026)** — die Abschnitte darunter beschreiben die Urfassung von Mai:
+- Regeln im Frontend zentral in `src/lib/banja.ts`: Dauer 90 Min bei Start 19 Uhr, sonst 120; an normalen Tagen Ende spätestens 20:30 (Start also bis 19:00), am Saunafest frei; danach 1 Ruhestunde.
+- Trigger `validate_infusion_banja_and_overlap`: Freigabe (`darf_banja`) nur geprüft, wenn ein Banja entsteht oder den Saunameister wechselt; **Admins dürfen immer** (als Handelnde und als Saunameister). Ruhestunde in beide Richtungen (nichts beginnt in der Stunde nach einem Banja; ein Banja endet nicht direkt vor einem schon eingetragenen Aufguss). Neue Meldungen ohne Präfix `BANJA_SPERRE` (das öffnet im Planer das rote Betrugsfenster).
+- `book_banja_ritual`: blockt echte Aufgüsse im Ritual **und** in der Ruhestunde, räumt Personal-Slots in beiden ab; Nicht-Admins zusätzlich Aufgusszeiten/Saunafest-Sperre (`_aufguss_zeitfenster_pruefen`).
+- Planer: Karte und Absenden prüfen dieselben Stunden (`banjaKonflikt`); „✕ Doch kein Banja" nimmt den Banja-Modus zurück; Admins bekommen bei `BANJA_SPERRE` nur eine Fehlerzeile, kein Alarmfenster. Bearbeiten-Dialog: Banja-Dauer fest (nicht wählbar), gespeichert wird die bestehende.
+- `check_secondary_sauna_allowed`: die Garantie-Sauna gilt als versorgt, wenn ein echter Aufguss die Stunde abdeckt oder sie in der Ruhestunde nach einem Banja zu ist.
+- Allgemein seit 0183: Trigger `trg_infusion_zeitfenster` — Nicht-Admins (App + Tablet) legen keine Aufgüsse in der Vergangenheit, außerhalb der Aufgusszeiten (Di–Do 14–20, sonst 11–20, volle Stunden, Feiertag wie Wochenende, Montag nur mit `monday_open`) oder am Saunafest an. `public.infusions` hat keine direkten Schreibrechte mehr für anon/authenticated — nur SECURITY-DEFINER-RPCs. `update_infusion`/`transfer_infusion` NULL-sicher (Personal-Slots gehören keinem Nicht-Admin; nie zuweisen/übergeben → `personal_fallback`), Banja nur an Freigegebene übergeben (`target_not_banja`).
+
+**Konstanten** (Urfassung, Planner.tsx Z.119+):
 ```typescript
 const BANJA_DURATION_MIN = 90;
 const BANJA_START_HOUR = 19;
@@ -496,7 +532,7 @@ const BANJA_SAUNA_TEMP_LABEL = '80°C';
 const BANJA_ATTR: InfusionAttribute = 'banja';
 ```
 
-**DB-Constraints** (Migration 0104 Trigger `validate_infusion_banja_and_overlap`):
+**DB-Constraints** (Urfassung, Migration 0104 Trigger `validate_infusion_banja_and_overlap`):
 - Wenn `'banja' = ANY(attributes)`:
   - `duration_minutes` MUSS 90 sein
   - `EXTRACT(HOUR FROM start_time AT TIME ZONE 'Europe/Berlin')` MUSS 19 sein
@@ -584,6 +620,17 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 **QR-Scanner-Flow**:
 - `/scanner` → liest `member_code` aus QR → `toggle_presence_by_entry_code`
 
+**App-Check-in** (seit 0188, Audit 25.09.2026):
+- „Ich bin da / Ich gehe jetzt" (`MyPresenceToggle` in /mitarbeiter, /cp, /unterstuetzer) und der Planner-Knopf schicken den ZIELZUSTAND: `set_my_presence(p_present)` — idempotent, setzt `last_scan_at` nur bei echtem Wechsel (auch beim Auschecken). Ein veralteter App-Stand checkt so niemanden versehentlich aus/ein. `toggle_my_presence()` gibt es nicht mehr (scheiterte seit 0050 immer mit 42702).
+- WLAN-Automatik (`useAutoCheckin` → `auto_checkin_via_wifi`): nach einem Auschecken (`is_present=false` und `last_scan_at` jünger als 3 h) wird nicht automatisch wieder eingecheckt (`reason: recently_checked_out`, `retry_after_s`). Auf iPhone/iPad läuft die Probe nicht (WebKit verrät die LAN-IP nicht); das Profil zeigt dort einen Hinweis statt des Schalters.
+
+**Nächtliche Räumung** (seit 0185, Audit 25.09.2026):
+- Einziger Job `anwesenheit-nachtreset` (pg_cron `30 22,23,0,1,2,3 * * *` UTC) → `anwesenheit_nachtreset()`; die Funktion prüft selbst die Berliner Uhrzeit (zeitumstellungsfest).
+- Geräumt wird um 00:30 Ortszeit, sobald das Öffnungsfenster des Vorabends (`kiosk_oeffnung`) vorbei ist — am Saunafest (Fenster bis 01:00) also um 01:30; um 04:30 immer (Rückfallebene).
+- Räumt über `reset_presence_nightly()` → Zeile in `presence_audit`; `stats_presence_by_day` (nur Admins) ordnet sie dem Besuchsabend zu (Berliner Datum − 5 h).
+- Die alten Jobs `hard_logout_after_midnight` (fest 22:30 UTC, ohne Protokoll — ab Winterzeit 23:30, mitten im Saunafest) und `reset-presence-nightly` gibt es nicht mehr.
+- `cron-verlauf-aufraeumen` (täglich 03:17 UTC) löscht `cron.job_run_details` älter als 7 Tage.
+
 **Attendance-Events** (Migration 0048):
 - `attendance_events` ist Audit-Trail (immer wachsend)
 - Trigger `log_attendance_on_checkin` schreibt bei jedem `is_present`-Toggle einen Event
@@ -600,8 +647,12 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 - `submit_rating()` + `get_ratable_infusions()` spiegeln identische Logik
 - Anti-Fake: `infusion_attendances`-Eintrag am Aufguss-Tag Pflicht
 - Push-Reminder via pg_cron `notify_rating_window` alle 5 Min
+- Seit 0185: je Aufguss und Person genau EINE Erinnerung (Dedup auch gegen verarbeitete Zeilen), keine an Mit-Aufgießer. Erinnerungen verfallen: beim Bewerten sofort gelesen (Trigger `trg_bewertungs_erinnerung_erledigt`), sonst setzt der 5-Min-Cron sie nach Fensterende gelesen (höchstens 500 je Lauf) — die Glocke zeigt nicht mehr dauerhaft „9+"
+- CP-Heatmap `list_ratings_anonymous`: Wochentag/Stunde/Datum in Berliner Zeit (vorher UTC, 2 h zu früh)
 
 **Anti-Cheat**: kein Re-Rating durch denselben User, Eintrag in `infusion_ratings` mit UNIQUE constraint
+
+**Seit 0179 (Audit 25.09.2026)**: `infusion_ratings` ist für anon/authenticated nicht mehr direkt beschreibbar — geschrieben wird nur über `submit_rating`, `kiosk_submit_rating`, `telegram_quick_rate` (alle SECURITY DEFINER, dieselben Regeln: kein Mitgewedelt, Anwesenheit am Tag, Fenster je Rolle, eine Bewertung pro Stunde → `stunde_schon_bewertet`). Lesen: nur eigene Zeilen, Admins alle; Auswertungen laufen über DEFINER-RPCs. Ebenso nur noch eigene Zeilen (Admins alle): `attendance_events` (Streak über `get_attendance_streak_weeks`, DEFINER) und `aufgieser_absences`. `feed_posts` nur über die Feed-RPCs, `member_achievements`/`games_score`/`feed_post_comments` nur für Eingeloggte. `list_members_directory`/`get_member_public` liefern den Geburtstag nur als Tag+Monat (Jahr 2000) und Familie nur als „hat Familie".
 
 ### 9.5 Mini-Game-Hub (`/spiele`)
 
@@ -676,7 +727,7 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 
 **Workflow**:
 1. `email.ts`/`postfach.ts` Action `poll-shared-tickets` (JWT eines `shared_email_admins`-Mitglieds oder Header `x-cron-secret`, zeitkonstant über `api/_cron.ts`; derzeit ruft ihn nur das Frontend) macht IMAP-Pull → `email_ticket_upsert_from_inbound` (service_role-only RPC)
-2. Bei INSERT oder Re-Open: notification_queue 'shared_email_inbound' an alle `shared_email_admins`
+2. Bei INSERT oder Re-Open: notification_queue 'shared_email_inbound' an alle `shared_email_admins` — `dedup_key` je Empfänger (`shared_email:<ticket>:<uid>:<member>`, seit 0185; vorher scheiterte jedes neue Ticket am Unique-Index, sobald es 2+ Admins gab). Nur für Mails der letzten 3 Tage (`p_received_at` = IMAP-Eingangszeit); schon bekannte Mails (UID ≤ `last_imap_uid`) zählen nicht erneut und öffnen beantwortete Tickets nicht wieder. `api/postfach.ts` protokolliert RPC-Fehler.
 3. Admin öffnet Ticket → `email_ticket_lock(p_force?)` mit 10-Min-Auto-Expire, Lock-Stealing möglich
 4. Antwort via SMTP → setzt automatisch Status='answered' + locked_by=NULL
 5. Trigger `_sync_shared_admins_on_role_change` synced bei role-Wechseln + Revoke
@@ -685,7 +736,8 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 - `/postfach` Tab-Switcher „📥 Persönlich | 🏢 Vereins-Postfach"
 - `SharedTicketsView` mit Status-Pills + Lock-Banner + Mail-Detail mit „Übernehmen"-Button
 - Admin-Tab `📧 Vereins-Postfach` (Mitglieder-Gruppe) zum Anlegen + Berechtigungen verwalten
-- HTML-Mail-Rendering mit dompurify + iframe-sandbox + Bild-Blocker
+- HTML-Mail-Rendering über `src/lib/mailHtml.ts` (seit 25.09.2026): dompurify, Links mit `target=_blank rel="noopener noreferrer"`, iframe `sandbox="allow-popups allow-popups-to-escape-sandbox"` (nie allow-scripts/allow-same-origin), Bildsperre per CSP-Meta als erstes Element im srcdoc (`default-src 'none'`, nur data:-Bilder) + Entfernen von img/background/srcset/url() — per CSS nicht umgehbar
+- Lock-Anzeige: eigene Sperre (`locked_by = eigene member.id`) gilt nicht als fremd; das Detail zeigt den Live-Stand aus der Ticket-Liste
 - IMAP-Connect ~500ms, mit `refetchInterval` gecached
 
 **pg_cron** (NICHT aktiv — Vorlage, falls das Polling wieder per Cron laufen soll; ohne den Header antwortet der Endpunkt 401):
@@ -749,10 +801,20 @@ SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
 - `notification_queue(member_id, kind, payload, dedup_key, scheduled_at, sent_at, read_at, skipped_at)`
 - Trigger-basiert: bei jeder relevanten DB-Aktion (neuer Aufguss, Follow, DM, Comment, Rating-Window, …) wird ein notification_queue-Eintrag erzeugt
 - **pg_cron** (alle 60s) ruft `https://saunascaner.vercel.app/api/push-send?action=process-queue` mit Header `x-cron-secret` aus dem Vault-Eintrag `cron_secret`; ohne passendes Geheimnis antwortet der Endpunkt 401 (fail closed, seit 0168)
-- `api/push-send.ts` konsumiert Queue, verschickt via `web-push 3.6`, markiert `sent_at`
+- `api/push-send.ts` konsumiert Queue, verschickt via `web-push 3.6`
 - Dedup-Key verhindert Doppel-Push (z.B. `rating:<infusion>:<member>`, `dm:<message_id>`)
+- **Seit Audit 25.09.2026 (Gruppe F2, 0187):**
+  - Jede Zeile wird **einzeln beansprucht** (`processed_at` wird VOR dem Senden gesetzt, nur wenn noch leer) — ein abgebrochener Lauf verschickt nichts doppelt. Zeitbudget 18 s je Lauf, Rest im nächsten. Ein Fehler gibt die Zeile einmal zum Wiederholen frei (`processed_at` zurück auf NULL + `error`), beim zweiten bleibt sie erledigt.
+  - Zugestellt werden alle Arten mit Empfänger (`queueInhalt`): `dm_received` (→ `/dm/<id>`, Tag je Unterhaltung), `new_follower`, `post_commented`, `org_news_published` (→ `/gast`), `shift_*` (→ `/mitarbeiter` bzw. `/cp`), `shared_email_inbound`, `fan_*`, `game_*`, `kiosk_joker`, `saunafest_*`, `telegram_anfrage`. `rating_reminder` bewusst nicht (schickt `api/push-reminder-cron.ts`). Unbekannte Arten mit Titel werden zugestellt, ohne Titel mit Hinweis in `error` erledigt (+ Log) — vorher wurden alle nicht behandelten Arten still als erledigt markiert.
+  - `web-push` mit `timeout` 8 s und kurzer `TTL`; tote Abos (404/410) werden auch hier gelöscht.
+  - Freier Rundruf / fremde Empfänger nur für **Admins**; Aufgießer schicken die Planer-Rundrufe als **Vorlage** (`vorlage: team_aufguss | stammslot_antrag | urlaubsslots`, Text + Empfänger vom Server, je Bezug einmal über `push_vorlagen_versand`). Klick-Ziele nur als Pfad dieser App (`appPfad`; `public/push-handler.js` prüft beim Klick zusätzlich die Herkunft).
+  - `push_subscriptions`: keine Tabellenrechte für anon/authenticated, CHECK `push_subscriptions_format` (https, Base64-Schlüssel); `api/push-subscribe.ts` nimmt nur FCM/Mozilla/Apple/WNS-Endpunkte an, höchstens 10 Abos je Mitglied.
 
-**Telegram-Push** für User mit `telegram_chat_id`: parallel zu Web-Push via `telegram-webhook.ts`-Helper.
+**Telegram-Verteiler** (`system_config.telegram_chats`, gelesen nur über `vereinsChats()` in `api/_telegram.ts`, das Chats gesperrter Mitglieder überspringt): `/start` trägt seit 0187 nicht mehr sofort ein, sondern legt eine Anfrage in `telegram_chat_anfragen` an (RPC `telegram_chat_anmelden`, nur service_role; Admins bekommen `telegram_anfrage` in Glocke/Push). Freigabe/Ablehnung: Admin → Handbuch → Telegram (`telegram_chats_admin_liste`, `telegram_chat_entscheiden`). Ausnahme: ein Admin im eigenen privaten Chat. Entknüpfen (App/`/unlink`, auch Neu-Verknüpfung mit anderem Konto) oder Löschen eines Mitglieds nimmt dessen privaten Chat aus dem Verteiler (Trigger `trg_telegram_chat_entknuepft` / `trg_telegram_chat_mitglied_geloescht` auf `members`). Bot-Texte aus der DB gehen durch `escHtml`; `tgSend` meldet Erfolg zurück (Slots/Bewertungsanfragen gelten nur bei Zustellung als erledigt); `/woche` wird unter 4.096 Zeichen aufgeteilt; `/pin` nur im privaten Chat.
+
+**E-Mail-Protokoll** (0187): `log_email_send` und `mark_invitation_sent(…, p_sender_member_id)` sind nur für service_role ausführbar und prüfen kein `auth.uid()` mehr (vorher warfen beide für den Service-Client still, `email_log` blieb leer). Aufräum-Job `versandprotokolle-aufraeumen` (täglich 03:40 UTC): `email_log` nach 12 Monaten, Vorlagen-Vermerke nach 90 Tagen, unentschiedene Telegram-Anfragen nach 60 Tagen.
+
+**pg_cron `saunafest-video-poll`** schickt seit 0187 `x-cron-secret` aus dem Vault; `/api/saunafest-video?action=poll` lehnt ohne ab.
 
 **Inbox-Mapping**:
 - `🧖` → Aufguss
@@ -881,6 +943,8 @@ In `RootEntry` + `RequireAuth` + `Login.defaultNext`:
 - **`framer-motion`** nur für punktuelle Transitions (Layout, FadeIn) — NIEMALS für Endlos-Loops
 - **`@property --imminent-angle`** für CSS-Custom-Property-Animationen (z.B. Lauflicht-Border)
 - **`backdrop-blur`** sparsam: erzeugt neuen Containing Block für `position: fixed`-Children → Portal-Pattern nötig (siehe `feedback_saunascaner_react_portal.md`)
+- **Fehlerberichte** (seit 0188, Audit 25.09.2026): `src/lib/fehlerbericht.ts` meldet window-`error`, `unhandledrejection` und jede von einer `ErrorBoundary` gefangene Ausnahme (Quelle `grenze:<label>`) per RPC `client_fehler_melden` in `client_fehler` — auch anon (Tafel, Kiosk). Im Gerät gedrosselt (5 je 10 min, gleicher Fehler alle 10 min), auf dem Server gedeckelt (gleicher Fehler binnen 1 h wird gezählt, max. 60 neue je Stunde, max. 5000 Zeilen, 30 Tage via pg_cron `client-fehler-aufraeumen`). Pfad ohne Query/Hash, `/m/<code>`, UUIDs und E-Mails maskiert. Admins: Auswertung → Aktivitäts-Log → „Technische Fehler (Geräte)" (`client_fehler_liste`). Kiosk-Routen (/scanner, /oil-room, /panel, /willkommen, /checkin) haben eine eigene Grenze mit 60-s-Selbstreset.
+- **`useCurrentMember`**: ohne Sitzung `null` (fragt `current_member()` gar nicht erst; die Funktion liefert für anon ein NULL-Objekt). Direkt nach dem Login steht `null` noch im Cache → `wartetAufMitglied(q)` in Login/RootEntry/RequireAuth/RequireAdmin. Bottom-Nav-Hooks laufen nur mit Mitglied (`enabled`).
 
 ### 11.2 Backend
 
@@ -896,20 +960,76 @@ In `RootEntry` + `RequireAuth` + `Login.defaultNext`:
 - `skipWaiting + clientsClaim + cleanupOutdatedCaches`
 - `AppReloadWatcher`-Component polled `app_reload_signal` aus `system_config` → forciert Hard-Reload mit Cache-Buster
 - Admin → Setup → Cache-Reload-Button pusht Signal an alle Geräte
+- **Service Worker nie abmelden** (seit 25.09.2026): `unregister()` löscht in Chrome/Firefox das Push-Abo des Geräts. `AppReloadWatcher` ruft nur `registration.update()` auf, nimmt eine veraltete `index.html` (nennt nicht das Server-Bundle) aus dem Precache und lädt neu; der übrige Precache bleibt (Offline-Start). Laufzeit-Caches leert nur das Admin-Signal.
+- **Runtime-Caching nur für öffentliche Daten**: Storage-Bilder `/storage/v1/object/public/assets/` (CacheFirst), DiceBear, Open-Meteo. Supabase-REST/Auth/Functions/signierte URLs haben bewusst KEINE Regel (Cache-Schlüssel wäre nur die URL → fremde/alte Antworten, persönliche Daten nach Logout, ~3,5 GB/Tag Schreiblast am TV-Stick). Der alte Cache `supabase-api` wird in `public/push-handler.js` beim Aktivieren gelöscht.
+- **Chunk-Load-Recovery**: `src/main.tsx` lädt bei `vite:preloadError` (fehlender Lazy-Chunk nach Deploy) einmal neu, höchstens 1×/min, nicht offline. Die Standard-Fehlergrenze zeigt bei Chunk-Fehlern „Neu laden" statt „Erneut versuchen" (React.lazy merkt sich den Fehler). Evakuierungs-Overlay und `AppReloadWatcher` hängen in `App.tsx` außerhalb der App-Root-Grenze.
+- **vercel.json**: SPA-Rewrite `/((?!assets/|api/|fonts/).*)` → fehlende `/assets/*`, `/api/*`, `/fonts/*` liefern 404 statt `index.html` mit `immutable`.
+- **manualChunks**: nie ein Paket mit dynamischem `import()` (jspdf, qr-scanner) in einen manuellen Chunk — sonst landet Vites Preload-Helfer darin und das Haupt-Bundle lädt ihn beim Start (bis 25.09.2026: 0,56 MB jsPDF + html2canvas bei jedem Aufruf).
+- **Schrift Inter selbst gehostet** (`public/fonts/`, `@font-face` in `src/index.css`, variable Schrift wght 100–900, Familienname `Inter`), kein Aufruf von rsms.me mehr. Neue Schriftdatei → neuer Dateiname (`/fonts/` ist 1 Jahr `immutable`).
 
 ---
 
 ## 12. Storage & Assets
 
-| Storage-Bucket | Pfad | RLS |
+Es gibt genau **einen** Bucket: `assets` (öffentlich). Alle Uploads legen einen
+neuen Zufallspfad `<ordner>/<uuid>.<ext>` an (`uploadAsset`/`uploadVideo` in
+`src/lib/api.ts`, `upsert: false`); gelesen wird über `getPublicUrl` bzw.
+`/storage/v1/object/public/assets/…`, das am RLS vorbeigeht.
+
+| Ordner | Hochladen | Löschen |
 |---|---|---|
-| `avatars` | `<member_id>/<filename>` | Owner-Write, Public-Read |
-| `member_photos` | `<member_id>/<filename>` | Owner-Write, Public-Read |
-| `aufgieser_photos` | `<member_id>/<filename>` | Owner-Write, Public-Read, max 8 pro Aufgießer (Trigger `enforce_photo_limit`) |
-| `feed_posts` | `<post_id>.jpg` | Owner-Write, Public-Read |
-| `tafel_backgrounds` | `<filename>` | Admin-only-Write, Public-Read |
+| `avatars/`, `member-photos/`, `feed-posts/` | freigeschaltete Konten (auch Gäste), nur als Besitzer | eigene Dateien, Admin alle |
+| `aufgieser-photos/` | Aufgießer, nur als Besitzer (max. 8 Fotos je Aufgießer über Tabellen-Trigger `trg_enforce_photo_limit`) | eigene Dateien, Admin alle |
+| `logo/`, `bg/`, `badge/`, `tile-bgs/`, `slot-gallery/`, `oelraum/`, `ads/`, `info-karten/` | nur Admin | nur Admin |
+| `saunafest-videos/` | nur Server (`api/saunafest-video.ts`, service_role) | nur Server |
+
+Stand Migration **0180** (Audit 25.09.2026): Überschreiben (UPDATE) nur Admin;
+Auflisten nur eingeloggt und nur eigene Dateien (Admin alle), anon gar nicht;
+Bucket-Grenzen 25 MB je Datei und nur `image/jpeg|png|webp|gif`, `video/mp4|webm`
+(kein SVG) — gilt auch für service_role.
 
 Avatar-Resolution: `resolveAvatarUrl(path)` mit Fallback auf `dicebearUrl(name)` (Dicebear-Avatar als Default).
+
+### 12.1 Datenschutz: Löschen, Fristen, Einwilligung (Migration 0186)
+
+- **Konto löschen** (`delete_member` Admin, `delete_my_account`/`delete_my_gast_account`
+  Gast/Fan) liefert `text[]` = Dateien des Kontos. Der BEFORE-DELETE-Trigger
+  `trg_mitglied_loeschen_vergessen` (`_mitglied_vergessen`) läuft bei **jedem**
+  `DELETE FROM members`: Benachrichtigungen, die die Person nennen, weg; Namen in
+  `activity_log` → „gelöschtes Konto/Mitglied" (IDs bleiben); Namen in
+  `evacuation_events.present_names` → „gelöschte Person"; Feed-Wochenrückblick
+  (`meta.aufgiesser`/`meta.spiele`, Anzeigename) → „gelöschtes Mitglied", fremde
+  `game_win`-Beiträge → „ein gelöschtes Konto" (Namen nur, wenn kein anderes Mitglied
+  gleich heißt); `presence_audit`-ID weg;
+  E-Mail in `email_log`/`invitations` weg. Der Löscheintrag `member.delete` hat keinen
+  Namen mehr. FKs `feed_posts.deleted_by`, `shared_email_admins.granted_by`,
+  `personal_shifts.created_by` und `system_config.updated_by` (→ `auth.users`,
+  gesetzt von `kiosk_sperre_aktiv_setzen`) sind `ON DELETE SET NULL`. Neue Spalten
+  mit Verweis auf `members`/`auth.users` immer mit `ON DELETE SET NULL`/`CASCADE`
+  anlegen, sonst scheitert die Kontolöschung.
+- **Dateien**: SQL darf `storage.objects` nicht löschen (`storage.protect_delete`).
+  `storage_loeschliste` merkt Pfade vor (nur `avatars/`, `member-photos/`,
+  `aufgieser-photos/`, `feed-posts/`, nur wenn sonst ungenutzt —
+  `_storage_pfad_in_gebrauch`). Die App entfernt sie per Storage-API
+  (`useDeleteMember`, `useDeleteMyAccount`); Reste räumt ein Admin im Reiter „Gäste"
+  ab (`storage_loeschliste_offen()`, trägt Erledigtes vorher aus). **Wer eine neue
+  Spalte einführt, die Pfade aus diesen vier Ordnern speichert, muss sie in
+  `_storage_pfad_in_gebrauch` eintragen** — sonst hält der Nachtlauf die Dateien für
+  unbenutzt und der Admin-Knopf löscht sie.
+- **Fristen** (`datenschutz_aufraeumen()`, pg_cron `datenschutz-aufraeumen` 03:45 UTC):
+  `notification_queue` 90 Tage, `activity_log` 24 Monate, `attendance_events`
+  24 Monate (außer `role='staff'`), Namen beendeter Evakuierungsalarme und
+  `presence_audit.member_ids` nach 90 Tagen geleert (Anzahl bleibt), unbenutzte
+  persönliche Dateien > 7 Tage → Löschliste. `email_log` 12 Monate (0187),
+  `client_fehler` 30 Tage (0188). Konten werden **nie** automatisch gelöscht; der
+  Reiter „Gäste" schlägt Gäste ohne Lebenszeichen seit 12 Monaten vor.
+- **Einwilligungsnachweis**: `members.datenschutz_fassung` (Trigger
+  `trg_members_datenschutz_fassung` übernimmt `raw_user_meta_data->>'datenschutz_fassung'`
+  beim Anlegen; aus der App nicht änderbar). Fassung = `DATENSCHUTZ_FASSUNG` in
+  `src/lib/datenschutz.ts`, Text in `src/components/DatenschutzInhalt.tsx` (auch als
+  Overlay am Eingangs-Tablet). Bei Textänderung die Fassung hochsetzen.
+- **Bewertungskommentare** sind anonym: `list_aufgieser_rating_comments` liefert
+  `author_name`/`author_avatar` immer `NULL`, Datum tagesgenau, max. 50.
 
 ---
 
@@ -951,6 +1071,14 @@ Sensitive-Werte unter Vercel-Settings → Environment Variables:
 ### 13.4 Cloud-only
 
 Keine lokale Infrastruktur — kein lokaler Postgres, Docker, dev-Server. Alles in Cloud. Lokaler Dev-Server (Vite) ist nur für UI-Iteration mit Live-Supabase. Siehe `feedback_no_local_services.md`.
+
+### 13.5 Lieferkette: CI + Dependabot (seit 25.09.2026)
+
+- **`.github/workflows/ci.yml`** läuft bei jedem Push auf `main` und jedem PR: `npm ci` → `npm run lint` → `npm audit --omit=dev --audit-level=high`. Rot heißt: eine Laufzeit-Abhängigkeit hat eine Lücke „high“/„critical“ (devDependencies zählen nicht). Bewusst **nicht** im Vercel-Build — ein neues Advisory soll keinen Deploy blockieren.
+- **`npm ci` braucht eine zur `package.json` passende `package-lock.json`.** Bis 25.09.2026 fehlten im Lock u. a. `@anthropic-ai/sdk`, `chess.js` und `@vercel/analytics` (Vercel nutzt `npm install` und merkte es nicht). Abhängigkeiten deshalb nur per `npm install <paket>` ändern und den Lock mit committen.
+- **`.github/dependabot.yml`**: npm + GitHub-Actions, montags wöchentlich, minor/patch und Sicherheits-Updates je als ein Sammel-PR; Major-Sprünge kommen einzeln und brauchen Changelog-Blick + grünen Vercel-Preview-Build.
+- **Mailversand:** alle `nodemailer`-Transporter mit `disableFileAccess`/`disableUrlAccess` (sonst liest nodemailer bei `html: { path }` bzw. `{ href }` Serverdateien oder fremde URLs ein); `/api/postfach?action=send` nimmt für Betreff, Text, HTML, Anhänge nur Strings an. Stand der Pakete: nodemailer 10 (Node ≥ 20, Vercel läuft auf 24.x), mailparser 3.9.28, imapflow 1.7, jsPDF 4.
+- **Offen (nur devDependencies, nicht im Gate):** vite 5 → 8 samt vite-plugin-pwa 1.x (Major, Rolldown-Umbau, `manualChunks` ändert sich) und `@vercel/node` (auch die neueste Fassung bringt verwundbare undici/path-to-regexp mit; nur für Typen genutzt). react-router bleibt bei 6.30.x (moderat; Backslash-Redirect ist in `Login.tsx` abgefangen).
 
 ---
 
@@ -1008,7 +1136,7 @@ Diese Lessons sind als separate Memory-Files dokumentiert:
 
 **Offene Optimierungen** (nicht kritisch):
 - Optional: `citext`/`pg_net` ins `extensions`-Schema verlagern
-- Optional: `storage.assets` Listing-Policy verfeinern
+- ~~Optional: `storage.assets` Listing-Policy verfeinern~~ — erledigt mit 0180 (anon listet nicht mehr)
 - Optional: bei wachsender `infusions`-Tabelle Composite-Index `(sauna_id, start_time, end_time)` für Range-Overlap-Optimization
 
 ---

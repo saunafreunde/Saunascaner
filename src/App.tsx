@@ -2,7 +2,7 @@ import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, useKioskGeraetStatus, type KioskDisplay } from '@/lib/api';
+import { useCurrentMember, wartetAufMitglied, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, useKioskGeraetStatus, type KioskDisplay } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
@@ -148,28 +148,45 @@ export default function App() {
   useApplyStoredTheme();
   useAutoCheckin();   // Migration 0108+0109: opt-in Auto-Check-in via WLAN-Subnet
   return (
-    // FIX 0107 (Audit Phase 4 CRITICAL): outer ErrorBoundary verhindert
-    // weiße Seite wenn irgendein Route-Subtree crasht. Dashboard hat extra
-    // eine spezielle Tafel-Boundary (siehe Route /dashboard).
+    <>
+    {/* Evakuierungs-Alarm und Neuladen-Signal liegen AUSSERHALB der
+        App-Root-Grenze (Audit 25.09.2026): Stürzt eine Seite ab (z. B. ein
+        fehlender Programmteil nach einem Deploy), hängte die Grenze bisher
+        beide mit aus — kein Alarm-Overlay, kein app_force_reload_at mehr.
+        Jeder bekommt eine eigene kleine Grenze, damit sein eigener Absturz
+        nicht die ganze App weiß macht; sie versucht es nach kurzer Zeit neu. */}
+    <ErrorBoundary label="Evakuierung" autoResetMs={15_000} fallback={() => null}>
+      <GlobalEvacuationOverlay />
+    </ErrorBoundary>
+    <ErrorBoundary label="Neuladen-Signal" autoResetMs={60_000} fallback={() => null}>
+      <AppReloadWatcher />
+    </ErrorBoundary>
+    {/* FIX 0107 (Audit Phase 4 CRITICAL): outer ErrorBoundary verhindert
+        weiße Seite wenn irgendein Route-Subtree crasht. Dashboard hat extra
+        eine spezielle Tafel-Boundary (siehe Route /dashboard). */}
     <ErrorBoundary label="App-Root" autoResetMs={0}>
     <Suspense fallback={<Splash />}>
-      <GlobalEvacuationOverlay />
-      <AppReloadWatcher />
       <div className="pb-[calc(env(safe-area-inset-bottom)+72px)] lg:pb-0 min-h-full">
         <Routes>
           <Route path="/" element={<RootEntry />} />
         {/* FIX 0107 (Audit Phase 4 CRITICAL): Dashboard hat eigene ErrorBoundary,
             damit ein Render-Crash in Stage/SaunaTileColumn nicht den 85"-TV weiß macht.
-            Auto-Reset nach 60s. */}
+            Nach 60 s geht es weiter — das steuert TafelErrorFallback (zurücksetzen
+            oder, bei fehlendem Programmteil / Dauerabsturz, neu laden). Deshalb
+            hier autoResetMs={0}: ein eigener 60-s-Reset käme dem Neuladen zuvor. */}
         <Route path="/dashboard" element={
-          <ErrorBoundary label="Dashboard" autoResetMs={60_000} fallback={(err, reset) => <TafelErrorFallback error={err} reset={reset} />}>
+          <ErrorBoundary label="Dashboard" autoResetMs={0} fallback={(err, reset) => <TafelErrorFallback error={err} reset={reset} />}>
             <Dashboard />
           </ErrorBoundary>
         } />
-        <Route path="/scanner"   element={<Scanner />} />
+        {/* Kiosk-Geräte (Scanner, Öl-Raum, Panel, Eingangs-Tablet) stehen ohne
+            Aufsicht: eigene Grenze, die sich nach 60 s selbst zurücksetzt, statt
+            bis zum nächsten Antippen die Fehlerkarte zu zeigen (Audit 25.09.2026).
+            Der Absturz wird gemeldet (lib/fehlerbericht). */}
+        <Route path="/scanner"   element={<ErrorBoundary label="Scanner" autoResetMs={60_000}><Scanner /></ErrorBoundary>} />
         <Route path="/planner"   element={<RequireAuth><Planner /></RequireAuth>} />
         <Route path="/admin"     element={<RequireAdmin><Admin /></RequireAdmin>} />
-        <Route path="/oil-room"  element={<OilRoom />} />
+        <Route path="/oil-room"  element={<ErrorBoundary label="Öl-Raum" autoResetMs={60_000}><OilRoom /></ErrorBoundary>} />
         <Route path="/profile/:memberId" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/members"           element={<RequireAuth><Members /></RequireAuth>} />
         <Route path="/postfach"          element={<RequireAuth><Postfach /></RequireAuth>} />
@@ -192,7 +209,7 @@ export default function App() {
         <Route path="/dm"                    element={<RequireAuth><Dm /></RequireAuth>} />
         <Route path="/dm/:conversationId"    element={<RequireAuth><DmConversation /></RequireAuth>} />
         {/* /panel — anonymer Desktop-Hub für Anwesenheit, nur auf einem gekoppelten Gerät (0177) */}
-        <Route path="/panel"                 element={<AnwesenheitsPanel />} />
+        <Route path="/panel"                 element={<ErrorBoundary label="Panel" autoResetMs={60_000}><AnwesenheitsPanel /></ErrorBoundary>} />
         {/* /koppeln#<token> — Kiosk-Gerät koppeln (Link aus Admin → Displays → Kiosk-Geräte) */}
         <Route path="/koppeln"               element={<Koppeln />} />
         <Route path="/login"          element={<Login />} />
@@ -201,9 +218,9 @@ export default function App() {
         <Route path="/gast-signup"    element={<GastSignup />} />
         {/* Öffentliche Datenschutzerklärung — muss VOR dem Signup lesbar sein (DSGVO) */}
         <Route path="/datenschutz"    element={<Datenschutz />} />
-        <Route path="/willkommen"     element={<Willkommen />} />
-        <Route path="/checkin"        element={<CheckinPin />} />
-        <Route path="/checkin/signup" element={<CheckinSignup />} />
+        <Route path="/willkommen"     element={<ErrorBoundary label="Eingang" autoResetMs={60_000}><Willkommen /></ErrorBoundary>} />
+        <Route path="/checkin"        element={<ErrorBoundary label="Eingang" autoResetMs={60_000}><CheckinPin /></ErrorBoundary>} />
+        <Route path="/checkin/signup" element={<ErrorBoundary label="Eingang" autoResetMs={60_000}><CheckinSignup /></ErrorBoundary>} />
         {/* /checkin/rate ist mit 0137 entfallen — das Tablet bewertet jetzt
             direkt unter /checkin, ohne Anmeldung. Alte Lesezeichen und der
             Tablet-Browser sollen trotzdem irgendwo landen. */}
@@ -220,6 +237,7 @@ export default function App() {
       <KioskSperreGate />
     </Suspense>
     </ErrorBoundary>
+    </>
   );
 }
 
@@ -248,7 +266,8 @@ function RootEntry() {
 
   // Wenn User eingeloggt ist: warten bis member.data geladen — sonst Race auf Tafel
   if (user && !ready) return <Splash />;
-  if (user && member.isLoading) return <Splash />;
+  // Auch direkt nach dem Login warten, bis die Mitgliederzeile da ist (Audit 25.09.2026).
+  if (user && wartetAufMitglied(member)) return <Splash />;
 
   // Eingeloggte Gäste → eigener Bereich /gast.
   // Die Rolle 'fan' wird seit 0132 nicht mehr vergeben; sollte doch noch ein
@@ -289,9 +308,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const member = useCurrentMember();
   const loc = useLocation();
   if (!isSupabaseConfigured) return <NotConfigured />;
-  if (!ready || (user && member.isLoading)) return <Splash />;
+  if (!ready || (user && wartetAufMitglied(member))) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
-  if (member.data && !member.data.approved) return <PendingApproval />;
+  // Seit 25.09.2026 ist „kein Mitglied" null statt eines NULL-Objekts: eine
+  // Anmeldung ohne Mitgliederzeile landet wie bisher bei „wartet auf Freigabe".
+  // Bei einem Netzfehler ohne Daten die Seite dagegen normal zeigen.
+  if ((member.data && !member.data.approved) || (member.isSuccess && !member.data)) return <PendingApproval />;
   // Gäste haben keinen Zugriff auf interne Mitglieder-Routen — Redirect zum Gäste-Bereich.
   // 'fan' wird seit 0132 nicht mehr vergeben, wird hier aber wie 'gast' behandelt,
   // damit ein etwaiger Altbestand nicht in einer Sackgasse landet.
@@ -375,7 +397,7 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
   const member = useCurrentMember();
   const loc = useLocation();
   if (!isSupabaseConfigured) return <NotConfigured />;
-  if (!ready || member.isLoading) return <Splash />;
+  if (!ready || (user && wartetAufMitglied(member))) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
   if (!member.data?.approved) return <PendingApproval />;
   if (member.data?.role !== 'admin') return <NoAccess />;

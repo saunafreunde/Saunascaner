@@ -4,6 +4,7 @@ import {
   useSendHandbookEmail, useBroadcastHandbookTelegram,
   useAllMembers, useBrandSettings,
 } from '@/lib/api';
+import { TelegramChatsKarte } from './TelegramChatsKarte';
 
 export function HandbookTab() {
   const sendEmail = useSendHandbookEmail();
@@ -45,7 +46,7 @@ export function HandbookTab() {
   }
 
   async function handleBroadcastTelegram() {
-    if (!confirm('Handbuch-Link an alle registrierten Telegram-Chats senden?')) return;
+    if (!confirm('Handbuch-Link an alle freigegebenen Telegram-Chats senden?')) return;
     try {
       const result = await broadcastTg.mutateAsync();
       if (result.note) {
@@ -172,7 +173,7 @@ export function HandbookTab() {
         <div>
           <h2 className="text-base font-bold text-forest-100">✈️ Per Telegram</h2>
           <p className="mt-1 text-xs text-forest-300/70">
-            Schickt einen kurzen Text mit Handbuch-Link an alle registrierten Telegram-Chats (Mitglieder die <code className="text-amber-300">/start</code> beim Bot gesendet haben).
+            Schickt einen kurzen Text mit Handbuch-Link an alle freigegebenen Telegram-Chats (Liste unten).
           </p>
         </div>
         <button
@@ -182,6 +183,7 @@ export function HandbookTab() {
         >
           {broadcastTg.isPending ? 'Sende…' : '✈️ Telegram-Broadcast starten'}
         </button>
+        <TelegramChatsKarte />
       </section>
 
       {/* WhatsApp */}

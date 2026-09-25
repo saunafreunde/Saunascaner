@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBrandSettings, brandAssetUrl } from '@/lib/api';
+import { DATENSCHUTZ_FASSUNG } from '@/lib/datenschutz';
 
 // QR-Code-Landing-Page für Sauna-Besucher (Social-Layer).
 // URL-Schema: /gast-signup?ref=qr_kelo  (oder ?ref=qr_bio, etc.)
 // Flow:
 //   1. Gast gibt Name + Email ein, akzeptiert DSGVO
 //   2. POST /api/email?action=magic-link mit signup_kind='gast'
-//   3. handle_new_user-Trigger legt members-Eintrag mit role='gast' an
-//   4. Magic-Link aktiviert Konto, leitet auf /feed
+//      (gebremst je IP/Adresse; Antwort immer gleich, verrät nicht, ob es
+//      die Adresse schon gibt — Audit 25.09.2026)
+//   3. Klick auf den Link bestätigt die Adresse; erst DANN legt
+//      handle_new_user den members-Eintrag mit role='gast' an (0189)
+//   4. Weiter auf /gast
 export default function GastSignup() {
   const brand = useBrandSettings();
   const loc = useLocation();
@@ -38,7 +42,7 @@ export default function GastSignup() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!consent) { setError('Bitte akzeptiere die Datenschutz-Erklärung.'); return; }
+    if (!consent) { setError('Bitte bestätige, dass du die Datenschutzhinweise gelesen hast.'); return; }
     if (!email.includes('@')) { setError('Bitte gültige E-Mail-Adresse eingeben.'); return; }
     if (name.trim().length < 2) { setError('Bitte deinen Namen eingeben.'); return; }
     setBusy(true);
@@ -53,6 +57,9 @@ export default function GastSignup() {
           gast_referral: sourceLabel,
           gast_origin: ref,
           redirect_to: `${window.location.origin}/gast`,
+          // Welche Fassung der Datenschutzhinweise bestätigt wurde
+          // (members.datenschutz_fassung, Migration 0186).
+          datenschutz_fassung: DATENSCHUTZ_FASSUNG,
         }),
       });
       const data = await r.json();
@@ -131,11 +138,11 @@ export default function GastSignup() {
                 className="mt-0.5 h-4 w-4 rounded border-forest-600 bg-forest-900 text-amber-500 focus:ring-amber-400/60"
               />
               <span>
-                Ich willige in die Verarbeitung meiner Daten gemäß der{' '}
+                Ich habe die{' '}
                 <Link to="/datenschutz" className="text-amber-400 hover:text-amber-300 underline">
-                  Datenschutz-Erklärung
+                  Datenschutzhinweise
                 </Link>{' '}
-                des {orgName} ein. Ich kann meinen Account jederzeit löschen.
+                des {orgName} gelesen. Ich kann meinen Account jederzeit löschen.
               </span>
             </label>
             {error && (

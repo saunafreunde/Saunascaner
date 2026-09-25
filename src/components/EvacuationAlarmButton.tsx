@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   useCurrentMember, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
-  usePresentMembers, sendBroadcastPush,
+  usePresentMembers,
 } from '@/lib/api';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList } from '@/lib/telegram';
@@ -31,14 +31,8 @@ export function EvacuationAlarmButton() {
       const presentNames = (present.data ?? []).map((p) => p.name);
       const ev = await trig.mutateAsync({ triggered_by: me.data.id, present_names: presentNames });
       broadcastEvac({ type: 'start', triggeredBy: me.data.name, triggeredAt: Date.parse(ev.triggered_at) });
+      // Telegram und Web-Push an alle schickt der Server genau einmal.
       sendEvacuationList({ triggeredBy: me.data.name, triggeredAt: new Date(ev.triggered_at), presentNames }).catch(() => {});
-      sendBroadcastPush({
-        title: '🚨 EVAKUIERUNG',
-        body: `Bitte sofort das Gebäude verlassen — ausgelöst von ${me.data.name}`,
-        url: '/dashboard',
-        tag: 'evacuation',
-        requireInteraction: true,
-      }).catch(() => {});
       setToast(`Alarm ausgelöst (${presentNames.length} Personen).`);
     } catch (e) {
       setToast(`Fehler: ${(e as Error).message}`);

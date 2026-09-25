@@ -25,6 +25,7 @@ import nodemailer from 'nodemailer';
 import { authenticate } from './_auth.js';
 import { cronHeaderOk } from './_cron.js';
 import { makeServiceClient } from './_email_helpers.js';
+import { queryParam } from './_query.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ async function getCredsForSharedAccount(
 
 // Account-Id aus Request lesen (query oder body)
 function extractAccountId(req: VercelRequest): string | null {
-  const q = (req.query.account ?? req.query.account_id) as string | undefined;
+  const q = queryParam(req, 'account') ?? queryParam(req, 'account_id');
   if (q && typeof q === 'string') return q;
   const b = (req.body as { account_id?: unknown } | undefined)?.account_id;
   if (b && typeof b === 'string') return b;
@@ -109,7 +110,7 @@ async function withImap<T>(
 
 // ─── Entry-Point ─────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const action = String(req.query.action ?? '');
+  const action = String(queryParam(req, 'action') ?? '');
 
   // poll-shared-tickets: optionaler Cron-Bypass via CRON_SECRET, sonst MUSS der
   // Aufrufer ein eingeloggter Shared-Inbox-Admin sein. Aktuell ruft KEIN pg_cron
@@ -187,8 +188,8 @@ async function handleFolders(_req: VercelRequest, res: VercelResponse, cred: Cre
 
 // ─── messages (Header-Liste eines Ordners) ────────────────────────────────
 async function handleMessages(req: VercelRequest, res: VercelResponse, cred: Cred) {
-  const folder = String(req.query.folder ?? 'INBOX');
-  const limit  = Math.min(Number(req.query.limit ?? 50), 200);
+  const folder = String(queryParam(req, 'folder') ?? 'INBOX');
+  const limit  = Math.min(Number(queryParam(req, 'limit') ?? 50), 200);
 
   const messages = await withImap(cred, async (client) => {
     const lock = await client.getMailboxLock(folder);
@@ -229,8 +230,8 @@ async function handleMessages(req: VercelRequest, res: VercelResponse, cred: Cre
 
 // ─── message (Body + Anhänge) ────────────────────────────────────────────
 async function handleMessage(req: VercelRequest, res: VercelResponse, cred: Cred) {
-  const folder = String(req.query.folder ?? 'INBOX');
-  const uid = Number(req.query.uid);
+  const folder = String(queryParam(req, 'folder') ?? 'INBOX');
+  const uid = Number(queryParam(req, 'uid'));
   if (!uid) return res.status(400).json({ error: 'uid required' });
 
   const result = await withImap(cred, async (client) => {
@@ -284,9 +285,9 @@ function parseAddrField(field: unknown): { name?: string; address?: string }[] {
 
 // ─── attachment ──────────────────────────────────────────────────────────
 async function handleAttachment(req: VercelRequest, res: VercelResponse, cred: Cred) {
-  const folder = String(req.query.folder ?? 'INBOX');
-  const uid = Number(req.query.uid);
-  const idx = Number(req.query.part ?? 0);
+  const folder = String(queryParam(req, 'folder') ?? 'INBOX');
+  const uid = Number(queryParam(req, 'uid'));
+  const idx = Number(queryParam(req, 'part') ?? 0);
   if (!uid) return res.status(400).json({ error: 'uid required' });
 
   const result = await withImap(cred, async (client) => {
@@ -355,6 +356,26 @@ async function handleSend(
     });
   }
 
+  // Nur reine Texte annehmen (Audit 25.09.2026): nodemailer liest bei einem
+  // Objekt wie { path: '/datei' } oder { href: 'https://…' } statt Text selbst
+  // eine Serverdatei bzw. eine fremde Adresse ein und verschickt das Ergebnis.
+  // Der Transport unten sperrt beides zusätzlich (disableFileAccess/UrlAccess).
+  const istText = (v: unknown) => v === undefined || v === null || typeof v === 'string';
+  const istTextListe = (v: unknown) =>
+    istText(v) || (Array.isArray(v) && v.every((x) => typeof x === 'string'));
+  if (!istText(subject) || !istText(text) || !istText(html)
+      || !istText(in_reply_to) || !istTextListe(references)) {
+    return res.status(400).json({ error: 'subject/text/html/in_reply_to/references must be strings' });
+  }
+  if (attachments !== undefined && attachments !== null && (
+    !Array.isArray(attachments)
+    || !attachments.every((a) => !!a && typeof a === 'object'
+      && typeof a.filename === 'string' && typeof a.content === 'string'
+      && istText(a.contentType))
+  )) {
+    return res.status(400).json({ error: 'attachments must be [{ filename, content (base64), contentType? }]' });
+  }
+
   const svc = makeServiceClient();
   const { data: m } = await svc.from('members').select('name').eq('id', memberId).maybeSingle();
   const fromName = m?.name ?? 'Saunafreunde';
@@ -365,6 +386,10 @@ async function handleSend(
     secure: cred.smtp_port === 465,
     auth: { user: cred.email_address, pass: cred.password },
     connectionTimeout: 20_000,
+    // Inhalte kommen nur als Text oder Buffer: nodemailer darf weder Dateien
+    // des Servers noch fremde URLs selbst einlesen (Audit 25.09.2026).
+    disableFileAccess: true,
+    disableUrlAccess: true,
   });
 
   const info = await transporter.sendMail({
@@ -456,7 +481,7 @@ async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse)
           const from = Math.max(total - 50 + 1, 1);
           const range = `${from}:${total}`;
           let count = 0;
-          for await (const msg of client.fetch(range, { envelope: true, uid: true })) {
+          for await (const msg of client.fetch(range, { envelope: true, uid: true, internalDate: true })) {
             const env = msg.envelope;
             if (!env) continue;
             const refsArr = (env as { references?: string[] | string | null }).references;
@@ -468,13 +493,22 @@ async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse)
             const fromAddr = env.from?.[0]?.address ?? null;
             const fromName = env.from?.[0]?.name ?? null;
             const fromCombined = fromName ? `${fromName} <${fromAddr ?? ''}>` : fromAddr;
-            await svc.rpc('email_ticket_upsert_from_inbound', {
+            // Eingangszeit (Server-Zeitstempel, sonst Date-Header): Über Mails, die
+            // älter als 3 Tage sind, benachrichtigt die DB niemanden (0185).
+            const eingang = msg.internalDate ?? env.date ?? null;
+            const eingangMs = eingang ? new Date(eingang).getTime() : NaN;
+            const { error: upErr } = await svc.rpc('email_ticket_upsert_from_inbound', {
               p_account_id: acc.id,
               p_thread_key: threadKey,
               p_subject: env.subject ?? null,
               p_from: fromCombined ?? 'Unbekannt',
               p_imap_uid: msg.uid ?? null,
+              p_received_at: Number.isFinite(eingangMs) ? new Date(eingangMs).toISOString() : null,
             });
+            if (upErr) {
+              console.error('[postfach] Ticket-Upsert fehlgeschlagen:', upErr.message);
+              continue;
+            }
             count++;
           }
           return count;

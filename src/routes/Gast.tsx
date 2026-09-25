@@ -45,7 +45,8 @@ export default function Gast() {
     const ok1 = window.confirm(
       'Gäste-Account wirklich löschen?\n\n' +
       'Alle deine Daten werden unwiderruflich entfernt:\n' +
-      '• Profil, Bewertungen, Favoriten, Badges\n' +
+      '• Profil, Profilbild, Fotos, Besuchstage\n' +
+      '• Bewertungen, Favoriten, Badges\n' +
       '• Feed-Beiträge, Kommentare, Reactions\n' +
       '• Nachrichten und Spielstände'
     );
@@ -384,12 +385,14 @@ export default function Gast() {
               </summary>
               <div className="mt-3 space-y-3 text-xs text-forest-300/80 leading-relaxed">
                 <p>
-                  Du kannst deinen Gäste-Account jederzeit selbst löschen. Alle Daten werden
-                  sofort und vollständig entfernt — Profil, Bewertungen, Favoriten, Badges,
-                  Feed-Beiträge, Nachrichten und Spielstände. Es bleibt nichts zurück.
-                  Details in der{' '}
+                  Du kannst deinen Gäste-Account jederzeit selbst löschen. Sofort entfernt
+                  werden Profil, Profilbild und Fotos, Besuchstage, Bewertungen, Favoriten,
+                  Badges, Feed-Beiträge, Nachrichten und Spielstände. In Protokollen und
+                  Evakuierungslisten ersetzen wir deinen Namen durch „gelöschtes Konto“.
+                  Schon über Telegram verschickte Nachrichten können wir nicht zurückholen.
+                  Details in den{' '}
                   <Link to="/datenschutz" className="underline text-forest-200 hover:text-amber-300">
-                    Datenschutzerklärung
+                    Datenschutzhinweisen
                   </Link>.
                 </p>
                 <button

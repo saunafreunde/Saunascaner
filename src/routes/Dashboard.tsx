@@ -21,6 +21,7 @@ import {
   useHolidaySet,
   useSaunafestTage, saunafestAm,
   useSaunafestKarten, useSaunafestVideoEinstellungen,
+  useKioskGesperrtMitlesen, TAFEL_FALLBACK_TAGE,
   type SaunafestTag,
 } from '@/lib/api';
 import { Stage } from '@/components/stage/Stage';
@@ -126,15 +127,25 @@ function festHatteAufguesse(fest: SaunafestTag, infusions: Infusion[]): boolean 
 
 export default function Dashboard() {
   useWakeLock(true);
+  const evac = useActiveEvacuation();
+  // Liegt der Joker über der Tafel (Sauna zu)? Dann ist #root display:none —
+  // das hält aber weder requestAnimationFrame noch Timer an. Also selbst
+  // bremsen: Partikel aus, Uhr nur noch minütlich (vorher rechnete die ganze
+  // Tafel nachts jede Sekunde neu, Audit 25.09.2026). Wie im KioskSperreRunner
+  // weicht der Joker einer Evakuierung.
+  const gesperrt = useKioskGesperrtMitlesen() && !evac.data;
   // 1s-Tick auf der Tafel, damit der nächste Aufguss ZÜGIG nachrutscht wenn
   // ein laufender endet (vorher 5s → spürbarer "klebt"-Effekt).
-  const now = useNow(1_000);
+  const now = useNow(gesperrt ? 60_000 : 1_000);
   const saunas = useSaunas();
-  const infusions = useInfusions();
-  const members = useMeisterDirectory();
-  const evac = useActiveEvacuation();
-  const brand = useBrandSettings();
-  const scheduleQ = useScheduleSettings();
+  // Personal-Fallbacks nur so weit, wie die Kacheln reichen (OilCard nutzt
+  // denselben Wert — sonst liefen zwei Polls nebeneinander).
+  const infusions = useInfusions({ fallbackTage: TAFEL_FALLBACK_TAGE });
+  // poll: die Tafel bleibt wochenlang gemountet — Namen/Avatare, Branding
+  // (auch „wichtige" Info-Karten) und Kachel-Raster müssen ohne Neuladen ankommen.
+  const members = useMeisterDirectory({ poll: true });
+  const brand = useBrandSettings({ poll: true });
+  const scheduleQ = useScheduleSettings({ poll: true });
   const holidaySet = useHolidaySet();
   const tilesPerColumn = scheduleQ.data?.tiles_per_column ?? 3;
   const mondayOpen = !!scheduleQ.data?.monday_open;
@@ -213,20 +224,33 @@ export default function Dashboard() {
     return { isGuest: m.role === 'guest_aufgieser', homeGroup: m.home_group };
   };
 
-  // Audio still beim ersten User-Klick irgendwo im Dokument entsperren —
-  // ohne den nervenden 'Ton aktivieren'-Button.
+  // Audio (Evakuierungs-Sirene) still bei der ersten echten Bedienung
+  // entsperren — ohne den nervenden 'Ton aktivieren'-Button. Zählt auch ein
+  // Tastendruck: Der Joker-Hinweis sagt „einmal OK auf der Fernbedienung
+  // drücken", und viele Fernbedienungen senden nur Tasten (keydown), keinen
+  // Zeiger. Vorher hing die Sirene allein an pointerdown — der Joker lachte
+  // dann hörbar, der Alarm blieb stumm (Audit 25.09.2026).
+  // Capture-Phase: auch wenn #root unter dem Joker inert ist.
   useEffect(() => {
-    const tryUnlock = () => {
-      if (unlockAudio()) setAudioReady(true);
-      document.removeEventListener('pointerdown', tryUnlock);
-    };
-    document.addEventListener('pointerdown', tryUnlock, { once: false });
-    return () => document.removeEventListener('pointerdown', tryUnlock);
+    const EVENTE = ['pointerdown', 'pointerup', 'keydown', 'click'] as const;
+    const aufraeumen = () => { for (const e of EVENTE) document.removeEventListener(e, tryUnlock, true); };
+    function tryUnlock() {
+      // Nur, wenn der Browser das gerade als Bedienung wertet (Esc oder ein
+      // Touch-pointerdown zählen nicht — dann klappt es beim nächsten Ereignis).
+      // Ältere TV-Browser ohne userActivation: wie bisher einfach versuchen.
+      const ua = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
+      if (ua && !ua.isActive) return;
+      if (!unlockAudio()) return;
+      setAudioReady(true);
+      aufraeumen();
+    }
+    for (const e of EVENTE) document.addEventListener(e, tryUnlock, true);
+    return aufraeumen;
   }, []);
 
-  // TV-Vollbild: beim ersten User-Klick (OK-Taste der TV-Fernbedienung)
-  // Fullscreen-API triggern. Browser-Sicherheits-Constraint: nur mit
-  // User-Gesture möglich, nicht spontan beim Page-Load.
+  // TV-Vollbild: beim ersten User-Klick bzw. Tastendruck (OK-Taste der
+  // TV-Fernbedienung) Fullscreen-API triggern. Browser-Sicherheits-Constraint:
+  // nur mit User-Gesture möglich, nicht spontan beim Page-Load.
   // Plus: fullscreenchange-Listener für den Hint-Overlay.
   const HINT_STORAGE_KEY = 'dashboard_fullscreen_hint_dismissed';
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -234,7 +258,18 @@ export default function Dashboard() {
     try { return localStorage.getItem(HINT_STORAGE_KEY) === '1'; } catch { return false; }
   });
   useEffect(() => {
-    const tryFullscreen = async () => {
+    const tryFullscreen = async (e: Event) => {
+      // Esc ist keine Bedienung im Sinne des Browsers (und heißt „raus aus dem Vollbild").
+      if (e instanceof KeyboardEvent && e.key === 'Escape') return;
+      // Wertet der Browser das Ereignis nicht als Bedienung (z. B. die
+      // Zurück-Taste mancher Fernbedienungen), würde requestFullscreen
+      // abgelehnt — dann NICHT abmelden, sonst klappte das Vollbild auch beim
+      // späteren OK/Klick nie mehr (wie beim Ton-Entsperren oben).
+      const ua = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
+      if (ua && !ua.isActive) return;
+      // Nur einmal: der erste Klick ODER Tastendruck zählt.
+      document.removeEventListener('pointerdown', tryFullscreen);
+      document.removeEventListener('keydown', tryFullscreen);
       try {
         if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
           await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
@@ -242,10 +277,12 @@ export default function Dashboard() {
       } catch { /* TV-Browser unterstützt kein Fullscreen — ignoriert */ }
     };
     const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('pointerdown', tryFullscreen, { once: true });
+    document.addEventListener('pointerdown', tryFullscreen);
+    document.addEventListener('keydown', tryFullscreen);
     document.addEventListener('fullscreenchange', onChange);
     return () => {
       document.removeEventListener('pointerdown', tryFullscreen);
+      document.removeEventListener('keydown', tryFullscreen);
       document.removeEventListener('fullscreenchange', onChange);
     };
   }, []);
@@ -408,8 +445,9 @@ export default function Dashboard() {
     >
       {/* Am Festtag aus: der Partikel-Canvas zeichnet per requestAnimationFrame
           über die ganze Fläche — neben bis zu drei laufenden Karten-Videos
-          wäre das die Last, an der sich der TV-Stick verschluckt. */}
-      {!festHeute && <ParticleCanvas activeSaunaCount={activeSaunas.length} />}
+          wäre das die Last, an der sich der TV-Stick verschluckt.
+          Unter dem Joker (Sauna zu) pausiert er ganz. */}
+      {!festHeute && <ParticleCanvas activeSaunaCount={activeSaunas.length} pausiert={gesperrt} />}
       <AnimatePresence>
         {evac.data && (
           <EvacuationOverlay

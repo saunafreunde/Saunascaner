@@ -10,6 +10,7 @@ import { SaunafestZone } from '@/components/saunafest/SaunafestZone';
 import { FestAufgussInfoDialog } from '@/components/saunafest/FestAufgussInfoDialog';
 import { BanjaAlarm, istBanjaSperre, banjaGrund } from '@/components/BanjaAlarm';
 import { meldeBanjaVersuch } from '@/lib/api';
+import { banjaDauerFuer, banjaEndetRechtzeitig, BANJA_RUHE_STUNDEN, BANJA_SCHLUSS_HINWEIS } from '@/lib/banja';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
 import { sendEvacuationList, sendBadgeAnnouncement } from '@/lib/telegram';
@@ -63,8 +64,8 @@ import {
   useMyPolls, useSubmitPollResponse, useUpdateEntryCode, checkEntryCodeAvailable,
   useMyCustomAttrs, useMyCustomOils, useSudKraeuter, useSudMixe,
   useRatableInfusions, type RatableInfusion,
-  togglePresenceByCode, type MyPoll,
-  sendBroadcastPush,
+  setMyPresence, type MyPoll,
+  sendVorlagePush,
   useMyRecurringSlots, useApplyRecurringSlot, useRevokeMyRecurringSlot,
   useAbsences, useAddAbsence, useDeleteAbsence,
   useTakeoverPersonalFallback, useBookBanjaRitual, type Template,
@@ -72,7 +73,7 @@ import {
   useHolidaySet, isHolidayDate,
   useSaunafestTage, saunafestAm, type SaunafestTag,
 } from '@/lib/api';
-import { garantieTemperatureFor, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
+import { garantieTemperatureFor, garantieTemperatureForWeekdayHour, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
 import { festSlots, festSlotOffen, festSaunenUm, festAblaufText, type FestSlot } from '@/lib/saunafestPlan';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
 import { usePreviewMode } from '@/hooks/usePreviewMode';
@@ -137,22 +138,9 @@ const DEFAULT_DURATION_MIN = 20;
 const DURATION_OPTIONS = [20, 30, 45, 90, 120] as const;
 
 // Banja-Ritual: langes Dampfritual, Marker = 'banja' im attributes-Array.
-//
-// Seit 08.08.2026 frei planbar — jede Sauna, jede Uhrzeit, keine Wechselsperre.
-// Fest ist nur die Dauer, und die haengt an der Startstunde: zwei Stunden,
-// ausser um 19:00 Uhr, wo 90 Minuten reichen (um 20:30 ist ohnehin Schluss,
-// zwei volle Stunden gingen ueber den Betrieb hinaus).
+// Dauer (90 Min um 19 Uhr, sonst 120), Betriebsschluss 20:30 und Ruhestunde
+// stehen in lib/banja.ts — dieselbe Regel nutzt der Bearbeiten-Dialog.
 // Gespiegelt in DB: validate_infusion_banja_and_overlap() + book_banja_ritual().
-const BANJA_DURATION_LANG = 120;
-const BANJA_DURATION_KURZ = 90;
-const BANJA_KURZ_HOUR = 19;
-/** Wie lange dauert eine Banja, die zu dieser Stunde beginnt? */
-function banjaDauerFuer(hour: number): number {
-  return hour === BANJA_KURZ_HOUR ? BANJA_DURATION_KURZ : BANJA_DURATION_LANG;
-}
-/** Wie viele Stunden-Kacheln belegt sie? Zwei — und danach bleibt die Sauna
- *  eine weitere Stunde zu (Ruhephase, siehe DB-Trigger). */
-const BANJA_RUHE_STUNDEN = 1;
 const RUHE_MS = BANJA_RUHE_STUNDEN * 60 * 60 * 1000;
 const BANJA_ATTR: InfusionAttribute = 'banja';
 const BANJA_TITLE_DEFAULT = '♨️ Traditionelles Banja-Ritual';
@@ -378,13 +366,14 @@ export default function Planner() {
     setCheckBusy(true);
     setCheckMsg(null);
     try {
-      // Eigene Zeile aus current_member() — enthält den eigenen member_code.
-      if (!m.member_code) throw new Error('Mitgliedscode fehlt — bitte die App neu laden.');
-      const r = await togglePresenceByCode(m.member_code);
-      setCheckMsg({ ok: true, text: r.is_present ? '✅ Eingecheckt — willkommen!' : '👋 Ausgecheckt — bis zum nächsten Mal!' });
+      // Zielzustand statt Umschalten (Migration 0188, Audit 25.09.2026): gesendet
+      // wird, was der Knopf anzeigt. Wer inzwischen am Tablet eingecheckt hat,
+      // wird so nicht versehentlich ausgecheckt (und umgekehrt).
+      const jetztDa = await setMyPresence(!isPresent);
+      setCheckMsg({ ok: true, text: jetztDa ? '✅ Eingecheckt — willkommen!' : '👋 Ausgecheckt — bis zum nächsten Mal!' });
       await presentQ.refetch();
       // Streak-Badges checken nach Check-in
-      if (r.is_present) {
+      if (jetztDa) {
         try {
           const badges = await checkAndAwardBadges(m.id);
           if (badges.length > 0) { setNewBadges(badges); setToastIndex(0); }
@@ -508,6 +497,10 @@ export default function Planner() {
   const auswahl: ZutatenAuswahl = { attrs, customAttrIds, oils, sudAuswahl, schnaps };
   const auswahlAnzahl = zaehleAuswahl(auswahl);
   const auswahlVoll = auswahlAnzahl >= MAX_AUSWAHL;
+  // So viele Öl-Runden lässt das Kontingent zu: alles andere Gewählte
+  // (Besonderheiten, eigene Buttons, Sud) geht ab — der OilPicker füllt
+  // darüber hinaus keinen leeren Slot mehr.
+  const oelPlaetzeErlaubt = Math.max(0, MAX_AUSWAHL - (auswahlAnzahl - oils.filter(Boolean).length));
   const fehlt = fehltNoch(auswahl);
   // Welcher Aufguss wird gerade über die Nachpflege-Liste bearbeitet?
   const [nachpflege, setNachpflege] = useState<Infusion | null>(null);
@@ -524,7 +517,22 @@ export default function Planner() {
     if (!saunaId && saunas[0]) setSaunaId(saunas[0].id);
   }, [saunaId, saunas]);
 
-  const todayDate = useMemo(() => { const t = new Date(); t.setHours(0,0,0,0); return t; }, []);
+  // Heute (lokale Mitternacht) — NICHT einmalig merken: wer den Planer über
+  // Nacht offen lässt, blieb sonst beim gestrigen Tag hängen („Heute noch
+  // nichts geplant", Pager eins daneben). `now` tickt jede Minute und sofort,
+  // wenn die App wieder sichtbar wird oder den Fokus bekommt; der Tages-
+  // schlüssel ändert sich aber nur um Mitternacht — erst dann gibt es ein
+  // neues Datum-Objekt und die abhängigen Berechnungen laufen neu.
+  const heuteLokal = format(now, 'yyyy-MM-dd');
+  const todayDate = useMemo(() => {
+    const [y, mo, d] = heuteLokal.split('-').map(Number);
+    return new Date(y, mo - 1, d);
+  }, [heuteLokal]);
+  // Rutscht der gewählte Tag nach Mitternacht in die Vergangenheit, geht er
+  // auf heute weiter. Ein bewusst gewählter künftiger Tag bleibt stehen.
+  useEffect(() => {
+    setSelectedDate((d) => (d.getTime() < todayDate.getTime() ? todayDate : d));
+  }, [todayDate]);
   // Tagesansicht: nur der selectedDate ist sichtbar (statt ganzer Woche).
   const visibleDays = useMemo(() => [selectedDate], [selectedDate]);
 
@@ -549,7 +557,7 @@ export default function Planner() {
   }
 
   // Covering-Lookup: eine Infusion markiert ALLE Stunden-Slots die sie überlappt.
-  // Wichtig für Banja (90 Min) — der 19:00-Banja muss auch im 20:00-Slot derselben
+  // Wichtig für Banja (90/120 Min) — der 19:00-Banja muss auch im 20:00-Slot derselben
   // Sauna als 'taken' erscheinen. Generisch: jede Infusion mit duration > 60 spannt
   // mehrere Slots. ceil(dur/60) Slots werden markiert (covering, nicht overlap).
   const infusionByKey = useMemo(() => {
@@ -630,11 +638,17 @@ export default function Planner() {
         if (!garantieSauna) continue;
         const inf = infusionByKey.get(infusionKey(garantieSauna.id, slotDate));
         const hasReal = inf && !inf.is_personal_fallback;
-        if (!hasReal) garantieSlotsOpen.push({ hour: h, saunaName: garantieSauna.name, tempC });
+        // In der Ruhestunde nach einem Banja ist die Garantie-Sauna zu — dort
+        // gibt es nichts zu übernehmen, also bleibt die Zweit-Sauna offen
+        // (gespiegelt in check_secondary_sauna_allowed, Migration 0183).
+        const t = slotDate.getTime();
+        const inRuhe = infusions.some((x) => x.sauna_id === garantieSauna.id && isBanjaInfusion(x)
+          && t >= new Date(x.end_time).getTime() && t < new Date(x.end_time).getTime() + RUHE_MS);
+        if (!hasReal && !inRuhe) garantieSlotsOpen.push({ hour: h, saunaName: garantieSauna.name, tempC });
       }
     }
     return { date, isMonday: isMondayBlocked, isPast, availableSlots, garantieSlotsOpen, fest };
-  }, [todayDate, saunas, infusionByKey, mondayOpen, holidaySet, festAm, garantieOptsFor, festPlanFor]);
+  }, [todayDate, saunas, infusionByKey, infusions, mondayOpen, holidaySet, festAm, garantieOptsFor, festPlanFor]);
 
   const slotStatusFor = useCallback((date: Date, saunaIdLookup: string, hhmm: string): SlotStatus => {
     const start = slotToDate(date, hhmm);
@@ -660,6 +674,16 @@ export default function Planner() {
     // nur die freien Kacheln bleiben zu — auch ein Personal-Aufguss ist am
     // Fest nichts zum Übernehmen.
     if (fest && !isAdmin && (!inf || inf.is_personal_fallback)) return { kind: 'fest' };
+    // Ein Personal-Slot in der Ruhestunde nach einem Banja ist nicht
+    // übernehmbar (der Trigger lehnt ab) — also Ruhe zeigen statt 👨‍🍳.
+    // Seit 0183 räumt book_banja_ritual solche Slots ab; das hier greift
+    // für Altbestand und bis zum nächsten Nachladen.
+    if (inf?.is_personal_fallback) {
+      const tf = start.getTime();
+      const inRuhe = infusions.some((x) => x.sauna_id === saunaIdLookup && isBanjaInfusion(x)
+        && tf >= new Date(x.end_time).getTime() && tf < new Date(x.end_time).getTime() + RUHE_MS);
+      if (inRuhe) return { kind: 'ruhe' };
+    }
     if (inf) {
       if (inf.is_personal_fallback) return { kind: 'fallback', infusion: inf };
       if (inf.saunameister_id === m?.id) return { kind: 'mine', infusion: inf };
@@ -687,6 +711,30 @@ export default function Planner() {
     if (fest && !isAdmin) return { kind: 'fest' };
     return { kind: 'free' };
   }, [infusionByKey, infusions, m?.id, festAm, festPlanFor, saunaName, isAdmin]);
+
+  // Banja: prüft die Stunden, die das Ritual ab startStunde belegt, und die
+  // Ruhestunde danach — dieselbe Regel wie book_banja_ritual (0183). Karte und
+  // Absenden nutzen beide diese Prüfung, damit sie nie auseinanderlaufen
+  // (vorher prüfte das Absenden fest 19:00 und 20:00, egal wann das Banja
+  // beginnt). Ritual-Stunden: frei oder Personal-Slot (den räumt die RPC ab).
+  // Ruhestunde: kein echter Aufguss.
+  const banjaKonflikt = useCallback((date: Date, sid: string, startStunde: number): string | null => {
+    const ritualStunden = Math.ceil(banjaDauerFuer(startStunde) / 60);
+    for (let k = 0; k < ritualStunden + BANJA_RUHE_STUNDEN; k++) {
+      const hh = `${String(startStunde + k).padStart(2, '0')}:00`;
+      const st = slotStatusFor(date, sid, hh);
+      if (k >= ritualStunden) {
+        if (st.kind === 'taken' || st.kind === 'mine' || st.kind === 'laeuft') {
+          return `♨️ Um ${hh} Uhr steht in dieser Sauna schon ein Aufguss – nach dem Ritual bleibt sie aber eine Stunde zu.`;
+        }
+      } else if (st.kind === 'ruhe') {
+        return `♨️ Um ${hh} Uhr ist diese Sauna nach einem anderen Banja noch in der Ruhestunde.`;
+      } else if (st.kind !== 'free' && st.kind !== 'fallback') {
+        return `♨️ ${hh} Uhr ist in dieser Sauna schon belegt.`;
+      }
+    }
+    return null;
+  }, [slotStatusFor]);
 
   // Klick in der Matrix: Slot für Schritt 2 übernehmen. Am Saunafest kommen
   // hier nur Admins an — für alle anderen sind die Fest-Kacheln gesperrt.
@@ -820,6 +868,20 @@ export default function Planner() {
     setDuration(DEFAULT_DURATION_MIN);
   }
 
+  // „Banja buchen" füllt nur das Formular. Ohne diesen Ausweg blieb der
+  // Banja-Modus stehen (banja + wenik sind keine Chips) und jeder weitere
+  // Aufguss wurde zum Banja. Beide Attribute gehen zusammen raus — der
+  // Trigger lehnt Wenik ohne Banja ab (0150).
+  function banjaAbwaehlen() {
+    setAttrs((a) => a.filter((x) => x !== BANJA_ATTR && x !== 'wenik'));
+    // Das Wort „Banja" ist dem Ritual vorbehalten (Trigger: title ~* '\mbanja').
+    // Bliebe ein angepasster Banja-Titel stehen, landete der normale Aufguss
+    // im roten Betrugsfenster samt Log-Eintrag — deshalb jeden solchen Titel leeren.
+    setTitle((t) => (t === BANJA_TITLE_DEFAULT || /(^|[^\p{L}\p{N}_])banja/iu.test(t) ? '' : t));
+    setDuration(DEFAULT_DURATION_MIN);
+    setFormError(null);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -837,7 +899,8 @@ export default function Planner() {
     if (kontingentFehler) return setFormError(kontingentFehler);
     if (isMondaySelected) return setFormError('Montag keine Aufgüsse.');
     // Defense in depth zum Slot-Clamp-Effect: nie außerhalb der Öffnungs-
-    // Stunden des Tages eintragen (Server prüft Öffnungszeiten NICHT).
+    // Stunden des Tages eintragen (seit 0183 prüft der Server das ebenfalls,
+    // hier kommt die Meldung nur früher).
     if (!selectedDayCtx.availableSlots.includes(slot)) {
       return setFormError('Slot liegt außerhalb der Aufgusszeiten dieses Tages — bitte oben neu wählen.');
     }
@@ -879,38 +942,24 @@ export default function Planner() {
       );
     }
 
-    // ── BANJA-RITUAL Validation (Mirror der DB-Constraints aus Migration 0104)
-    // Server-Side ist die Source of Truth — diese Checks geben dem User sofortiges
-    // Feedback BEVOR der Server-Call gemacht wird (UX statt Toast nach Fehler).
-    // Personal-Fallback auf 19/20:00 ist OK (wird via book_banja_ritual atomic übernommen).
+    // ── BANJA-RITUAL: dieselben Regeln wie book_banja_ritual (0183), damit
+    // der Fehler sofort kommt statt nach dem Server-Aufruf. Die Datenbank
+    // bleibt maßgeblich. Die Dauer wählt niemand — die RPC setzt sie aus der
+    // Startstunde (90 Min um 19 Uhr, sonst 120); geprüft werden die Stunden,
+    // die das Ritual wirklich belegt, plus Ruhestunde und Betriebsschluss.
     if (isBanjaSubmit) {
-      // Uhrzeit und Sauna sind seit 08.08.2026 frei — geprueft wird nur noch
-      // die Dauer, und die ergibt sich aus der Startstunde.
-      const sollDauer = banjaDauerFuer(selectedSlotHour);
-      if (duration !== sollDauer) {
-        return setFormError(
-          `♨️ Banja um ${String(selectedSlotHour).padStart(2, '0')}:00 Uhr dauert ${sollDauer} Minuten.`,
-        );
+      if (!selectedDayCtx.fest && !banjaEndetRechtzeitig(selectedSlotHour)) {
+        return setFormError(BANJA_SCHLUSS_HINWEIS);
       }
-      // Beide Banja-Slots prüfen: 'free' oder 'fallback' sind OK (Fallback wird
-      // serverseitig automatisch gelöscht via book_banja_ritual). 'taken'/'mine'
-      // blockt — ein echter Aufgießer ist dann da. Defense in depth: Server
-      // prüft das nochmal im RPC, aber UX-Feedback soll sofort kommen.
-      const slot19Status = slotStatusFor(selectedDate, saunaId, '19:00');
-      if (slot19Status.kind === 'taken' || slot19Status.kind === 'mine') {
-        return setFormError('♨️ 19:00-Slot ist bereits durch einen echten Aufgießer belegt.');
-      }
-      const slot20Status = slotStatusFor(selectedDate, saunaId, '20:00');
-      if (slot20Status.kind === 'taken' || slot20Status.kind === 'mine') {
-        return setFormError('♨️ 20:00-Slot ist bereits durch einen echten Aufgießer belegt.');
-      }
+      const konflikt = banjaKonflikt(selectedDate, saunaId, selectedSlotHour);
+      if (konflikt) return setFormError(konflikt);
     }
 
     try {
       if (isBanjaSubmit) {
-        // Banja-Pfad: atomare RPC book_banja_ritual übernimmt Personal-Fallbacks
-        // für 19+20:00 automatisch (löschen) und legt 90-Min-Banja als neue
-        // Infusion an. Umgeht die normale takeover/addInf-Verzweigung.
+        // Banja-Pfad: atomare RPC book_banja_ritual räumt Personal-Slots im
+        // Ritual und in der Ruhestunde ab und legt das Banja (90/120 Min) als
+        // neue Infusion an. Umgeht die normale takeover/addInf-Verzweigung.
         await bookBanja.mutateAsync({
           sauna_id: saunaId,
           date: selectedDate,
@@ -930,6 +979,11 @@ export default function Planner() {
           attributes: attrsPayload() as InfusionAttribute[],
           oils: oils.some(Boolean) ? oils : null,
           team_infusion: teamInfusion,
+          // Seit 0184: gewählte Dauer und (Admin) gewählter Saunameister
+          // gelten auch bei der Übernahme — vorher blieb es still bei 15 Min
+          // und beim Admin selbst.
+          duration_minutes: duration,
+          saunameister_id: (isAdmin && adminSaunameisterId && adminSaunameisterId !== m.id) ? adminSaunameisterId : null,
         });
       } else {
         await addInf.mutateAsync({
@@ -947,19 +1001,14 @@ export default function Planner() {
         team_infusion: teamInfusion,
       });
       }
-      // Push an alle Mitglieder wenn TEAM-Aufguss veröffentlicht
+      // Push an die anderen Aufgießer, wenn ein TEAM-Aufguss veröffentlicht
+      // wird. Text und Empfänger baut der Server (Vorlage, api/push-send) —
+      // freie Rundrufe dürfen seit 25.09.2026 nur Admins schicken.
       if (teamInfusion) {
-        const saunaLabel = saunas.find((s) => s.id === saunaId)?.name ?? '';
-        const dayLabel = isSameYMD(selectedDate, todayDate)
-          ? 'heute'
-          : isSameYMD(selectedDate, addDays(todayDate, 1))
-            ? 'morgen'
-            : format(selectedDate, 'EEE dd.MM.');
-        sendBroadcastPush({
-          title: '👥 Neuer Team-Aufguss',
-          body: `${m.name} sucht 2 Co-Aufgießer · ${title.trim()} · ${dayLabel} ${format(start, 'HH:mm')}${saunaLabel ? ' · ' + saunaLabel : ''}`,
-          url: '/planner',
-          tag: `team-aufguss-${start.toISOString()}`,
+        sendVorlagePush({
+          vorlage: 'team_aufguss',
+          sauna_id: saunaId,
+          start_time: start.toISOString(),
         }).catch(() => { /* push ist optional */ });
       }
       clearForm();
@@ -980,6 +1029,11 @@ export default function Planner() {
       // Banja-Umgehung ist kein normaler Fehler: rotes Fenster statt roter
       // Zeile, und der Admin erfährt davon (0149).
       if (istBanjaSperre(e)) {
+        // Admins dürfen immer (0183) — kommt die Sperre trotzdem (z. B. das
+        // Wort „Banja" im Titel eines normalen Aufgusses), ist das ein
+        // normaler Fehler und kein Umgehungsversuch: kein rotes Fenster,
+        // kein Eintrag im Aktivitätslog. In der Vorschau-Rolle zählt die echte.
+        if (isAdminOrig) { setFormError(banjaGrund(e)); return; }
         setBanjaAlarm(banjaGrund(e));
         meldeBanjaVersuch(banjaGrund(e), title || null);
         return;
@@ -997,15 +1051,9 @@ export default function Planner() {
     try {
       const ev = await trigEvac.mutateAsync({ triggered_by: m.id, present_names: presentNames });
       broadcastEvac({ type: 'start', triggeredBy: m.name, triggeredAt: Date.parse(ev.triggered_at) });
+      // Telegram UND Web-Push an alle schickt der Server genau einmal
+      // (api/send-evacuation.ts, seit 25.09.2026).
       const r = await sendEvacuationList({ triggeredBy: m.name, triggeredAt: new Date(ev.triggered_at), presentNames });
-      // Push an alle Mitglieder mit Subscription (parallel)
-      sendBroadcastPush({
-        title: '🚨 EVAKUIERUNG',
-        body: `Bitte sofort das Gebäude verlassen — ausgelöst von ${m.name}`,
-        url: '/dashboard',
-        tag: 'evacuation',
-        requireInteraction: true,
-      }).catch(() => { /* push ist optional */ });
       setEvacToast(r.ok ? `Liste an Telegram gesendet (${presentNames.length} Personen).` : `Telegram fehlgeschlagen: ${r.detail ?? 'unbekannt'}`);
     } catch (e) { setEvacToast(`Fehler: ${(e as Error).message}`); }
   }
@@ -1045,6 +1093,16 @@ export default function Planner() {
   const myInfusionsOhneFest = useMemo(
     () => myInfusions.filter((i) => !festAm(new Date(i.start_time))),
     [myInfusions, festAm],
+  );
+  // Nachpflege-Liste: nur Aufgüsse, die man auch bearbeiten und absagen DARF.
+  // Fremde Team-Aufgüsse stehen in myInfusions nur zum Beitreten — für sie
+  // scheitern „Zutaten wählen" (update_infusion → not_owner) und 🗑
+  // (cancel_my_infusion) bei Nicht-Admins immer.
+  const nachpflegeInfusions = useMemo(
+    () => (isAdmin
+      ? myInfusionsOhneFest
+      : myInfusionsOhneFest.filter((i) => m != null && i.saunameister_id === m.id)),
+    [myInfusionsOhneFest, isAdmin, m],
   );
   // Nur die EIGENEN Fest-Aufgüsse (auch beim Admin — fremde bearbeitet er im
   // Bereich „Saunafest"). Vor der Planbestätigung ist die Einteilung Entwurf:
@@ -1143,14 +1201,23 @@ export default function Planner() {
       )}
 
       {showOilPicker && (
-        <OilPicker selected={oils} onChange={(next) => {
-            // Der Picker kennt das 3-6-Kontingent nicht und kann alle drei
-            // Runden fuellen. Deshalb hier gegenpruefen: was ueber die
-            // Obergrenze ginge, wird nicht uebernommen.
-            const frei = MAX_AUSWAHL - attrs.length - customAttrIds.length;
-            const gefiltert = next.filter(Boolean).slice(0, Math.max(0, frei));
-            setOils(normalizeOilSlots(gefiltert));
-          }} onClose={() => setShowOilPicker(false)} />
+        <OilPicker
+          selected={oils}
+          maxOele={oelPlaetzeErlaubt}
+          vollHinweis={`Höchstens ${MAX_AUSWAHL} Dinge zusammen — für ein weiteres Öl erst eine Besonderheit oder den Sud abwählen.`}
+          onChange={(next) => {
+            // Runde 1–3 sind feste Plätze (der Öl-Raum zeigt sie in dieser
+            // Reihenfolge) — deshalb NICHT zusammenschieben. Vorher rückte
+            // ein Öl aus Runde 3 in Runde 1 und wurde vom nächsten überschrieben.
+            // Die Obergrenze prüft der Picker selbst (maxOele); hier nur als
+            // Rückhalt: mehr Öle als erlaubt werden nicht übernommen. Tauschen
+            // und Abwählen gehen immer, auch aus einer schon zu vollen Vorlage.
+            const neu = next.filter(Boolean).length;
+            if (neu > oils.filter(Boolean).length && neu > oelPlaetzeErlaubt) return;
+            setOils(normalizeOilSlots(next));
+          }}
+          onClose={() => setShowOilPicker(false)}
+        />
       )}
 
       {newBadges.length > 0 && (
@@ -1377,8 +1444,11 @@ export default function Planner() {
             fällt sonst erst am Aufgusstag auf, wenn im Ölraum nichts steht.
             Fest-Aufgüsse nicht — für die gibt es keine Pflichtzutaten (0164). */}
         <UnvollstaendigeAufguesse
-          infusions={myInfusionsOhneFest}
+          infusions={nachpflegeInfusions}
           saunaName={(id) => saunas.find((s) => s.id === id)?.name ?? '?'}
+          // Ab 60 Min. vor Start sperrt der Server Bearbeiten und Absagen für
+          // Nicht-Admins — dann nur noch der Hinweis aufs Öl-Raum-Tablet.
+          gesperrt={(inf) => !isAdmin && new Date(inf.start_time).getTime() - 60 * 60_000 <= now.getTime()}
           onNachpflegen={(inf) => setNachpflege(inf)}
           onLoeschen={(inf) => {
             const wann = format(new Date(inf.start_time), 'EEEE, d. MMMM HH:mm', { locale: de });
@@ -1469,7 +1539,10 @@ export default function Planner() {
                       <span className="text-[10px] font-bold text-amber-300/90 tabular-nums">{coCount}/2</span>
                       {meIn ? (
                         <button
-                          onClick={() => m && leaveTeam.mutate({ infusion_id: i.id, member_id: m.id })}
+                          onClick={() => m && leaveTeam.mutate(
+                            { infusion_id: i.id, member_id: m.id },
+                            { onError: (e) => window.alert(`Verlassen hat nicht geklappt: ${(e as Error).message}`) },
+                          )}
                           className="rounded-md px-2.5 py-1 text-[11px] text-rose-200 hover:bg-rose-500/15 ring-1 ring-rose-500/30 whitespace-nowrap"
                         >
                           Verlassen
@@ -1718,22 +1791,28 @@ export default function Planner() {
                   }
                   const startStunde = selectedSlotHour;
                   const dauer = banjaDauerFuer(startStunde);
-                  // Zwei Stunden-Kacheln plus die Ruhestunde danach.
-                  const belegt = [startStunde, startStunde + 1];
-                  const stati = belegt.map((h) =>
-                    slotStatusFor(selectedDate, banjaSauna.id, `${String(h).padStart(2, '0')}:00`));
+                  // Ritual-Kacheln (2) plus die Ruhestunde danach — dieselbe
+                  // Prüfung wie beim Absenden (banjaKonflikt).
+                  const ritualStunden = Math.ceil(dauer / 60);
+                  const stati = Array.from({ length: ritualStunden + BANJA_RUHE_STUNDEN }, (_, k) =>
+                    slotStatusFor(selectedDate, banjaSauna.id, `${String(startStunde + k).padStart(2, '0')}:00`));
                   const banjaStart = new Date(selectedDate);
                   banjaStart.setHours(startStunde, 0, 0, 0);
                   const isInPast = banjaStart.getTime() < Date.now();
-                  // 'free' UND 'fallback' sind buchbar — Personal-Aufguesse raeumt
+                  // An normalen Tagen ist um 20:30 Schluss (am Fest nicht).
+                  const endetRechtzeitig = !!selectedDayCtx.fest || banjaEndetRechtzeitig(startStunde);
+                  const konflikt = banjaKonflikt(selectedDate, banjaSauna.id, startStunde);
+                  // Personal-Aufguesse im Ritual und in der Ruhestunde raeumt
                   // book_banja_ritual atomar ab.
-                  const alleFrei = stati.every((st) => st.kind === 'free' || st.kind === 'fallback');
                   const takesOverFallback = stati.some((st) => st.kind === 'fallback');
-                  const canBook = (isAufgieser || isAdmin) && alleFrei && !isInPast;
+                  // Admins dürfen immer (0183); alle anderen sehen die Karte nur
+                  // mit Banja-Freigabe (Abfrage oben).
+                  const canBook = (isAufgieser || isAdmin) && !konflikt && endetRechtzeitig && !isInPast;
 
                   let hint = '';
                   if (isInPast) hint = '⏱️ Dieser Slot ist bereits vorbei.';
-                  else if (!alleFrei) hint = '🔴 In den zwei Stunden ist schon ein Aufguss eingetragen.';
+                  else if (!endetRechtzeitig) hint = BANJA_SCHLUSS_HINWEIS;
+                  else if (konflikt) hint = '🔴 ' + konflikt;
                   else if (!isAufgieser && !isAdmin) hint = 'Nur Aufgießer dürfen Banja anlegen.';
                   else if (takesOverFallback) hint = '👨‍🍳 Personal-Aufguss wird automatisch übernommen.';
 
@@ -1814,6 +1893,23 @@ export default function Planner() {
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/20 ring-1 ring-sky-500/40 text-[10px] text-sky-200">2</span>
                   Details eintragen
                 </p>
+
+                {/* Banja gewählt: sichtbar machen und wieder abwählbar — sonst
+                    wurde jeder weitere Aufguss still zum Banja. */}
+                {isBanjaPlanned && (
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-rose-500/15 px-3 py-2 text-xs text-rose-100 ring-1 ring-rose-500/40">
+                    <span className="font-semibold">
+                      ♨️ Banja-Ritual gewählt ({banjaDauerFuer(selectedSlotHour)} Min ab {String(selectedSlotHour).padStart(2, '0')}:00 Uhr, mit Wenik)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={banjaAbwaehlen}
+                      className="flex-shrink-0 rounded-md bg-forest-900/70 px-2.5 py-1.5 text-[11px] font-medium text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-900"
+                    >
+                      ✕ Doch kein Banja
+                    </button>
+                  </div>
+                )}
 
                 {selectedFallbackId && (
                   <div className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
@@ -2044,7 +2140,7 @@ export default function Planner() {
                       <select
                         value={schnaps ?? ''}
                         onChange={(e) => setSchnaps(e.target.value || null)}
-                        className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
+                        className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-forest-400"
                       >
                         <option value="">— kein Schnaps —</option>
                         {SCHNAPS.map((s) => (
@@ -2131,8 +2227,9 @@ export default function Planner() {
                 {/* Dauer-Picker — User-Wunsch: Default 20, Auswahl 20/30/45.
                     Wenn ein vorheriger Wert ungewöhnlich war (z.B. 15), wird
                     er dynamisch ergänzt damit man ihn nicht versehentlich
-                    überschreibt. */}
-                <div>
+                    überschreibt. Beim Banja wählt niemand die Dauer — sie
+                    ergibt sich aus der Startstunde (Hinweis oben). */}
+                <div className={isBanjaPlanned ? 'hidden' : undefined}>
                   <label className="text-xs text-forest-300">Dauer</label>
                   <div className="mt-1.5 flex gap-1.5">
                     {DURATION_OPTIONS.map((d) => (
@@ -2170,7 +2267,7 @@ export default function Planner() {
                     <select
                       value={adminSaunameisterId || m?.id || ''}
                       onChange={(e) => setAdminSaunameisterId(e.target.value)}
-                      className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-sm ring-1 ring-violet-700/40 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                      className="mt-1.5 w-full rounded-lg bg-forest-900/80 px-3 py-2.5 text-base sm:text-sm ring-1 ring-violet-700/40 focus:outline-none focus:ring-2 focus:ring-violet-400"
                     >
                       {m && <option value={m.id}>{m.sauna_name || m.name} (du)</option>}
                       {(meisterDir.data ?? [])
@@ -2268,9 +2365,14 @@ export default function Planner() {
                 { infusion_id: id, member_id: m.id },
                 { onError: (e) => window.alert((e as Error).message) },
               )}
-              onLeaveTeam={(id) => m && leaveTeam.mutate({ infusion_id: id, member_id: m.id })}
+              onLeaveTeam={(id) => m && leaveTeam.mutate(
+                { infusion_id: id, member_id: m.id },
+                { onError: (e) => window.alert(`Verlassen hat nicht geklappt: ${(e as Error).message}`) },
+              )}
               onApplyTemplate={(t) => applyTemplate(t)}
-              onDeleteTemplate={(id) => delTpl.mutate(id)}
+              onDeleteTemplate={(id) => delTpl.mutate(id, {
+                onError: (e) => window.alert(`Vorlage löschen hat nicht geklappt: ${(e as Error).message}`),
+              })}
               isAdmin={isAdmin}
               now={now}
             />
@@ -2287,14 +2389,9 @@ export default function Planner() {
                 templates={myTemplates}
                 onApply={async (p) => {
                   try {
-                    await applyRecurring.mutateAsync(p);
-                    const saunaName = saunas.find((s) => s.id === p.sauna_id)?.name ?? '?';
-                    sendBroadcastPush({
-                      title: '🔔 Neuer Stamm-Slot-Antrag',
-                      body: `${m.name} möchte ${WEEKDAY_LABEL_DE[p.weekday] ?? '?'} ${String(p.hour).padStart(2,'0')}:00 ${saunaName}`,
-                      url: '/admin',
-                      tag: 'recurring-slot-apply',
-                    }).catch(() => {});
+                    const slotId = await applyRecurring.mutateAsync(p);
+                    // Push nur an die Admins (vorher an alle Abonnenten); Text baut der Server.
+                    if (slotId) sendVorlagePush({ vorlage: 'stammslot_antrag', slot_id: slotId }).catch(() => {});
                   } catch (e) {
                     window.alert((e as Error).message);
                   }
@@ -2311,15 +2408,8 @@ export default function Planner() {
                   try {
                     const result = await addAbsence.mutateAsync(p);
                     if (result.freed_slots.length > 0) {
-                      const list = result.freed_slots.slice(0, 5).map((s) =>
-                        `${format(new Date(s.start_time), 'EEE dd.MM. HH:mm')} ${s.sauna_name}`
-                      ).join(' · ');
-                      sendBroadcastPush({
-                        title: '🏖️ Urlaubsslots frei',
-                        body: `${m.name} ist im Urlaub — ${result.freed_slots.length} Slot${result.freed_slots.length === 1 ? '' : 's'} verfügbar: ${list}${result.freed_slots.length > 5 ? '…' : ''}`,
-                        url: '/planner',
-                        tag: 'urlaubsslots',
-                      }).catch(() => {});
+                      // Push an die anderen Aufgießer; Text und Liste baut der Server (Vorlage).
+                      if (result.absence_id) sendVorlagePush({ vorlage: 'urlaubsslots', absence_id: result.absence_id }).catch(() => {});
                       window.alert(`${result.freed_slots.length} Slot${result.freed_slots.length === 1 ? '' : 's'} freigegeben — andere Aufgießer wurden benachrichtigt.`);
                     } else {
                       window.alert('Urlaub eingetragen. Keine Stamm-Slots in diesem Zeitraum betroffen.');
@@ -2327,7 +2417,7 @@ export default function Planner() {
                   } catch (e) { window.alert((e as Error).message); }
                 }}
                 onDelete={async (id) => {
-                  if (!confirm('Urlaubseintrag löschen?')) return;
+                  if (!confirm('Urlaubseintrag löschen? Deine Stamm-Aufgüsse in diesem Zeitraum bekommst du zurück, soweit sie noch niemand übernommen hat.')) return;
                   try { await deleteAbsence.mutateAsync(id); }
                   catch (e) { window.alert((e as Error).message); }
                 }}
@@ -2383,7 +2473,7 @@ export default function Planner() {
                         placeholder="4–8 Zeichen, z.B. sonne7"
                         maxLength={8}
                         autoFocus
-                        className={`flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 focus:outline-none focus:ring-2 transition-colors ${
+                        className={`flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-base sm:text-sm ring-1 focus:outline-none focus:ring-2 transition-colors ${
                           codeStatus === 'taken'     ? 'ring-rose-500/50 focus:ring-rose-400'
                           : codeStatus === 'available' ? 'ring-emerald-500/50 focus:ring-emerald-400'
                           : 'ring-violet-700/30 focus:ring-violet-400'
@@ -2437,8 +2527,19 @@ export default function Planner() {
                         {updateEntryCode.isPending ? 'Speichere…' : 'Speichern'}
                       </button>
                       {m.entry_code && (
-                        <button onClick={async () => { if (!m) return; await updateEntryCode.mutateAsync({ id: m.id, entry_code: null }); setEditingCode(false); }}
-                          className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/30 hover:bg-rose-500/25">
+                        <button
+                          disabled={updateEntryCode.isPending}
+                          onClick={async () => {
+                            if (!m) return;
+                            setCodeError(null);
+                            // Wie saveEntryCode: Fehler sichtbar machen statt
+                            // still zu verschlucken (Editor bleibt dann offen).
+                            try {
+                              await updateEntryCode.mutateAsync({ id: m.id, entry_code: null });
+                              setEditingCode(false);
+                            } catch (e) { setCodeError(`Löschen hat nicht geklappt: ${(e as Error).message}`); }
+                          }}
+                          className="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/30 hover:bg-rose-500/25 disabled:opacity-50">
                           Löschen
                         </button>
                       )}
@@ -2549,7 +2650,7 @@ function SaunaSlotRow({
             if (infStartHour < hour) return null;
           }
 
-          // Col-Span für Mehrstunden-Aufgüsse (Banja 90 Min = 2 Cols).
+          // Col-Span für Mehrstunden-Aufgüsse (Banja 90/120 Min = 2 Cols).
           const spanCols =
             (status.kind === 'taken' || status.kind === 'mine' || status.kind === 'fallback')
               ? Math.max(1, Math.ceil(status.infusion.duration_minutes / 60))
@@ -2594,7 +2695,7 @@ function SaunaSlotRow({
               {isBanjaBlock ? (
                 <span className="flex items-center justify-center gap-1.5 font-bold">
                   <span>♨️</span>
-                  <span className="uppercase tracking-wider text-[10px]">Banja 90 Min</span>
+                  <span className="uppercase tracking-wider text-[10px]">Banja {(status as { infusion: Infusion }).infusion.duration_minutes} Min</span>
                 </span>
               ) : (
                 <>
@@ -2684,7 +2785,7 @@ function DaySaunaMatrix({
             if (infStartHour < hour) continue;
           }
 
-          // ── Row-Span für Banja (90 Min = 2 Slots). Generisch: ceil(dur/60).
+          // ── Row-Span für Banja (90/120 Min = 2 Slots). Generisch: ceil(dur/60).
           const spanRows =
             (status.kind === 'taken' || status.kind === 'mine' || status.kind === 'fallback')
               ? Math.max(1, Math.ceil(status.infusion.duration_minutes / 60))
@@ -2709,7 +2810,7 @@ function DaySaunaMatrix({
             ring = 'ring-forest-400 ring-2';
           }
 
-          // Banja-Block: kräftiges Rose-Visual mit Hero-Label "♨️ BANJA 90 Min"
+          // Banja-Block: kräftiges Rose-Visual mit Hero-Label "♨️ BANJA" + echter Dauer
           if (isBanjaBlock) {
             bg = 'bg-gradient-to-br from-rose-700/40 via-rose-600/30 to-amber-700/30';
             text = 'text-rose-50';
@@ -2730,7 +2831,7 @@ function DaySaunaMatrix({
                 <>
                   <span className="text-base">♨️</span>
                   <span className="text-[9px] font-black uppercase tracking-wider">Banja</span>
-                  <span className="text-[8px] opacity-80">90 Min</span>
+                  <span className="text-[8px] opacity-80">{(status as { infusion: Infusion }).infusion.duration_minutes} Min</span>
                 </>
               ) : (
                 <span className="flex items-center gap-1">
@@ -2891,28 +2992,34 @@ function StammSlotPanel({
   const activeSaunas = useMemo(() => saunas.filter((s) => s.is_active), [saunas]);
   const [weekday, setWeekday] = useState<number>(2);
   const [hour, setHour] = useState<number>(18);
-  const [saunaId, setSaunaId] = useState<string>(activeSaunas[0]?.id ?? '');
   const [note, setNote] = useState('');
   const [templateId, setTemplateId] = useState<string>('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!saunaId && activeSaunas[0]) setSaunaId(activeSaunas[0].id);
-  }, [saunaId, activeSaunas]);
+  // Stamm-Aufgüsse trägt die App nur in der Garantie-Sauna der Stunde ein
+  // (dort, wo sonst das Personal gießt) — der Server lehnt alles andere ab
+  // (Migration 0184). Die Sauna ergibt sich deshalb aus Wochentag + Stunde.
+  const garantieSaunaFuer = (wd: number, h: number): Sauna | undefined => {
+    const temp = garantieTemperatureForWeekdayHour(wd, h);
+    return temp === null ? undefined : activeSaunas.find((s) => s.temperature_label === `${temp}°C`);
+  };
 
-  const sched = useScheduleSettings();
-  const slotHours = slotHoursForWeekday(weekday, { mondayOpen: !!sched.data?.monday_open });
+  // Montag ist nie ein Stamm-Tag: der Server lehnt ihn ab und die nächtliche
+  // Planung legt montags nichts an — auch wenn der Montag geöffnet ist.
+  const slotHours = slotHoursForWeekday(weekday);
   useEffect(() => {
     if (slotHours.length > 0 && !slotHours.includes(hour)) {
       setHour(slotHours[Math.floor(slotHours.length / 2)] ?? slotHours[0]);
     }
   }, [weekday, slotHours, hour]);
+  const garantieSauna = garantieSaunaFuer(weekday, hour);
 
   async function submit() {
+    if (!garantieSauna) return;
     setBusy(true);
     try {
       await onApply({
-        weekday, hour, sauna_id: saunaId,
+        weekday, hour, sauna_id: garantieSauna.id,
         note: note.trim() || null,
         template_id: templateId || null,
       });
@@ -2935,7 +3042,7 @@ function StammSlotPanel({
         <h3 className="text-sm font-semibold text-amber-100 uppercase tracking-wider">Mein Stamm-Slot</h3>
       </div>
       <p className="text-[11px] text-forest-300/70">
-        Feste wöchentliche Aufgusszeit beantragen. Admin gibt frei. Andere Aufgießer können dann nicht in diesen Slot planen.
+        Feste wöchentliche Aufgusszeit beantragen. Admin gibt frei. Ab der Freigabe trägt die App dich für die nächsten 8 Wochen ein, danach rollend jede Woche — in der Garantie-Sauna dieser Stunde, wo sonst das Personal gießt.
       </p>
 
       {slots.length > 0 && (
@@ -2943,6 +3050,10 @@ function StammSlotPanel({
           {slots.map((s) => {
             const saunaName = saunas.find((x) => x.id === s.sauna_id)?.name ?? '?';
             const tplName = templates.find((t) => t.id === s.template_id)?.title;
+            // Alt-Anträge aus der Zeit vor 0184: andere Sauna als die
+            // Garantie-Sauna → daraus entsteht nie ein Aufguss.
+            const soll = s.status !== 'revoked' ? garantieSaunaFuer(s.weekday, s.slot_hour) : undefined;
+            const falscheSauna = s.status !== 'revoked' && soll?.id !== s.sauna_id;
             return (
               <li key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-forest-900/50 px-3 py-2 ring-1 ring-forest-800/40">
                 <div className="min-w-0">
@@ -2951,6 +3062,11 @@ function StammSlotPanel({
                     {tplName && <span className="ml-1.5 text-[10px] text-emerald-300/80">📋 {tplName}</span>}
                   </div>
                   <div className="text-[10px] text-forest-400 truncate">{s.note || '—'}</div>
+                  {falscheSauna && (
+                    <div className="mt-0.5 text-[10px] text-rose-300">
+                      ⚠️ Dieser Slot erzeugt keine Aufgüsse: {soll ? `um diese Uhrzeit ist ${soll.name} die Garantie-Sauna` : 'zu dieser Uhrzeit gibt es keinen Garantie-Aufguss'}. Bitte kündigen und neu beantragen.
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ${statusColor(s.status)}`}>
@@ -2974,8 +3090,8 @@ function StammSlotPanel({
         <div>
           <label className="text-[10px] text-forest-300">Wochentag</label>
           <select value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}
-            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400">
-            {(sched.data?.monday_open ? [1,2,3,4,5,6,0] : [2,3,4,5,6,0]).map((d) => (
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400">
+            {[2,3,4,5,6,0].map((d) => (
               <option key={d} value={d}>{WEEKDAY_LABEL_DE[d]}</option>
             ))}
           </select>
@@ -2997,12 +3113,14 @@ function StammSlotPanel({
         </div>
         <div>
           <label className="text-[10px] text-forest-300">Sauna</label>
-          <select value={saunaId} onChange={(e) => setSaunaId(e.target.value)}
-            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400">
-            {activeSaunas.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} · {s.temperature_label}</option>
-            ))}
-          </select>
+          <div className="mt-1 w-full rounded-lg bg-forest-900/50 px-2 py-1.5 text-base sm:text-sm text-forest-100 ring-1 ring-forest-700/40">
+            {garantieSauna
+              ? `${garantieSauna.name} · ${garantieSauna.temperature_label}`
+              : 'Zu dieser Uhrzeit gibt es keinen Garantie-Aufguss'}
+          </div>
+          <p className="mt-1 text-[10px] text-forest-400">
+            Stamm-Slots gibt es nur in der Garantie-Sauna der gewählten Stunde — die Sauna ergibt sich deshalb von selbst.
+          </p>
         </div>
         <div>
           <label className="text-[10px] text-forest-300">
@@ -3010,7 +3128,7 @@ function StammSlotPanel({
             {templates.length === 0 && <span className="text-forest-400/60"> — keine vorhanden, du kannst eine im Atelier anlegen</span>}
           </label>
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} disabled={templates.length === 0}
-            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50">
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50">
             <option value="">— keine Vorlage (Standard „Stamm-Aufguss") —</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>{t.title}</option>
@@ -3026,9 +3144,9 @@ function StammSlotPanel({
           <label className="text-[10px] text-forest-300">Begründung / Notiz (optional)</label>
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
             placeholder="z.B. „mein Stamm-Slot seit 5 Jahren"
-            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
         </div>
-        <button onClick={submit} disabled={busy || !saunaId}
+        <button onClick={submit} disabled={busy || !garantieSauna}
           className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-2 text-sm font-semibold text-amber-950 disabled:opacity-50">
           {busy ? 'Beantrage…' : 'Antrag stellen'}
         </button>
@@ -3070,7 +3188,7 @@ function AbsencePanel({
         <h3 className="text-sm font-semibold text-amber-100 uppercase tracking-wider">Meine Abwesenheit</h3>
       </div>
       <p className="text-[11px] text-forest-300/70">
-        Urlaub eintragen. Deine Stamm-Slot-Aufgüsse in diesem Zeitraum werden automatisch freigegeben — Push geht an alle anderen Aufgießer.
+        Urlaub eintragen. Deine Stamm-Slot-Aufgüsse in diesem Zeitraum werden automatisch freigegeben — Push geht an alle anderen Aufgießer. Löschst du den Eintrag wieder, bekommst du sie zurück, soweit sie noch niemand übernommen hat.
       </p>
 
       {absences.length > 0 && (
@@ -3098,19 +3216,19 @@ function AbsencePanel({
           <div>
             <label className="text-[10px] text-forest-300">Von</label>
             <input type="date" value={start} min={today} onChange={(e) => setStart(e.target.value)}
-              className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
           </div>
           <div>
             <label className="text-[10px] text-forest-300">Bis</label>
             <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)}
-              className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
           </div>
         </div>
         <div>
           <label className="text-[10px] text-forest-300">Notiz (optional)</label>
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
             placeholder="z.B. „Urlaub Ostsee"
-            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            className="mt-1 w-full rounded-lg bg-forest-900/80 px-2 py-1.5 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
         </div>
         <button onClick={submit} disabled={busy}
           className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-2 text-sm font-semibold text-amber-950 disabled:opacity-50">
@@ -3171,7 +3289,7 @@ function PollCard({ poll, memberId, onAnswered }: { poll: MyPoll; memberId: stri
           <div className="flex gap-2">
             <input type={poll.answer_type === 'number' ? 'number' : 'text'} value={value} onChange={(e) => setValue(e.target.value)}
               placeholder={poll.answer_type === 'number' ? 'Zahl eingeben…' : 'Antwort eingeben…'}
-              className="flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              className="flex-1 rounded-lg bg-forest-900/80 px-3 py-2 text-base sm:text-sm ring-1 ring-forest-700/50 focus:outline-none focus:ring-2 focus:ring-amber-400" />
             <button onClick={() => handleSubmit(value)} disabled={busy || !value.trim()}
               className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-60">OK</button>
           </div>

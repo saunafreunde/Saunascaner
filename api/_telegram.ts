@@ -10,8 +10,48 @@
 //  - sequenziert Sends mit min. 50ms-Pause (max 20/s, sicher unter Limit)
 //  - parsed 429-Response, wartet retry_after Sekunden, retried 1×
 //  - gibt strukturiertes Result-Array zurück
+//
+// Seit 25.09.2026 (Audit, Migration 0187) außerdem:
+//  - vereinsChats(): die EINE Stelle, die den Vereins-Verteiler liest. Neue
+//    Chats kommen erst nach Admin-Freigabe hinein (telegram_chat_anfragen);
+//    Chats gesperrter Mitglieder werden beim Versand übersprungen.
+//  - escHtml(): Text aus der Datenbank für parse_mode HTML entschärfen.
+
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type TgPayload = Record<string, unknown>;
+
+/** Für parse_mode HTML: & < > " entschärfen (Titel, Namen … sind frei eingebbar). */
+export function escHtml(s: unknown): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Chat-IDs des Vereins-Verteilers (system_config.telegram_chats).
+ * Übersprungen werden Chats, deren verknüpftes Konto gesperrt ist. Schlägt
+ * diese Prüfung fehl, geht die Liste ungefiltert raus (ein Notfall-Alarm darf
+ * nicht an einer Nebenabfrage scheitern).
+ */
+export async function vereinsChats(sb: SupabaseClient): Promise<number[]> {
+  const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
+  const roh = (cfg?.value as { chat_ids?: unknown } | null)?.chat_ids;
+  const ids = Array.isArray(roh)
+    ? Array.from(new Set(roh.map((c) => Number(c)).filter((c) => Number.isSafeInteger(c) && c !== 0)))
+    : [];
+  if (ids.length === 0) return [];
+  const { data: gesperrt, error } = await sb
+    .from('members')
+    .select('telegram_user_id')
+    .in('telegram_user_id', ids)
+    .not('revoked_at', 'is', null);
+  if (error) return ids;
+  const raus = new Set((gesperrt ?? []).map((m) => Number((m as { telegram_user_id: unknown }).telegram_user_id)));
+  return ids.filter((c) => !raus.has(c));
+}
 
 export type TgResult = {
   chat_id: number;

@@ -116,7 +116,8 @@ function TelegramSection({ member }: { member: Member }) {
   }
 
   async function handleUnlink() {
-    if (!confirm('Telegram-Verknüpfung wirklich lösen?')) return;
+    // Seit 0187 fliegt dabei auch dein privater Chat aus dem Vereins-Verteiler (Trigger auf members).
+    if (!confirm('Telegram-Verknüpfung wirklich lösen?\n\nDein privater Chat mit dem Bot bekommt dann auch keine Vereins-Meldungen mehr (neu beantragen: /start beim Bot).')) return;
     try {
       await unlink.mutateAsync();
       setLinkUrl(null);

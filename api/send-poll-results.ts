@@ -5,7 +5,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { authenticate } from './_auth.js';
-import { tgBroadcast } from './_telegram.js';
+import { tgBroadcast, vereinsChats } from './_telegram.js';
 
 type PollResultPayload = {
   pollTitle: string;
@@ -61,8 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'bad payload' });
   }
 
-  const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
-  const chats: number[] = Array.isArray(cfg?.value?.chat_ids) ? cfg.value.chat_ids : [];
+  const chats = await vereinsChats(sb);
 
   if (chats.length === 0) {
     return res.status(200).json({ ok: true, via: 'telegram', sent: 0, note: 'no chats subscribed' });

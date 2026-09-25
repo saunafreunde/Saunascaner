@@ -5,7 +5,7 @@ import {
   useAbsences, useDeleteAbsence,
   useSaunas, useAllMembers, useMaterializeHorizon,
 } from '@/lib/api';
-import { WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
+import { WEEKDAY_LABEL_DE_SHORT, garantieTemperatureForWeekdayHour } from '@/lib/garantie';
 
 export function RecurringAdminTab() {
   const slotsQ = useRecurringSlots();
@@ -20,6 +20,20 @@ export function RecurringAdminTab() {
 
   const memberName = (id: string) => membersQ.data?.find((m) => m.id === id)?.name ?? '?';
   const saunaName = (id: string) => saunasQ.data?.find((s) => s.id === id)?.name ?? '?';
+
+  // Stamm-Aufgüsse entstehen nur in der Garantie-Sauna der Stunde (0184).
+  // Alt-Slots mit anderer Sauna haben nie einen Aufguss erzeugt → Hinweis.
+  const saunaWarnung = (s: { weekday: number; slot_hour: number; sauna_id: string }): string | null => {
+    if (!saunasQ.data) return null;
+    const temp = garantieTemperatureForWeekdayHour(s.weekday, s.slot_hour);
+    const soll = temp === null
+      ? undefined
+      : saunasQ.data.find((x) => x.is_active && x.temperature_label === `${temp}°C`);
+    if (soll?.id === s.sauna_id) return null;
+    return soll
+      ? `Falsche Sauna: um diese Uhrzeit ist ${soll.name} die Garantie-Sauna — daraus entsteht nie ein Aufguss.`
+      : 'Zu dieser Uhrzeit gibt es keinen Garantie-Aufguss — daraus entsteht nie ein Aufguss.';
+  };
 
   const pending = useMemo(() => (slotsQ.data ?? []).filter((s) => s.status === 'pending'), [slotsQ.data]);
   const active = useMemo(() => (slotsQ.data ?? []).filter((s) => s.status === 'active'), [slotsQ.data]);
@@ -41,7 +55,7 @@ export function RecurringAdminTab() {
   }
 
   async function handleRevoke(id: string) {
-    if (!confirm('Stamm-Slot wirklich kündigen? Zukunfts-Aufgüsse werden zu Personal-Fallback.')) return;
+    if (!confirm('Stamm-Slot wirklich kündigen? Die künftigen Stamm-Aufgüsse des Aufgießers werden wieder Personal-Aufgüsse; von Kollegen übernommene bleiben.')) return;
     setBusyId(id);
     try { await revoke.mutateAsync(id); }
     catch (e) { window.alert((e as Error).message); }
@@ -66,7 +80,9 @@ export function RecurringAdminTab() {
           <p className="mt-2 text-xs text-forest-300/70">Keine offenen Anträge.</p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {pending.map((s) => (
+            {pending.map((s) => {
+              const warnung = saunaWarnung(s);
+              return (
               <li key={s.id} className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-amber-100">
@@ -75,9 +91,10 @@ export function RecurringAdminTab() {
                   <div className="text-[11px] text-forest-400 truncate">
                     Antrag: {format(new Date(s.created_at), 'dd.MM.yyyy HH:mm')}{s.note ? ` · "${s.note}"` : ''}
                   </div>
+                  {warnung && <div className="mt-0.5 text-[11px] text-rose-300">⚠️ {warnung} Bitte ablehnen.</div>}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => handleApprove(s.id)} disabled={busyId === s.id}
+                  <button onClick={() => handleApprove(s.id)} disabled={busyId === s.id || !!warnung}
                     className="rounded-md bg-emerald-500 hover:bg-emerald-400 px-3 py-1 text-xs font-bold text-emerald-950 disabled:opacity-50">
                     ✓ Freigeben
                   </button>
@@ -87,7 +104,8 @@ export function RecurringAdminTab() {
                   </button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -101,20 +119,28 @@ export function RecurringAdminTab() {
           <p className="mt-2 text-xs text-forest-300/70">Noch keine aktiven Stamm-Slots.</p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {active.map((s) => (
+            {active.map((s) => {
+              const warnung = saunaWarnung(s);
+              return (
               <li key={s.id} className="flex items-center justify-between gap-3 rounded-lg bg-forest-900/60 px-3 py-2 ring-1 ring-forest-800/40">
                 <div className="min-w-0">
                   <div className="text-sm text-forest-100">
                     {WEEKDAY_LABEL_DE_SHORT[s.weekday]} {String(s.slot_hour).padStart(2,'0')}:00 · {saunaName(s.sauna_id)}
                   </div>
                   <div className="text-[11px] text-forest-400">{memberName(s.member_id)}</div>
+                  {warnung && (
+                    <div className="mt-0.5 text-[11px] text-rose-300">
+                      ⚠️ {warnung} Mit dem Aufgießer klären: kündigen und in der Garantie-Sauna neu beantragen.
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => handleRevoke(s.id)} disabled={busyId === s.id}
                   className="rounded-md px-2.5 py-1 text-[11px] text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/15">
                   Kündigen
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -150,7 +176,7 @@ export function RecurringAdminTab() {
           <span>Materialisierung</span>
         </h2>
         <p className="mt-1 text-xs text-forest-300/70">
-          Der nächtliche Cron (00:30 UTC) erzeugt rollend 8 Wochen Aufgüsse. Hier manuell auslösen, falls sofort gebraucht.
+          Der nächtliche Cron (00:30 UTC) erzeugt rollend 8 Wochen Aufgüsse. Hier manuell auslösen, falls sofort gebraucht. Ein freigegebener Stamm-Slot übernimmt seine Personal-Aufgüsse schon bei der Freigabe.
         </p>
         <button onClick={handleMaterialize} disabled={materialize.isPending}
           className="mt-3 rounded-lg bg-violet-500 hover:bg-violet-400 px-4 py-2 text-sm font-semibold text-violet-950 disabled:opacity-50">

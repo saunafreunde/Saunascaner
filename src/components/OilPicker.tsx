@@ -21,16 +21,27 @@ type Props = {
    *  ausgerechnet in dem Raum, in dem die Flaschen stehen. Der Kiosk kennt den
    *  Aufgießer aus seiner Namensauswahl und reicht ihn hier durch. */
   memberId?: string | null;
+  /** Wie viele Runden höchstens belegt sein dürfen. Ohne Angabe: alle drei.
+   *
+   *  Der Planer reicht hier den Platz durch, den das Gesamt-Kontingent (Öle +
+   *  Besonderheiten + Sud) noch lässt. Ein LEERER Slot wird dann nicht mehr
+   *  gefüllt, sobald die Grenze erreicht ist; Tauschen und Löschen gehen
+   *  immer. Die Meldung erscheint im Picker selbst — eine Fehlerzeile im
+   *  Formular dahinter sähe man erst nach dem Schließen. */
+  maxOele?: number;
+  /** Text, wenn ein weiteres Öl über `maxOele` ginge. */
+  vollHinweis?: string;
 };
 
 const EMPTY_SLOTS: (string | null)[] = Array.from({ length: MAX_OIL_SLOTS }, () => null);
 
-export default function OilPicker({ selected, onChange, onClose, memberId }: Props) {
+export default function OilPicker({ selected, onChange, onClose, memberId, maxOele, vollHinweis }: Props) {
   const slots = useMemo(() => normalizeOilSlots(selected), [selected]);
   const firstEmpty = slots.findIndex((s) => !s);
   const [activeRound, setActiveRound] = useState<number>(firstEmpty === -1 ? 0 : firstEmpty);
   const [numInput, setNumInput] = useState('');
   const [shake, setShake] = useState(false);
+  const [voll, setVoll] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Admin-konfigurierbare Öl-Deaktivierung (Migration 0093). Hier wird gefiltert,
   // damit Aufgießer nur Öle wählen die physisch im Regal stehen.
@@ -41,6 +52,15 @@ export default function OilPicker({ selected, onChange, onClose, memberId }: Pro
   const myCustomOils = useMyCustomOils(memberId ?? me.data?.id);
 
   function setSlot(round: number, oilId: string | null) {
+    // Kontingent: nur ein NEUES Öl in einem leeren Slot kann es sprengen.
+    if (oilId && !slots[round] && maxOele !== undefined
+        && slots.filter(Boolean).length >= maxOele) {
+      setVoll(true);
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
+      return;
+    }
+    setVoll(false);
     const next = [...slots];
     next[round] = oilId;
     onChange(next);
@@ -70,6 +90,7 @@ export default function OilPicker({ selected, onChange, onClose, memberId }: Pro
   function clearAll() {
     onChange([...EMPTY_SLOTS]);
     setActiveRound(0);
+    setVoll(false);
   }
 
   return (
@@ -100,7 +121,7 @@ export default function OilPicker({ selected, onChange, onClose, memberId }: Pro
               <button
                 key={i}
                 type="button"
-                onClick={() => setActiveRound(i)}
+                onClick={() => { setActiveRound(i); setVoll(false); }}
                 className={`rounded-xl px-2 py-2 text-left ring-1 transition ${
                   active
                     ? 'bg-amber-500/20 ring-amber-400 text-amber-100'
@@ -130,7 +151,7 @@ export default function OilPicker({ selected, onChange, onClose, memberId }: Pro
             }}
             inputMode="numeric"
             placeholder="1–64"
-            className={`w-20 rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-sm tabular-nums ring-1 focus:outline-none focus:ring-2 ${
+            className={`w-20 rounded-lg bg-forest-900/80 px-2.5 py-1.5 text-base sm:text-sm tabular-nums ring-1 focus:outline-none focus:ring-2 ${
               shake ? 'ring-rose-500' : 'ring-forest-700/50 focus:ring-forest-400'
             }`}
           />
@@ -158,6 +179,11 @@ export default function OilPicker({ selected, onChange, onClose, memberId }: Pro
             Alle zurücksetzen
           </button>
         </div>
+        {voll && (
+          <p role="alert" className="-mt-1.5 mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
+            {vollHinweis ?? 'Kein Platz mehr für ein weiteres Öl — erst etwas abwählen.'}
+          </p>
+        )}
 
         {/* ─── Meine eigenen Öle (privat) ─────────────────────────────── */}
         {(myCustomOils.data?.length ?? 0) > 0 && (
