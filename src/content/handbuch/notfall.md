@@ -31,11 +31,11 @@ Jedes eingeloggte Vereinsmitglied (nicht Gäste/Fans) und jedes gekoppelte Table
 
 Jedes Gerät muss nur **einmal** gekoppelt werden — danach bleibt es gekoppelt, auch nach Neustart oder Stromausfall.
 
-1. Das Gerät zeigt selbst einen **QR-Code**: das Anwesenheits-Panel sofort, das Öl-Raum-Tablet nach Tippen auf **„📱 Jetzt koppeln"** (gelber Hinweis oben links). Andere Geräte: dort `app.sauna-fds.de/koppeln` öffnen.
+1. Das Gerät zeigt selbst einen **QR-Code**: das Anwesenheits-Panel sofort, das Öl-Raum-Tablet nach Tippen auf **„📱 Jetzt koppeln"** (gelber Hinweis oben links), das Eingangs-Tablet über **„🔐 Tablet koppeln"** unten auf der Willkommen-Seite. Andere Geräte: dort `app.sauna-fds.de/koppeln` öffnen.
 2. Mit dem **Admin-Handy** den QR-Code scannen (Handy-Kamera oder in der App **Admin → 🔐 Kiosk-Geräte → „📷 QR-Code scannen"**). Ohne Kamera: den kurzen Code (z. B. `K7MQ-2XPA`) dort unter **„Code eingeben"** eintippen.
 3. Geräteart prüfen und **„Freigeben"** tippen. Das Gerät schaltet sich nach wenigen Sekunden selbst frei.
 
-Nur freigeben, wenn du **vor dem Gerät stehst** und dort genau dieser Code steht. Der Code gilt 15 Minuten, danach zeigt das Gerät von selbst einen neuen.
+Nur freigeben, wenn du **vor dem Gerät stehst** und dort genau dieser Code steht. Der Code gilt 15 Minuten, danach zeigt das Gerät von selbst einen neuen. War das Gerät vorher schon anders gekoppelt, zeigt die Freigabe-Seite das an — die alte Kopplung endet mit der Freigabe.
 
 Alter Weg (geht weiterhin): **Admin → Displays → 🔐 Kiosk-Geräte**, Geräteart wählen, **„Gerät koppeln"** und den angezeigten Link **auf dem Gerät selbst** öffnen (gilt einmal, 24 Stunden).
 
