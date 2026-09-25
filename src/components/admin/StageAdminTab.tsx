@@ -322,7 +322,8 @@ export function StageAdminTab() {
 
 // ─── Karten in leeren Kacheln ────────────────────────────────────────────
 // Öl-Tafel und Vereins-Galerie laufen immer (die Galerie blendet sich ohne
-// Fotos selbst aus). Schaltbar sind nur die beiden reinen Deko-Szenen — sie
+// Fotos selbst aus). Schaltbar sind die Saunafest-Schilder (seit 25.09.2026,
+// Standard an) und die beiden reinen Deko-Szenen — die
 // standen erst im Karussell, passten dann aber nicht mehr zum Rest der Tafel.
 // Statt sie zu löschen liegen sie hier auf Abruf.
 //
@@ -333,7 +334,7 @@ function SlotCardsSection() {
   const update = useUpdateBrandSettings();
   const cards = brandQ.data?.slot_cards;
 
-  async function toggle(key: 'reef' | 'forest', value: boolean) {
+  async function toggle(key: 'reef' | 'forest' | 'saunafest', value: boolean) {
     if (!brandQ.data) return;
     try {
       await update.mutateAsync({
@@ -346,6 +347,8 @@ function SlotCardsSection() {
   }
 
   const ZEILEN = [
+    { key: 'saunafest' as const, icon: '🎉', label: 'Saunafest-Schilder',
+      hint: 'Nächstes Fest mit Countdown + Tagesablauf (31 Aufgüsse, 10:30–23:30) — im Wechsel in freien Kacheln und alle 5 Minuten groß eingeblendet. Rechnet live aus den Saunafest-Terminen.' },
     { key: 'reef' as const, icon: '🐠', label: 'Riff-Szene',
       hint: 'Fischschwarm, Quallen, Saunafass — die ursprüngliche Animation.' },
     { key: 'forest' as const, icon: '🌲', label: 'Schwarzwald-Fenster',
@@ -358,8 +361,8 @@ function SlotCardsSection() {
       <p className="mt-1 text-xs text-forest-300/70">
         Hat eine Sauna zu einer Stunde keinen Aufguss, wandert die Kachel durch
         ein kleines Karten-Karussell. Die Öl-Tafel und eure Fotos aus der
-        Tafel-Galerie (Branding-Tab) laufen immer mit — die beiden Deko-Szenen
-        hier sind optional.
+        Tafel-Galerie (Branding-Tab) laufen immer mit — die Saunafest-Schilder
+        und die beiden Deko-Szenen lassen sich hier an- und abschalten.
       </p>
       <div className="mt-4 space-y-2">
         {ZEILEN.map((z) => {

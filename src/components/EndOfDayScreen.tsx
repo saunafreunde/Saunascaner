@@ -460,7 +460,7 @@ export function EndOfDayScreen({
               className="font-semibold text-slate-600"
               style={{ fontSize: 'clamp(9px, 1.5cqh, 15px)' }}
             >
-              {FEST_ABLAUF.ganztags} · {FEST_ABLAUF.ab14} · {FEST_ABLAUF.ab17}
+              {FEST_ABLAUF.zeiten} · {FEST_ABLAUF.stufen}
             </div>
           </div>
         </div>

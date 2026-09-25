@@ -109,6 +109,9 @@ export function deck(basis: number, faktor: number): number {
 export type SlotCards = {
   reef: boolean;
   forest: boolean;
+  /** Saunafest-Schilder (Termine + Tagesablauf) in freien Kacheln und in der
+   *  großen Einblendung — Standard AN (25.09.2026). */
+  saunafest: boolean;
 };
 
 /** Das Tablet im Öl-Raum. Nur der Admin stellt das ein — vom Handy aus, über
@@ -213,7 +216,7 @@ export function defaultBrandSettings(): BrandSettings {
     tile_bgs: {},
     badge: { front_bg: null, back_bg: null },
     slot_gallery: [],
-    slot_cards: { reef: false, forest: false },
+    slot_cards: { reef: false, forest: false, saunafest: true },
     tafel_finish: { ...FINISH_DEFAULT },
     oelraum: { ...OELRAUM_DEFAULT, ausschnitt: { ...AUSSCHNITT_DEFAULT } },
     info_karten: [],

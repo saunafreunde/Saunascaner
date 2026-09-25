@@ -29,11 +29,15 @@ export const SAUNAFESTE: Saunafest[] = [
   { datum: '2027-03-13', motto: 'Letzter Schnee' },
 ];
 
-/** So läuft jedes Fest ab — steht wortgleich auch im Tafel-Video. */
+/** So läuft jedes Fest ab (Tagesabschluss-Screen). Stand 25.09.2026 laut
+ *  saunafest_tage: 10:30–23:30 im Stundentakt, bis 13:30 eine Sauna im
+ *  Wechsel, ab 14:30 zwei, ab 17:30 alle drei = 31 Aufgüsse. Die
+ *  Saunafest-Schilder der Tafel rechnen das live aus der Datenbank
+ *  (lib/saunafestPlan.ts festRaster) — das alte Video (public/tafel/
+ *  saunafeste.mp4, „ab 14 Uhr … ab 17 Uhr") ist damit überholt. */
 export const FEST_ABLAUF = {
-  ganztags: 'Wir heizen den ganzen Tag',
-  ab14: 'ab 14 Uhr Aufgüsse in 2 Saunen',
-  ab17: 'ab 17 Uhr in 3 Saunen',
+  zeiten: '31 Aufgüsse von 10:30 bis 23:30',
+  stufen: 'ab 14:30 in 2 Saunen, ab 17:30 in allen 3',
 } as const;
 
 /** Das nächste Fest ab `jetzt` — der laufende Tag zählt noch mit, damit die

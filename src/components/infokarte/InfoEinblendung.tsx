@@ -1,6 +1,8 @@
-import { useBrandSettings } from '@/lib/api';
+import { useBrandSettings, useSaunafestTage } from '@/lib/api';
 import { InfoKarteView } from '@/components/infokarte/InfoKarteView';
-import { karteLaeuft, karteHatVideo, LEINWAND_V } from '@/types/infokarten';
+import { karteLaeuft, karteHatVideo, LEINWAND_V, type InfoKarte } from '@/types/infokarten';
+import { SaunafestSchild } from '@/components/emptytile/SaunafestSchilder';
+import { naechsterFestTag } from '@/lib/saunafestPlan';
 
 /** Große Einblendung für als „wichtig" markierte Info-Karten.
  *
@@ -32,17 +34,27 @@ const DAUER_S = 20;
 
 export function InfoEinblendung({ now, ohneVideo = false }: { now: Date; ohneVideo?: boolean }) {
   const brand = useBrandSettings();
+  // Derselbe Cache wie im Dashboard — keine zusätzliche Abfrage.
+  const festTage = useSaunafestTage();
   const wichtige = (brand.data?.info_karten ?? [])
     .filter((k) => k.wichtig && karteLaeuft(k, now) && !(ohneVideo && karteHatVideo(k)));
-  if (wichtige.length === 0) return null;
+  // Saunafest-Schilder (25.09.2026) laufen wie eine wichtige Karte mit — sie
+  // ersetzen das frühere „wichtige" Saunafest-Video. Kein Video, also auch am
+  // Festtag erlaubt.
+  const fest = brand.data?.slot_cards?.saunafest !== false ? naechsterFestTag(festTage.data, now) : null;
+  const eintraege: (InfoKarte | 'fest')[] = [...wichtige, ...(fest ? ['fest' as const] : [])];
+  if (eintraege.length === 0) return null;
 
   const sek = Math.floor(now.getTime() / 1000);
   const imZyklus = sek % ZYKLUS_S;
   if (imZyklus >= DAUER_S) return null;
 
   // Mehrere wichtige Karten wechseln sich über die Zyklen ab, statt sich zu
-  // überlagern oder eine davon nie zu zeigen.
-  const karte = wichtige[Math.floor(sek / ZYKLUS_S) % wichtige.length];
+  // überlagern oder eine davon nie zu zeigen. Die Saunafest-Schilder wechseln
+  // bei jedem ihrer Auftritte zwischen Termine und Tagesablauf.
+  const zyklus = Math.floor(sek / ZYKLUS_S);
+  const eintrag = eintraege[zyklus % eintraege.length];
+  const festVariante = Math.floor(zyklus / eintraege.length) % 2 === 0 ? 'termine' : 'tag';
 
   return (
     <div
@@ -53,7 +65,13 @@ export function InfoEinblendung({ now, ohneVideo = false }: { now: Date; ohneVid
         className="rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/15"
         style={{ width: '78vw', aspectRatio: `${LEINWAND_V}`, maxHeight: '80vh' }}
       >
-        <InfoKarteView karte={karte} now={now} />
+        {eintrag === 'fest'
+          ? fest && (
+            <div className="relative h-full w-full">
+              <SaunafestSchild variante={festVariante} fest={fest} alle={festTage.data ?? []} now={now} />
+            </div>
+          )
+          : <InfoKarteView karte={eintrag} now={now} />}
       </div>
     </div>
   );

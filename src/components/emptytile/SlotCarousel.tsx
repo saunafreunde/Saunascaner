@@ -5,6 +5,8 @@ import { GalleryCard } from '@/components/emptytile/GalleryCard';
 import { ForestWindow } from '@/components/emptytile/ForestWindow';
 import { InfoKarteView } from '@/components/infokarte/InfoKarteView';
 import { karteLaeuft, karteHatVideo } from '@/types/infokarten';
+import { SaunafestSchild, type SchildVariante } from '@/components/emptytile/SaunafestSchilder';
+import { naechsterFestTag } from '@/lib/saunafestPlan';
 
 /** Karussell für leere Tafel-Kacheln.
  *
@@ -29,7 +31,7 @@ import { karteLaeuft, karteHatVideo } from '@/types/infokarten';
  *  etwa alle 7 s irgendwo auf der Tafel etwas. */
 const CARD_MS = 20_000;
 
-export type SlotCardId = 'reef' | 'forest' | 'oil' | 'gallery' | 'info';
+export type SlotCardId = 'reef' | 'forest' | 'oil' | 'gallery' | 'info' | 'fest';
 
 type Props = {
   now: Date;
@@ -89,12 +91,19 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
     ? infos[(((tick + kachelNr) % infos.length) + infos.length) % infos.length]
     : null;
 
+  // Saunafest-Schilder (25.09.2026): solange ein Fest ansteht (der Festtag
+  // zählt mit). Zwei Schilder, EIN Platz im Pool — bei jedem Auftritt
+  // wechselt das Schild (Termine ↔ Tagesablauf), Nachbarkacheln versetzt.
+  const fest = cards?.saunafest !== false ? naechsterFestTag(festTage.data, now) : null;
+  const festVariante: SchildVariante = (((tick + kachelNr) % 2) + 2) % 2 === 0 ? 'termine' : 'tag';
+
   // Nur Karten in den Pool, die auch wirklich etwas anzeigen können:
   // ohne Fotos keine Galerie, ohne freigeschaltete Öle keine Öl-Karte.
   // Riff und Schwarzwald-Fenster sind reine Deko und stehen per Default AUS —
   // sie passten nicht mehr zum Rest der Tafel. Im Admin unter „🎭 Bühne"
   // lassen sie sich jederzeit wieder dazuschalten.
   const pool: SlotCardId[] = [];
+  if (fest) pool.push('fest');
   if (info) pool.push('info');
   if (oil) pool.push('oil');
   if (photo) pool.push('gallery');
@@ -120,12 +129,15 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
   // einem Startwert von 0.4 statt 0, damit selbst eine nie laufende Animation
   // die Karte nur blasser macht statt unsichtbar (siehe index.css).
   return (
-    <div key={card} className="slot-karte absolute inset-0">
+    <div key={card === 'fest' ? `fest-${festVariante}` : card} className="slot-karte absolute inset-0">
       {card === 'reef' && <ReefScene direction={direction} />}
       {card === 'forest' && <ForestWindow />}
       {card === 'oil' && oil && <OilCard oil={oil} now={now} />}
       {card === 'gallery' && photo && <GalleryCard photo={photo} />}
       {card === 'info' && info && <InfoKarteView karte={info} now={now} />}
+      {card === 'fest' && fest && (
+        <SaunafestSchild variante={festVariante} fest={fest} alle={festTage.data ?? []} now={now} />
+      )}
     </div>
   );
 }

@@ -64,3 +64,32 @@ export function festSaunenUm(plan: FestSlot[], zeit: string): string[] {
 export function festAblaufText(fest: SaunafestTag): string {
   return `${hhmm(fest.erster_slot)}–${hhmm(fest.letzter_slot)} Uhr · bis ${hhmm(fest.ab_beide)} eine Sauna im Wechsel · ab ${hhmm(fest.ab_beide)} zwei · ab ${hhmm(fest.ab_alle)} alle drei`;
 }
+
+/** Eine Stunde im Fest-Raster, nur mit der ANZAHL der Aufgüsse — für die
+ *  Saunafest-Schilder der Tafel (components/emptytile/SaunafestSchilder.tsx).
+ *  Dieselbe Regel wie festSlots, aber ohne Saunaliste: vor ab_beide eine
+ *  Sauna im Wechsel, ab ab_beide zwei, ab ab_alle drei (wenn eine dritte
+ *  Sauna eingetragen ist). So stimmt die Zahl auf dem Schild immer mit dem
+ *  Plan in der Datenbank überein (Stand 25.09.2026: 10:30–23:30 = 31). */
+export type FestStunde = { zeit: string; anzahl: 1 | 2 | 3 };
+
+export function festRaster(fest: SaunafestTag): FestStunde[] {
+  const ende = minuten(fest.letzter_slot);
+  const beide = minuten(fest.ab_beide);
+  const alle = minuten(fest.ab_alle);
+  const out: FestStunde[] = [];
+  let t = minuten(fest.erster_slot);
+  for (let i = 0; t <= ende && i < 48; i++, t += 60) {
+    const zeit = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+    const anzahl: 1 | 2 | 3 = t < beide ? 1 : t >= alle && fest.dritte_sauna_id ? 3 : 2;
+    out.push({ zeit, anzahl });
+  }
+  return out;
+}
+
+/** Nächstes Fest ab heute (Gerätezeit = Berlin); der Festtag selbst zählt
+ *  bis Mitternacht mit. Sortierte Liste vorausgesetzt (useSaunafestTage). */
+export function naechsterFestTag(tage: SaunafestTag[] | undefined, jetzt: Date): SaunafestTag | null {
+  const heute = `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, '0')}-${String(jetzt.getDate()).padStart(2, '0')}`;
+  return (tage ?? []).find((f) => f.datum >= heute) ?? null;
+}
