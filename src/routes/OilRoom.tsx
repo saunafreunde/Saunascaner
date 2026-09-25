@@ -7,6 +7,7 @@ import {
   useAllCustomOils, useAllCustomAttrs, useSudKraeuter, useSudMixe,
   useBrandSync, brandAssetUrl,
   useHolidaySet, isHolidayDate,
+  useKioskGeraetStatus,
 } from '@/lib/api';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 import { useNow } from '@/hooks/useNow';
@@ -72,6 +73,10 @@ export default function OilRoom() {
 
   const evacQ = useActiveEvacuation();
   const trigEvac = useTriggerEvacuation();
+  // Kopplung (0177): Eintragen am Tablet geht nur, wenn dieses Gerät als
+  // Öl-Raum-Gerät gekoppelt ist. Ohne Kopplung zeigt die Anzeige einen Hinweis.
+  const geraet = useKioskGeraetStatus();
+  const gekoppelt = geraet.data?.status === 'ok' && geraet.data.art === 'oelraum';
   const endEvac = useEndEvacuation();
 
   const saunas = useMemo(() => saunasQ.data ?? [], [saunasQ.data]);
@@ -174,7 +179,9 @@ export default function OilRoom() {
     setEvacToast(null);
 
     const auslöser = amGeraet?.name ?? 'Öl-Raum-Tablet';
-    const namen = (presentQ.data ?? []).map((p) => p.name);
+    // Vorläufig die hier bekannte Liste — der Server setzt beim Auslösen die
+    // maßgebliche Anwesenheitsliste selbst (0177) und schickt sie mit zurück.
+    let namen = (presentQ.data ?? []).map((p) => p.name);
     const foto = await capturePhoto();
 
     try {
@@ -182,11 +189,9 @@ export default function OilRoom() {
       try {
         // triggered_by darf leer bleiben — die Spalte nimmt NULL, und ein
         // Alarm ohne Namen ist tausendmal besser als kein Alarm.
-        const ev = await trigEvac.mutateAsync({
-          triggered_by: amGeraet?.id ?? null,
-          present_names: namen,
-        });
+        const ev = await trigEvac.mutateAsync({ triggered_by: amGeraet?.id ?? null });
         ausgeloestAm = ev.triggered_at;
+        if (Array.isArray(ev.present_names)) namen = ev.present_names;
       } catch { /* weiter auch ohne DB-Eintrag */ }
 
       broadcastEvac({ type: 'start', triggeredBy: auslöser, triggeredAt: Date.parse(ausgeloestAm) });
@@ -285,10 +290,18 @@ export default function OilRoom() {
     </div>
   );
 
+  const kopplungsHinweis = !geraet.isLoading && !gekoppelt ? (
+    <div className="fixed left-3 top-3 z-50 max-w-sm rounded-xl bg-amber-500/95 px-3 py-2 text-xs font-semibold leading-snug text-amber-950 shadow-lg">
+      🔐 Dieses Tablet ist nicht gekoppelt — Eintragen und Ändern gehen erst nach der Kopplung
+      (Admin → Displays → Kiosk-Geräte → „Öl-Raum-Tablet“).
+    </div>
+  ) : null;
+
   if (auftrag) {
     return (
       <>
         {vollbildKnopf}
+        {kopplungsHinweis}
         <OelraumEingabe
           auftrag={auftrag}
           saunas={saunas}
@@ -308,6 +321,7 @@ export default function OilRoom() {
   return (
     <>
       {vollbildKnopf}
+      {kopplungsHinweis}
       <OelraumAnzeige
         now={now}
         infusions={infusions}

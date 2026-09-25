@@ -1,5 +1,11 @@
 // Sends notifications via server-side API functions.
 // Bot token never reaches the browser.
+//
+// Seit 25.09.2026 (Audit): alle Endpunkte verlangen eine Anmeldung bzw. ein
+// gekoppeltes Kiosk-Gerät, und der Server baut die Texte selbst — der Browser
+// schickt nur noch die Art der Meldung (Alarm-Inhalt kommt aus der Datenbank).
+import { authHeaders } from './api';
+import { kioskGeraetHeader } from './kioskGeraet';
 
 export type EvacuationPayload = {
   triggeredBy: string;
@@ -17,22 +23,26 @@ export async function sendEvacuationList(
   return sendEvacuationWithPhoto(p);
 }
 
-export async function sendNotification(text: string): Promise<void> {
+async function sendNotification(body: Record<string, unknown>): Promise<void> {
   try {
     await fetch('/api/send-notification', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text }),
+      headers: await authHeaders(),
+      body: JSON.stringify(body),
     });
   } catch { /* ignore */ }
 }
 
 export async function sendBadgeAnnouncement(
-  displayName: string,
-  badge: { emoji: string; label: string; description: string }
+  _displayName: string,
+  badge: { id: string; emoji: string; label: string; description: string }
 ): Promise<void> {
-  const text = `🏅 <b>${displayName}</b> hat gerade <b>${badge.label}</b> freigeschaltet! ${badge.emoji}\n<i>${badge.description}</i>`;
-  await sendNotification(text);
+  await sendNotification({ art: 'badge', badge_id: badge.id, emoji: badge.emoji, label: badge.label, description: badge.description });
+}
+
+/** Aufguss-Name wurde gerade geändert — der Server liest den neuen Namen selbst. */
+export async function sendSaunaNameAnnouncement(): Promise<void> {
+  await sendNotification({ art: 'sauna_name' });
 }
 
 export async function sendEvacuationWithPhoto(
@@ -50,7 +60,7 @@ export async function sendEvacuationWithPhoto(
 
     const r = await fetch('/api/send-evacuation', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...(await authHeaders()), ...kioskGeraetHeader() },
       body: JSON.stringify({
         triggeredBy: p.triggeredBy,
         triggeredAt: p.triggeredAt.toISOString(),

@@ -4,7 +4,7 @@
 // FIX 0107 (Audit Phase 8 CRITICAL+HIGH): serviceClient + tgBroadcast.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { serviceClient } from './_auth.js';
+import { authenticate } from './_auth.js';
 import { tgBroadcast } from './_telegram.js';
 
 type PollResultPayload = {
@@ -47,9 +47,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const sb = serviceClient();
   if (!token) return res.status(500).json({ error: 'TELEGRAM_BOT_TOKEN missing' });
-  if (!sb) return res.status(500).json({ error: 'Supabase service env missing' });
+
+  // Nur Admins (Audit 25.09.2026: vorher ohne Anmeldung — jeder konnte
+  // beliebige „Umfrageergebnisse" in alle Vereins-Chats schicken).
+  const auth = await authenticate(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+  if (auth.member.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+  const sb = auth.service;
 
   const p = req.body as PollResultPayload;
   if (!p?.pollTitle || !Array.isArray(p?.results)) {

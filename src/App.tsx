@@ -20,7 +20,7 @@ const NO_BOTTOM_NAV_PATHS = [
   '/willkommen',
   '/checkin', '/checkin/signup', '/checkin/rate',
   '/gast-signup', '/login', '/forgot', '/reset-password',
-  '/panel',
+  '/panel', '/koppeln',
   '/datenschutz',
   '/m/',
 ];
@@ -141,6 +141,7 @@ const GameKart        = lazy(() => import('@/routes/GameKart'));
 const Dm              = lazy(() => import('@/routes/Dm'));
 const DmConversation  = lazy(() => import('@/routes/DmConversation'));
 const AnwesenheitsPanel = lazy(() => import('@/routes/AnwesenheitsPanel'));
+const Koppeln         = lazy(() => import('@/routes/Koppeln'));
 
 export default function App() {
   useRealtimeSync();
@@ -190,8 +191,10 @@ export default function App() {
         <Route path="/spiele/kart"           element={<RequireAuth><GameKart /></RequireAuth>} />
         <Route path="/dm"                    element={<RequireAuth><Dm /></RequireAuth>} />
         <Route path="/dm/:conversationId"    element={<RequireAuth><DmConversation /></RequireAuth>} />
-        {/* /panel — anonymer Desktop-Hub für Anwesenheit, PW-geschützt (SaunaPano!) */}
+        {/* /panel — anonymer Desktop-Hub für Anwesenheit, nur auf einem gekoppelten Gerät (0177) */}
         <Route path="/panel"                 element={<AnwesenheitsPanel />} />
+        {/* /koppeln#<token> — Kiosk-Gerät koppeln (Link aus Admin → Displays → Kiosk-Geräte) */}
+        <Route path="/koppeln"               element={<Koppeln />} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

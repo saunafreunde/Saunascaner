@@ -8,7 +8,7 @@ import {
 } from '@/lib/api';
 import { ATTRIBUTES_WAEHLBAR } from '@/lib/attributes';
 import { OILS } from '@/lib/oils';
-import { sendNotification } from '@/lib/telegram';
+import { sendSaunaNameAnnouncement } from '@/lib/telegram';
 import EmojiPicker from '@/components/EmojiPicker';
 
 const MAX_DEFAULT_ATTRS = 5;
@@ -152,9 +152,8 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
     const trimmed = nameInput.trim();
     try {
       await setSaunaName.mutateAsync(trimmed);
-      const oldName = member.sauna_name || member.name || '';
-      const newName = trimmed || member.name || '';
-      await sendNotification(`🎭 <b>${member.name}</b> hat seinen Aufguss-Namen geändert: ${oldName} → ${newName}`);
+      // Die Telegram-Meldung baut der Server selbst aus dem gespeicherten Namen (Audit 25.09.2026).
+      await sendSaunaNameAnnouncement();
       setEditingName(false);
       setNameInput('');
       setNameSaved(true);

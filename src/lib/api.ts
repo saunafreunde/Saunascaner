@@ -5,6 +5,7 @@ import type { SudKraut, SudMix } from '@/lib/sud';
 import type { InfusionAttribute } from './attributes';
 import { type BrandSettings, mergeBrandDefaults, defaultBrandSettings } from '@/types/branding';
 import type { TvStageState } from './season';
+import { kioskGeraetToken } from './kioskGeraet';
 
 function need() {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -541,6 +542,17 @@ export function useSuggestInfusionTitle() {
 // ─── Kiosk-Varianten (Öl-Raum-Tablet, ohne Auth) ──────────────────────────
 // Identifiziert den Aufgießer per p_saunameister_id (vom Frontend übergeben)
 // statt per auth.uid(). Backend prüft is_present + is_aufgieser. (Migration 0070)
+// Seit 0177 (25.09.2026) nur noch von einem GEKOPPELTEN Öl-Raum-Gerät:
+// p_geraet = Token aus lib/kioskGeraet. Vorher konnte jeder im Internet mit
+// einer Mitglieds-UUID Aufgüsse anlegen, ändern und löschen.
+
+/** Übersetzt die Kopplungs-Ablehnung der Kiosk-RPCs in einen verständlichen Text. */
+function kioskFehler(error: { message?: string; code?: string }): Error {
+  if (error.message?.includes('geraet_nicht_gekoppelt')) {
+    return new Error('Dieses Tablet ist nicht gekoppelt. Ein Admin koppelt es unter Admin → Displays → Kiosk-Geräte.');
+  }
+  return error as Error;
+}
 
 export function useAddInfusionKiosk(saunameisterId: string | null) {
   const qc = useQueryClient();
@@ -558,8 +570,9 @@ export function useAddInfusionKiosk(saunameisterId: string | null) {
         p_oils: i.oils ?? null,
         p_template_id: i.template_id,
         p_team_infusion: i.team_infusion ?? false,
+        p_geraet: kioskGeraetToken(),
       });
-      if (error) throw error;
+      if (error) throw kioskFehler(error);
       return data as string;
     },
     onSuccess: () => {
@@ -597,8 +610,9 @@ export function useUpdateInfusionKiosk(saunameisterId: string | null) {
         p_title: i.title,
         p_attributes: i.attributes,
         p_oils: i.oils ?? null,
+        p_geraet: kioskGeraetToken(),
       });
-      if (error) throw error;
+      if (error) throw kioskFehler(error);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['infusions'] });
@@ -634,8 +648,9 @@ export function useTakeoverFallbackKiosk(saunameisterId: string | null) {
         p_attributes: i.attributes,
         p_oils: i.oils ?? null,
         p_team_infusion: i.team_infusion ?? false,
+        p_geraet: kioskGeraetToken(),
       });
-      if (error) throw error;
+      if (error) throw kioskFehler(error);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['infusions'] });
@@ -652,10 +667,77 @@ export function useDeleteInfusionKiosk(saunameisterId: string | null) {
       const { error } = await need().rpc('cancel_infusion_kiosk', {
         p_id: id,
         p_saunameister_id: saunameisterId,
+        p_geraet: kioskGeraetToken(),
       });
-      if (error) throw error;
+      if (error) throw kioskFehler(error);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['infusions'] }),
+  });
+}
+
+// ─── Kiosk-Geräte koppeln (Migration 0177) ───────────────────────────────
+export type KioskGeraetStatus =
+  | { status: 'fehlt' }
+  | { status: 'ungueltig' }
+  | { status: 'ok'; art: import('./kioskGeraet').KioskGeraetArt; name: string };
+
+/** Ist dieses Gerät gekoppelt? Fragt den Server einmal je Seitenstart (plus stündlich). */
+export function useKioskGeraetStatus() {
+  const token = kioskGeraetToken();
+  return useQuery<KioskGeraetStatus>({
+    queryKey: ['kiosk-geraet', token ? token.slice(0, 8) : 'keins'],
+    queryFn: async () => {
+      if (!token) return { status: 'fehlt' };
+      const { data, error } = await need().rpc('kiosk_geraet_pruefen', { p_token: token });
+      if (error) throw error;
+      const d = (data ?? {}) as { ok?: boolean; art?: string; name?: string };
+      return d.ok
+        ? { status: 'ok', art: d.art as import('./kioskGeraet').KioskGeraetArt, name: d.name ?? '' }
+        : { status: 'ungueltig' };
+    },
+    staleTime: 60 * 60_000,
+    refetchInterval: 60 * 60_000,
+    retry: 2,
+  });
+}
+
+export type KioskGeraetZeile = {
+  id: string; name: string; art: string; erstellt_at: string;
+  zuletzt_gesehen_at: string | null; widerrufen_at: string | null;
+};
+
+export function useAdminKioskGeraete() {
+  return useQuery({
+    queryKey: ['admin-kiosk-geraete'],
+    queryFn: async () => {
+      const { data, error } = await need().rpc('admin_kiosk_geraete');
+      if (error) throw error;
+      return (data ?? []) as KioskGeraetZeile[];
+    },
+  });
+}
+
+/** Legt ein Gerät an und liefert das Token EINMAL (für den Kopplungs-Link). */
+export function useAdminKioskGeraetKoppeln() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { name: string; art: string }) => {
+      const { data, error } = await need().rpc('admin_kiosk_geraet_koppeln', { p_name: p.name, p_art: p.art });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-kiosk-geraete'] }),
+  });
+}
+
+export function useAdminKioskGeraetWiderrufen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await need().rpc('admin_kiosk_geraet_widerrufen', { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-kiosk-geraete'] }),
   });
 }
 
@@ -697,8 +779,8 @@ export function useTemplatesKiosk(memberId: string | null) {
     queryKey: ['templates-kiosk', memberId],
     enabled: !!memberId,
     queryFn: async () => {
-      const { data, error } = await need().rpc('templates_kiosk', { p_member_id: memberId });
-      if (error) throw error;
+      const { data, error } = await need().rpc('templates_kiosk', { p_member_id: memberId, p_geraet: kioskGeraetToken() });
+      if (error) throw kioskFehler(error);
       return (data ?? []) as Template[];
     },
     staleTime: 60_000,
@@ -2027,7 +2109,8 @@ export async function fetchVapidPublicKey(): Promise<string> {
   return data.publicKey as string;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+/** Content-Type + Bearer-JWT der aktuellen Sitzung (für api/*-Aufrufe). */
+export async function authHeaders(): Promise<Record<string, string>> {
   const sb = need();
   const { data } = await sb.auth.getSession();
   const token = data.session?.access_token;
@@ -3460,21 +3543,24 @@ export function useActiveEvacuation() {
 export function useTriggerEvacuation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { triggered_by?: string | null; present_names: string[]; telegram_status?: string }) => {
-      const { data, error } = await need()
-        .from('evacuation_events')
-        .insert({
-          // Nullable in der DB — das anonyme Öl-Raum-Tablet löst auch ohne
-          // gewählten Aufgießer aus (Alarm ohne Name schlägt keinen Alarm).
-          triggered_by: p.triggered_by ?? null,
-          present_names: p.present_names,
-          present_count: p.present_names.length,
-          telegram_status: p.telegram_status ?? null,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as EvacuationEvent;
+    // Seit 0177 (25.09.2026) über evakuierung_ausloesen(): die Anwesenheitsliste
+    // setzt der Server, und nur eingeloggte Mitglieder (nicht Gast/Fan) oder ein
+    // gekoppeltes Kiosk-Gerät dürfen auslösen. Vorher durfte jeder anonym in
+    // evacuation_events schreiben — eingeloggte Aufgießer ohne Admin-Rolle aber
+    // NICHT. Läuft schon ein Alarm, kommt dieser zurück (schon_aktiv).
+    // present_names wird aus Kompatibilität noch angenommen, aber ignoriert.
+    mutationFn: async (p: { triggered_by?: string | null; present_names?: string[] }) => {
+      const { data, error } = await need().rpc('evakuierung_ausloesen', {
+        p_geraet: kioskGeraetToken(),
+        p_von: p.triggered_by ?? null,
+      });
+      if (error) {
+        if (error.message?.includes('nicht_berechtigt')) {
+          throw new Error('Dieses Gerät darf keinen Alarm auslösen (nicht gekoppelt bzw. nicht angemeldet).');
+        }
+        throw error;
+      }
+      return data as EvacuationEvent & { schon_aktiv?: boolean };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['evacuation'] }),
   });
@@ -3484,11 +3570,13 @@ export function useEndEvacuation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await need()
-        .from('evacuation_events')
-        .update({ ended_at: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
+      const { error } = await need().rpc('evakuierung_beenden', { p_id: id, p_geraet: kioskGeraetToken() });
+      if (error) {
+        if (error.message?.includes('nicht_berechtigt')) {
+          throw new Error('Beenden ist nur für angemeldete Mitglieder oder gekoppelte Geräte möglich.');
+        }
+        throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['evacuation'] }),
   });

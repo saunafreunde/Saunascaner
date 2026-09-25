@@ -1,99 +1,60 @@
 // /panel — Desktop-Anwesenheits-Panel (Migration 0110, 29.05.2026).
 //
-// PW-geschützter anonymer Hub für den Innenraum-PC: alle Mitglieder als
-// Kacheln, Tap-Toggle (grün=anwesend, rot=abwesend). Für Member ohne Handy.
+// Anonymer Hub für den Innenraum-PC: alle Mitglieder als Kacheln,
+// Tap-Toggle (grün=anwesend, rot=abwesend). Für Member ohne Handy.
 //
-// Architektur:
-//   - Route ist anonym zugänglich (kein Login nötig)
-//   - PW-Gate vorne: User tippt 'SaunaPano!' → sessionStorage gecached
-//   - Backend prüft PW bei JEDEM RPC-Call → wer Frontend-Gate umgeht, kommt
-//     auch nicht weiter
+// Zugang seit 25.09.2026 (Migration 0177): NUR auf einem gekoppelten Gerät der
+// Art „panel". Das frühere Passwort stand im öffentlichen GitHub-Repo — damit
+// konnte jeder im Internet die Mitgliederliste lesen und Anwesenheiten setzen.
+// Ein Admin koppelt den PC einmal unter Admin → Displays → Kiosk-Geräte; das
+// Geräte-Token geht im bisherigen Parameter p_panel_password an den Server.
 //   - Realtime-Sync via useRealtime invalidiert members → live-update wenn
 //     jemand woanders ein-/austippt
 //   - Bottom-Nav ausgeblendet (siehe App.tsx NO_BOTTOM_NAV_PATHS)
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  useVerifyPanelPassword,
   usePanelMembers,
   usePanelSetPresence,
+  useKioskGeraetStatus,
   type PanelMember,
 } from '@/lib/api';
+import { kioskGeraetToken } from '@/lib/kioskGeraet';
 import { Avatar } from '@/components/Avatar';
 
-const PANEL_PW_STORAGE_KEY = 'sauna-panel-pw-v1';
-
 export default function AnwesenheitsPanel() {
-  const [password, setPassword] = useState<string | null>(() => {
-    if (typeof sessionStorage === 'undefined') return null;
-    return sessionStorage.getItem(PANEL_PW_STORAGE_KEY);
-  });
+  const status = useKioskGeraetStatus();
+  const token = kioskGeraetToken();
 
-  if (!password) {
-    return <PasswordGate onUnlock={(pw) => {
-      sessionStorage.setItem(PANEL_PW_STORAGE_KEY, pw);
-      setPassword(pw);
-    }} />;
+  if (status.isLoading) {
+    return <div className="min-h-screen bg-forest-950 grid place-items-center text-forest-300">Gerät wird geprüft …</div>;
   }
-
-  return <PanelGrid password={password} onLock={() => {
-    sessionStorage.removeItem(PANEL_PW_STORAGE_KEY);
-    setPassword(null);
-  }} />;
+  if (status.data?.status === 'ok' && status.data.art === 'panel' && token) {
+    return <PanelGrid password={token} />;
+  }
+  return <NichtGekoppelt falscheArt={status.data?.status === 'ok' ? status.data.art : null} />;
 }
 
-// ─── PW-Gate ────────────────────────────────────────────────────────────
-function PasswordGate({ onUnlock }: { onUnlock: (pw: string) => void }) {
-  const [input, setInput] = useState('');
-  const verify = useVerifyPanelPassword();
-  const [err, setErr] = useState<string | null>(null);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    try {
-      const ok = await verify.mutateAsync(input);
-      if (!ok) { setErr('Falsches Passwort'); return; }
-      onUnlock(input);
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
-
+function NichtGekoppelt({ falscheArt }: { falscheArt: string | null }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-forest-950 via-slate-950 to-forest-900 grid place-items-center p-6">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-3xl bg-forest-900/80 ring-1 ring-forest-700/40 p-8 backdrop-blur-xl space-y-5">
-        <div className="text-center space-y-2">
-          <div className="text-5xl">🚪</div>
-          <h1 className="text-2xl font-bold text-forest-100">Anwesenheits-Panel</h1>
-          <p className="text-sm text-forest-300/80">
-            Für den Sauna-Innenraum-PC.<br />Bitte Passwort eingeben.
-          </p>
-        </div>
-        <input
-          type="password"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          autoFocus
-          autoComplete="current-password"
-          placeholder={'Panel-Passwort'}
-          className="w-full rounded-xl bg-forest-950/80 px-4 py-3 text-base text-forest-100 ring-1 ring-forest-700/40 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
-        />
-        {err && <p className="text-sm text-rose-300 text-center">{err}</p>}
-        <button
-          type="submit"
-          disabled={verify.isPending || !input}
-          className="w-full rounded-xl bg-amber-500 px-4 py-3 text-base font-bold text-forest-950 hover:bg-amber-400 disabled:opacity-50 transition"
-        >
-          {verify.isPending ? 'Prüfe…' : 'Freischalten'}
-        </button>
-      </form>
+      <div className="w-full max-w-md rounded-3xl bg-forest-900/80 ring-1 ring-forest-700/40 p-8 text-center backdrop-blur-xl">
+        <div className="text-5xl">🚪</div>
+        <h1 className="mt-3 text-2xl font-bold text-forest-100">Anwesenheits-Panel</h1>
+        <p className="mt-3 text-sm leading-relaxed text-forest-300/90">
+          {falscheArt
+            ? `Dieses Gerät ist als „${falscheArt}" gekoppelt, nicht als Panel.`
+            : 'Dieses Gerät ist noch nicht freigeschaltet.'}
+          {' '}Ein Admin öffnet dafür einmal <strong className="text-amber-300">Admin → Displays → Kiosk-Geräte</strong>,
+          wählt „Anwesenheits-Panel" und öffnet den angezeigten Link auf diesem PC.
+        </p>
+      </div>
     </div>
   );
 }
 
 // ─── Kachel-Grid ────────────────────────────────────────────────────────
-function PanelGrid({ password, onLock }: { password: string; onLock: () => void }) {
+function PanelGrid({ password }: { password: string }) {
   const membersQ = usePanelMembers(password);
   const setPresence = usePanelSetPresence();
   const [search, setSearch] = useState('');
@@ -101,13 +62,9 @@ function PanelGrid({ password, onLock }: { password: string; onLock: () => void 
   // (verhindert Flash bei langsamer Verbindung)
   const [pendingMap, setPendingMap] = useState<Record<string, boolean>>({});
 
-  // PW invalid (z.B. nachträglich geändert) → unlock + zurück zum Gate
-  useEffect(() => {
-    if (membersQ.error && /invalid_password/i.test((membersQ.error as Error).message)) {
-      sessionStorage.removeItem(PANEL_PW_STORAGE_KEY);
-      onLock();
-    }
-  }, [membersQ.error, onLock]);
+  // Gerät widerrufen → der Server lehnt ab; die Liste bleibt leer und der
+  // Hinweis unten erklärt es.
+  const widerrufen = !!membersQ.error && /invalid_password/i.test((membersQ.error as Error).message);
 
   const list = membersQ.data ?? [];
   const filtered = useMemo(() => {
@@ -165,13 +122,6 @@ function PanelGrid({ password, onLock }: { password: string; onLock: () => void 
               placeholder={'🔍 Suchen…'}
               className="hidden sm:block w-64 rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-forest-700/40 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
             />
-            <button
-              onClick={onLock}
-              className="rounded-lg bg-forest-900/80 px-3 py-2 text-xs ring-1 ring-forest-700/40 hover:bg-forest-900 transition"
-              title="Panel sperren"
-            >
-              🔒 Sperren
-            </button>
           </div>
         </div>
         {/* Suche auf Mobile unter Header */}
@@ -188,7 +138,11 @@ function PanelGrid({ password, onLock }: { password: string; onLock: () => void 
 
       {/* Grid */}
       <main className="mx-auto max-w-7xl p-4">
-        {membersQ.isLoading ? (
+        {widerrufen ? (
+          <div className="grid place-items-center py-20 text-center text-rose-200">
+            Die Kopplung dieses Geräts wurde widerrufen. Ein Admin kann es unter Admin → Displays → Kiosk-Geräte neu koppeln.
+          </div>
+        ) : membersQ.isLoading ? (
           <div className="grid place-items-center py-20 text-forest-400">Lade Mitglieder…</div>
         ) : filtered.length === 0 ? (
           <div className="grid place-items-center py-20 text-forest-400 text-center">

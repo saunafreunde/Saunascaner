@@ -1,24 +1,42 @@
 // Vercel Serverless Function — POST /api/send-evacuation
-// Sends an evacuation notification (text + optional photo) to all configured Telegram chats.
-// Bot token stays server-side (TELEGRAM_BOT_TOKEN env var).
+// Schickt den LAUFENDEN Evakuierungsalarm (Text + optional Foto) an alle
+// Vereins-Telegram-Chats. Bot-Token bleibt serverseitig.
 //
-// FIX 0107 (Audit Phase 8 CRITICAL+HIGH):
-//  - serviceClient() statt anon-Key
-//  - Photo-Size-Limit 8 MB (Telegram-Max ist 10 MB für sendPhoto, plus Vercel-Memory-Schutz)
-//  - tgBroadcast für Throttle + 429-Retry
+// Neu 25.09.2026 (Audit): vorher ohne jede Anmeldung, und Auslöser, Zeit und
+// Namensliste kamen aus dem Browser — jeder im Internet konnte einen falschen
+// Alarm samt Foto an alle Chats schicken. Jetzt:
+//  * Zugang: eingeloggtes Mitglied (nicht Gast/Fan) ODER gekoppeltes
+//    Kiosk-Gerät (Header x-kiosk-geraet, Migration 0177) — übergangsweise jeder
+//    Kiosk, solange noch KEIN Gerät gekoppelt ist (ein echter Alarm darf nie
+//    scheitern).
+//  * Inhalt: kommt aus der Datenbank (laufender Alarm der letzten 15 Minuten,
+//    Anwesenheitsliste vom Server gesetzt). Body-Felder außer dem Foto werden
+//    ignoriert.
+//  * Genau einmal je Alarm: telegram_status wird vor dem Senden „beansprucht".
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { serviceClient } from './_auth.js';
+import { authenticate, serviceClient } from './_auth.js';
 import { tgBroadcast } from './_telegram.js';
 
-type EvacPayload = {
-  triggeredBy: string;
-  triggeredAt: string;
-  presentNames: string[];
-  photoBase64?: string;
-};
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // Telegram erlaubt 10 MB für sendPhoto
+const ALARM_FENSTER_MS = 15 * 60_000;
 
-const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8 MB
+async function zugangOk(req: VercelRequest, sb: NonNullable<ReturnType<typeof serviceClient>>): Promise<boolean> {
+  const geraet = req.headers['x-kiosk-geraet'];
+  const token = Array.isArray(geraet) ? geraet[0] : geraet;
+  if (token && /^[0-9a-f]{64}$/.test(token)) {
+    const { data } = await sb.rpc('kiosk_geraet_art', { p_token: token });
+    if (typeof data === 'string' && data) return true;
+  }
+  if (req.headers.authorization) {
+    const auth = await authenticate(req);
+    if (auth.ok && ['admin', 'staff', 'member', 'guest_aufgieser'].includes(auth.member.role)) return true;
+  }
+  // Übergang: noch kein Kiosk-Gerät gekoppelt → wie bisher offen (nur der
+  // laufende Alarm kann gesendet werden, und nur einmal).
+  const { count } = await sb.from('kiosk_geraete').select('id', { count: 'exact', head: true }).is('widerrufen_at', null);
+  return (count ?? 0) === 0;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -28,48 +46,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!token) return res.status(500).json({ error: 'TELEGRAM_BOT_TOKEN missing' });
   if (!sb) return res.status(500).json({ error: 'Supabase service env missing' });
 
-  const p = req.body as EvacPayload;
-  if (!p?.triggeredBy || !p?.triggeredAt) return res.status(400).json({ error: 'bad payload' });
+  if (!(await zugangOk(req, sb))) return res.status(403).json({ error: 'nicht_berechtigt' });
+
+  const seit = new Date(Date.now() - ALARM_FENSTER_MS).toISOString();
+  const { data: ev, error: evErr } = await sb
+    .from('evacuation_events')
+    .select('id, triggered_by, triggered_at, present_names, telegram_status')
+    .is('ended_at', null)
+    .gte('triggered_at', seit)
+    .order('triggered_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (evErr) return res.status(500).json({ error: 'alarm_lesen_fehlgeschlagen' });
+  if (!ev) return res.status(409).json({ error: 'kein_aktiver_alarm' });
+  if (ev.telegram_status) return res.status(200).json({ ok: true, via: 'telegram', schon_gesendet: true, sent: 0 });
+
+  // Beanspruchen: nur wer telegram_status von NULL auf „sende" setzt, sendet.
+  const { data: claim } = await sb
+    .from('evacuation_events')
+    .update({ telegram_status: 'sende' })
+    .eq('id', ev.id)
+    .is('telegram_status', null)
+    .select('id');
+  if (!claim || claim.length === 0) return res.status(200).json({ ok: true, via: 'telegram', schon_gesendet: true, sent: 0 });
 
   const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
   const chats: number[] = Array.isArray(cfg?.value?.chat_ids) ? cfg.value.chat_ids : [];
-
   if (chats.length === 0) {
+    await sb.from('evacuation_events').update({ telegram_status: 'keine_chats' }).eq('id', ev.id);
     return res.status(200).json({ ok: true, via: 'telegram', sent: 0, note: 'no chats subscribed' });
   }
+
+  let ausloeser = 'Kiosk-Gerät';
+  if (ev.triggered_by) {
+    const { data: m } = await sb.from('members').select('name').eq('id', ev.triggered_by).maybeSingle();
+    if (m?.name) ausloeser = m.name;
+  }
+  const namen: string[] = Array.isArray(ev.present_names) ? ev.present_names : [];
 
   const esc = (s: string) => s.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
   const caption = [
     '🚨 *EVAKUIERUNG ausgelöst*',
-    `Auslöser: ${esc(p.triggeredBy)}`,
-    `Zeit: ${new Date(p.triggeredAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })}`,
+    `Auslöser: ${esc(ausloeser)}`,
+    `Zeit: ${esc(new Date(ev.triggered_at).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }))}`,
     '',
-    `Anwesend \\(${p.presentNames.length}\\):`,
-    ...(p.presentNames.length ? p.presentNames.map((n) => `• ${esc(n)}`) : ['_keine Personen erfasst_']),
-  ].join('\n');
+    `Anwesend \\(${namen.length}\\):`,
+    ...(namen.length ? namen.map((n) => `• ${esc(n)}`) : ['_keine Personen erfasst_']),
+  ].join('\n').slice(0, 1000);
 
-  // Photo-Blob aus base64 erzeugen — mit Size-Cap gegen Memory-OOM
+  // Foto (optional) — nur JPEG/PNG, mit Größenbremse.
   let photoBuffer: Buffer | null = null;
-  if (p.photoBase64) {
+  const photoBase64 = (req.body as { photoBase64?: unknown } | undefined)?.photoBase64;
+  if (typeof photoBase64 === 'string' && /^data:image\/(jpeg|png);base64,/.test(photoBase64)) {
     try {
-      const base64Data = p.photoBase64.replace(/^data:image\/\w+;base64,/, '');
-      const buf = Buffer.from(base64Data, 'base64');
-      if (buf.length > MAX_PHOTO_BYTES) {
-        // Zu groß — Text-only senden, kein Photo. Kein Crash.
-        photoBuffer = null;
-      } else {
-        photoBuffer = buf;
-      }
-    } catch { /* ignore, fall back to text */ }
+      const buf = Buffer.from(photoBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      if (buf.length > 0 && buf.length <= MAX_PHOTO_BYTES) photoBuffer = buf;
+    } catch { /* ohne Foto weiter */ }
   }
 
-  // Throttled Telegram-Broadcast mit 429-Retry
   let results;
   if (photoBuffer) {
-    const ab = photoBuffer.buffer.slice(
-      photoBuffer.byteOffset,
-      photoBuffer.byteOffset + photoBuffer.byteLength
-    ) as ArrayBuffer;
+    const ab = photoBuffer.buffer.slice(photoBuffer.byteOffset, photoBuffer.byteOffset + photoBuffer.byteLength) as ArrayBuffer;
     results = await tgBroadcast(token, 'sendPhoto', chats, (chat_id) => {
       const fd = new FormData();
       fd.append('chat_id', String(chat_id));
@@ -78,30 +115,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       fd.append('parse_mode', 'MarkdownV2');
       return fd;
     });
-    // Fallback: für jede gescheiterte Photo-Sendung Text-Variante
     const failed = results.filter((r) => !r.ok).map((r) => r.chat_id);
     if (failed.length > 0) {
-      const textResults = await tgBroadcast(token, 'sendMessage', failed, (chat_id) => ({
-        chat_id, text: caption, parse_mode: 'MarkdownV2',
-      }));
-      // Merge: ersetze gescheiterte Results
-      results = results.map((r) => {
-        if (!r.ok) {
-          const tr = textResults.find((t) => t.chat_id === r.chat_id);
-          if (tr) return tr;
-        }
-        return r;
-      });
+      const textResults = await tgBroadcast(token, 'sendMessage', failed, (chat_id) => ({ chat_id, text: caption, parse_mode: 'MarkdownV2' }));
+      results = results.map((r) => (r.ok ? r : textResults.find((t) => t.chat_id === r.chat_id) ?? r));
     }
   } else {
-    results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({
-      chat_id, text: caption, parse_mode: 'MarkdownV2',
-    }));
+    results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({ chat_id, text: caption, parse_mode: 'MarkdownV2' }));
   }
 
   const sent = results.filter((r) => r.ok).length;
-  return res.status(200).json({
-    ok: true, via: 'telegram', sent, total: chats.length, withPhoto: !!photoBuffer,
-    photoTruncated: !!(p.photoBase64 && !photoBuffer),
-  });
+  await sb.from('evacuation_events').update({ telegram_status: `gesendet ${sent}/${chats.length}` }).eq('id', ev.id);
+  return res.status(200).json({ ok: true, via: 'telegram', sent, total: chats.length, withPhoto: !!photoBuffer });
 }

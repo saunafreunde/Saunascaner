@@ -29,11 +29,12 @@ import { GaesteTab } from '@/components/admin/GaesteTab';
 import { ZugangsdatenButtons } from '@/components/admin/ZugangsdatenButtons';
 import { EvacuationAlarmButton } from '@/components/EvacuationAlarmButton';
 import { TabletSperreCard } from '@/components/admin/TabletSperreCard';
+import { KioskGeraeteCard } from '@/components/admin/KioskGeraeteCard';
 import { useAdminEmailAccounts, useBrandSettings, brandAssetUrl } from '@/lib/api';
 import { SAUNA_HEADER_IMAGES } from '@/lib/saunaHeaders';
 import {
   useSaunas, useToggleSauna, useUpdateSauna,
-  useAllMembers, useAddMember, useUpdateMember, useDeleteMember, adminMemberCode,
+  useAllMembers, useAddMember, useUpdateMember, useDeleteMember, adminMemberCode, authHeaders,
   usePendingMembers, useApproveMember, useCurrentMember,
   usePresentMembers,
   useStatsByMeister, useStatsByMonth, useStatsPresenceByDay,
@@ -240,6 +241,10 @@ export default function Admin() {
         {/* Displays: Joker-Sperre freigeben/sperren — Ziel der Push-Meldung „… angetippt" */}
         <div className="mb-4">
           <TabletSperreCard />
+        </div>
+        {/* Kiosk-Geräte koppeln (0177) — Öl-Raum-Tablet und Panel arbeiten nur gekoppelt */}
+        <div className="mb-4">
+          <KioskGeraeteCard />
         </div>
         {tab === 'saunas' && <SaunasTab />}
         {tab === 'members' && <MembersTab />}
@@ -1321,7 +1326,7 @@ function PollsTab() {
     try {
       const r = await fetch('/api/send-poll-results', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({
           pollTitle: poll.title,
           pollDescription: poll.description,
