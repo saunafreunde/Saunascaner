@@ -1,86 +1,101 @@
-// Sauna-Kart: die Strecken.
+// Sauna-Kart: die Strecken (Grand-Prix-Fassung, 25.09.2026).
 //
 // Eine Strecke ist eine geschlossene Catmull-Rom-Kurve aus Kontrollpunkten in
 // Welt-Koordinaten (0…1024, dieselbe Skala wie die Bodentextur). Aus ihr
-// entstehen beim Laden DREI Dinge:
-//   1. die Bodentextur (programmatisch gezeichnet — Wiese, Holzsteg, Ränder,
-//      Ziellinie; keine externen Assets, das Bundle bleibt leicht),
-//   2. die Oberflächen-Maske (1 Byte pro Texel: fahrbar oder Wiese) für die
-//      Physik — abgeleitet aus GENAU derselben Geometrie, nie aus Pixeln,
-//   3. die Fortschritts-Punkte fürs Runden-Zählen (Checkpoint-Viertel).
+// entstehen beim Laden:
+//   1. die GEOMETRIE (pure, ohne DOM — die Engine und die Tests brauchen nur
+//      sie): dichte Mittellinie + Oberflächen-Maske (1 Byte pro Texel),
+//   2. die Bodentextur (Canvas, nur im Browser) — gemalt aus GENAU derselben
+//      Geometrie, nie umgekehrt.
 //
-// Importfrei bis auf nichts — dieselbe Regel wie bei den Katalog-Dateien:
-// Engine und Renderer dürfen hierauf bauen, ohne api.ts oder React zu sehen.
+// Alle Positionsangaben (Felder, Stämme, Item-Kisten, Tropfen) sind Indizes
+// auf der 720er-Mittellinie. Damit bleibt die Dramaturgie einer Runde lesbar:
+// „Turbo bei 90, Rampe bei 296, Pfütze dahinter".
 
-/** Werte der Oberflächen-Maske. Seit der Rallye-Runde (16.08.2026) mehrwertig —
- *  die Physik liest daraus, WAS unter den Kufen liegt, nicht nur OB Bahn. */
-export const M_WIESE = 0;  // seit der Banden-Runde: WAND — hier fährt niemand mehr
+/** Werte der Oberflächen-Maske — die Physik liest daraus, WAS unter den Kufen liegt. */
+export const M_WAND = 0;      // jenseits der Schulter: Bande, hier fährt niemand
 export const M_BAHN = 1;
 export const M_TURBO = 2;
-export const M_BREMS = 3;
+export const M_BREMS = 3;     // dampfende Aufguss-Pfütze
 export const M_RAMPE = 4;
-export const M_PFAD = 5;   // geheime Abkürzung: fahrbar, schmal, ohne Bande
-export const M_SCHULTER = 6; // schmaler Wiesenstreifen vor der Bande: fahrbar, zäh
+export const M_PFAD = 5;      // geheime Abkürzung: fahrbar, schmal
+export const M_SCHULTER = 6;  // zäher Streifen vor der Bande: fahrbar, langsam
+export const M_EIS = 7;       // Eisplatte: volles Tempo, aber kaum Grip
+export const M_GLUT = 8;      // glühende Saunasteine: bremst und zischt
 
-export type FeldTyp = 'turbo' | 'brems' | 'rampe';
+export const TEX_SIZE = 1024;
+export const LINIEN_PUNKTE = 720;
 
-/** Ein Bodenfeld auf der Bahn: beginnt bei Mittellinien-Index `idx` und läuft
- *  `laenge` Indizes weit (720er-Abtastung). */
-export interface StreckenFeld { typ: FeldTyp; idx: number; laenge: number; }
+export type FeldTyp = 'turbo' | 'brems' | 'rampe' | 'eis' | 'glut';
 
-/** Rollender Baumstamm: pendelt quer über die Bahn bei `idx`. Die Position ist
- *  eine PURE Funktion der Rennzeit (Periode + Phase) — deshalb hatte der Geist
- *  bei seiner Rekordfahrt exakt dieselben Stämme vor der Nase. Zufall würde
- *  das Geister-Modell zerstören. */
+/** Ein Bodenfeld: beginnt bei Mittellinien-Index `idx`, läuft `laenge`
+ *  Indizes weit. `quer` verschiebt es seitlich (−1…1 der halben Breite),
+ *  `anteil` ist seine halbe Breite relativ zur Bahn (Standard 0,85). */
+export interface StreckenFeld { typ: FeldTyp; idx: number; laenge: number; quer?: number; anteil?: number; }
+
+/** Rollender Baumstamm: pendelt quer über die Bahn bei `idx`. Position ist
+ *  eine PURE Funktion der Rennzeit — Geister hatten dieselben Stämme. */
 export interface StammPlan { idx: number; periodeMs: number; phase: number; }
 
-/** Geheime Abkürzung: Sehne von Mittellinien-Index `von` nach `bis`. Bewusst
- *  als SEHNE über eine konvexe Kurve — dann wandert der nächste Mittellinien-
- *  Punkt beim Durchfahren kontinuierlich mit und die Runden-Zählung braucht
- *  keinen Sonderfall. */
+/** Geheime Abkürzung: Sehne von Index `von` nach `bis` über eine konvexe Kurve. */
 export interface Abkuerzung { von: number; bis: number; }
+
+/** Reihe Aufguss-Kisten quer über die Bahn (vier Stück). */
+export interface KistenReihe { idx: number; }
+
+/** Duft-Tropfen (die Münzen des Spiels): `anzahl` Stück ab `idx` im Abstand
+ *  von 5 Indizes, seitlich bei `quer` (−1…1). */
+export interface TropfenReihe { idx: number; quer: number; anzahl: number; }
+
+export type ThemaId = 'wald' | 'dorf' | 'winter' | 'glut';
 
 export interface KartStrecke {
   id: string;
   name: string;
-  /** Kontrollpunkte der Mittellinie (geschlossen). */
+  /** Ein Satz fürs Menü: was diese Strecke ausmacht. */
+  kurz: string;
   punkte: [number, number][];
   /** Halbe Fahrbahnbreite in Welteinheiten. */
   breite: number;
-  /** Startposition = erster Mittellinien-Punkt, Blickrichtung folgt der Kurve. */
   runden: number;
-  /** Grundfarbe des Umlands und der Bahn — kleine Abweichungen je Strecke,
-   *  damit man sie am Standbild auseinanderhält. */
+  thema: ThemaId;
   wiese: string;
   bahn: string;
   bande: string;
+  bandeAkzent: string;
+  /** Schlüssel der fal.ai-Bodentextur (assets.ts) oder null = gemalt. */
+  boden: 'holzsteg' | 'waldweg' | null;
   felder: StreckenFeld[];
   staemme: StammPlan[];
   abkuerzungen: Abkuerzung[];
+  kisten: KistenReihe[];
+  tropfen: TropfenReihe[];
 }
 
 export const STRECKEN: KartStrecke[] = [
   {
-    id: 'kelo_kurve',
+    id: 'kelo',
     name: 'Kelo-Kurve',
-    // Weiter Rundkurs mit einer engen Kehre unten rechts — als erste Strecke
-    // bewusst gutmütig: breite Bahn, keine Doppel-Schikane.
+    kurz: 'Weiter Rundkurs über den Holzsteg — gutmütig, mit Sprung über die Pfütze.',
     punkte: [
       [512, 140], [760, 180], [880, 360], [860, 560],
       [700, 700], [740, 860], [560, 900], [360, 840],
       [200, 700], [150, 500], [220, 300], [360, 180],
     ],
-    breite: 46,
-    runden: 2,
+    breite: 48,
+    runden: 3,
+    thema: 'wald',
     wiese: '#2f4a2c',
     bahn: '#8a6b4d',
-    bande: '#d8cdb8',
-    // Dramaturgie der Runde: Turbo auf der langen Ost-Gerade, dann Rampe →
-    // Pfütze (wer springt, fliegt drüber), zweiter Turbo vor Start/Ziel.
+    bande: '#e8dcc4',
+    bandeAkzent: '#c23b34',
+    boden: 'holzsteg',
     felder: [
       { typ: 'turbo', idx: 90, laenge: 14 },
-      { typ: 'rampe', idx: 296, laenge: 8 },
-      { typ: 'brems', idx: 316, laenge: 14 },
+      // Rampe auf der Geraden hinter der Kehre — im Bogen würde der Sprung
+      // geradeaus ins Aus tragen (Simulation 25.09.: 139 Bandenkontakte dort).
+      { typ: 'rampe', idx: 336, laenge: 8 },
+      { typ: 'brems', idx: 353, laenge: 14 },
       { typ: 'turbo', idx: 560, laenge: 14 },
     ],
     staemme: [
@@ -88,23 +103,32 @@ export const STRECKEN: KartStrecke[] = [
       { idx: 470, periodeMs: 6400, phase: 0.6 },
     ],
     abkuerzungen: [{ von: 386, bis: 470 }],
+    kisten: [{ idx: 150 }, { idx: 360 }, { idx: 620 }],
+    tropfen: [
+      { idx: 40, quer: -0.45, anzahl: 5 },
+      { idx: 240, quer: 0.4, anzahl: 5 },
+      { idx: 520, quer: -0.35, anzahl: 5 },
+      { idx: 670, quer: 0.3, anzahl: 4 },
+    ],
   },
   {
-    id: 'blockhaus_passage',
+    id: 'blockhaus',
     name: 'Blockhaus-Passage',
-    // Achter-artige Passage mit zwei Richtungswechseln — schmaler, für die
-    // zweite Woche, wenn die Kelo-Kurve auswendig gefahren ist.
+    kurz: 'Enge Passage zwischen den Hütten — zwei Richtungswechsel und drei Stämme.',
     punkte: [
       [512, 120], [740, 170], [850, 330], [780, 480],
       [600, 520], [500, 640], [560, 790], [430, 890],
       [260, 830], [180, 660], [260, 520], [420, 470],
       [480, 350], [370, 240],
     ],
-    breite: 38,
-    runden: 2,
+    breite: 40,
+    runden: 3,
+    thema: 'dorf',
     wiese: '#2c4433',
     bahn: '#7d6247',
-    bande: '#cfc5ae',
+    bande: '#dfd5bd',
+    bandeAkzent: '#c23b34',
+    boden: 'waldweg',
     felder: [
       { typ: 'turbo', idx: 150, laenge: 14 },
       { typ: 'rampe', idx: 424, laenge: 8 },
@@ -117,22 +141,110 @@ export const STRECKEN: KartStrecke[] = [
       { idx: 680, periodeMs: 7000, phase: 0.8 },
     ],
     abkuerzungen: [{ von: 62, bis: 140 }],
+    kisten: [{ idx: 200 }, { idx: 380 }, { idx: 580 }],
+    tropfen: [
+      { idx: 30, quer: 0.4, anzahl: 5 },
+      { idx: 300, quer: -0.4, anzahl: 5 },
+      { idx: 480, quer: 0.35, anzahl: 5 },
+      { idx: 650, quer: -0.3, anzahl: 4 },
+    ],
+  },
+  {
+    id: 'eisbach',
+    name: 'Eisbach-Kanal',
+    kurz: 'Vom Tauchbecken in den Schnee — Eisplatten ohne Grip, Drift ist Pflicht.',
+    punkte: [
+      [512, 110], [790, 140], [910, 290], [850, 450],
+      [670, 470], [590, 570], [690, 690], [880, 720],
+      [880, 880], [640, 930], [380, 890], [180, 780],
+      [120, 560], [230, 390], [170, 240], [320, 120],
+    ],
+    breite: 46,
+    runden: 3,
+    thema: 'winter',
+    wiese: '#dfe9ef',
+    bahn: '#a9c3d2',
+    bande: '#f4fbff',
+    bandeAkzent: '#3b7fc2',
+    boden: null,
+    felder: [
+      { typ: 'eis', idx: 150, laenge: 40, anteil: 0.95 },
+      { typ: 'eis', idx: 330, laenge: 30, quer: 0.35, anteil: 0.6 },
+      { typ: 'turbo', idx: 385, laenge: 14 },
+      { typ: 'rampe', idx: 425, laenge: 8 },
+      { typ: 'brems', idx: 443, laenge: 12 },
+      { typ: 'turbo', idx: 505, laenge: 14 },
+      { typ: 'eis', idx: 600, laenge: 36, quer: -0.3, anteil: 0.65 },
+    ],
+    staemme: [
+      { idx: 540, periodeMs: 5600, phase: 0.3 },
+    ],
+    abkuerzungen: [],
+    kisten: [{ idx: 90 }, { idx: 280 }, { idx: 470 }, { idx: 660 }],
+    tropfen: [
+      { idx: 60, quer: 0.45, anzahl: 5 },
+      { idx: 230, quer: -0.4, anzahl: 5 },
+      { idx: 490, quer: 0.4, anzahl: 5 },
+      { idx: 690, quer: 0.3, anzahl: 4 },
+    ],
+  },
+  {
+    id: 'glutofen',
+    name: 'Glut-Ofen',
+    kurz: 'Durch den Saunaofen — glühende Steine, zwei Sprünge, enge Kehren.',
+    punkte: [
+      [512, 120], [770, 120], [910, 240], [890, 420],
+      [730, 480], [610, 410], [470, 470], [490, 630],
+      [690, 650], [870, 760], [810, 920], [560, 930],
+      [380, 850], [300, 700], [150, 630], [130, 420],
+      [250, 300], [330, 170],
+    ],
+    breite: 42,
+    runden: 3,
+    thema: 'glut',
+    wiese: '#231b19',
+    bahn: '#5d4c43',
+    bande: '#2b2320',
+    bandeAkzent: '#f08020',
+    boden: null,
+    felder: [
+      { typ: 'turbo', idx: 20, laenge: 14 },
+      { typ: 'glut', idx: 180, laenge: 18, quer: 0.45, anteil: 0.5 },
+      { typ: 'rampe', idx: 305, laenge: 8 },
+      { typ: 'glut', idx: 323, laenge: 14 },
+      { typ: 'rampe', idx: 425, laenge: 8 },
+      { typ: 'glut', idx: 443, laenge: 16 },
+      { typ: 'turbo', idx: 462, laenge: 14 },
+      { typ: 'glut', idx: 540, laenge: 18, quer: -0.45, anteil: 0.5 },
+    ],
+    staemme: [
+      { idx: 205, periodeMs: 5000, phase: 0.1 },
+      { idx: 600, periodeMs: 6200, phase: 0.55 },
+    ],
+    abkuerzungen: [],
+    kisten: [{ idx: 90 }, { idx: 360 }, { idx: 620 }],
+    tropfen: [
+      { idx: 150, quer: -0.4, anzahl: 5 },
+      { idx: 400, quer: 0.4, anzahl: 5 },
+      { idx: 560, quer: 0.35, anzahl: 4 },
+      { idx: 680, quer: -0.35, anzahl: 4 },
+    ],
   },
 ];
 
 export const STRECKE_BY_ID: Record<string, KartStrecke> =
   Object.fromEntries(STRECKEN.map((s) => [s.id, s]));
 
-export const TEX_SIZE = 1024;
-
 // ─── Catmull-Rom-Abtastung ───────────────────────────────────────────────────
 
-/** Geschlossene Catmull-Rom-Kurve, `n` gleichmäßig (in Parameter-Raum)
- *  verteilte Punkte samt Tangenten-Winkel. */
-export function abtasten(strecke: KartStrecke, n: number): { x: number; y: number; winkel: number }[] {
-  const P = strecke.punkte;
+export interface LinienPunkt { x: number; y: number; winkel: number; }
+
+/** Geschlossene Catmull-Rom-Kurve, `n` im Parameter-Raum gleich verteilte
+ *  Punkte samt Tangenten-Winkel. */
+export function abtasten(punkte: [number, number][], n: number): LinienPunkt[] {
+  const P = punkte;
   const k = P.length;
-  const aus: { x: number; y: number; winkel: number }[] = [];
+  const aus: LinienPunkt[] = [];
   for (let i = 0; i < n; i++) {
     const t = (i / n) * k;
     const seg = Math.floor(t);
@@ -157,178 +269,49 @@ function catmullAbl(a: number, b: number, c: number, d: number, t: number): numb
   return 0.5 * ((c - a) + 2 * (2 * a - 5 * b + 4 * c - d) * t + 3 * (3 * b - a - 3 * c + d) * t2);
 }
 
-// ─── Textur + Maske bauen ────────────────────────────────────────────────────
-
-export interface StreckenWelt {
-  strecke: KartStrecke;
-  textur: HTMLCanvasElement;
-  /** 1 = fahrbar, 0 = Wiese. Index = y * TEX_SIZE + x. */
-  maske: Uint8Array;
-  /** Dichte Mittellinien-Punkte für Fortschritt/Start. */
-  linie: { x: number; y: number; winkel: number }[];
+/** Punkt quer zur Mittellinie: `quer` in Welteinheiten, + = rechts in Fahrtrichtung. */
+export function querPunkt(linie: LinienPunkt[], idx: number, quer: number): { x: number; y: number; winkel: number } {
+  const n = linie.length;
+  const p = linie[((Math.round(idx) % n) + n) % n];
+  return { x: p.x - Math.sin(p.winkel) * quer, y: p.y + Math.cos(p.winkel) * quer, winkel: p.winkel };
 }
 
-export function bauStreckenWelt(
-  strecke: KartStrecke,
-  /** Optionale Bahn-Textur (fal.ai, 16.08.2026). Fehlt sie, wird die Bahn
-   *  wie zuvor programmatisch gezeichnet — das Spiel hängt an keinem Asset. */
-  bodenTextur?: CanvasImageSource | null,
-): StreckenWelt {
-  const linie = abtasten(strecke, 720);
+export function wrapIdx(i: number, n: number): number {
+  return ((i % n) + n) % n;
+}
 
-  const textur = document.createElement('canvas');
-  textur.width = TEX_SIZE;
-  textur.height = TEX_SIZE;
-  const ctx = textur.getContext('2d')!;
+// ─── Geometrie: Mittellinie + Maske (pure, ohne DOM) ─────────────────────────
 
-  // Wiese mit leichtem Rauschen — eine völlig flache Farbe flimmert im
-  // Mode-7-Boden unangenehm, ein Muster gibt dem Auge Bewegungsanker.
-  ctx.fillStyle = strecke.wiese;
-  ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
-  const rnd = mulberry32(0xa5f3);
-  ctx.fillStyle = 'rgba(255,255,255,0.05)';
-  for (let i = 0; i < 2600; i++) {
-    ctx.fillRect(Math.floor(rnd() * TEX_SIZE), Math.floor(rnd() * TEX_SIZE), 2, 2);
-  }
-  ctx.fillStyle = 'rgba(0,0,0,0.10)';
-  for (let i = 0; i < 2600; i++) {
-    ctx.fillRect(Math.floor(rnd() * TEX_SIZE), Math.floor(rnd() * TEX_SIZE), 3, 2);
-  }
-  // Vereinzelte Tannen-Tupfer abseits der Bahn (reine Deko in der Textur).
-  ctx.fillStyle = 'rgba(10,40,16,0.5)';
-  for (let i = 0; i < 90; i++) {
-    const x = rnd() * TEX_SIZE, y = rnd() * TEX_SIZE;
-    ctx.beginPath(); ctx.arc(x, y, 5 + rnd() * 7, 0, Math.PI * 2); ctx.fill();
-  }
+export interface StreckenGeometrie {
+  strecke: KartStrecke;
+  linie: LinienPunkt[];
+  /** Oberflächen-Maske, Index = y * TEX_SIZE + x. */
+  maske: Uint8Array;
+  /** Länge einer Runde in Welteinheiten. */
+  laenge: number;
+}
 
-  // Bande: Zuckerstangen-Randsteine (Banden-Runde 16.08.2026) — erst der helle
-  // Grundstrich, darüber rote Streifen im Wechsel, dann deckt die Fahrbahn die
-  // Mitte ab. Übrig bleibt der klassische rot-weiße Curb an beiden Rändern,
-  // und der markiert jetzt eine ECHTE Wand (Physik: M_WIESE = kein Durchkommen).
-  zeichneBahn(ctx, linie, strecke.breite + 9, strecke.bande);
-  ctx.save();
-  ctx.setLineDash([16, 16]);
-  zeichneBahn(ctx, linie, strecke.breite + 9, '#c23b34');
-  ctx.restore();
-  let mitTextur = false;
-  if (bodenTextur) {
-    const muster = ctx.createPattern(bodenTextur, 'repeat');
-    if (muster) {
-      if ('setTransform' in muster) {
-        muster.setTransform(new DOMMatrix().scale(0.25));
-      }
-      zeichneBahn(ctx, linie, strecke.breite, muster);
-      mitTextur = true;
-    }
-  }
-  if (!mitTextur) {
-    zeichneBahn(ctx, linie, strecke.breite, strecke.bahn);
-  }
+const geoCache = new Map<string, StreckenGeometrie>();
 
-  // Steg-Fugen: Querstriche in Fahrtrichtung — geben im Mode-7-Blick das
-  // Geschwindigkeitsgefühl, das eine glatte Fläche nicht erzeugt. Mit echter
-  // Textur übernimmt deren Maserung diese Aufgabe.
-  if (!mitTextur) {
-    ctx.strokeStyle = 'rgba(60,40,25,0.4)';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < linie.length; i += 8) {
-      const p = linie[i];
-      const qx = Math.cos(p.winkel + Math.PI / 2), qy = Math.sin(p.winkel + Math.PI / 2);
-      ctx.beginPath();
-      ctx.moveTo(p.x - qx * strecke.breite, p.y - qy * strecke.breite);
-      ctx.lineTo(p.x + qx * strecke.breite, p.y + qy * strecke.breite);
-      ctx.stroke();
-    }
-  }
-
-  // Geheime Abkürzungen ZUERST (unter Feldern/Ziellinie): ein schmaler, dunkler
-  // Trampelpfad als Sehne — bewusst unauffällig, fast Wiesenfarbe. Die
-  // Tarnung besorgen ein paar Baum-Tupfer über den Einmündungen.
-  for (const ab of strecke.abkuerzungen) {
-    const a = linie[ab.von], b = linie[ab.bis];
-    ctx.strokeStyle = 'rgba(58,72,48,0.9)';
-    ctx.lineWidth = 34;
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.strokeStyle = 'rgba(96,84,58,0.55)';
-    ctx.lineWidth = 22;
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.fillStyle = 'rgba(10,40,16,0.55)';
-    for (const p of [a, b]) {
-      ctx.beginPath(); ctx.arc(p.x + 12, p.y - 10, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(p.x - 10, p.y + 12, 7, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-
-  // Bodenfelder in die Textur malen — die Maske bekommt dieselbe Geometrie
-  // unten beim Stempeln.
-  for (const feld of strecke.felder) {
-    const n = linie.length;
-    if (feld.typ === 'turbo') {
-      // Drei Winkel-Pfeile in Fahrtrichtung.
-      ctx.strokeStyle = '#6fd8e8';
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      for (let k = 0; k < 3; k++) {
-        const p = linie[(feld.idx + 2 + k * 5) % n];
-        const fx = Math.cos(p.winkel), fy = Math.sin(p.winkel);
-        const qx = -fy, qy = fx;
-        ctx.beginPath();
-        ctx.moveTo(p.x - qx * 16 - fx * 10, p.y - qy * 16 - fy * 10);
-        ctx.lineTo(p.x + fx * 10, p.y + fy * 10);
-        ctx.lineTo(p.x + qx * 16 - fx * 10, p.y + qy * 16 - fy * 10);
-        ctx.stroke();
-      }
-    } else if (feld.typ === 'brems') {
-      // Dampfende Aufguss-Pfütze.
-      const p = linie[(feld.idx + Math.floor(feld.laenge / 2)) % n];
-      ctx.fillStyle = 'rgba(92,140,168,0.8)';
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, strecke.breite * 0.85, strecke.breite * 0.6, p.winkel, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(210,228,238,0.5)';
-      for (let k = 0; k < 4; k++) {
-        const q = linie[(feld.idx + 2 + k * 3) % n];
-        ctx.beginPath(); ctx.arc(q.x + (k % 2 ? 8 : -8), q.y + (k % 2 ? -6 : 6), 4, 0, Math.PI * 2); ctx.fill();
-      }
-    } else {
-      // Sprungrampe: helle Querplanken mit dunkler Absprungkante.
-      for (let k = 0; k <= feld.laenge; k += 2) {
-        const p = linie[(feld.idx + k) % n];
-        const qx = Math.cos(p.winkel + Math.PI / 2), qy = Math.sin(p.winkel + Math.PI / 2);
-        ctx.strokeStyle = k >= feld.laenge - 1 ? '#3a2c1c' : '#d8b06a';
-        ctx.lineWidth = k >= feld.laenge - 1 ? 5 : 7;
-        ctx.beginPath();
-        ctx.moveTo(p.x - qx * strecke.breite * 0.8, p.y - qy * strecke.breite * 0.8);
-        ctx.lineTo(p.x + qx * strecke.breite * 0.8, p.y + qy * strecke.breite * 0.8);
-        ctx.stroke();
-      }
-    }
-  }
-
-  // Ziellinie am Startpunkt: Schachbrett quer über die Bahn.
-  const s0 = linie[0];
-  const qx = Math.cos(s0.winkel + Math.PI / 2), qy = Math.sin(s0.winkel + Math.PI / 2);
-  for (let seite = -1; seite <= 1; seite += 1) {
-    for (let f = 0; f < 8; f++) {
-      const a = -strecke.breite + (2 * strecke.breite * f) / 8;
-      ctx.fillStyle = (f + (seite + 1)) % 2 === 0 ? '#f4efe4' : '#22201c';
-      const cx = s0.x + qx * (a + strecke.breite / 8) + Math.cos(s0.winkel) * seite * 5;
-      const cy = s0.y + qy * (a + strecke.breite / 8) + Math.sin(s0.winkel) * seite * 5;
-      ctx.fillRect(cx - 5, cy - 5, 10, 10);
-    }
+export function bauGeometrie(strecke: KartStrecke): StreckenGeometrie {
+  const hit = geoCache.get(strecke.id);
+  if (hit) return hit;
+  const linie = abtasten(strecke.punkte, LINIEN_PUNKTE);
+  const n = linie.length;
+  let laenge = 0;
+  for (let i = 0; i < n; i++) {
+    const a = linie[i], b = linie[(i + 1) % n];
+    laenge += Math.hypot(b.x - a.x, b.y - a.y);
   }
 
   // Maske aus der GEOMETRIE (Abstand zur Mittellinie), nicht aus Pixeln —
-  // damit hängt die Physik nicht an Anti-Aliasing-Zufällen. Grobes Gitter
-  // reicht: wir prüfen jeden Texel gegen die dichte Linie über ein
-  // Nachbarschafts-Raster.
+  // die Physik hängt nicht an Anti-Aliasing-Zufällen. Raster mit Punktlisten.
   const maske = new Uint8Array(TEX_SIZE * TEX_SIZE);
-  const zellen = 32; // 32×32-Raster mit Punktlisten
+  const zellen = 32;
   const raster: number[][] = Array.from({ length: zellen * zellen }, () => []);
   linie.forEach((p, i) => {
-    const gx = Math.min(zellen - 1, Math.floor((p.x / TEX_SIZE) * zellen));
-    const gy = Math.min(zellen - 1, Math.floor((p.y / TEX_SIZE) * zellen));
+    const gx = Math.min(zellen - 1, Math.max(0, Math.floor((p.x / TEX_SIZE) * zellen)));
+    const gy = Math.min(zellen - 1, Math.max(0, Math.floor((p.y / TEX_SIZE) * zellen)));
     raster[gy * zellen + gx].push(i);
   });
   const reichweite = strecke.breite + 8;
@@ -350,17 +333,12 @@ export function bauStreckenWelt(
           }
         }
       }
-      // 2×2-Block füllen (wir tasten nur jeden zweiten Texel ab — die Maske
-      // muss nicht pixelgenau sein, die Bande verzeiht ±2 Einheiten).
       const i0 = y * TEX_SIZE + x;
       maske[i0] = drin; maske[i0 + 1] = drin;
       maske[i0 + TEX_SIZE] = drin; maske[i0 + TEX_SIZE + 1] = drin;
     }
   }
 
-  // Bodenfelder in die Maske stempeln — dieselbe Geometrie wie die Bemalung
-  // oben. Nur dort, wo schon Bahn ist: ein Turbo-Pfeil, der auf die Wiese
-  // ausfranst, würde die Wiese schneller machen als die Bahn.
   const stempel = (cx: number, cy: number, r: number, wert: number, nurBahn: boolean) => {
     const r2s = r * r;
     const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(TEX_SIZE - 1, Math.ceil(cx + r));
@@ -370,37 +348,33 @@ export function bauStreckenWelt(
         const dx = xx - cx, dy = yy - cy;
         if (dx * dx + dy * dy > r2s) continue;
         const i = yy * TEX_SIZE + xx;
-        if (!nurBahn || maske[i] >= M_BAHN) maske[i] = wert;
+        if (!nurBahn || maske[i] === M_BAHN) maske[i] = wert;
       }
     }
   };
 
-  const nLinie = linie.length;
+  // Bodenfelder — dieselbe Geometrie, mit der textur.ts sie malt.
   for (const feld of strecke.felder) {
-    const wert = feld.typ === 'turbo' ? M_TURBO : feld.typ === 'brems' ? M_BREMS : M_RAMPE;
+    const wert = feldMaskenWert(feld.typ);
+    const anteil = feld.anteil ?? 0.85;
     for (let k = 0; k <= feld.laenge; k++) {
-      const p = linie[(feld.idx + k) % nLinie];
-      stempel(p.x, p.y, strecke.breite * 0.85, wert, true);
+      const p = querPunkt(linie, feld.idx + k, (feld.quer ?? 0) * strecke.breite);
+      stempel(p.x, p.y, strecke.breite * anteil, wert, true);
     }
   }
 
-  // Abkürzungen: schmaler fahrbarer Pfad (M_PFAD) entlang der Sehne.
   for (const ab of strecke.abkuerzungen) {
     const a = linie[ab.von], b = linie[ab.bis];
     const schritte = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6);
     for (let k = 0; k <= schritte; k++) {
       const t = k / schritte;
-      const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
-      stempel(x, y, 17, M_PFAD, false);
+      stempel(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 17, M_PFAD, false);
     }
   }
 
-  // Wiesen-Schulter (Banden-Runde): ein ~22 Einheiten breiter zäher Streifen
-  // ZWISCHEN Bande und Wand — der Fahrfehler kostet Tempo, aber erst dahinter
-  // steht die Wand. Gestempelt wird nur, wo noch M_WIESE liegt, damit Bahn,
-  // Felder und Pfad unangetastet bleiben. Auch um den Pfad herum, sonst wäre
-  // die Abkürzung ein Tunnel mit unsichtbaren Wänden direkt an der Kante.
-  const schulterStempel = (cx: number, cy: number, r: number) => {
+  // Schulter: zäher Streifen ZWISCHEN Bande und Wand — ein Fahrfehler kostet
+  // Tempo, aber erst dahinter steht die Wand.
+  const schulter = (cx: number, cy: number, r: number) => {
     const r2s = r * r;
     const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(TEX_SIZE - 1, Math.ceil(cx + r));
     const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(TEX_SIZE - 1, Math.ceil(cy + r));
@@ -409,42 +383,42 @@ export function bauStreckenWelt(
         const dx = xx - cx, dy = yy - cy;
         if (dx * dx + dy * dy > r2s) continue;
         const i = yy * TEX_SIZE + xx;
-        if (maske[i] === M_WIESE) maske[i] = M_SCHULTER;
+        if (maske[i] === M_WAND) maske[i] = M_SCHULTER;
       }
     }
   };
-  for (const p of linie) schulterStempel(p.x, p.y, strecke.breite + 30);
+  for (const p of linie) schulter(p.x, p.y, strecke.breite + 30);
   for (const ab of strecke.abkuerzungen) {
     const a = linie[ab.von], b = linie[ab.bis];
     const schritte = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6);
     for (let k = 0; k <= schritte; k++) {
       const t = k / schritte;
-      schulterStempel(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 34);
+      schulter(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 34);
     }
   }
 
-  return { strecke, textur, maske, linie };
+  const geo = { strecke, linie, maske, laenge };
+  geoCache.set(strecke.id, geo);
+  return geo;
 }
 
-function zeichneBahn(
-  ctx: CanvasRenderingContext2D,
-  linie: { x: number; y: number }[],
-  halbbreite: number,
-  farbe: string | CanvasPattern,
-) {
-  ctx.strokeStyle = farbe;
-  ctx.lineWidth = halbbreite * 2;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(linie[0].x, linie[0].y);
-  for (let i = 1; i < linie.length; i++) ctx.lineTo(linie[i].x, linie[i].y);
-  ctx.closePath();
-  ctx.stroke();
+export function feldMaskenWert(typ: FeldTyp): number {
+  switch (typ) {
+    case 'turbo': return M_TURBO;
+    case 'brems': return M_BREMS;
+    case 'rampe': return M_RAMPE;
+    case 'eis': return M_EIS;
+    case 'glut': return M_GLUT;
+  }
 }
 
-/** Deterministischer Zufall für Textur und Deko — dieselbe Strecke sieht auf
- *  jedem Gerät gleich aus (Geister fahren über denselben Boden). */
+export function maskeBei(maske: Uint8Array, x: number, y: number): number {
+  const mx = x < 0 ? 0 : x > TEX_SIZE - 1 ? TEX_SIZE - 1 : Math.round(x);
+  const my = y < 0 ? 0 : y > TEX_SIZE - 1 ? TEX_SIZE - 1 : Math.round(y);
+  return maske[my * TEX_SIZE + mx];
+}
+
+/** Deterministischer Zufall — dieselbe Strecke sieht auf jedem Gerät gleich aus. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -454,4 +428,11 @@ export function mulberry32(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/** Stabiler Hash einer Zeichenkette (Saat für Deko und Zufall je Strecke). */
+export function hashText(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
 }

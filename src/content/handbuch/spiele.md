@@ -33,6 +33,19 @@ Unter [/spiele](/spiele) findest du den **Mini-Game-Hub**. Aktuell sind **14 Spi
 | ⚫ **Dame (async)** | Gleiche Regeln wie live, aber zeitversetzt |
 | ⭕ **Reversi (Othello)** | Steine umdrehen in 8 Richtungen |
 
+### 🛷 Sauna-Kart (das Flaggschiff)
+
+Ganz oben im Hub: ein richtiges Kart-Rennen im Stil der 16-Bit-Klassiker — gebaut fürs Handy.
+
+- **🏆 Grand Prix „Dampf-Cup"** — vier Rennen (Kelo-Kurve, Blockhaus-Passage, Eisbach-Kanal, Glut-Ofen) gegen sieben Vereins-Originale: Kelo-Karl, Birken-Berta, Dampf-Dieter, Minz-Mia, Ofen-Olga, Tannen-Toni und Eimer-Erwin. Punkte je Platz 15-12-10-8-6-4-2-1, am Ende steht das Siegerpodest. Gold, Silber und Bronze landen in deiner **Pokalvitrine**, dazu gibt es eine Vereins-Bestenliste je Klasse. Wer zum ersten Mal Gold bei 100° holt, erscheint im Feed.
+- **🌡️ Drei Temperaturen:** 60° (gemütlich), 80° (klassisch), 100° (finnisch — nur wer driftet, gewinnt).
+- **🏁 Einzelrennen** — eine Strecke nach Wahl, sieben Gegner.
+- **👻 Zeitfahren** — drei Runden mit drei Minz-Schüben, gegen die Geister der Schnellsten und deinen eigenen. Bestzeiten stehen in der Vereinswertung; ein neuer Streckenrekord kommt in den Feed.
+
+**Steuerung** (im Kart-Menü umstellbar): **Wischen** (Daumen aufs Bild, seitlich ziehen — stufenlos), **Neigen** (Handy wie ein Lenkrad kippen) oder **Tippen** (linke/rechte Hälfte). Gas gibt es automatisch. **DRIFT halten** in Kurven lädt Funken auf (blau → orange → lila), Loslassen gibt Turbo. **ITEM** tippen setzt das Item aus der Kiste ein. Raketenstart: DRIFT drücken, sobald die **2** erscheint. Über Rampen DRIFT antippen = Trick mit Schub. Für Einsteiger gibt es **Lenkhilfe** (standardmäßig an) und **Auto-Drift**.
+
+**Items aus den ❓-Kisten:** 🌿 Minz-Schub (auch 3×), 🧼 Schmierseife, 🎩 Filzhut (prallt von der Bande ab), 🧊 Eiskugel (sucht den Fahrer vor dir), 🌟 Glutstern (unverwundbar), 💨 Dampfwolke (nebelt alle vor dir ein), 🧖 Aufguss! (alle anderen werden langsam). Wer hinten liegt, bekommt die stärkeren Items. **💧 Duft-Tropfen** (bis zu 10) machen dich schneller, ein Treffer kostet zwei.
+
 ### Wie's funktioniert
 
 **Solo spielen**: Auf der Spiel-Karte im Hub klicken, Spiel öffnet sich. Bei Tetris: Game Over → Score landet automatisch in der Bestenliste.

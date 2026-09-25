@@ -1,1472 +1,776 @@
+// Sauna-Kart — Grand-Prix-Fassung (25.09.2026).
+//
+// Was vorher ein Zeitfahren gegen Geister war, ist jetzt ein Kart-Rennen mit
+// allem, was das Genre ausmacht: acht Fahrer (du + sieben Vereins-Originale),
+// Aufguss-Kisten mit acht Items, Drift mit Funken und Mini-Turbo, Duft-Tropfen,
+// Sprünge mit Trick, Raketenstart und ein Grand Prix über vier Strecken mit
+// Siegerpodest und Pokalvitrine. Das Zeitfahren gegen die Geister der
+// Schnellsten bleibt als zweiter Modus.
+//
+// Aufbau: dieses Modul ist der Rahmen (Menüs, Grand-Prix-Ablauf, Ergebnisse);
+// das Rennen selbst läuft in KartRennen.tsx, die Engine in lib/kart/engine.
+
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { useCurrentMember } from '@/lib/api';
+import { STRECKEN, STRECKE_BY_ID, type KartStrecke } from '@/lib/kart/strecken';
+import { SKINS, ladeKartAssets, skinFuer } from '@/lib/kart/assets';
+import { KartEingabe } from '@/lib/kart/eingabe';
 import {
-  STRECKEN, STRECKE_BY_ID, TEX_SIZE, bauStreckenWelt, mulberry32,
-  M_WIESE, M_BAHN, M_TURBO, M_BREMS, M_RAMPE, M_SCHULTER,
-  type KartStrecke, type StreckenWelt,
-} from '@/lib/kart/strecken';
-import { ladeKartAssets, skinFuer, type KartAssets, type SchlittenPosen } from '@/lib/kart/assets';
-import { KartSound } from '@/lib/kart/sound';
+  GP_PUNKTE, ITEM_INFO, KLASSEN,
+  type FahrerSetup, type GeistDaten, type ItemTyp, type Klasse, type RennErgebnis,
+} from '@/lib/kart/engine/typen';
+import {
+  ladeEinstellungen, speichereEinstellungen, useGeistSpeichern, useGpBestenliste, useGpMelden,
+  useMeinePokale, useTopGeister, type KartEinstellungen,
+} from '@/lib/kart/daten';
+import KartRennen, { fmtZeit, type RennAuftrag } from './KartRennen';
 
-// ─── Sauna-Kart ──────────────────────────────────────────────────────────────
-// Mode-7-Rennen im Stil der 16-Bit-Ära: der Boden ist eine perspektivisch
-// gekippte Textur, pro Bildzeile einmal abgetastet. Alles ist programmatisch
-// gezeichnet — kein Asset, kein CDN, der Chunk bleibt unter dem einer
-// mittleren Foto-Datei.
-//
-// Mehrspieler = GEISTER: die beste Fahrt jedes Mitglieds liegt als
-// Positions-Aufzeichnung in kart_ghosts (Migration 0146); die schnellsten
-// drei fahren als durchscheinende Schlitten mit. Echtzeit-Rennen über
-// Supabase wäre Latenz-Lotterie — gegen Hannes' Geist zu verlieren fühlt
-// sich trotzdem exakt wie verlieren an.
-//
-// Steuerung (Touch-Leitlinie 16.08.2026): Daumen links = links lenken,
-// Daumen rechts = rechts lenken, Gas automatisch. Keine Knöpfe im Bild.
+/** Die sieben Vereins-Originale. `p` = Können (0…1). */
+const RIVALEN: { name: string; p: number }[] = [
+  { name: 'Kelo-Karl', p: 0.95 },
+  { name: 'Birken-Berta', p: 0.85 },
+  { name: 'Dampf-Dieter', p: 0.74 },
+  { name: 'Minz-Mia', p: 0.63 },
+  { name: 'Ofen-Olga', p: 0.5 },
+  { name: 'Tannen-Toni', p: 0.36 },
+  { name: 'Eimer-Erwin', p: 0.2 },
+];
 
-const W = 360;                    // interne Auflösung — CSS skaliert hoch,
-const H = 480;                    // image-rendering: pixelated = Retro-Look
-const HORIZONT = Math.floor(H * 0.40);
-const FOKAL = 220;                // Projektions-Brennweite in Pixeln
-const KAM_HOEHE = 29;             // Kamera-Höhe — tiefer = der Boden rast mehr
-const KAM_ABSTAND = 50;           // Kamera hinter dem Kart
+const CUP: string[] = ['kelo', 'blockhaus', 'eisbach', 'glutofen'];
 
-// ─── Fahrmodell (Banden-Runde 16.08.2026) ────────────────────────────────────
-// Der Kern des neuen Fahrgefühls: Blickrichtung und BEWEGUNGSRICHTUNG sind
-// getrennt. Das Kart zeigt, wohin du willst — die Fahrt zieht mit Verzögerung
-// nach (Grip). In schnellen Kurven öffnet sich dadurch von selbst der
-// klassische Arcade-Drift, ohne eigene Drift-Taste.
-const GRIP_BAHN = 7.0;            // wie schnell die Fahrt der Nase folgt (1/s)
-const GRIP_GRAS = 3.2;            // auf der Schulter schmiert es
-const LENK_ATTACK = 6.0;          // Lenk-Eingabe baut sich auf (1/s) …
-const LENK_RELEASE = 10.0;        // … und löst sich schneller wieder
-// Wand-Regel nach SNES-Vorbild (Recherche 16.08.): streifender Kontakt
-// verzeiht (sanfter Schliff pro Frame), frontaler Einschlag bestraft einmalig
-// hart — aber NIE Vollstopp, der Fluss bricht sonst ab.
-const WAND_SCHLIFF = 0.965;       // pro Kontakt-Frame beim Entlangschrammen
-const WAND_FRONTAL = 0.55;        // einmalig beim frontalen Einschlag
-// Drift-Belohnung: wer eine lange Kurve sauber mit hängendem Heck zieht und
-// sie sauber ausleitet, bekommt einen Mini-Turbo — DIE Belohnungsschleife
-// jedes Kart-Racers (SNES-Regel dazu: Driften selbst kostet NIE Tempo).
-const DRIFT_SCHWELLE = 0.18;      // rad Nase-vs-Fahrt, ab hier „driftet" es
-const DRIFT_LADEZEIT_S = 0.9;     // so lange muss der Drift stehen
-const MINITURBO_S = 0.8;
-const MINITURBO_FAKTOR = 1.3;
+interface Teilnehmer { name: string; skin: number; istSpieler: boolean; p: number; }
 
-// Rundenlänge ≈ 2350 Welteinheiten (Kelo-Kurve). 130 u/s ergibt ~20 s pro
-// saubere Runde, mit Fehlern 25–35 s — zwei Runden passen damit genau in die
-// Saunapause. (230 u/s sah im Test gut aus, machte die Runde aber zum
-// 10-Sekunden-Sprint und riss die 20-s-Untergrenze des Servers.)
-const V_MAX = 130;                // Welteinheiten/s auf der Bahn
-const V_MAX_WIESE = 55;           // abseits: der Sud versickert im Moos
-const BESCHL = 1.6;               // Annäherung an v_max (1/s)
-const LENKRATE = 2.6;             // rad/s bei voller Fahrt
-
-const GHOST_DT = 100;             // Aufzeichnungs-Takt in ms
-const MAX_LAUFZEIT_MS = 480_000;  // danach gilt die Fahrt als aufgegeben
-
-// ─── Rallye-Elemente (16.08.2026) ────────────────────────────────────────────
-// ALLES hier ist eine pure Funktion von Rennzeit + Strecke — kein Zufall.
-// Nur so bleibt das Geister-Modell fair: der Rekordhalter hatte exakt
-// dieselben Stämme, Turbos und Pfützen vor der Nase.
-const TURBO_FAKTOR = 1.6;         // Höchsttempo im Boost
-const TURBO_DAUER_S = 2.0;
-const BREMS_FAKTOR = 0.5;         // Pfütze: halbes Tempo
-const FLUG_DAUER_S = 0.65;        // Sprungdauer ab Rampe
-const FLUG_MIN_TEMPO = 0.62;      // unter 62 % vom Maximum hebt nichts ab
-const FLUG_HOEHE = 46;            // Scheitel in Bildpixeln
-const STAMM_RADIUS = 15;          // Kollisionsradius in Welteinheiten
-const STAMM_TREFFER_FAKTOR = 0.3; // Resttempo nach Einschlag
-const TAUMEL_S = 0.7;             // Sekunden Schlingern nach Treffer
-const SCHONFRIST_S = 1.2;         // Unverwundbarkeit nach Treffer
-
-type GhostSamples = { v: 1; dt: number; pts: [number, number, number][] };
-
-type TopGhost = {
-  member_id: string;
-  name: string;
-  zeit_ms: number;
-  created_at: string;
-  samples: GhostSamples | null;
-};
-
-function fmtZeit(ms: number): string {
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  const t = Math.floor(ms % 1000);
-  return `${m}:${String(s).padStart(2, '0')},${String(t).padStart(3, '0')}`;
+interface GpStand {
+  klasse: Klasse;
+  strecken: string[];
+  cup: boolean;               // echter Dampf-Cup (wird gewertet) oder Einzelrennen
+  teilnehmer: Teilnehmer[];   // Index 0 = Spieler
+  punkte: number[];
+  rennen: number;
+  letzte: { platz: number[]; punkte: number[] } | null;
+  saat: number;
 }
 
-// ─── Datenzugriff ────────────────────────────────────────────────────────────
+type Ansicht =
+  | { art: 'menue' }
+  | { art: 'gp_setup'; cup: boolean }
+  | { art: 'gp_rennen'; gp: GpStand; auftrag: RennAuftrag; ids: number[] }
+  | { art: 'gp_zwischen'; gp: GpStand }
+  | { art: 'gp_ende'; gp: GpStand }
+  | { art: 'zf_wahl' }
+  | { art: 'zf_rennen'; strecke: KartStrecke; auftrag: RennAuftrag }
+  | { art: 'zf_ergebnis'; strecke: KartStrecke; ergebnis: RennErgebnis; vorher: number | null };
 
-function useTopGhosts(streckeId: string) {
-  return useQuery({
-    queryKey: ['kart-ghosts', streckeId],
-    queryFn: async () => {
-      if (!supabase) throw new Error('Supabase nicht konfiguriert');
-      const { data, error } = await supabase.rpc('kart_top_ghosts', {
-        p_strecke: streckeId, p_limit: 8, p_mit_samples: true,
-      });
-      if (error) throw error;
-      return (data ?? []) as TopGhost[];
-    },
-    staleTime: 30_000,
-  });
-}
-
-function useSubmitGhost() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (i: { strecke: string; zeit_ms: number; samples: GhostSamples }) => {
-      if (!supabase) throw new Error('Supabase nicht konfiguriert');
-      const { data, error } = await supabase.rpc('kart_submit_ghost', {
-        p_strecke: i.strecke, p_zeit_ms: i.zeit_ms, p_samples: i.samples,
-      });
-      if (error) throw error;
-      return data as boolean;
-    },
-    onSuccess: (_d, i) => qc.invalidateQueries({ queryKey: ['kart-ghosts', i.strecke] }),
-  });
-}
-
-// ─── Streckenwahl ────────────────────────────────────────────────────────────
+let saatZaehler = Math.floor(Math.random() * 100000);
 
 export default function KartGame() {
-  const [streckeId, setStreckeId] = useState<string | null>(null);
-  if (!streckeId) return <StreckenWahl onWahl={setStreckeId} />;
-  const strecke = STRECKE_BY_ID[streckeId];
-  return <Rennen strecke={strecke} onZurueck={() => setStreckeId(null)} />;
-}
-
-function StreckenWahl({ onWahl }: { onWahl: (id: string) => void }) {
   const me = useCurrentMember();
+  const [einst, setEinst] = useState<KartEinstellungen>(() => ladeEinstellungen());
+  const [ansicht, setAnsicht] = useState<Ansicht>({ art: 'menue' });
+  const meinName = (me.data?.sauna_name || me.data?.name || 'Du').split(' ')[0];
+
+  function einstellungen(e: KartEinstellungen) {
+    setEinst(e);
+    speichereEinstellungen(e);
+  }
+
+  // Beim Wechsel der Ansicht nach oben scrollen (Handy).
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [ansicht.art]);
+
+  function gpRennenStarten(gp: GpStand) {
+    const strecke = STRECKE_BY_ID[gp.strecken[gp.rennen]];
+    // Startaufstellung: im ersten Rennen der Spieler ganz hinten, danach nach
+    // Punkten umgekehrt (wer führt, startet hinten) — wie beim Vorbild.
+    let reihenfolge: number[];
+    if (gp.rennen === 0) {
+      reihenfolge = gp.teilnehmer.map((_, i) => i).filter((i) => i !== 0).sort((a, b) => gp.teilnehmer[b].p - gp.teilnehmer[a].p);
+      reihenfolge.push(0);
+    } else {
+      reihenfolge = gp.teilnehmer.map((_, i) => i).sort((a, b) => gp.punkte[a] - gp.punkte[b] || b - a);
+    }
+    const fahrer: FahrerSetup[] = reihenfolge.map((i) => {
+      const t = gp.teilnehmer[i];
+      return { name: t.istSpieler ? meinName : t.name, skin: t.skin, istSpieler: t.istSpieler, persoenlichkeit: t.p };
+    });
+    const titel = gp.cup
+      ? `Dampf-Cup ${KLASSEN[gp.klasse].kurz} · Rennen ${gp.rennen + 1}/4 · ${strecke.name}`
+      : `Einzelrennen ${KLASSEN[gp.klasse].kurz} · ${strecke.name}`;
+    setAnsicht({
+      art: 'gp_rennen', gp, ids: reihenfolge,
+      auftrag: { schluessel: ++saatZaehler, strecke, modus: 'gp', klasse: gp.klasse, fahrer, titel, saat: gp.saat + gp.rennen * 7919 },
+    });
+  }
+
+  function gpRennenFertig(gp: GpStand, ids: number[], e: RennErgebnis) {
+    const punkte = [...gp.punkte];
+    const platz = gp.teilnehmer.map(() => 8);
+    const neu = gp.teilnehmer.map(() => 0);
+    e.reihenfolge.forEach((nr, pos) => {
+      const id = ids[nr];
+      platz[id] = pos + 1;
+      neu[id] = GP_PUNKTE[pos] ?? 0;
+      punkte[id] += neu[id];
+    });
+    const weiter: GpStand = { ...gp, punkte, letzte: { platz, punkte: neu } };
+    if (gp.rennen + 1 >= gp.strecken.length) setAnsicht({ art: 'gp_ende', gp: weiter });
+    else setAnsicht({ art: 'gp_zwischen', gp: weiter });
+  }
+
+  function gpStart(klasse: Klasse, cup: boolean, streckeId?: string) {
+    const skins = SKINS.map((_, i) => i).filter((i) => i !== einst.skin);
+    const teilnehmer: Teilnehmer[] = [
+      { name: meinName, skin: einst.skin, istSpieler: true, p: 1 },
+      ...RIVALEN.map((r, i) => ({ name: r.name, skin: skins[i % skins.length], istSpieler: false, p: r.p })),
+    ];
+    gpRennenStarten({
+      klasse, cup,
+      strecken: cup ? CUP : [streckeId ?? 'kelo'],
+      teilnehmer, punkte: teilnehmer.map(() => 0), rennen: 0, letzte: null,
+      saat: ++saatZaehler * 131,
+    });
+  }
+
+  // ── Renn-Ansichten ───────────────────────────────────────────────────────
+  if (ansicht.art === 'gp_rennen') {
+    const { gp, ids, auftrag } = ansicht;
+    return (
+      <KartRennen
+        auftrag={auftrag}
+        einstellungen={einst}
+        onEinstellungen={einstellungen}
+        onFertig={(e) => gpRennenFertig(gp, ids, e)}
+        onNeustart={() => setAnsicht({ ...ansicht, auftrag: { ...auftrag, schluessel: ++saatZaehler } })}
+        onAbbruch={() => { if (window.confirm(gp.cup ? 'Grand Prix wirklich beenden? Der Cup wird nicht gewertet.' : 'Rennen beenden?')) setAnsicht({ art: 'menue' }); }}
+      />
+    );
+  }
+  if (ansicht.art === 'zf_rennen') {
+    return (
+      <KartRennen
+        auftrag={ansicht.auftrag}
+        einstellungen={einst}
+        onEinstellungen={einstellungen}
+        onFertig={(e) => setAnsicht({ art: 'zf_ergebnis', strecke: ansicht.strecke, ergebnis: e, vorher: null })}
+        onNeustart={() => setAnsicht({ ...ansicht, auftrag: { ...ansicht.auftrag, schluessel: ++saatZaehler } })}
+        onAbbruch={() => setAnsicht({ art: 'zf_wahl' })}
+      />
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-md p-4 space-y-3">
-      <p className="text-sm text-forest-300">
-        🛷 Saunatuch-Schlitten, Schwarzwald, Bestzeit. Die schnellsten drei des
-        Vereins fahren als Geister mit — überhol sie.
-      </p>
-      {STRECKEN.map((s) => (
-        <StreckenKarte key={s.id} strecke={s} meineId={me.data?.id ?? null} onWahl={onWahl} />
-      ))}
-      <p className="text-xs text-forest-400 text-center">
-        Daumen links/rechts lenkt · Gas gibt's automatisch · 2 Runden
-      </p>
+    <div className="mx-auto max-w-md space-y-4 p-4 pb-24">
+      {ansicht.art === 'menue' && (
+        <Hauptmenue
+          einst={einst}
+          onEinstellungen={einstellungen}
+          onGp={() => setAnsicht({ art: 'gp_setup', cup: true })}
+          onEinzel={() => setAnsicht({ art: 'gp_setup', cup: false })}
+          onZeitfahren={() => setAnsicht({ art: 'zf_wahl' })}
+        />
+      )}
+      {ansicht.art === 'gp_setup' && (
+        <GpSetup
+          cup={ansicht.cup}
+          einst={einst}
+          onEinstellungen={einstellungen}
+          onZurueck={() => setAnsicht({ art: 'menue' })}
+          onStart={(klasse, streckeId) => gpStart(klasse, ansicht.cup, streckeId)}
+        />
+      )}
+      {ansicht.art === 'gp_zwischen' && (
+        <GpZwischenstand gp={ansicht.gp} onWeiter={() => gpRennenStarten({ ...ansicht.gp, rennen: ansicht.gp.rennen + 1 })} />
+      )}
+      {ansicht.art === 'gp_ende' && (
+        <GpEnde
+          gp={ansicht.gp}
+          onNochmal={() => gpStart(ansicht.gp.klasse, ansicht.gp.cup, ansicht.gp.strecken[0])}
+          onMenue={() => setAnsicht({ art: 'menue' })}
+        />
+      )}
+      {ansicht.art === 'zf_wahl' && (
+        <ZeitfahrenWahl
+          meineId={me.data?.id ?? null}
+          onZurueck={() => setAnsicht({ art: 'menue' })}
+          onStart={(strecke, geister) => setAnsicht({
+            art: 'zf_rennen', strecke,
+            auftrag: {
+              schluessel: ++saatZaehler, strecke, modus: 'zeitfahren', klasse: 80,
+              fahrer: [{ name: meinName, skin: einst.skin, istSpieler: true }],
+              geister, titel: `Zeitfahren · ${strecke.name}`, saat: 1,
+            },
+          })}
+        />
+      )}
+      {ansicht.art === 'zf_ergebnis' && (
+        <ZeitfahrenErgebnis
+          strecke={ansicht.strecke}
+          ergebnis={ansicht.ergebnis}
+          meineId={me.data?.id ?? null}
+          onNochmal={() => setAnsicht({ art: 'zf_wahl' })}
+          onMenue={() => setAnsicht({ art: 'menue' })}
+        />
+      )}
     </div>
   );
 }
 
-function StreckenKarte({ strecke, meineId, onWahl }: {
-  strecke: KartStrecke; meineId: string | null; onWahl: (id: string) => void;
+// ─── Hauptmenü ───────────────────────────────────────────────────────────────
+
+function Hauptmenue({ einst, onEinstellungen, onGp, onEinzel, onZeitfahren }: {
+  einst: KartEinstellungen;
+  onEinstellungen: (e: KartEinstellungen) => void;
+  onGp: () => void; onEinzel: () => void; onZeitfahren: () => void;
 }) {
-  const top = useTopGhosts(strecke.id);
-  const [bildKaputt, setBildKaputt] = useState(false);
-  const beste = top.data?.[0];
-  const meine = top.data?.find((g) => g.member_id === meineId);
+  const pokale = useMeinePokale();
+  return (
+    <>
+      <div
+        className="relative overflow-hidden rounded-3xl bg-forest-950 bg-cover bg-center p-5 ring-1 ring-amber-400/30"
+        style={{ backgroundImage: 'linear-gradient(180deg, rgba(8,18,12,0.35) 0%, rgba(8,18,12,0.92) 75%), url(/kart/kachel.jpg)' }}
+      >
+        <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-amber-300">Saunafreunde präsentieren</p>
+        <h2 className="mt-1 text-4xl font-black italic leading-none text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.5)]">Sauna-Kart</h2>
+        <p className="mt-2 text-sm text-forest-100/90">
+          Acht Schlitten, vier Strecken, Aufguss-Kisten voller Tricks. Driften, bis die Funken lila glühen.
+        </p>
+        <div className="mt-4 flex justify-center gap-1">
+          {SKINS.map((_, i) => <SchlittenBild key={i} skin={i} groesse={i === einst.skin ? 52 : 36} />)}
+        </div>
+      </div>
+
+      <MenueKarte icon="🏆" titel="Grand Prix · Dampf-Cup" text="Vier Rennen gegen die Vereins-Originale. Punkte sammeln, aufs Podest fahren, Pokal holen." onClick={onGp} hervor />
+      <div className="grid grid-cols-2 gap-3">
+        <MenueKarte icon="🏁" titel="Einzelrennen" text="Eine Strecke, sieben Gegner." onClick={onEinzel} klein />
+        <MenueKarte icon="👻" titel="Zeitfahren" text="Gegen die Geister der Schnellsten." onClick={onZeitfahren} klein />
+      </div>
+
+      <section className="rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50">
+        <h3 className="text-sm font-bold uppercase tracking-widest text-forest-300">Deine Pokalvitrine</h3>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          {([60, 80, 100] as Klasse[]).map((k) => {
+            const z = pokale.data?.find((p) => p.klasse === k);
+            return (
+              <div key={k} className="rounded-xl bg-forest-950/60 p-2 ring-1 ring-forest-800/60">
+                <div className="text-xs font-black text-amber-200">{KLASSEN[k].kurz}</div>
+                <div className="mt-1 text-sm tabular-nums">🏆 {z?.gold ?? 0}</div>
+                <div className="text-xs tabular-nums text-forest-300">🥈 {z?.silber ?? 0} · 🥉 {z?.bronze ?? 0}</div>
+              </div>
+            );
+          })}
+        </div>
+        {pokale.isError && <p className="mt-2 text-xs text-rose-300">Pokale konnten nicht geladen werden.</p>}
+      </section>
+
+      <Einstellungen einst={einst} onEinstellungen={onEinstellungen} />
+      <ItemLexikon />
+    </>
+  );
+}
+
+function MenueKarte({ icon, titel, text, onClick, hervor, klein }: {
+  icon: string; titel: string; text: string; onClick: () => void; hervor?: boolean; klein?: boolean;
+}) {
   return (
     <button
-      onClick={() => onWahl(strecke.id)}
-      className="w-full rounded-2xl bg-forest-900/60 p-3 text-left ring-1 ring-forest-800/50 hover:bg-forest-900/80 transition active:scale-[0.99]"
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-2xl p-4 text-left ring-1 transition active:scale-[0.98] ${hervor
+        ? 'bg-gradient-to-br from-amber-500/90 to-orange-600/90 text-forest-950 ring-amber-300/60 shadow-lg shadow-orange-900/40'
+        : 'bg-forest-900/70 text-forest-50 ring-forest-700/50 hover:bg-forest-900'}`}
       style={{ touchAction: 'manipulation' }}
     >
-      <div className="flex items-center gap-3">
-        {!bildKaputt && (
-          <img
-            src={`/kart/vorschau-${strecke.id}.jpg`}
-            alt=""
-            aria-hidden
-            draggable={false}
-            onError={() => setBildKaputt(true)}
-            className="h-16 w-24 shrink-0 rounded-lg object-cover ring-1 ring-forest-700/50"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="font-bold text-forest-100">{strecke.name}</span>
-            <span className="text-[11px] text-forest-400">{strecke.runden} Runden</span>
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 text-xs">
-            <span className="text-amber-200/90">
-              {beste ? <>👑 {beste.name} · {fmtZeit(beste.zeit_ms)}</> : 'Noch kein Streckenrekord — fahr ihn.'}
-            </span>
-            {meine && <span className="text-forest-300 tabular-nums">Du: {fmtZeit(meine.zeit_ms)}</span>}
-          </div>
-        </div>
+      <div className={`flex ${klein ? 'flex-col gap-1' : 'items-center gap-3'}`}>
+        <span className={klein ? 'text-3xl' : 'text-4xl'} aria-hidden>{icon}</span>
+        <span className="min-w-0">
+          <span className={`block font-black ${klein ? 'text-base' : 'text-lg'}`}>{titel}</span>
+          <span className={`block text-xs ${hervor ? 'text-forest-950/80' : 'text-forest-300'}`}>{text}</span>
+        </span>
       </div>
     </button>
   );
 }
 
-// ─── Das Rennen ──────────────────────────────────────────────────────────────
-
-type Phase = 'countdown' | 'fahren' | 'ziel';
-
-function Rennen({ strecke, onZurueck }: { strecke: KartStrecke; onZurueck: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const me = useCurrentMember();
-  const top = useTopGhosts(strecke.id);
-  const submit = useSubmitGhost();
-  const [phase, setPhase] = useState<Phase>('countdown');
-  const [ergebnis, setErgebnis] = useState<{ zeit: number; neueBestzeit: boolean } | null>(null);
-  const [hud, setHud] = useState({ zeit: 0, runde: 1, countdown: 3 });
-  const neustartRef = useRef(0);
-  const [neustart, setNeustart] = useState(0);
-  const soundRef = useRef<KartSound | null>(null);
-  const [tonAn, setTonAn] = useState(true);
-
-  // Erst die fal.ai-Grafiken laden (mit Timeout + Fallback), DANN die Welt
-  // bauen — die Bahn-Textur wird beim Bau eingebacken. Der Lader liefert nie
-  // einen Fehler; ohne Bilder entsteht die programmatische Fassung.
-  const [assets, setAssets] = useState<KartAssets | null>(null);
-  useEffect(() => {
-    let lebt = true;
-    ladeKartAssets().then((a) => { if (lebt) setAssets(a); });
-    return () => { lebt = false; };
-  }, []);
-
-  const welt = useMemo(
-    () => (assets ? bauStreckenWelt(strecke, assets.boden[strecke.id]) : null),
-    [strecke, assets],
-  );
-
-  // Geister der Top-Fahrer (ohne den eigenen — gegen sich selbst zu fahren
-  // wäre doppelt demoralisierend), maximal drei fürs Bild.
-  const geister = useMemo(() => {
-    const meineId = me.data?.id;
-    return (top.data ?? [])
-      .filter((g) => g.samples && g.member_id !== meineId)
-      .slice(0, 3);
-  }, [top.data, me.data?.id]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !welt || !assets) return;
-    const rennen = starteRennen({
-      canvas, welt, geister, assets,
-      spielerSkin: skinFuer(me.data?.id, 3),
-      onHud: (h) => setHud(h),
-      onPhase: (p) => setPhase(p),
-      onZiel: (zeitMs, samples) => {
-        const vorher = (top.data ?? []).find((g) => g.member_id === me.data?.id)?.zeit_ms;
-        setErgebnis({ zeit: zeitMs, neueBestzeit: !vorher || zeitMs < vorher });
-        submit.mutate({ strecke: strecke.id, zeit_ms: zeitMs, samples });
-      },
-    });
-    rennen.sound.an = tonAn; // Stumm-Wunsch überlebt „Nochmal"
-    soundRef.current = rennen.sound;
-    return rennen.stop;
-    // top.data absichtlich NICHT in den Deps: die Geister eines laufenden
-    // Rennens sollen nicht mitten in der Kurve ausgetauscht werden.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [welt, geister, assets, neustart]);
-
+function Einstellungen({ einst, onEinstellungen }: { einst: KartEinstellungen; onEinstellungen: (e: KartEinstellungen) => void }) {
+  const [neigenFehler, setNeigenFehler] = useState(false);
+  const lenkArten: { wert: KartEinstellungen['lenkArt']; label: string; hilfe: string }[] = [
+    { wert: 'wischen', label: '👆 Wischen', hilfe: 'Daumen aufs Bild, seitlich ziehen — stufenlos.' },
+    { wert: 'neigen', label: '📱 Neigen', hilfe: 'Handy wie ein Lenkrad kippen.' },
+    { wert: 'tippen', label: '✌️ Tippen', hilfe: 'Linke Hälfte links, rechte Hälfte rechts.' },
+  ];
   return (
-    <div className="mx-auto max-w-md p-3">
-      <div className="mb-2 flex items-center justify-between text-sm">
-        <button onClick={onZurueck}
-          className="rounded-lg bg-forest-900/60 px-3 py-1.5 text-xs text-forest-300 ring-1 ring-forest-700/50"
-          style={{ touchAction: 'manipulation' }}>
-          ← Strecken
-        </button>
-        <span className="font-semibold text-forest-100">{strecke.name}</span>
-        <span className="tabular-nums text-forest-300 text-xs">
-          Runde {Math.min(hud.runde, strecke.runden)}/{strecke.runden}
-        </span>
+    <section className="rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50">
+      <h3 className="text-sm font-bold uppercase tracking-widest text-forest-300">Steuerung</h3>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {lenkArten.map((a) => (
+          <button
+            key={a.wert}
+            type="button"
+            onClick={async () => {
+              if (a.wert === 'neigen') {
+                const ok = await KartEingabe.neigenErlauben();
+                setNeigenFehler(!ok);
+                if (!ok) return;
+              }
+              onEinstellungen({ ...einst, lenkArt: a.wert });
+            }}
+            className={`rounded-xl px-2 py-2 text-sm font-bold ring-1 ${einst.lenkArt === a.wert ? 'bg-amber-400 text-forest-950 ring-amber-300' : 'bg-forest-950/60 text-forest-100 ring-forest-700/60'}`}
+          >
+            {a.label}
+          </button>
+        ))}
       </div>
+      <p className="mt-2 text-xs text-forest-300">{lenkArten.find((a) => a.wert === einst.lenkArt)?.hilfe}</p>
+      {neigenFehler && <p className="mt-1 text-xs text-rose-300">Der Lagesensor ist auf diesem Gerät nicht verfügbar oder wurde nicht erlaubt.</p>}
+      <div className="mt-3 space-y-2">
+        <Schalter an={einst.lenkhilfe} onChange={(v) => onEinstellungen({ ...einst, lenkhilfe: v })} titel="Lenkhilfe" text="Zieht dich sanft zurück, bevor es ins Gras geht." />
+        <Schalter an={einst.autoDrift} onChange={(v) => onEinstellungen({ ...einst, autoDrift: v })} titel="Auto-Drift" text="Driftet von selbst, wenn du voll einlenkst." />
+        <Schalter an={einst.ton} onChange={(v) => onEinstellungen({ ...einst, ton: v })} titel="Geräusche" />
+        <Schalter an={einst.musik} onChange={(v) => onEinstellungen({ ...einst, musik: v })} titel="Musik (Schwarzwald-Polka)" />
+      </div>
+      <h3 className="mt-4 text-sm font-bold uppercase tracking-widest text-forest-300">Dein Handtuch</h3>
+      <div className="mt-2 grid grid-cols-4 gap-2">
+        {SKINS.map((sk, i) => (
+          <button
+            key={sk.name}
+            type="button"
+            onClick={() => onEinstellungen({ ...einst, skin: i })}
+            className={`flex flex-col items-center rounded-xl p-1 ring-2 ${einst.skin === i ? 'bg-forest-800 ring-amber-400' : 'bg-forest-950/50 ring-transparent'}`}
+            aria-label={`Handtuch ${sk.name}`}
+            aria-pressed={einst.skin === i}
+          >
+            <SchlittenBild skin={i} groesse={44} />
+            <span className="text-[10px] text-forest-100">{sk.name}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-      <div className="relative overflow-hidden rounded-2xl ring-1 ring-forest-700/50 shadow-2xl shadow-black/60 select-none">
-        {!welt && (
-          <div className="grid place-items-center text-forest-300 text-sm"
-            style={{ aspectRatio: `${W}/${H}` }}>
-            Lade Strecke…
-          </div>
-        )}
-        <canvas
-          ref={canvasRef}
-          width={W}
-          height={H}
-          className={welt ? 'block w-full' : 'hidden'}
-          style={{ imageRendering: 'pixelated', touchAction: 'none', aspectRatio: `${W}/${H}` }}
-          aria-label="Sauna-Kart — Daumen links oder rechts auf das Bild lenkt"
-        />
+function Schalter({ an, onChange, titel, text }: { an: boolean; onChange: (v: boolean) => void; titel: string; text?: string }) {
+  return (
+    <button type="button" onClick={() => onChange(!an)} className="flex w-full items-center justify-between gap-3 text-left" role="switch" aria-checked={an}>
+      <span>
+        <span className="block text-sm font-semibold text-forest-100">{titel}</span>
+        {text && <span className="block text-xs text-forest-400">{text}</span>}
+      </span>
+      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${an ? 'bg-amber-400' : 'bg-forest-700'}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${an ? 'left-[22px]' : 'left-0.5'}`} />
+      </span>
+    </button>
+  );
+}
 
-        {/* Zeit-HUD */}
-        <div className="pointer-events-none absolute left-2 top-2 rounded-lg bg-black/45 px-2 py-1 font-mono text-sm tabular-nums text-white">
-          {fmtZeit(hud.zeit)}
+function ItemLexikon() {
+  const reihe: ItemTyp[] = ['minze', 'minze3', 'seife', 'filzhut', 'eiskugel', 'glutstern', 'dampf', 'aufguss'];
+  return (
+    <details className="rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50">
+      <summary className="cursor-pointer text-sm font-bold uppercase tracking-widest text-forest-300">Items &amp; Tricks</summary>
+      <ul className="mt-3 space-y-2">
+        {reihe.map((t) => (
+          <li key={t} className="flex gap-3 text-sm">
+            <span className="w-8 text-center text-2xl" aria-hidden>{ITEM_INFO[t].icon}</span>
+            <span><strong className="text-forest-50">{ITEM_INFO[t].name}</strong> <span className="text-forest-300">— {ITEM_INFO[t].hilfe}</span></span>
+          </li>
+        ))}
+        <li className="flex gap-3 text-sm"><span className="w-8 text-center text-2xl" aria-hidden>💧</span><span><strong className="text-forest-50">Duft-Tropfen</strong> <span className="text-forest-300">— bis zu 10 sammeln, jeder macht dich schneller. Treffer kosten zwei.</span></span></li>
+        <li className="flex gap-3 text-sm"><span className="w-8 text-center text-2xl" aria-hidden>🌀</span><span><strong className="text-forest-50">Drift</strong> <span className="text-forest-300">— DRIFT halten und lenken: blau, orange, lila = immer längerer Turbo beim Loslassen.</span></span></li>
+        <li className="flex gap-3 text-sm"><span className="w-8 text-center text-2xl" aria-hidden>✨</span><span><strong className="text-forest-50">Trick</strong> <span className="text-forest-300">— über der Rampe DRIFT antippen: Schub bei der Landung.</span></span></li>
+      </ul>
+    </details>
+  );
+}
+
+// ─── Grand Prix ──────────────────────────────────────────────────────────────
+
+function GpSetup({ cup, einst, onEinstellungen, onZurueck, onStart }: {
+  cup: boolean; einst: KartEinstellungen;
+  onEinstellungen: (e: KartEinstellungen) => void;
+  onZurueck: () => void; onStart: (klasse: Klasse, streckeId?: string) => void;
+}) {
+  const [klasse, setKlasse] = useState<Klasse>(80);
+  const [strecke, setStrecke] = useState('kelo');
+  const texte: Record<Klasse, string> = {
+    60: 'Gemütlich warm. Zum Kennenlernen der Strecken.',
+    80: 'Die klassische Temperatur. Die Originale geben Gas.',
+    100: 'Finnisch heiß. Nur wer driftet, gewinnt.',
+  };
+  return (
+    <>
+      <ZurueckZeile onZurueck={onZurueck} titel={cup ? 'Grand Prix · Dampf-Cup' : 'Einzelrennen'} />
+      {cup ? (
+        <div className="grid grid-cols-4 gap-1.5">
+          {CUP.map((id, i) => (
+            <div key={id} className="overflow-hidden rounded-xl bg-forest-900/70 text-center ring-1 ring-forest-800/60">
+              <StreckenBild strecke={STRECKE_BY_ID[id]} />
+              <div className="px-1 py-1 text-[10px] font-bold leading-tight text-forest-100">{i + 1}. {STRECKE_BY_ID[id].name}</div>
+            </div>
+          ))}
         </div>
-
-        {/* Ton-Schalter — überlebt „Nochmal" */}
-        <button
-          onClick={() => {
-            const s = soundRef.current;
-            setTonAn(s ? s.toggle() : !tonAn);
-          }}
-          className="absolute right-2 top-2 rounded-lg bg-black/45 px-2 py-1 text-sm"
-          style={{ touchAction: 'manipulation' }}
-          title={tonAn ? 'Ton aus' : 'Ton an'}
-          aria-label={tonAn ? 'Ton ausschalten' : 'Ton einschalten'}
-        >
-          {tonAn ? '🔊' : '🔇'}
-        </button>
-
-        {phase === 'countdown' && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <span className="text-7xl font-black text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
-              {hud.countdown > 0 ? hud.countdown : 'LOS!'}
-            </span>
-          </div>
-        )}
-
-        {phase === 'ziel' && ergebnis && (
-          <div className="absolute inset-0 grid place-items-center bg-black/60 p-4">
-            <div className="w-full max-w-xs rounded-2xl bg-forest-950/95 p-4 text-center ring-1 ring-forest-700/60">
-              <p className="text-3xl" aria-hidden>🏁</p>
-              <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-forest-100">
-                {fmtZeit(ergebnis.zeit)}
-              </p>
-              <p className="mt-1 text-sm text-forest-300">
-                {ergebnis.neueBestzeit ? '✨ Neue persönliche Bestzeit!' : 'Nicht schneller als dein Geist.'}
-              </p>
-              {submit.isError && (
-                <p className="mt-1 text-xs text-rose-300">{(submit.error as Error).message}</p>
-              )}
-              <div className="mt-3 space-y-1 text-left">
-                {(top.data ?? []).slice(0, 5).map((g, i) => (
-                  <div key={g.member_id} className="flex items-center gap-2 text-xs">
-                    <span className="w-4 text-forest-400">{i + 1}.</span>
-                    <span className="min-w-0 flex-1 truncate text-forest-100">{g.name}</span>
-                    <span className="font-mono tabular-nums text-amber-200">{fmtZeit(g.zeit_ms)}</span>
-                  </div>
-                ))}
+      ) : (
+        <div className="space-y-2">
+          <h3 className="text-sm font-bold uppercase tracking-widest text-forest-300">Strecke</h3>
+          {STRECKEN.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setStrecke(s.id)}
+              className={`flex w-full items-center gap-3 rounded-2xl p-2 text-left ring-2 ${strecke === s.id ? 'bg-forest-800/80 ring-amber-400' : 'bg-forest-900/60 ring-transparent'}`}
+            >
+              <div className="w-20 shrink-0 overflow-hidden rounded-lg"><StreckenBild strecke={s} /></div>
+              <div className="min-w-0">
+                <div className="font-bold text-forest-50">{s.name}</div>
+                <div className="text-xs text-forest-300">{s.kurz}</div>
               </div>
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => { neustartRef.current += 1; setErgebnis(null); setNeustart(neustartRef.current); }}
-                  className="flex-1 rounded-xl bg-amber-500/80 px-4 py-2.5 text-sm font-bold text-forest-950"
-                  style={{ touchAction: 'manipulation' }}>
-                  ↺ Nochmal
-                </button>
-                <button
-                  onClick={onZurueck}
-                  className="flex-1 rounded-xl bg-forest-900/70 px-4 py-2.5 text-sm text-forest-200 ring-1 ring-forest-700/50"
-                  style={{ touchAction: 'manipulation' }}>
-                  Strecken
-                </button>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold uppercase tracking-widest text-forest-300">Temperatur</h3>
+        {([60, 80, 100] as Klasse[]).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setKlasse(k)}
+            className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ring-2 ${klasse === k ? 'bg-forest-800/80 ring-amber-400' : 'bg-forest-900/60 ring-transparent'}`}
+          >
+            <span className="w-14 text-center text-2xl font-black italic text-amber-300">{KLASSEN[k].kurz}</span>
+            <span>
+              <span className="block font-bold text-forest-50">{KLASSEN[k].name.split('·')[1]?.trim()}</span>
+              <span className="block text-xs text-forest-300">{texte[k]}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-3 rounded-2xl bg-forest-900/60 p-3 ring-1 ring-forest-800/50">
+        <SchlittenBild skin={einst.skin} groesse={56} />
+        <div className="min-w-0 flex-1 text-sm">
+          <div className="font-bold text-forest-50">Handtuch: {SKINS[einst.skin].name}</div>
+          <div className="flex flex-wrap gap-1 pt-1">
+            {SKINS.map((sk, i) => (
+              <button
+                key={sk.name}
+                type="button"
+                onClick={() => onEinstellungen({ ...einst, skin: i })}
+                className={`h-6 w-6 rounded-full ring-2 ${einst.skin === i ? 'ring-white' : 'ring-black/30'}`}
+                style={{ background: sk.farbe }}
+                aria-label={`Handtuch ${sk.name}`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onStart(klasse, cup ? undefined : strecke)}
+        className="w-full rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black italic text-forest-950 shadow-lg shadow-orange-900/40 active:scale-[0.98]"
+      >
+        Los geht's! 🏁
+      </button>
+    </>
+  );
+}
+
+function standSortiert(gp: GpStand): number[] {
+  return gp.teilnehmer.map((_, i) => i).sort((a, b) =>
+    gp.punkte[b] - gp.punkte[a] || (gp.letzte?.platz[a] ?? 9) - (gp.letzte?.platz[b] ?? 9));
+}
+
+function GpZwischenstand({ gp, onWeiter }: { gp: GpStand; onWeiter: () => void }) {
+  const stand = standSortiert(gp);
+  const naechste = STRECKE_BY_ID[gp.strecken[gp.rennen + 1]];
+  const meinPlatz = gp.letzte?.platz[0] ?? 8;
+  return (
+    <>
+      <div className="rounded-3xl bg-forest-900/70 p-4 text-center ring-1 ring-forest-700/50">
+        <p className="text-xs font-bold uppercase tracking-widest text-forest-300">Rennen {gp.rennen + 1} von {gp.strecken.length}</p>
+        <p className="mt-1 text-3xl font-black italic text-white">{meinPlatz}. Platz {meinPlatz === 1 ? '🏆' : meinPlatz <= 3 ? '🎉' : ''}</p>
+        <p className="text-sm text-amber-200">+{gp.letzte?.punkte[0] ?? 0} Punkte</p>
+      </div>
+      <Tabelle gp={gp} stand={stand} />
+      <button
+        type="button"
+        onClick={onWeiter}
+        className="w-full rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-lg font-black text-forest-950 active:scale-[0.98]"
+      >
+        Weiter: {naechste.name} ›
+      </button>
+    </>
+  );
+}
+
+function Tabelle({ gp, stand }: { gp: GpStand; stand: number[] }) {
+  return (
+    <ol className="divide-y divide-forest-800/60 overflow-hidden rounded-2xl bg-forest-900/60 ring-1 ring-forest-800/50">
+      {stand.map((id, pos) => {
+        const t = gp.teilnehmer[id];
+        return (
+          <li key={id} className={`flex items-center gap-2 px-3 py-2 text-sm ${t.istSpieler ? 'bg-amber-400/15' : ''}`}>
+            <span className="w-6 text-right font-black tabular-nums text-forest-300">{pos + 1}.</span>
+            <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/40" style={{ background: SKINS[t.skin].farbe }} />
+            <span className={`min-w-0 flex-1 truncate ${t.istSpieler ? 'font-black text-amber-100' : 'text-forest-100'}`}>{t.name}</span>
+            {gp.letzte && <span className="w-9 text-right text-xs tabular-nums text-emerald-300">+{gp.letzte.punkte[id]}</span>}
+            <span className="w-8 text-right font-black tabular-nums text-white">{gp.punkte[id]}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function GpEnde({ gp, onNochmal, onMenue }: { gp: GpStand; onNochmal: () => void; onMenue: () => void }) {
+  const stand = standSortiert(gp);
+  const meinPlatz = stand.indexOf(0) + 1;
+  const melden = useGpMelden();
+  const liste = useGpBestenliste(gp.klasse);
+  const gemeldet = useRef(false);
+  useEffect(() => {
+    if (!gp.cup || gemeldet.current) return;
+    gemeldet.current = true;
+    melden.mutate({ klasse: gp.klasse, platz: meinPlatz, punkte: Math.max(4, gp.punkte[0]) });
+    // einmalig beim Öffnen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const podest = [stand[1], stand[0], stand[2]];
+  const hoehen = ['h-20', 'h-28', 'h-14'];
+  const medaille = ['🥈', '🏆', '🥉'];
+  return (
+    <>
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-forest-800/80 to-forest-950 p-4 pt-6 text-center ring-1 ring-amber-400/30">
+        {meinPlatz <= 3 && <Konfetti />}
+        <p className="text-xs font-bold uppercase tracking-widest text-amber-300">{gp.cup ? `Dampf-Cup ${KLASSEN[gp.klasse].kurz}` : 'Einzelrennen'}</p>
+        <p className="mt-1 text-3xl font-black italic text-white">
+          {meinPlatz === 1 ? 'Sieg! Goldpokal! 🏆' : meinPlatz <= 3 ? `${meinPlatz}. Platz — aufs Podest!` : `${meinPlatz}. Platz`}
+        </p>
+        <div className="mt-5 grid grid-cols-3 items-end gap-2">
+          {podest.map((id, i) => id === undefined ? <div key={i} /> : (
+            <div key={id} className="flex flex-col items-center">
+              <SchlittenBild skin={gp.teilnehmer[id].skin} groesse={i === 1 ? 72 : 56} />
+              <span className={`max-w-full truncate text-xs font-bold ${gp.teilnehmer[id].istSpieler ? 'text-amber-200' : 'text-forest-100'}`}>{gp.teilnehmer[id].name}</span>
+              <div className={`mt-1 flex w-full flex-col items-center justify-start rounded-t-xl bg-gradient-to-b from-amber-200/90 to-amber-500/80 pt-1 ${hoehen[i]}`}>
+                <span className="text-2xl" aria-hidden>{medaille[i]}</span>
+                <span className="text-xs font-black text-forest-950">{gp.punkte[id]} P.</span>
               </div>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
+      <Tabelle gp={gp} stand={stand} />
+      {gp.cup && (
+        <p className="text-center text-xs text-forest-300">
+          {melden.isPending ? 'Pokal wird eingetragen …'
+            : melden.isError ? `Konnte nicht gespeichert werden: ${(melden.error as Error).message === 'zu_schnell' ? 'nur ein Cup alle drei Minuten' : (melden.error as Error).message}`
+              : melden.data ? (melden.data.erster_gold ? '🏆 Dein erster Goldpokal in dieser Klasse — steht in der Vitrine!' : 'In deiner Pokalvitrine eingetragen.') : ''}
+        </p>
+      )}
+      {gp.cup && (liste.data?.length ?? 0) > 0 && (
+        <section className="rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50">
+          <h3 className="text-sm font-bold uppercase tracking-widest text-forest-300">Vereins-Bestenliste {KLASSEN[gp.klasse].kurz}</h3>
+          <ol className="mt-2 space-y-1 text-sm">
+            {liste.data!.slice(0, 8).map((z, i) => (
+              <li key={z.member_id} className="flex items-center gap-2">
+                <span className="w-5 text-right text-forest-400">{i + 1}.</span>
+                <span className="min-w-0 flex-1 truncate text-forest-100">{z.name}</span>
+                <span className="tabular-nums text-amber-200">🏆{z.gold}</span>
+                <span className="tabular-nums text-forest-300">🥈{z.silber} 🥉{z.bronze}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      <div className="flex gap-2">
+        <button type="button" onClick={onNochmal} className="flex-1 rounded-2xl bg-amber-400 py-3 font-black text-forest-950 active:scale-[0.98]">↺ Nochmal</button>
+        <button type="button" onClick={onMenue} className="flex-1 rounded-2xl bg-forest-900/70 py-3 font-bold text-forest-100 ring-1 ring-forest-700/60">Menü</button>
+      </div>
+    </>
+  );
+}
 
-      <p className="mt-2 text-center text-xs text-forest-400">
-        Daumen links/rechts lenkt · Pfeile = Turbo · Rampe springt über die Pfütze ·
-        rollenden Stämmen ausweichen! Tacho: <span className="text-amber-300">Fahrt</span> ·{' '}
-        <span className="text-rose-300">gebremst</span> · <span className="text-cyan-300">Turbo</span>
+// ─── Zeitfahren ──────────────────────────────────────────────────────────────
+
+function ZeitfahrenWahl({ meineId, onZurueck, onStart }: {
+  meineId: string | null; onZurueck: () => void;
+  onStart: (strecke: KartStrecke, geister: GeistDaten[]) => void;
+}) {
+  return (
+    <>
+      <ZurueckZeile onZurueck={onZurueck} titel="Zeitfahren" />
+      <p className="text-sm text-forest-300">
+        Drei Runden, drei Minz-Schübe, keine Gegner — nur die Geister der Schnellsten und dein eigener. Deine Bestzeit landet in der Vereinswertung.
       </p>
+      {STRECKEN.map((s) => <ZfStreckenKarte key={s.id} strecke={s} meineId={meineId} onStart={onStart} />)}
+    </>
+  );
+}
+
+function ZfStreckenKarte({ strecke, meineId, onStart }: {
+  strecke: KartStrecke; meineId: string | null;
+  onStart: (strecke: KartStrecke, geister: GeistDaten[]) => void;
+}) {
+  const top = useTopGeister(strecke.id);
+  const beste = top.data?.[0];
+  const meine = top.data?.find((g) => g.member_id === meineId);
+  function start() {
+    const liste = top.data ?? [];
+    const auswahl = [
+      ...liste.filter((g) => g.member_id !== meineId).slice(0, 2),
+      ...(meine ? [meine] : []),
+    ];
+    const geister: GeistDaten[] = auswahl
+      .filter((g) => g.samples && g.samples.pts.length > 1)
+      .map((g) => ({
+        name: g.member_id === meineId ? 'Dein Geist' : g.name,
+        zeitMs: g.zeit_ms,
+        skin: skinFuer(g.member_id, SKINS.length),
+        dt: g.samples!.dt,
+        pts: g.samples!.pts,
+      }));
+    onStart(strecke, geister);
+  }
+  return (
+    <button
+      type="button"
+      onClick={start}
+      disabled={top.isLoading}
+      className="flex w-full items-center gap-3 rounded-2xl bg-forest-900/60 p-2 text-left ring-1 ring-forest-800/50 active:scale-[0.99] disabled:opacity-60"
+    >
+      <div className="w-24 shrink-0 overflow-hidden rounded-lg"><StreckenBild strecke={strecke} /></div>
+      <div className="min-w-0 flex-1">
+        <div className="font-bold text-forest-50">{strecke.name}</div>
+        <div className="text-xs text-amber-200/90">{beste ? <>👑 {beste.name} · {fmtZeit(beste.zeit_ms)}</> : 'Noch kein Rekord — fahr ihn!'}</div>
+        {meine && <div className="text-xs tabular-nums text-forest-300">Deine Bestzeit: {fmtZeit(meine.zeit_ms)}</div>}
+      </div>
+    </button>
+  );
+}
+
+function ZeitfahrenErgebnis({ strecke, ergebnis, meineId, onNochmal, onMenue }: {
+  strecke: KartStrecke; ergebnis: RennErgebnis; meineId: string | null;
+  onNochmal: () => void; onMenue: () => void;
+}) {
+  const top = useTopGeister(strecke.id, false);
+  const speichern = useGeistSpeichern();
+  const vorher = useRef<number | null | undefined>(undefined);
+  if (vorher.current === undefined && top.data) vorher.current = top.data.find((g) => g.member_id === meineId)?.zeit_ms ?? null;
+  const zeit = ergebnis.spielerZeitMs;
+  const gesendet = useRef(false);
+  useEffect(() => {
+    if (gesendet.current || zeit === null || !ergebnis.geist || zeit < 20000) return;
+    gesendet.current = true;
+    speichern.mutate({ strecke: strecke.id, zeit_ms: zeit, samples: { v: 1, dt: ergebnis.geist.dt, pts: ergebnis.geist.pts } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const neueBest = speichern.data === true;
+  return (
+    <>
+      <div className="relative overflow-hidden rounded-3xl bg-forest-900/70 p-5 text-center ring-1 ring-forest-700/50">
+        {neueBest && <Konfetti />}
+        <p className="text-xs font-bold uppercase tracking-widest text-forest-300">Zeitfahren · {strecke.name}</p>
+        <p className="mt-1 font-mono text-4xl font-black tabular-nums text-white">{zeit !== null ? fmtZeit(zeit) : '—'}</p>
+        <p className="mt-1 text-sm text-amber-200">
+          {speichern.isPending ? 'Wird eingetragen …' : neueBest ? '✨ Neue persönliche Bestzeit!' : speichern.isError ? (speichern.error as Error).message : speichern.data === false ? 'Nicht schneller als dein Geist.' : ''}
+        </p>
+        <div className="mt-3 flex justify-center gap-2 text-xs tabular-nums text-forest-100">
+          {ergebnis.rundenZeiten.slice(0, 3).map((t, i) => <span key={i} className="rounded-lg bg-forest-950/60 px-2 py-1">R{i + 1}: {fmtZeit(t)}</span>)}
+        </div>
+      </div>
+      <section className="rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50">
+        <h3 className="text-sm font-bold uppercase tracking-widest text-forest-300">Vereinswertung</h3>
+        <ol className="mt-2 space-y-1 text-sm">
+          {(top.data ?? []).slice(0, 8).map((g, i) => (
+            <li key={g.member_id} className={`flex items-center gap-2 ${g.member_id === meineId ? 'font-black text-amber-100' : 'text-forest-100'}`}>
+              <span className="w-5 text-right text-forest-400">{i + 1}.</span>
+              <span className="min-w-0 flex-1 truncate">{g.name}</span>
+              <span className="font-mono tabular-nums text-amber-200">{fmtZeit(g.zeit_ms)}</span>
+            </li>
+          ))}
+          {top.data?.length === 0 && <li className="text-forest-400">Noch keine Zeiten.</li>}
+        </ol>
+      </section>
+      <div className="flex gap-2">
+        <button type="button" onClick={onNochmal} className="flex-1 rounded-2xl bg-amber-400 py-3 font-black text-forest-950 active:scale-[0.98]">↺ Nochmal</button>
+        <button type="button" onClick={onMenue} className="flex-1 rounded-2xl bg-forest-900/70 py-3 font-bold text-forest-100 ring-1 ring-forest-700/60">Menü</button>
+      </div>
+    </>
+  );
+}
+
+// ─── Bausteine ───────────────────────────────────────────────────────────────
+
+function ZurueckZeile({ onZurueck, titel }: { onZurueck: () => void; titel: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <button type="button" onClick={onZurueck} className="rounded-xl bg-forest-900/70 px-3 py-2 text-sm text-forest-100 ring-1 ring-forest-700/50">← Zurück</button>
+      <h2 className="text-lg font-black text-forest-50">{titel}</h2>
     </div>
   );
 }
 
-// ─── Engine ──────────────────────────────────────────────────────────────────
-
-function starteRennen(opts: {
-  canvas: HTMLCanvasElement;
-  welt: StreckenWelt;
-  geister: TopGhost[];
-  assets: KartAssets;
-  spielerSkin: number;
-  onHud: (h: { zeit: number; runde: number; countdown: number }) => void;
-  onPhase: (p: Phase) => void;
-  onZiel: (zeitMs: number, samples: GhostSamples) => void;
-}): { sound: KartSound; stop: () => void } {
-  const { canvas, welt, geister, assets, spielerSkin, onHud, onPhase, onZiel } = opts;
-  const ctx = canvas.getContext('2d', { alpha: false })!;
-  const { strecke, maske, linie } = welt;
-
-  // Textur einmal als Uint32 lesen — der Boden wird pro Pixel abgetastet.
-  const texCtx = welt.textur.getContext('2d')!;
-  const texDaten = new Uint32Array(texCtx.getImageData(0, 0, TEX_SIZE, TEX_SIZE).data.buffer);
-  const bild = ctx.createImageData(W, H - HORIZONT);
-  const bildDaten = new Uint32Array(bild.data.buffer);
-  const WALD = packFarbe(16, 34, 20);
-
-  // Panorama. Mit fal.ai-Bild füllt der Himmel den KOMPLETTEN Bereich über
-  // dem Horizont: das Bild wird auf Horizont-Höhe skaliert und einmal
-  // GESPIEGELT danebengelegt — die Naht existiert dadurch konstruktionsbedingt
-  // nicht, egal wie unsauber die Bildränder kacheln. Ohne Bild bleibt der
-  // alte Weg: Verlauf + programmatische Silhouette (60px-Streifen).
-  const panoVollbild = !!assets.panorama;
-  const panorama = (() => {
-    if (!assets.panorama) return bauPanorama();
-    const img = assets.panorama as HTMLImageElement;
-    const b = Math.max(W, Math.round((img.width as number ?? W) * (HORIZONT / (img.height as number ?? HORIZONT))));
-    const c = document.createElement('canvas');
-    c.width = b * 2; c.height = HORIZONT;
-    const g2 = c.getContext('2d')!;
-    g2.drawImage(img, 0, 0, b, HORIZONT);
-    g2.save();
-    g2.translate(b * 2, 0);
-    g2.scale(-1, 1);
-    g2.drawImage(img, 0, 0, b, HORIZONT);
-    g2.restore();
-    return c;
-  })();
-
-  // Sprites je Skin (drei Posen) — null = programmatische Zeichnung.
-  const spielerPosen = assets.schlitten[spielerSkin] ?? null;
-  const geistPosen = geister.map((g) => assets.schlitten[skinFuer(g.member_id, 3)] ?? null);
-  const stammSprite = assets.stamm;
-
-  // ─── Zustand ───────────────────────────────────────────────────────────
-  const start = linie[0];
-  const st = {
-    x: start.x, y: start.y, richtung: start.winkel, v: 0,
-    fahrWinkel: start.winkel, // Bewegungsrichtung — hinkt der Nase nach (Drift)
-    lenken: 0,
-    lenkPhys: 0,             // geformte Lenk-Eingabe (Attack/Release)
-    lenkGlatt: 0,            // geglätteter Lenkwert für Pose + Kamera
-    countdownMs: 3000,
-    zeitMs: 0,
-    letzterIdx: 0,
-    fortschritt: 0,          // in Linien-Indizes, monoton wachsend
-    runde: 1,
-    fertig: false,
-    samples: [] as [number, number, number][],
-    naechsteProbe: 0,
-    // Rallye-Zustand
-    turboRestS: 0,
-    flugRestS: 0,
-    taumelRestS: 0,
-    schonfristS: 0,
-    gebremst: false,         // fürs Tacho: gerade Pfütze/Wiese/Taumel?
-    letzterMaskenWert: M_BAHN,
-    // Banden-Runde
-    wandKontakt: false,
-    schuettelRest: 0,        // Screenshake-Amplitude in px, klingt ab
-    startBoostVergeben: false,
-    driftLadungS: 0,         // wie lange der aktuelle Drift schon steht
-    miniTurboRestS: 0,
-    kamHoehe: KAM_HOEHE,     // Kamera senkt sich im Boost (FOV-Kick-Ersatz)
-    // Dynamik-Runde: rein Visuelles — beeinflusst NIE die Physik.
-    blitzRestS: 0,           // weißer Doppel-Frame beim Boost-Zünden
-    partikel: [] as { x: number; y: number; vx: number; vy: number; lebenS: number; maxS: number; art: 'staub' | 'gras' | 'dampf' | 'funke' }[],
-    bannerText: '',
-    bannerRestS: 0,
-    rueckstandS: null as number | null,  // Sekunden auf den 👑-Geist (+ = hinten)
-    g0Idx: 0,
-    g0Fort: 0,
-  };
-
-  // Klang — entsteht erst bei der ersten Geste (iOS), Regler unten rechts.
-  const sound = new KartSound();
-
-  // Der beste Geist ist die Messlatte für die Live-Rückstandsanzeige.
-  const messlatte = geister[0]?.samples ? geister[0] : null;
-  const messlatteIdxProSek = messlatte
-    ? (linie.length * strecke.runden) / (messlatte.zeit_ms / 1000)
-    : 0;
-
-  // ─── Eingabe: Daumen-Hälften + Pfeiltasten ─────────────────────────────
-  const zeiger = new Map<number, -1 | 1>();
-  function lenkenAusZeigern() {
-    let l = 0;
-    zeiger.forEach((seite) => { l += seite; });
-    st.lenken = Math.max(-1, Math.min(1, l));
-  }
-  function aufPointerDown(e: PointerEvent) {
-    sound.start(); // iOS: Audio braucht eine Geste — die erste ist der Daumen
-    const r = canvas.getBoundingClientRect();
-    zeiger.set(e.pointerId, e.clientX - r.left < r.width / 2 ? -1 : 1);
-    lenkenAusZeigern();
-    // Start-Boost: wer GENAU beim „LOS!" tippt (Fenster ±0,3 s), bekommt
-    // 1,2 s Schub — der klassische Belohnungsmoment am Start.
-    if (!st.startBoostVergeben && st.countdownMs < 320 && st.countdownMs > -250) {
-      st.startBoostVergeben = true;
-      st.turboRestS = 1.2;
-      sound.turbo();
-      vibriere(15);
-    }
-    canvas.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
-  }
-  function aufPointerEnde(e: PointerEvent) {
-    zeiger.delete(e.pointerId);
-    lenkenAusZeigern();
-  }
-  const tasten = new Set<string>();
-  function aufTaste(e: KeyboardEvent, unten: boolean) {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    if (unten) tasten.add(e.key); else tasten.delete(e.key);
-    st.lenken = (tasten.has('ArrowRight') ? 1 : 0) - (tasten.has('ArrowLeft') ? 1 : 0);
-    e.preventDefault();
-  }
-  const tasteAb = (e: KeyboardEvent) => aufTaste(e, true);
-  const tasteAuf = (e: KeyboardEvent) => aufTaste(e, false);
-  canvas.addEventListener('pointerdown', aufPointerDown);
-  canvas.addEventListener('pointerup', aufPointerEnde);
-  canvas.addEventListener('pointercancel', aufPointerEnde);
-  window.addEventListener('keydown', tasteAb);
-  window.addEventListener('keyup', tasteAuf);
-
-  // ─── Schleife ──────────────────────────────────────────────────────────
-  let raf = 0;
-  let vorher = performance.now();
-  let laeuft = true;
-
-  function schritt(jetzt: number) {
-    if (!laeuft) return;
-    const dt = Math.min(0.05, (jetzt - vorher) / 1000);
-    vorher = jetzt;
-
-    if (st.countdownMs > 0) {
-      const vorherSek = Math.ceil(st.countdownMs / 1000);
-      st.countdownMs -= dt * 1000;
-      const jetztSek = Math.ceil(Math.max(0, st.countdownMs / 1000));
-      if (jetztSek !== vorherSek) sound.countdown(jetztSek);
-      onHud({ zeit: 0, runde: st.runde, countdown: jetztSek });
-      if (st.countdownMs <= 0) { onPhase('fahren'); sound.countdown(0); }
-    } else if (!st.fertig) {
-      simuliere(dt);
-    } else {
-      sound.motorAus();
-    }
-
-    zeichne();
-    raf = requestAnimationFrame(schritt);
-  }
-
-  /** Position eines Stamms zur Rennzeit t — Dreieckswelle quer zur Bahn.
-   *  Pure Funktion: gleicher Zeitpunkt = gleiche Position, in jedem Lauf. */
-  function stammPosition(planIdx: number, zeitMs: number): { x: number; y: number; quer: number } {
-    const plan = strecke.staemme[planIdx];
-    const p = linie[plan.idx];
-    const u = ((zeitMs / plan.periodeMs + plan.phase) % 1 + 1) % 1;
-    const dreieck = 4 * Math.abs(u - 0.5) - 1; // 1 → -1 → 1
-    const amp = strecke.breite + 26;
-    const qx = -Math.sin(p.winkel), qy = Math.cos(p.winkel);
-    const quer = dreieck * amp;
-    return { x: p.x + qx * quer, y: p.y + qy * quer, quer };
-  }
-
-  function maskeBei(x: number, y: number): number {
-    const mx = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(x)));
-    const my = Math.max(0, Math.min(TEX_SIZE - 1, Math.round(y)));
-    return maske[my * TEX_SIZE + mx];
-  }
-
-  function wrapWinkel(w: number): number {
-    while (w > Math.PI) w -= Math.PI * 2;
-    while (w < -Math.PI) w += Math.PI * 2;
-    return w;
-  }
-
-  function simuliere(dt: number) {
-    st.zeitMs += dt * 1000;
-
-    // Zeitgeber der Rallye-Elemente.
-    const flogVorher = st.flugRestS > 0;
-    st.turboRestS = Math.max(0, st.turboRestS - dt);
-    st.flugRestS = Math.max(0, st.flugRestS - dt);
-    st.taumelRestS = Math.max(0, st.taumelRestS - dt);
-    st.schonfristS = Math.max(0, st.schonfristS - dt);
-    st.bannerRestS = Math.max(0, st.bannerRestS - dt);
-    st.schuettelRest = Math.max(0, st.schuettelRest - dt * 9);
-    if (flogVorher && st.flugRestS <= 0) { sound.landung(); vibriere(12); st.schuettelRest = Math.max(st.schuettelRest, 2.5); }
-
-    // Oberfläche unterm Kart — in der Luft zählt sie nicht (wer springt,
-    // fliegt über Pfütze und Schulter hinweg).
-    const wert = maskeBei(st.x, st.y);
-    const fliegt = st.flugRestS > 0;
-
-    let vmax = wert >= M_BAHN && wert !== M_SCHULTER ? V_MAX : V_MAX_WIESE;
-    st.gebremst = false;
-    if (!fliegt) {
-      if (wert === M_TURBO && st.turboRestS < 0.4) { sound.turbo(); vibriere(10); }
-      if (wert === M_TURBO) st.turboRestS = TURBO_DAUER_S;
-      if (wert === M_BREMS) { vmax *= BREMS_FAKTOR; st.gebremst = true; }
-      if (wert === M_SCHULTER || wert === M_WIESE) st.gebremst = true;
-      // Rampe: nur die Vorderkante zündet (Wert-Wechsel auf M_RAMPE), sonst
-      // würde jeder Frame auf der Rampe neu abheben.
-      if (wert === M_RAMPE && st.letzterMaskenWert !== M_RAMPE && st.v > FLUG_MIN_TEMPO * V_MAX) {
-        st.flugRestS = FLUG_DAUER_S;
-        sound.sprung();
-      }
-    }
-    st.letzterMaskenWert = wert;
-    st.miniTurboRestS = Math.max(0, st.miniTurboRestS - dt);
-    if (st.turboRestS > 0) vmax *= TURBO_FAKTOR;
-    else if (st.miniTurboRestS > 0) vmax *= MINITURBO_FAKTOR;
-    if (st.taumelRestS > 0) { vmax *= 0.75; st.gebremst = true; }
-
-    st.v += (vmax - st.v) * Math.min(1, BESCHL * dt);
-
-    // ── Fahrmodell: Nase lenkt, Fahrt zieht nach (Banden-Runde) ──────────
-    // Die Lenk-EINGABE baut sich auf und löst sich wieder (Attack/Release) —
-    // ein Daumen ist ein Schalter, ein Lenkrad ist keiner.
-    let ziel = fliegt ? 0 : st.lenken;
-    if (st.taumelRestS > 0) {
-      ziel = ziel * 0.5 + Math.sin(st.zeitMs / 40) * 0.5;
-    }
-    const rampe = Math.abs(ziel) > Math.abs(st.lenkPhys) ? LENK_ATTACK : LENK_RELEASE;
-    st.lenkPhys += (ziel - st.lenkPhys) * Math.min(1, rampe * dt);
-
-    // Lenkrate wächst mit dem Tempo — und fällt oberhalb von 80 % wieder
-    // leicht ab (Recherche: genau daraus entsteht das „bei Topspeed muss ich
-    // driften"-Gefühl, statt jede Kurve voll zu erwischen).
-    const tempoAnteil = Math.min(1, st.v / V_MAX);
-    let lenkKraft = LENKRATE * (0.35 + 0.65 * tempoAnteil);
-    if (tempoAnteil > 0.8) lenkKraft *= 1 - 0.25 * ((tempoAnteil - 0.8) / 0.2);
-    st.richtung += st.lenkPhys * lenkKraft * dt;
-
-    // Die Bewegungsrichtung folgt der Nase mit GRIP-Verzögerung — daraus
-    // entsteht der Drift. Der Grip lässt bei Tempo zusätzlich nach: schnelle
-    // Kurven schieben spürbar nach außen (Zentrifugal-Gefühl).
-    const gripBasis = fliegt ? 0.5 : (wert === M_SCHULTER || wert === M_WIESE) ? GRIP_GRAS : GRIP_BAHN;
-    const grip = gripBasis * (1 - 0.35 * tempoAnteil * (gripBasis === GRIP_BAHN ? 1 : 0));
-    st.fahrWinkel += wrapWinkel(st.richtung - st.fahrWinkel) * Math.min(1, grip * dt);
-    st.lenkGlatt += (st.lenken - st.lenkGlatt) * Math.min(1, 9 * dt);
-
-    // Drift-Belohnung: langer sauberer Drift + sauberes Ausleiten = Mini-Turbo.
-    // Kostet nie Tempo (SNES-Regel), gibt nur — Skill wird belohnt, nie bestraft.
-    const driftBetrag = Math.abs(wrapWinkel(st.richtung - st.fahrWinkel));
-    if (!fliegt && driftBetrag > DRIFT_SCHWELLE && st.v > 0.55 * V_MAX) {
-      st.driftLadungS += dt;
-    } else {
-      if (st.driftLadungS >= DRIFT_LADEZEIT_S && driftBetrag < 0.07 && st.taumelRestS <= 0) {
-        st.miniTurboRestS = MINITURBO_S;
-        sound.turbo();
-        vibriere(12);
-      }
-      st.driftLadungS = 0;
-    }
-
-    // Kamera senkt sich im Schub — tiefer = der Boden rast mehr (FOV-Kick).
-    const kamZiel = (st.turboRestS > 0 || st.miniTurboRestS > 0) ? KAM_HOEHE * 0.86 : KAM_HOEHE;
-    st.kamHoehe += (kamZiel - st.kamHoehe) * Math.min(1, 6 * dt);
-
-    // Dezente Dauer-Vibration am Limit — unter der bewussten Schwelle, aber
-    // das Auge liest „Maschine am Anschlag".
-    if (tempoAnteil > 0.85 && st.schuettelRest < 0.9) st.schuettelRest = 0.9;
-
-    // ── Bewegung mit Bande: achsgetrennt, M_WIESE ist Wand ───────────────
-    // Statt hart zu stoppen, rutscht das Kart an der Bande entlang (die
-    // blockierte Achse fällt weg) und verliert pro Kontakt-Frame Tempo.
-    const nx = st.x + Math.cos(st.fahrWinkel) * st.v * dt;
-    const ny = st.y + Math.sin(st.fahrWinkel) * st.v * dt;
-    const hierWand = maskeBei(st.x, st.y) === M_WIESE; // z. B. Flug-Landung im Aus
-    let beruehrt = false;
-    if (fliegt || hierWand || maskeBei(nx, ny) !== M_WIESE) {
-      st.x = nx; st.y = ny;
-    } else if (maskeBei(nx, st.y) !== M_WIESE) {
-      st.x = nx; st.v *= WAND_SCHLIFF; beruehrt = true;   // streifend: schrammt
-    } else if (maskeBei(st.x, ny) !== M_WIESE) {
-      st.y = ny; st.v *= WAND_SCHLIFF; beruehrt = true;
-    } else {
-      // Frontal: einmalig hart, aber nur beim ERSTEN Kontakt-Frame — sonst
-      // multipliziert sich die Strafe über die Kontaktdauer ins Bodenlose.
-      if (!st.wandKontakt) st.v *= WAND_FRONTAL;
-      beruehrt = true;
-    }
-    if (beruehrt && !st.wandKontakt) {
-      sound.bande();
-      vibriere(20);
-      st.schuettelRest = Math.max(st.schuettelRest, 2);
-    }
-    st.wandKontakt = beruehrt;
-
-    // Weltrand: sanft zurückschieben statt hart stoppen.
-    st.x = Math.max(8, Math.min(TEX_SIZE - 8, st.x));
-    st.y = Math.max(8, Math.min(TEX_SIZE - 8, st.y));
-
-    // Stämme: Kollision nur am Boden und außerhalb der Schonfrist.
-    if (!fliegt && st.schonfristS <= 0) {
-      for (let si = 0; si < strecke.staemme.length; si++) {
-        const s = stammPosition(si, st.zeitMs);
-        const dx = s.x - st.x, dy = s.y - st.y;
-        if (dx * dx + dy * dy < STAMM_RADIUS * STAMM_RADIUS) {
-          st.v *= STAMM_TREFFER_FAKTOR;
-          st.taumelRestS = TAUMEL_S;
-          st.schonfristS = SCHONFRIST_S;
-          sound.treffer();
-          vibriere(40);
-          st.schuettelRest = 5;
-          break;
-        }
-      }
-    }
-
-    // ── Dynamik-Schicht: Partikel + Blitz (rein visuell) ─────────────────
-    st.blitzRestS = Math.max(0, st.blitzRestS - dt);
-    const drift = Math.abs(wrapWinkel(st.richtung - st.fahrWinkel));
-    const spawn = (art: 'staub' | 'gras' | 'dampf' | 'funke', anzahl: number, streu: number, vyBasis: number) => {
-      for (let k = 0; k < anzahl && st.partikel.length < 90; k++) {
-        // Pseudozufall aus der Rennzeit — konsistent, ohne Math.random.
-        const r1 = Math.sin(st.zeitMs * 0.031 + k * 7.3) * 0.5 + 0.5;
-        const r2 = Math.sin(st.zeitMs * 0.017 + k * 3.1) * 0.5 + 0.5;
-        st.partikel.push({
-          x: (r1 - 0.5) * streu,
-          y: 6 + r2 * 6,
-          vx: (r1 - 0.5) * 40 - st.lenkGlatt * 30,
-          vy: vyBasis + r2 * 40,
-          lebenS: 0, maxS: art === 'funke' ? 0.3 : 0.55,
-          art,
-        });
-      }
-    };
-    if (!fliegt) {
-      if (drift > 0.12 && st.v > 0.5 * V_MAX) spawn('staub', 2, 30, 60);
-      if (wert === M_SCHULTER || wert === M_WIESE) spawn('gras', 2, 26, 70);
-      if (st.turboRestS > 0 || st.miniTurboRestS > 0) spawn('dampf', 2, 18, 90);
-      if (beruehrt) spawn('funke', 2, 20, 30);
-    }
-    if (flogVorher && st.flugRestS <= 0) spawn('staub', 8, 44, 50);
-    if (st.turboRestS > TURBO_DAUER_S - dt * 2) st.blitzRestS = 0.08; // frisch gezündet
-    for (let i = st.partikel.length - 1; i >= 0; i--) {
-      const p = st.partikel[i];
-      p.lebenS += dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      if (p.lebenS >= p.maxS) st.partikel.splice(i, 1);
-    }
-
-    // Motor-Klang folgt dem Tempo.
-    sound.motor(Math.min(1, st.v / (V_MAX * TURBO_FAKTOR)), st.turboRestS > 0 || st.miniTurboRestS > 0);
-
-    // Live-Rückstand auf den 👑-Geist: dessen Fortschritt wird wie der eigene
-    // über eine Fenster-Suche verfolgt, die Differenz in Sekunden übersetzt.
-    if (messlatte && messlatteIdxProSek > 0) {
-      const gp = geistPosition(messlatte.samples!, st.zeitMs);
-      if (gp) {
-        const n = linie.length;
-        let besterIdx = st.g0Idx, bester = Infinity;
-        for (let o = -20; o <= 45; o++) {
-          const i = ((st.g0Idx + o) % n + n) % n;
-          const p = linie[i];
-          const d = (p.x - gp.x) * (p.x - gp.x) + (p.y - gp.y) * (p.y - gp.y);
-          if (d < bester) { bester = d; besterIdx = i; }
-        }
-        let delta = besterIdx - st.g0Idx;
-        if (delta > n / 2) delta -= n;
-        if (delta < -n / 2) delta += n;
-        st.g0Fort += delta;
-        st.g0Idx = besterIdx;
-        st.rueckstandS = (st.g0Fort - st.fortschritt) / messlatteIdxProSek;
+/** Der Schlitten eines Skins — aus denselben (eingefärbten) Grafiken wie im Rennen. */
+function SchlittenBild({ skin, groesse }: { skin: number; groesse: number }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    let lebt = true;
+    void ladeKartAssets().then((a) => {
+      const c = ref.current;
+      if (!lebt || !c) return;
+      const g = c.getContext('2d');
+      if (!g) return;
+      g.clearRect(0, 0, c.width, c.height);
+      const bild = a.schlitten[skin]?.gerade;
+      if (bild) {
+        g.imageSmoothingEnabled = false;
+        g.drawImage(bild, 0, 0, c.width, c.height);
       } else {
-        // Geist im Ziel: Rückstand einfrieren — die Zahl bleibt ehrlich.
-        st.rueckstandS = st.rueckstandS ?? null;
+        g.fillStyle = SKINS[skin].farbe;
+        g.beginPath(); g.arc(c.width / 2, c.height / 2, c.width / 3, 0, Math.PI * 2); g.fill();
       }
-    }
-
-    // Weltrand: sanft zurückschieben statt hart stoppen.
-    st.x = Math.max(8, Math.min(TEX_SIZE - 8, st.x));
-    st.y = Math.max(8, Math.min(TEX_SIZE - 8, st.y));
-
-    // Fortschritt entlang der Mittellinie (Fenster-Suche um den letzten Punkt
-    // — global suchen würde bei einer Acht die gegenüberliegende Passage
-    // finden und Runden schenken).
-    const n = linie.length;
-    let besterIdx = st.letzterIdx, bester = Infinity;
-    for (let o = -30; o <= 60; o++) {
-      const i = ((st.letzterIdx + o) % n + n) % n;
-      const p = linie[i];
-      const d = (p.x - st.x) * (p.x - st.x) + (p.y - st.y) * (p.y - st.y);
-      if (d < bester) { bester = d; besterIdx = i; }
-    }
-    let delta = besterIdx - st.letzterIdx;
-    if (delta > n / 2) delta -= n;
-    if (delta < -n / 2) delta += n;
-    st.fortschritt += delta;
-    st.letzterIdx = besterIdx;
-    const runde = Math.floor(st.fortschritt / n) + 1;
-    if (runde !== st.runde) {
-      st.runde = runde;
-      if (runde > 1 && runde <= strecke.runden) {
-        st.bannerText = runde === strecke.runden
-          ? `Runde ${runde}/${strecke.runden} — letzte Runde!`
-          : `Runde ${runde}/${strecke.runden}`;
-        st.bannerRestS = 1.6;
-        sound.countdown(1);
-      }
-    }
-
-    // Geist aufzeichnen (10 Hz Spielzeit).
-    if (st.zeitMs >= st.naechsteProbe && st.samples.length < 4800) {
-      st.naechsteProbe += GHOST_DT;
-      st.samples.push([
-        Math.round(st.x * 10), Math.round(st.y * 10), Math.round(st.richtung * 100),
-      ]);
-    }
-
-    onHud({ zeit: st.zeitMs, runde: st.runde, countdown: 0 });
-
-    if (st.fortschritt >= n * strecke.runden) {
-      st.fertig = true;
-      onPhase('ziel');
-      sound.ziel();
-      sound.motorAus();
-      vibriere(30);
-      onZiel(Math.round(st.zeitMs), { v: 1, dt: GHOST_DT, pts: st.samples });
-    }
-    if (st.zeitMs > MAX_LAUFZEIT_MS) {
-      // Aufgegeben — zurück zur Streckenwahl wäre Bevormundung; die Fahrt
-      // läuft weiter, nur aufgezeichnet wird nichts mehr (Server lehnt
-      // Überlängen ohnehin ab).
-      st.samples.length = Math.min(st.samples.length, 4800);
-    }
-  }
-
-  // ─── Rendering ─────────────────────────────────────────────────────────
-  const cos = Math.cos, sin = Math.sin;
-
-  // ── Streckenrand-Ausstattung (Kreativ-Runde 16.08.2026) ────────────────
-  // Nach dem Rezept der Klassiker (Out-Run-Rhythmik, SMK-Sparsamkeit bei den
-  // Typen): ein dominanter Füller in Größenvarianten, Cluster mit bewussten
-  // Atem-Lücken, Laternen-Paare als Kurven-Telegraph, ein Anker pro
-  // Streckenviertel, Zuschauer NUR als Cluster an Start/Ziel — und das
-  // Ziel-Tor als größter Sprite des Spiels. Alles deterministisch geseedet.
-  type Deko = { x: number; y: number; name: string; wh: number; phase: number };
-  const deko: Deko[] = [];
-  const tanneKlein = bauTanne(false);
-  const tanneGross = bauTanne(true);
-  {
-    const n = linie.length;
-    const rnd = mulberry32(strecke.id === 'kelo_kurve' ? 0x5eed1 : 0x5eed2);
-    const gesperrt = new Set<number>();
-    for (const ab of strecke.abkuerzungen) {
-      for (let o = -14; o <= 14; o++) {
-        gesperrt.add(((ab.von + o) % n + n) % n);
-        gesperrt.add(((ab.bis + o) % n + n) % n);
-      }
-    }
-    const leg = (idx: number, seite: number, abstand: number, name: string, wh: number) => {
-      const p = linie[((idx % n) + n) % n];
-      const qx = -Math.sin(p.winkel) * seite, qy = Math.cos(p.winkel) * seite;
-      const x = p.x + qx * abstand, y = p.y + qy * abstand;
-      // Animations-Phase aus der Position — jedes Objekt bewegt sich in
-      // seinem eigenen Takt, aber auf jedem Gerät identisch.
-      deko.push({ x, y, name, wh, phase: ((x * 13 + y * 7) % 97) / 97 * Math.PI * 2 });
-    };
-    // tanne-1 (der schmale Schnitt-Splitter aus dem Sheet) ist aussortiert —
-    // vier saubere Varianten tragen den Wald, tanne-5 übernimmt die
-    // Hochschlank-Rolle.
-    const TANNEN: [string, number][] = [
-      ['tanne-2', 145], ['tanne-3', 118], ['tanne-4', 78], ['tanne-5', 160],
-    ];
-
-    // Grundtakt Wald: pro Seite etwa alle 5–7 Indizes eine Tanne in einem von
-    // zwei Bändern; alle ~110 Indizes ein Dickicht (3 gestaffelte Bäume),
-    // danach eine bewusste Lücke — der „Atem" der Strecke.
-    for (const seite of [1, -1]) {
-      let i = Math.floor(rnd() * 6);
-      while (i < n) {
-        if (!gesperrt.has(i)) {
-          const dickicht = (i % 110) < 12;
-          const anzahl = dickicht ? 3 : 1;
-          for (let k = 0; k < anzahl; k++) {
-            const [name, wh] = TANNEN[Math.floor(rnd() * TANNEN.length)];
-            const band = k === 0 && rnd() < 0.55
-              ? strecke.breite + 40 + rnd() * 26        // Mittel-Band: wächst groß
-              : strecke.breite + 85 + rnd() * 45;       // Hinten: Silhouette
-            leg(i + k * 3, seite, band, name, wh);
-          }
-          if (dickicht) { i += 16 + Math.floor(rnd() * 4); continue; } // Atem-Lücke
-        }
-        i += 5 + Math.floor(rnd() * 3);
-      }
-    }
-
-    // Kurven-Telegraph: wo die Strecke in den nächsten ~15 Indizes stark
-    // dreht, stehen 25 Indizes VORHER Laternen-Paare dicht an der Bande.
-    for (let i = 0; i < n; i += 5) {
-      let drehung = 0;
-      for (let k = 0; k < 15; k++) {
-        const a = linie[(i + k) % n].winkel, b = linie[(i + k + 1) % n].winkel;
-        let d = b - a;
-        if (d > Math.PI) d -= Math.PI * 2;
-        if (d < -Math.PI) d += Math.PI * 2;
-        drehung += Math.abs(d);
-      }
-      if (drehung > 0.55) {
-        const ort = ((i - 25) % n + n) % n;
-        if (!gesperrt.has(ort)) {
-          leg(ort, 1, strecke.breite + 34, 'laterne', 46);
-          leg(ort, -1, strecke.breite + 34, 'laterne', 46);
-        }
-      }
-    }
-
-    // Farbtupfer und Requisiten im Grundrhythmus.
-    for (let i = 33; i < n; i += 57) {
-      if (!gesperrt.has(i)) leg(i, rnd() < 0.5 ? 1 : -1, strecke.breite + 46 + rnd() * 20, 'fels', 34);
-    }
-    leg(150, 1, strecke.breite + 38, 'wegweiser', 52);
-    leg(430, -1, strecke.breite + 38, 'kuebel', 26);
-
-    // Anker pro Streckenviertel — die Wiedererkennung der Runde. Die
-    // Hütten-Runde (Blockhaus-Passage) bekommt mehr Gebautes, die Waldrunde
-    // bleibt Wald mit einem Hof.
-    const istDorf = strecke.id === 'blockhaus_passage';
-    leg(90, -1, strecke.breite + 95, 'blockhaus', 130);
-    leg(270, 1, strecke.breite + 70, 'holzstapel', 55);
-    if (istDorf) {
-      leg(450, -1, strecke.breite + 75, 'saunafass', 60);
-      leg(600, 1, strecke.breite + 95, 'blockhaus', 130);
-    } else {
-      leg(520, 1, strecke.breite + 80, 'saunafass', 60);
-    }
-
-    // Zuschauer-Cluster an der Zielgeraden — beidseitig, gestaffelt.
-    const GAESTE = ['gast-1', 'gast-2', 'gast-3', 'gast-4'];
-    for (const seite of [1, -1]) {
-      for (let k = 0; k < 3; k++) {
-        leg(n - 14 + k * 5, seite, strecke.breite + 36 + k * 6,
-          GAESTE[Math.floor(rnd() * GAESTE.length)], 38);
-      }
-    }
-
-    // Das Ziel-Tor: mittig ÜBER der Bahn, kurz hinter der Linie — der größte
-    // Sprite des Spiels, aus maximaler Distanz als „Heimat" der Runde lesbar.
-    leg(4, 1, 0, 'torbogen', 125);
-  }
-
-  function dekoSprite(name: string): CanvasImageSource | null {
-    const bild = assets.deko[name as keyof typeof assets.deko];
-    if (bild) return bild;
-    if (name.startsWith('tanne')) return name === 'tanne-4' ? tanneKlein : tanneGross;
-    return null;
-  }
-
-  function zeichne() {
-    // Die KAMERA hinkt dem Lenken minimal hinterher — der Trick, der Mode-7
-    // „echt" anfühlen lässt: das Bild schwenkt weich, während die Physik
-    // exakt bleibt.
-    const rh = st.richtung - st.lenkGlatt * 0.09;
-
-    // Screenshake — deterministisch aus der Rennzeit (kein Math.random im
-    // Renderpfad), klingt in simuliere() ab. Schwarz hinterlegen, damit die
-    // verschobenen Ränder nicht den letzten Frame durchscheinen lassen.
-    const shX = Math.round(Math.sin(st.zeitMs * 0.9) * st.schuettelRest);
-    const shY = Math.round(Math.cos(st.zeitMs * 1.3) * st.schuettelRest * 0.7);
-    if (st.schuettelRest > 0.2) {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, W, H);
-    }
-    ctx.save();
-    ctx.translate(shX, shY);
-
-    // Himmel + Panorama: scrollt mit der Blickrichtung UND driftet ganz
-    // langsam von selbst — ein stehender Himmel wirkt wie eine Fototapete.
-    const panX = Math.floor((((rh / (Math.PI * 2)) % 1 + 1) * panorama.width + st.zeitMs * 0.006)) % panorama.width;
-    if (panoVollbild) {
-      const teil = Math.min(panorama.width - panX, W);
-      ctx.drawImage(panorama, panX, 0, teil, HORIZONT, 0, 0, teil, HORIZONT);
-      if (teil < W) {
-        ctx.drawImage(panorama, 0, 0, W - teil, HORIZONT, teil, 0, W - teil, HORIZONT);
-      }
-    } else {
-      const g = ctx.createLinearGradient(0, 0, 0, HORIZONT);
-      g.addColorStop(0, '#0e1a2b');
-      g.addColorStop(0.7, '#27425f');
-      g.addColorStop(1, '#4e6a83');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, HORIZONT);
-      ctx.drawImage(panorama, panX, 0, Math.min(panorama.width - panX, W), 60, 0, HORIZONT - 60, Math.min(panorama.width - panX, W), 60);
-      if (panorama.width - panX < W) {
-        ctx.drawImage(panorama, 0, 0, W - (panorama.width - panX), 60, panorama.width - panX, HORIZONT - 60, W - (panorama.width - panX), 60);
-      }
-    }
-
-    // Vogelschwarm: alle ~24 s kreuzt eine Kette Silhouetten den Himmel —
-    // deterministisch aus der Rennzeit, vier Sekunden Auftritt.
-    {
-      const zyklus = 24000;
-      const t = (st.zeitMs % zyklus) / 4000; // 0..1 während der ersten 4 s
-      if (t < 1) {
-        ctx.fillStyle = 'rgba(20,28,24,0.8)';
-        for (let vk = 0; vk < 5; vk++) {
-          const vx2 = W + 30 - t * (W + 70) - vk * 16;
-          const vy2 = 34 + Math.floor(st.zeitMs / zyklus) % 3 * 18 + Math.sin(t * 9 + vk) * 5 + vk * 3;
-          ctx.beginPath();
-          ctx.arc(vx2 - 3, vy2, 3, Math.PI * 1.1, Math.PI * 1.9);
-          ctx.arc(vx2 + 3, vy2, 3, Math.PI * 1.1, Math.PI * 1.9);
-          ctx.fill();
-        }
-      }
-    }
-
-    // Kamera hinter dem Kart — mit der verzögerten Blickrichtung.
-    const kx = st.x - cos(rh) * KAM_ABSTAND;
-    const ky = st.y - sin(rh) * KAM_ABSTAND;
-    const fx = cos(rh), fy = sin(rh);
-    const rx = -fy, ry = fx;
-
-    // Boden: pro Bildzeile eine Distanz, pro Pixel ein Textur-Sample.
-    let z = 0;
-    for (let sy = 0; sy < H - HORIZONT; sy++) {
-      const dist = (st.kamHoehe * FOKAL) / (sy + 1);
-      const cxw = kx + fx * dist;
-      const cyw = ky + fy * dist;
-      const schrittQuer = dist / FOKAL;
-      let wx = cxw + rx * (-W / 2) * schrittQuer;
-      let wy = cyw + ry * (-W / 2) * schrittQuer;
-      const sxq = rx * schrittQuer, syq = ry * schrittQuer;
-      for (let sx = 0; sx < W; sx++) {
-        const tx = wx | 0, ty = wy | 0;
-        bildDaten[z++] = (tx >= 0 && ty >= 0 && tx < TEX_SIZE && ty < TEX_SIZE)
-          ? texDaten[ty * TEX_SIZE + tx]
-          : WALD;
-        wx += sxq; wy += syq;
-      }
-    }
-    // putImageData ignoriert Transformationen — der Shake wandert deshalb
-    // direkt in die Zielkoordinaten.
-    ctx.restore();
-    ctx.putImageData(bild, shX, HORIZONT + shY);
-    ctx.save();
-    ctx.translate(shX, shY);
-
-    // ── Billboards: Tannen, Deko, Stämme, Geister — EIN sortierter Durchlauf ─
-    // Ohne Tiefensortierung stünde ein ferner Geist VOR einer nahen Tanne;
-    // gesammelt wird als Zeichen-Closure, gemalt von hinten nach vorn.
-    //
-    // WICHTIG (Fix 16.08., zweiter Anlauf): Billboards skalieren nach ihrer
-    // WELT-HÖHE ungedeckelt mit 1/Tiefe — genau wie der Boden. Der frühere
-    // Skala-Deckel ließ Bäume beim Heranfahren „einfrieren", während der
-    // Boden weiterraste: exakt der Bruch, der das Bild unecht machte. Jetzt
-    // wächst eine Tanne beim Passieren über den Bildschirmrand hinaus und
-    // zieht seitlich vorbei; die Nah-Ebene liegt bei 6 Einheiten, weit hinten
-    // blenden Objekte weich ein statt aufzuploppen.
-    const billboards: { tiefe: number; mal: () => void }[] = [];
-    const projiziere = (wx2: number, wy2: number) => {
-      const dxw = wx2 - kx, dyw = wy2 - ky;
-      const tiefe = dxw * fx + dyw * fy;
-      if (tiefe < 6 || tiefe > 640) return null;
-      const quer = dxw * rx + dyw * ry;
-      return {
-        tiefe,
-        alpha: tiefe > 560 ? (640 - tiefe) / 80 : 1,
-        sx: W / 2 + (quer * FOKAL) / tiefe,
-        sy: HORIZONT + (st.kamHoehe * FOKAL) / tiefe,
-      };
-    };
-
-    for (const d of deko) {
-      const sprite = dekoSprite(d.name);
-      if (!sprite) continue;
-      const p = projiziere(d.x, d.y);
-      if (!p) continue;
-      // Skalierung nach WELT-Höhe, Seitenverhältnis aus dem Sprite selbst.
-      // Deckel erst WEIT über Bildschirmhöhe — nicht wahrnehmbar (das Objekt
-      // ragt dann längst über alle Ränder), begrenzt nur die Zeichenlast.
-      const natB = (sprite as HTMLImageElement).naturalWidth ?? (sprite as HTMLCanvasElement).width;
-      const natH = (sprite as HTMLImageElement).naturalHeight ?? (sprite as HTMLCanvasElement).height;
-      const hPx = Math.min(H * 3, (d.wh * FOKAL) / p.tiefe);
-      const bPx = hPx * (natB / Math.max(1, natH));
-      if (p.sx + bPx / 2 < -30 || p.sx - bPx / 2 > W + 30) continue;
-      // Dynamik-Runde: die Welt BEWEGT sich. Jede Bewegung hängt an
-      // Rennzeit + Objekt-Phase — auf jedem Gerät identisch, nie in der Physik.
-      billboards.push({ tiefe: p.tiefe, mal: () => {
-        ctx.globalAlpha = p.alpha;
-        if (d.name.startsWith('tanne')) {
-          // Wind: winziges Schwanken um den Fußpunkt.
-          ctx.save();
-          ctx.translate(p.sx, p.sy);
-          ctx.rotate(Math.sin(st.zeitMs * 0.0009 + d.phase) * 0.016);
-          ctx.drawImage(sprite, -bPx / 2, -hPx, bPx, hPx);
-          ctx.restore();
-        } else if (d.name.startsWith('gast')) {
-          // Jubel: Hüpfen im eigenen Takt, an der Zielgeraden wird gefeiert.
-          const hop = Math.abs(Math.sin(st.zeitMs * 0.005 + d.phase)) * hPx * 0.06;
-          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx - hop, bPx, hPx);
-        } else if (d.name === 'laterne') {
-          // Warmes, flackerndes Glühen hinter der Laterne.
-          const glut = 0.22 + 0.1 * Math.sin(st.zeitMs * 0.02 + d.phase) + 0.05 * Math.sin(st.zeitMs * 0.047 + d.phase * 2);
-          const gy = p.sy - hPx * 0.72;
-          const gr = hPx * 0.5;
-          const grad = ctx.createRadialGradient(p.sx, gy, 0, p.sx, gy, gr);
-          grad.addColorStop(0, `rgba(255,190,90,${Math.max(0, glut).toFixed(3)})`);
-          grad.addColorStop(1, 'rgba(255,190,90,0)');
-          ctx.fillStyle = grad;
-          ctx.fillRect(p.sx - gr, gy - gr, gr * 2, gr * 2);
-          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
-        } else if (d.name === 'blockhaus' || d.name === 'saunafass') {
-          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
-          // Schornstein-Rauch: drei aufsteigende, wachsende, verblassende Tupfer.
-          const schX = p.sx + (d.name === 'blockhaus' ? -bPx * 0.18 : bPx * 0.22);
-          for (let rk = 0; rk < 3; rk++) {
-            const rt = ((st.zeitMs * 0.00035 + d.phase / 6 + rk / 3) % 1);
-            ctx.fillStyle = `rgba(226,222,214,${(0.3 * (1 - rt)).toFixed(3)})`;
-            ctx.beginPath();
-            ctx.arc(
-              schX + Math.sin(rt * 5 + d.phase) * hPx * 0.05,
-              p.sy - hPx * 0.98 - rt * hPx * 0.5,
-              hPx * (0.035 + rt * 0.075),
-              0, Math.PI * 2,
-            );
-            ctx.fill();
-          }
-        } else {
-          ctx.drawImage(sprite, p.sx - bPx / 2, p.sy - hPx, bPx, hPx);
-        }
-        ctx.globalAlpha = 1;
-      } });
-    }
-
-    if (st.countdownMs <= 0 && !st.fertig) {
-      for (let si = 0; si < strecke.staemme.length; si++) {
-        const s = stammPosition(si, st.zeitMs);
-        const p = projiziere(s.x, s.y);
-        if (!p) continue;
-        const skala = (26 * FOKAL) / p.tiefe / 56; // Stamm ≈ 26 Welteinheiten
-        billboards.push({ tiefe: p.tiefe, mal: () => zeichneStamm(ctx, stammSprite, p.sx, p.sy, skala, s.quer / 9) });
-      }
-      for (let gi = 0; gi < geister.length; gi++) {
-        const geist = geister[gi];
-        const gp = geistPosition(geist.samples!, st.zeitMs);
-        if (!gp) continue;
-        const p = projiziere(gp.x, gp.y);
-        if (!p) continue;
-        // Kart ≈ 20 Welteinheiten hoch — dieselbe Formel wie der Rest der
-        // Welt, damit ein Geist neben dem Spieler dessen Größe hat.
-        const skala = Math.min(8, (20 * FOKAL) / p.tiefe / 76);
-        billboards.push({ tiefe: p.tiefe, mal: () => {
-          ctx.globalAlpha = p.alpha;
-          zeichneFahrer(ctx, geistPosen[gi], p.sx, p.sy, skala, gp.lenk, true);
-          ctx.globalAlpha = 1;
-          if (p.tiefe < 240) {
-            ctx.font = `bold ${Math.max(8, Math.min(13, 9 * skala + 4))}px system-ui`;
-            ctx.textAlign = 'center';
-            ctx.fillStyle = 'rgba(255,255,255,0.75)';
-            ctx.fillText(geist.name, p.sx, p.sy - 34 * skala);
-          }
-        } });
-      }
-    }
-
-    billboards.sort((a, b) => b.tiefe - a.tiefe);
-    for (const b of billboards) b.mal();
-
-    // Spieler-Kart: rutscht beim Lenken leicht zur Kurveninnenseite, dreht
-    // sich zusätzlich mit dem DRIFT-Winkel (Nase vs. Fahrtrichtung) und hebt
-    // im Sprung ab — der Schatten bleibt dabei am Boden, DAS verkauft die Höhe.
-    const flugAnteil = st.flugRestS > 0 ? st.flugRestS / FLUG_DAUER_S : 0;
-    const hoehe = flugAnteil > 0 ? FLUG_HOEHE * 4 * flugAnteil * (1 - flugAnteil) : 0;
-    const drift = wrapWinkel(st.richtung - st.fahrWinkel);
-    const spielerX = W / 2 + st.lenkGlatt * 16 - drift * 26;
-    if (hoehe > 2) {
-      ctx.fillStyle = 'rgba(0,0,0,0.30)';
-      ctx.beginPath();
-      ctx.ellipse(spielerX, H - 46, 24 * (1 - hoehe / (FLUG_HOEHE * 2.2)), 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Partikel UNTER dem Spieler-Sprite: Drift-Staub, Wiesen-Grün,
-    // Turbo-Dampf, Banden-Funken — die Spur erzählt, was gerade passiert.
-    for (const pt of st.partikel) {
-      const rest = 1 - pt.lebenS / pt.maxS;
-      ctx.fillStyle =
-        pt.art === 'staub' ? `rgba(196,176,148,${(0.5 * rest).toFixed(3)})`
-          : pt.art === 'gras' ? `rgba(96,138,84,${(0.55 * rest).toFixed(3)})`
-            : pt.art === 'dampf' ? `rgba(240,244,248,${(0.45 * rest).toFixed(3)})`
-              : `rgba(255,170,70,${(0.8 * rest).toFixed(3)})`;
-      const gr = pt.art === 'funke' ? 2 : 3 + (1 - rest) * 5;
-      ctx.beginPath();
-      ctx.arc(spielerX + pt.x, H - 52 + pt.y - hoehe * 0.2, gr, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    zeichneFahrer(ctx, spielerPosen, spielerX, H - 58 - hoehe, 1.15, st.lenkGlatt + drift * 1.4, false);
-
-    // Turbo-Speedlines an den Rändern — Position deterministisch aus der Zeit.
-    if (st.turboRestS > 0) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-      ctx.lineWidth = 2;
-      for (let k = 0; k < 6; k++) {
-        const y0 = HORIZONT + ((st.zeitMs * (0.9 + k * 0.13) + k * 97) % (H - HORIZONT));
-        const seite = k % 2 === 0 ? 0 : W;
-        const richt = k % 2 === 0 ? 1 : -1;
-        ctx.beginPath();
-        ctx.moveTo(seite, y0);
-        ctx.lineTo(seite + richt * (26 + (k * 11) % 18), y0 + 10);
-        ctx.stroke();
-      }
-    }
-
-    // Runden-Banner (kurz, mittig, blendet aus).
-    if (st.bannerRestS > 0 && st.bannerText) {
-      const alpha = Math.min(1, st.bannerRestS / 0.4);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(W / 2 - 120, H * 0.26, 240, 34);
-      ctx.fillStyle = '#ffd76a';
-      ctx.font = 'bold 16px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(st.bannerText, W / 2, H * 0.26 + 23);
-      ctx.globalAlpha = 1;
-    }
-
-    // Weißer Blitz beim Boost-Zünden — zwei Frames Belohnung.
-    if (st.blitzRestS > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${(st.blitzRestS / 0.08 * 0.4).toFixed(3)})`;
-      ctx.fillRect(-8, -8, W + 16, H + 16);
-    }
-
-    ctx.restore(); // Shake endet — HUD steht stabil
-
-    // Live-Rückstand auf den 👑-Geist, unter der Uhr: rot = du liegst hinten,
-    // grün = du bist vorn. DER Motivator schlechthin im Geister-Rennen.
-    if (st.rueckstandS !== null && st.countdownMs <= 0 && !st.fertig) {
-      const r = st.rueckstandS;
-      const text = `👑 ${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(1).replace('.', ',')} s`;
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.fillRect(6, 30, 74, 18);
-      ctx.font = 'bold 11px system-ui';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = r >= 0 ? '#f87171' : '#4ade80';
-      ctx.fillText(text, 10, 43);
-    }
-
-    // Farb-Tacho unten rechts: Füllung = Tempo, Farbe = Zustand.
-    zeichneTacho(ctx, st.v, st.turboRestS > 0, st.gebremst);
-  }
-
-  raf = requestAnimationFrame(schritt);
-  return {
-    sound,
-    stop: () => {
-      laeuft = false;
-      cancelAnimationFrame(raf);
-      sound.stop();
-      canvas.removeEventListener('pointerdown', aufPointerDown);
-      canvas.removeEventListener('pointerup', aufPointerEnde);
-      canvas.removeEventListener('pointercancel', aufPointerEnde);
-      window.removeEventListener('keydown', tasteAb);
-      window.removeEventListener('keyup', tasteAuf);
-    },
-  };
+    });
+    return () => { lebt = false; };
+  }, [skin]);
+  return <canvas ref={ref} width={96} height={96} style={{ width: groesse, height: groesse, imageRendering: 'pixelated' }} aria-hidden />;
 }
 
-/** Haptik, wo verfügbar (Android-PWA; iOS ignoriert es stumm). */
-function vibriere(ms: number) {
-  try { navigator.vibrate?.(ms); } catch { /* egal */ }
-}
-
-/** Streckenrand-Tanne, einmal vorgerendert — zwei Größen, zwei Grüntöne. */
-function bauTanne(gross: boolean): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = 44; c.height = 60;
-  const g = c.getContext('2d')!;
-  const stammFarbe = '#4a341f';
-  const gruen = gross ? '#1d3a24' : '#27492c';
-  g.fillStyle = 'rgba(0,0,0,0.3)';
-  g.beginPath(); g.ellipse(22, 57, 14, 3.5, 0, 0, Math.PI * 2); g.fill();
-  g.fillStyle = stammFarbe;
-  g.fillRect(19, 46, 6, 12);
-  g.fillStyle = gruen;
-  for (const [oben, breit, basis] of [[2, 12, 24], [12, 16, 36], [24, 20, 50]] as const) {
-    g.beginPath();
-    g.moveTo(22, oben);
-    g.lineTo(22 - breit, basis);
-    g.lineTo(22 + breit, basis);
-    g.closePath();
-    g.fill();
+/** Streckenbild: fal.ai-Vorschau, wenn vorhanden, sonst der Grundriss. */
+function StreckenBild({ strecke }: { strecke: KartStrecke }) {
+  const [kaputt, setKaputt] = useState(false);
+  const bild = strecke.id === 'kelo' ? '/kart/vorschau-kelo_kurve.jpg' : strecke.id === 'blockhaus' ? '/kart/vorschau-blockhaus_passage.jpg' : null;
+  const pfad = useMemo(() => {
+    const p = strecke.punkte;
+    const xs = p.map((q) => q[0]), ys = p.map((q) => q[1]);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0, h = Math.max(...ys) - y0;
+    const s = 80 / Math.max(w, h);
+    return p.map((q, i) => `${i === 0 ? 'M' : 'L'}${((q[0] - x0) * s + 10 + (80 - w * s) / 2).toFixed(1)},${((q[1] - y0) * s + 10 + (80 - h * s) / 2).toFixed(1)}`).join(' ') + ' Z';
+  }, [strecke]);
+  if (bild && !kaputt) {
+    return <img src={bild} alt="" aria-hidden draggable={false} onError={() => setKaputt(true)} className="aspect-[16/10] w-full object-cover" />;
   }
-  g.fillStyle = 'rgba(255,255,255,0.10)';
-  g.beginPath(); g.moveTo(22, 2); g.lineTo(22 + 9, 20); g.lineTo(22, 20); g.closePath(); g.fill();
-  return c;
+  const farbe = strecke.thema === 'winter' ? '#dff1ff' : strecke.thema === 'glut' ? '#ffb070' : '#f1e3c6';
+  return (
+    <svg viewBox="0 0 100 100" className="aspect-[16/10] w-full" style={{ background: strecke.wiese }} aria-hidden preserveAspectRatio="xMidYMid meet">
+      <path d={pfad} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth={9} strokeLinejoin="round" />
+      <path d={pfad} fill="none" stroke={farbe} strokeWidth={5} strokeLinejoin="round" />
+    </svg>
+  );
 }
 
-/** Lineare Interpolation in der Geister-Aufzeichnung. `lenk` (-1…1) wird aus
- *  der Drehrate der aufgezeichneten Blickrichtung geschätzt — damit legen
- *  sich auch die Geister mit der richtigen Pose in die Kurve. */
-function geistPosition(s: GhostSamples, zeitMs: number): { x: number; y: number; lenk: number } | null {
-  const idx = zeitMs / s.dt;
-  const i0 = Math.floor(idx);
-  if (i0 >= s.pts.length - 1) return null;  // Geist ist im Ziel — er verschwindet
-  const f = idx - i0;
-  const a = s.pts[i0], b = s.pts[i0 + 1];
-  let dh = (b[2] - a[2]) / 100;              // rad pro Sample
-  if (dh > Math.PI) dh -= Math.PI * 2;
-  if (dh < -Math.PI) dh += Math.PI * 2;
-  const drehRate = dh / (s.dt / 1000);       // rad/s
-  return {
-    x: (a[0] + (b[0] - a[0]) * f) / 10,
-    y: (a[1] + (b[1] - a[1]) * f) / 10,
-    lenk: Math.max(-1, Math.min(1, drehRate / LENKRATE)),
-  };
-}
-
-/** Rollender Baumstamm: Sprite dreht sich mit dem zurückgelegten Querweg —
- *  ohne Sprite eine gezeichnete Walze mit Jahresringen. */
-function zeichneStamm(
-  ctx: CanvasRenderingContext2D,
-  sprite: CanvasImageSource | null,
-  x: number, y: number, skala: number, rollwinkel: number,
-) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(skala, skala);
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath(); ctx.ellipse(0, 8, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
-  if (sprite) {
-    // Ein liegender Stamm rollt um seine LÄNGSACHSE — die Silhouette bleibt
-    // stehen, nur ein leichtes Ruckeln verrät die Bewegung. Volle Rotation
-    // sähe aus wie ein Propeller.
-    ctx.rotate(Math.sin(rollwinkel) * 0.07);
-    ctx.drawImage(sprite, -32, -32, 64, 64);
-  } else {
-    ctx.rotate(rollwinkel);
-    ctx.fillStyle = '#6b4a2e';
-    ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#8a6540';
-    ctx.lineWidth = 3;
-    for (const r of [6, 12, 17]) { ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke(); }
-  }
-  ctx.restore();
-}
-
-/** Der Farb-Tacho (unten rechts im Bild, Canvas statt React — 60 fps):
- *  Füllbogen = Tempo, Farbe = Zustand. Bernstein fährt, Rot bremst
- *  (Wiese, Pfütze, Taumel), Cyan ist Turbo — man sieht auf einen Blick,
- *  WARUM man gerade schnell oder langsam ist. */
-function zeichneTacho(ctx: CanvasRenderingContext2D, v: number, turbo: boolean, gebremst: boolean) {
-  const cx = W - 44, cy = H - 36, r = 26;
-  const von = Math.PI * 0.75, bis = Math.PI * 2.25;
-  const anteil = Math.min(1, v / (V_MAX * TURBO_FAKTOR));
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-  ctx.lineWidth = 9;
-  ctx.beginPath(); ctx.arc(cx, cy, r, von, bis); ctx.stroke();
-  ctx.strokeStyle = turbo ? '#4be3d8' : gebremst ? '#e5484d' : '#e8b34b';
-  ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.arc(cx, cy, r, von, von + (bis - von) * anteil); ctx.stroke();
-  if (turbo) {
-    // Turbo pulsiert als äußerer Ring — Puls aus dem Tempo-Anteil, kein Timer.
-    ctx.strokeStyle = 'rgba(75,227,216,0.35)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(cx, cy, r + 7, von, bis); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-/** Fahrer zeichnen: fal.ai-Posen wenn geladen, sonst die Canvas-Pfade.
- *
- *  Die Pose folgt dem GEGLÄTTETEN Lenkwert (Rallye-Runde 16.08.2026):
- *  ab |0,3| wechselt das Sprite auf die eingelegte Kurven-Pose, dazu bleibt
- *  eine Rest-Rotation — zusammen liest sich das als echtes Einlenken statt
- *  als gekipptes Standbild. Unter der Schwelle und beim Fehlen der Pose
- *  greift die Geradeaus-Fassung mit Rotation (kein Flackern an der Schwelle,
- *  weil der Lenkwert selbst schon träge ist). */
-function zeichneFahrer(
-  ctx: CanvasRenderingContext2D,
-  posen: SchlittenPosen | null,
-  x: number, y: number, skala: number, lean: number, geist: boolean,
-) {
-  const sprite = !posen ? null
-    : lean < -0.3 && posen.links ? posen.links
-      : lean > 0.3 && posen.rechts ? posen.rechts
-        : posen.gerade;
-  if (!sprite) {
-    zeichneSchlitten(ctx, x, y, skala, lean, geist);
-    return;
-  }
-  const hatPose = (lean < -0.3 && sprite === posen!.links) || (lean > 0.3 && sprite === posen!.rechts);
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(skala, skala);
-  // Mit Kurven-Pose reicht eine kleine Rest-Rotation; ohne sie trägt die
-  // Rotation den ganzen Effekt.
-  ctx.rotate(lean * (hatPose ? 0.06 : 0.14));
-  ctx.globalAlpha = geist ? 0.45 : 1;
-  // Kein zusätzlicher Schatten: das fal.ai-Sprite bringt seinen eigenen
-  // Boden-Tupfer mit — ein zweiter darunter sah wie ein Druckfehler aus.
-  // 76×76-Box, Unterkante knapp unterm Ankerpunkt (wie die Pfad-Fassung).
-  ctx.drawImage(sprite, -38, -62, 76, 76);
-  ctx.restore();
-}
-
-/** Der Saunatuch-Schlitten — Rückansicht, reine Canvas-Pfade.
- *  `lean` (-1…1) kippt ihn beim Lenken; `geist` rendert durchscheinend. */
-function zeichneSchlitten(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number, skala: number, lean: number, geist: boolean,
-) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(skala, skala);
-  ctx.rotate(lean * 0.14);
-  ctx.globalAlpha = geist ? 0.42 : 1;
-
-  // Schatten
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(0, 12, 26, 7, 0, 0, Math.PI * 2); ctx.fill();
-
-  // Saunatuch (das Fahrzeug): gerollter Bug + Streifen.
-  ctx.fillStyle = geist ? '#9fc4e8' : '#e8ddc8';
-  rund(ctx, -26, -2, 52, 14, 6); ctx.fill();
-  ctx.fillStyle = geist ? '#7ba7d0' : '#c8b898';
-  ctx.fillRect(-26, 3, 52, 3);
-  ctx.fillStyle = geist ? '#6a96c0' : '#b04a3a';
-  ctx.fillRect(-26, 7, 52, 2.5);
-
-  // Figur: Rücken, Kopf, Filzhut — die Sauna-Silhouette.
-  ctx.fillStyle = geist ? '#b8d4ee' : '#d9a06b';
-  rund(ctx, -12, -26, 24, 26, 9); ctx.fill();
-  ctx.beginPath(); ctx.arc(0, -32, 9, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = geist ? '#dcebf8' : '#f0ead8';
-  ctx.beginPath(); ctx.ellipse(0, -38, 11, 4.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(0, -41, 6, Math.PI, 0); ctx.fill();
-
-  // Aufguss-Dampf hinterm Schlitten (zwei Tupfer, kein Animations-Loop —
-  // die Bewegung des Bodens verkauft die Geschwindigkeit).
-  if (!geist) {
-    ctx.globalAlpha = 0.25;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(-20, 10, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(22, 11, 4, 0, Math.PI * 2); ctx.fill();
-  }
-
-  ctx.restore();
-}
-
-function rund(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-/** Schwarzwald-Silhouette für den Horizont — einmal gezeichnet, dann nur noch
- *  horizontal gescrollt. */
-function bauPanorama(): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = 720; c.height = 60;
-  const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#16241d';
-  let x = 0;
-  let i = 0;
-  while (x < c.width) {
-    // Deterministische „Zufalls"-Tannen, damit das Band nahtlos kachelt.
-    const h = 22 + ((i * 37) % 23);
-    const b = 16 + ((i * 53) % 14);
-    ctx.beginPath();
-    ctx.moveTo(x, 60);
-    ctx.lineTo(x + b / 2, 60 - h);
-    ctx.lineTo(x + b, 60);
-    ctx.closePath();
-    ctx.fill();
-    x += b * 0.62;
-    i++;
-  }
-  return c;
-}
-
-function packFarbe(r: number, g: number, b: number): number {
-  // Canvas-ImageData ist plattformabhängig little-endian: ABGR im Uint32.
-  return (255 << 24) | (b << 16) | (g << 8) | r;
+function Konfetti() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      <style>{`@keyframes kartKonfetti { 0% { transform: translateY(-20px) rotate(0); opacity: 1; } 100% { transform: translateY(420px) rotate(720deg); opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { .kart-konfetti { display: none; } }`}</style>
+      {Array.from({ length: 36 }, (_, i) => (
+        <span
+          key={i}
+          className="kart-konfetti absolute top-0 block h-2 w-1.5"
+          style={{
+            left: `${(i * 37) % 100}%`,
+            background: `hsl(${(i * 47) % 360} 85% 62%)`,
+            animation: `kartKonfetti ${2.2 + (i % 5) * 0.4}s ${(i % 7) * 0.15}s ease-in both`,
+          }}
+        />
+      ))}
+    </div>
+  );
 }

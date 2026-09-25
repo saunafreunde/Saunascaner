@@ -260,8 +260,9 @@ function WochenKrone() {
   );
 }
 
-/** Das Flaggschiff: Sauna-Kart. Läuft außerhalb der Registry (Zeiten statt
- *  Punkte, eigene kart_ghosts-Tabelle) — deshalb eine eigene, breite Kachel. */
+/** Das Flaggschiff: Sauna-Kart (Grand-Prix-Fassung, 25.09.2026). Läuft
+ *  außerhalb der Registry (eigene Tabellen kart_ghosts + kart_gp_ergebnisse) —
+ *  deshalb eine eigene, breite Kachel. */
 function KartKachel() {
   const navigate = useNavigate();
   return (
@@ -281,7 +282,7 @@ function KartKachel() {
         <span className="min-w-0 flex-1">
           <span className="block text-lg font-black text-forest-50">Sauna-Kart</span>
           <span className="block text-xs text-forest-300">
-            Schlitten-Rennen durch den Schwarzwald — fahr gegen die Geister der anderen.
+            Grand Prix gegen sieben Vereins-Originale — mit Items, Drift-Turbo und Siegerpodest.
           </span>
         </span>
         <span className="rounded-full bg-amber-500/20 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-300">
@@ -289,9 +290,9 @@ function KartKachel() {
         </span>
       </div>
       <div className="mt-2 flex items-center gap-3 text-[11px] text-forest-400">
-        <span>⏱ 1–2 Min pro Fahrt</span>
-        <span>👻 Geister-Duell</span>
-        <span>🏁 2 Strecken</span>
+        <span>🏆 Dampf-Cup</span>
+        <span>🌀 Drift &amp; Items</span>
+        <span>🏁 4 Strecken</span>
       </div>
     </button>
   );
