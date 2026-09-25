@@ -13,8 +13,8 @@ import type { Eingabe } from './engine/typen';
 
 export type LenkArt = 'wischen' | 'neigen' | 'tippen';
 
-const VOLL_PX = 46;      // Wischweg für vollen Einschlag (CSS-Pixel)
-const TOT_PX = 3;
+const VOLL_PX = 60;      // Wischweg für vollen Einschlag (CSS-Pixel) — 46 war zu nervös
+const TOT_PX = 5;
 const NEIGE_GRAD = 22;   // Neigung für vollen Einschlag
 
 export class KartEingabe {
@@ -66,7 +66,7 @@ export class KartEingabe {
       if (dx < -VOLL_PX) { this.anker = e.clientX + VOLL_PX; dx = -VOLL_PX; }
       const wirk = Math.abs(dx) < TOT_PX ? 0 : (dx - Math.sign(dx) * TOT_PX) / (VOLL_PX - TOT_PX);
       // leichte Kurve: feines Lenken um die Mitte, voller Einschlag am Rand
-      this.lenk = Math.sign(wirk) * Math.pow(Math.abs(wirk), 1.25);
+      this.lenk = Math.sign(wirk) * Math.pow(Math.abs(wirk), 1.35);
       if (this.knauf) {
         const r = flaeche.getBoundingClientRect();
         this.knauf = { x: this.anker - r.left, y: this.knauf.y, dx };

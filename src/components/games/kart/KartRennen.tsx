@@ -288,7 +288,7 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
             el.style.display = 'block';
             el.style.left = `${k.x}px`;
             el.style.top = `${k.y}px`;
-            (el.firstElementChild as HTMLElement | null)?.style.setProperty('transform', `translateX(${Math.max(-40, Math.min(40, k.dx))}px)`);
+            (el.firstElementChild as HTMLElement | null)?.style.setProperty('transform', `translateX(${Math.max(-44, Math.min(44, k.dx * 0.75))}px)`);
           } else el.style.display = 'none';
           letzt.knauf = knauf;
         }

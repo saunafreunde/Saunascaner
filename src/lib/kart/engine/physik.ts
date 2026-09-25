@@ -19,7 +19,7 @@ import { KLASSEN, begrenze, schub, wrapWinkel, type Eingabe, type Fahrer, type R
 
 const LENKRATE = 2.55;         // rad/s bei voller Fahrt
 const DRIFT_LENKRATE = 2.95;
-const GRIP_BAHN = 7.5;         // wie schnell die Fahrt der Nase folgt (1/s)
+const GRIP_BAHN = 10;          // wie schnell die Fahrt der Nase folgt (1/s) — griffiger seit 25.09.
 const GRIP_SCHULTER = 3.2;
 const GRIP_EIS = 1.3;
 const GRIP_DRIFT = 3.0;
@@ -45,7 +45,10 @@ export function gummiFaktor(r: RennKern, f: Fahrer): number {
   return 1 + Math.min(g * 0.8, -d * g * 3);
 }
 
-/** Lenkhilfe: liegt 0,3 s voraus Schulter oder Wand, sanft Richtung Bahn ziehen. */
+/** Lenkhilfe: liegt 0,3 s voraus Schulter oder Wand, sanft Richtung Bahn
+ *  ziehen. Seit 25.09. nur noch ZUSÄTZLICH zur eigenen Lenkung — wer bewusst
+ *  dagegen lenkt (Abkürzung, Ausweichen), behält die Kontrolle; vorher
+ *  überstimmte die Hilfe den Daumen zu 60 %. */
 function lenkhilfe(r: RennKern, f: Fahrer, ziel: number): number {
   const px = f.x + Math.cos(f.fahrWinkel) * f.v * 0.3;
   const py = f.y + Math.sin(f.fahrWinkel) * f.v * 0.3;
@@ -54,7 +57,8 @@ function lenkhilfe(r: RennKern, f: Fahrer, ziel: number): number {
   const p = querPunkt(r.geo.linie, f.letzterIdx + 12, 0);
   const soll = Math.atan2(p.y - f.y, p.x - f.x);
   const korr = begrenze(wrapWinkel(soll - f.richtung) * 2.5);
-  return begrenze(ziel * 0.4 + korr * 0.6);
+  const gegen = Math.max(0, -Math.sign(korr) * ziel); // 0…1: wie stark der Daumen dagegenhält
+  return begrenze(ziel + korr * 0.5 * (1 - gegen));
 }
 
 export function fahrerSchritt(r: RennKern, f: Fahrer, e: Eingabe, dt: number, opts: FahrOptionen) {
@@ -210,7 +214,7 @@ export function fahrerSchritt(r: RennKern, f: Fahrer, e: Eingabe, dt: number, op
   else if (wert === M_EIS) grip = GRIP_EIS;
   else if (wert === M_SCHULTER || wert === M_WAND) grip = GRIP_SCHULTER;
   if (f.driftAktiv) grip = Math.min(grip, GRIP_DRIFT);
-  if (grip === GRIP_BAHN) grip *= 1 - 0.3 * Math.min(1, tempoAnteil);
+  if (grip === GRIP_BAHN) grip *= 1 - 0.15 * Math.min(1, tempoAnteil);
   if (f.taumelRest > 0) grip = 2;
   f.fahrWinkel = wrapWinkel(f.fahrWinkel + wrapWinkel(f.richtung - f.fahrWinkel) * Math.min(1, grip * dt));
 

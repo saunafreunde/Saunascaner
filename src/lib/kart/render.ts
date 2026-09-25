@@ -16,7 +16,6 @@ import { TEX_SIZE, hashText, mulberry32, wrapIdx, type StreckenGeometrie } from 
 import { INTRO_MS, wrapWinkel, type Ereignis, type Fahrer, type GeistDaten } from './engine/typen';
 import type { Rennen } from './engine/rennen';
 
-const BASIS_B = 360;
 const FLUG_HOEHE = 46;
 
 interface Deko { x: number; y: number; name: DekoName; wh: number; phase: number; }
@@ -91,16 +90,23 @@ export class KartRenderer {
     this.canvas.width = this.W;
     this.canvas.height = this.H;
     const hoch = this.H >= this.W;
-    this.horizont = Math.floor(this.H * (hoch ? 0.36 : 0.4));
-    // Gleiches Blickfeld in jeder Breite; Sprites wachsen mit.
-    this.fokal = this.W * (220 / BASIS_B) * (hoch ? 1 : 0.8);
+    // Kamera DIREKT hinter dem Kart und tief (Christophs Rückmeldung
+    // 25.09.2026: „man kann kaum steuern"). Vorher schaute sie im Hochformat
+    // aus ~60 Einheiten steil herab — der Boden drehte sich wie eine
+    // Landkarte. Jetzt: niedrige Kamerahöhe, der Horizont rutscht so weit
+    // nach unten, dass das eigene Kart bei ~73 % der Höhe steht —
+    // genau dort, wo sein Bodenpunkt projiziert wird (Gegner neben dir
+    // stehen dann auch wirklich neben dir).
+    this.fokal = this.W * (hoch ? 0.66 : 0.55);
     this.skala = this.fokal / 220;
-    // Kamera so wählen, dass das eigene Kart bei ~80 % der Höhe steht — und
-    // zwar genau dort, wo sein Bodenpunkt projiziert wird. Dann stehen
-    // Gegner neben dir auch wirklich neben dir.
-    this.kamAbstand = hoch ? 38 : 44;
-    const ziel = this.H * (hoch ? 0.8 : 0.84) - this.horizont;
-    this.kamHoehe = Math.max(24, Math.min(72, (ziel * this.kamAbstand) / this.fokal));
+    this.kamAbstand = hoch ? 42 : 44;
+    this.kamHoehe = hoch ? 34 : 24;
+    const kartY = this.H * (hoch ? 0.73 : 0.86);
+    const unterHorizont = (this.kamHoehe * this.fokal) / this.kamAbstand;
+    this.horizont = Math.floor(Math.max(this.H * (hoch ? 0.36 : 0.3), Math.min(this.H * (hoch ? 0.47 : 0.46), kartY - unterHorizont)));
+    // Passt der Horizont nicht ganz, die Höhe nachführen, damit das Kart
+    // exakt auf seinem Bodenpunkt bleibt.
+    this.kamHoehe = Math.max(18, ((kartY - this.horizont) * this.kamAbstand) / this.fokal);
     this.bild = this.ctx.createImageData(this.W, this.H - this.horizont);
     this.bildDaten = new Uint32Array(this.bild.data.buffer);
     this.ctx.imageSmoothingEnabled = false;
@@ -367,13 +373,15 @@ export class KartRenderer {
       abstand = this.kamAbstand + 120 * (1 - e);
       versatz = (1 - e) * 1.3;
     } else if (s.boostRest > 0 || s.sternRest > 0) {
-      hoehe = this.kamHoehe * 0.86;
+      hoehe = this.kamHoehe * 0.9;
     }
-    const ziel = wrapWinkel(s.richtung * 0.55 + (s.richtung + wrapWinkel(s.fahrWinkel - s.richtung)) * 0.45) + versatz;
+    // Blickrichtung = Nase des Karts, nur minimal geglättet. Keine
+    // Beimischung der Rutschrichtung mehr: was du lenkst, siehst du sofort.
+    const ziel = wrapWinkel(s.richtung + versatz);
     if (!kam.bereit) {
       kam.richtung = ziel; kam.hoehe = hoehe; kam.abstand = abstand; kam.bereit = true;
     }
-    const k = r.phase === 'intro' ? 1 : Math.min(1, 7 * dt);
+    const k = r.phase === 'intro' ? 1 : Math.min(1, 22 * dt);
     kam.richtung = wrapWinkel(kam.richtung + wrapWinkel(ziel - kam.richtung) * k);
     kam.hoehe += (hoehe - kam.hoehe) * (r.phase === 'intro' ? 1 : Math.min(1, 5 * dt));
     kam.abstand += (abstand - kam.abstand) * (r.phase === 'intro' ? 1 : Math.min(1, 5 * dt));
@@ -580,7 +588,9 @@ export class KartRenderer {
     // die Gegner, nur ein Hauch größer, damit das eigene Kart präsent ist.
     const sk = ((20 * this.fokal) / kam.abstand / 76) * 1.08;
     const drift = wrapWinkel(s.richtung - s.fahrWinkel);
-    const ax = W / 2 + s.lenkGlatt * 10 * this.skala - drift * 18 * this.skala;
+    // Das Kart steht fest in der Bildmitte; Lenken zeigt die Pose, nicht ein
+    // seitliches Wandern (das las sich wie Rutschen und irritierte beim Zielen).
+    const ax = W / 2 - drift * 6 * this.skala;
     const ay = Math.min(H - 12 * this.skala, this.horizont + (kam.hoehe * this.fokal) / kam.abstand);
 
     // Partikel aus dem Zustand erzeugen (reine Optik)
