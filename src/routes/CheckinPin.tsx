@@ -13,6 +13,32 @@ import { KioskBewerten, type BewertbarerAufguss } from '@/components/kiosk/Kiosk
 // Session; von hier kommt niemand ins Profil oder in die Nachrichten.
 const FRIST_MS = 10_000;
 
+// Fehlertexte des Servers (api/qr-signin) für Gäste übersetzen — vorher stand
+// hier der rohe Code („zu_viele_fehlversuche“).
+const ZU_VIELE = 'Zu viele Fehlversuche – bitte kurz warten oder beim Personal melden.';
+const FEHLER: Record<string, string> = {
+  pin_unknown: 'PIN unbekannt — bitte erneut versuchen',
+  invalid_pin: 'Bitte genau 4 Ziffern eingeben.',
+  zu_viele_fehlversuche: ZU_VIELE,
+  too_many_requests: ZU_VIELE,
+};
+function fehlerText(code: string): string {
+  return FEHLER[code] ?? 'Das hat nicht geklappt. Bitte noch einmal versuchen.';
+}
+
+// Kleine Pause am Gerät nach mehreren unbekannten PINs in Folge (Audit-Runde 2):
+// Wer am öffentlichen Tablet herumtippt, füllt sonst in wenigen Minuten den
+// Fehlversuchs-Topf des Geräts beim Server — dann sperrt der das Tablet für
+// alle. Ab dem 3. Fehlversuch in Folge 30 s, danach je 30 s mehr (höchstens
+// 2 min). Ein richtiger PIN setzt zurück. Modulweit, damit der Sprung zurück
+// zur Landing-Page die Pause nicht aufhebt.
+let fehlFolge = 0;
+let pauseBis = 0;
+function pauseNachFehler(): void {
+  fehlFolge += 1;
+  if (fehlFolge >= 3) pauseBis = Date.now() + Math.min(120_000, 30_000 * (fehlFolge - 2));
+}
+
 export default function CheckinPin() {
   const nav = useNavigate();
   const brand = useBrandSettings();
@@ -46,8 +72,13 @@ export default function CheckinPin() {
   }, []);
 
   const handleKey = (k: string) => {
-    setError(null);
     fristNeu();
+    if (Date.now() < pauseBis) {
+      setPin('');
+      setError(ZU_VIELE);
+      return;
+    }
+    setError(null);
     if (k === '⌫') return setPin((p) => p.slice(0, -1));
     if (k === 'C') return setPin('');
     if (pin.length >= 4) return;
@@ -73,8 +104,13 @@ export default function CheckinPin() {
         headers: { 'content-type': 'application/json', ...kioskGeraetHeader() },
         body: JSON.stringify({ pin: currentPin }),
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? 'PIN unbekannt');
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        if (data.error === 'pin_unknown') pauseNachFehler();
+        throw new Error(data.error ?? (r.status === 429 ? 'too_many_requests' : 'unbekannt'));
+      }
+      fehlFolge = 0;
+      pauseBis = 0;
 
       // KEIN Login mehr. Bis 16.08.2026 stand hier ein Magic-Link, der das
       // Tablet als diese Person angemeldet hat — auf einem öffentlich
@@ -89,7 +125,7 @@ export default function CheckinPin() {
       setPin('');
       setBusy(false);
     } catch (e) {
-      setError((e as Error).message);
+      setError(fehlerText((e as Error).message));
       setPin('');
       setBusy(false);
     }
@@ -161,7 +197,7 @@ export default function CheckinPin() {
 
           {error && (
             <div className="mt-4 rounded-lg bg-red-900/40 ring-1 ring-red-700/50 px-3 py-2 text-center text-sm text-red-200">
-              {error === 'pin_unknown' ? 'PIN unbekannt — bitte erneut versuchen' : error}
+              {error}
             </div>
           )}
 

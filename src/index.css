@@ -2390,3 +2390,36 @@ html.light [class*="shadow-black"] { --tw-shadow-color: rgba(34, 197, 94, 0.10) 
   .joker-y { transform: translateY(44vh); }
   .joker-laeufer, .joker-logo { transform: translate(-50%, -50%); }
 }
+
+/* ── iPhone: kein Heranzoomen beim Tippen (Audit-Runde 2, 25.09.2026) ──────
+   iOS Safari (auch als Home-Bildschirm-App) zoomt in jedes Eingabefeld unter
+   16 px hinein und bleibt danach gezoomt — Knöpfe rutschen aus dem Bild. Rund
+   120 Felder hatten text-sm/text-xs (Planer-Identität, Übergabe-Suche, Feed,
+   Kommentare, Gästebuch, Wünsche, DMs, Profile, Admin …). Statt jedes Feld
+   einzeln auf „text-base sm:text-sm" umzustellen (vergisst zuverlässig
+   welche), gilt auf Handys hier zentral: Eingabefelder nie unter 16 px.
+   - Muss NACH @tailwind utilities stehen und die Klasse mitnennen: ein reiner
+     Elementselektor (0,0,1) verlöre gegen .text-sm (0,1,0).
+   - Felder ohne eigene Größenklasse erben die Schrift vom Elternelement
+     (Preflight: font-size 100 %) — max(16px, 1em) hebt nur kleine an und
+     verkleinert nie; jede Größenklasse gewinnt dort weiterhin.
+   - Große Felder (text-lg, text-2xl, PIN-Eingaben) bleiben unberührt; ab
+     640 px Breite greift wieder text-sm. Zweiter Media-Teil: iPhone quer —
+     dort ist die Seite breiter als 640 px, also greifen auch die sm:-Klassen
+     („text-base sm:text-sm" wäre quer wieder 14 px); darum stehen sie mit in
+     der Liste (unter 640 px wirken sie ohnehin nicht).
+   - Kein maximum-scale im Viewport: das sperrte auf Android auch das Zoomen
+     mit zwei Fingern (Barrierefreiheit). */
+@media (max-width: 639px), (pointer: coarse) and (max-height: 500px) {
+  input:where(:not([type=checkbox], [type=radio], [type=range], [type=file], [type=color], [type=button], [type=submit], [type=reset], [type=image], [type=hidden])),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+  input:where(:not([type=checkbox], [type=radio], [type=range], [type=file], [type=color], [type=button], [type=submit], [type=reset], [type=image], [type=hidden])):is(.text-xs, .text-sm, .sm\:text-xs, .sm\:text-sm),
+  textarea:is(.text-xs, .text-sm, .sm\:text-xs, .sm\:text-sm),
+  select:is(.text-xs, .text-sm, .sm\:text-xs, .sm\:text-sm) {
+    font-size: 16px;
+    line-height: 1.5rem;
+  }
+}

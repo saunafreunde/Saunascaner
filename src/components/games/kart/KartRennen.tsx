@@ -82,6 +82,12 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
   const [anleitung, setAnleitung] = useState(!einstellungen.anleitungGesehen);
   const anleitungRef = useRef(anleitung);
   anleitungRef.current = anleitung;
+  // „Neigen" gewählt, aber der Lagesensor liefert nichts (iOS ohne Erlaubnis,
+  // Gerät ohne Sensor): Der Daumen lenkt dann wie beim Wischen (KartEingabe),
+  // hier nur Hinweis und Anzeige unten links.
+  const [neigenWeg, setNeigenWeg] = useState(false);
+  const neigenWegRef = useRef(false);
+  const neigenTimerRef = useRef(0);
 
   const runden = auftrag.strecke.runden;
   const vieleFahrer = auftrag.fahrer.length > 1;
@@ -105,6 +111,24 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
     el.classList.add('kart-banner-an');
   }
 
+  /** Beim Anzählen (und nach einem Wechsel der Lenkart) 1,5 s warten: Kommt
+   *  bei „Neigen" bis dahin kein Sensorwert, Hinweis zeigen — gelenkt wird
+   *  dann per Wischen. Kommen die Werte später doch (Erlaubnis spät erteilt),
+   *  übernimmt das Neigen wieder (siehe hud). */
+  function neigenPruefen() {
+    window.clearTimeout(neigenTimerRef.current);
+    neigenWegRef.current = false;
+    setNeigenWeg(false);
+    if (eingabeRef.current?.art !== 'neigen') return;
+    neigenTimerRef.current = window.setTimeout(() => {
+      const e = eingabeRef.current;
+      if (!e || e.art !== 'neigen' || e.neigtAktiv) return;
+      neigenWegRef.current = true;
+      setNeigenWeg(true);
+      banner('📱 Neigen geht hier nicht — wische zum Lenken', 'warn');
+    }, 1500);
+  }
+
   useEffect(() => {
     let lebt = true;
     let raf = 0;
@@ -119,6 +143,8 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
     soundRef.current = sound;
     setZiel(null);
     setRennEnde(false);
+    neigenWegRef.current = false;
+    setNeigenWeg(false);
     pauseRef.current = anleitungRef.current;
 
     const huelle = huelleRef.current!;
@@ -184,7 +210,7 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
         for (const e of ev) {
           if (e.art === 'countdown') {
             sound.countdown(e.wert ?? 1);
-            if (e.wert === 3) eingabe.kalibriere();
+            if (e.wert === 3) { eingabe.kalibriere(); neigenPruefen(); }
             continue;
           }
           if (e.art === 'start') { sound.countdown(0); sound.musikStart(); losBis = performance.now() + 900; continue; }
@@ -280,6 +306,11 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
           if (cd) { void countdownRef.current.offsetWidth; countdownRef.current.classList.add('kart-countdown-an'); }
           letzt.cd = cd;
         }
+        if (neigenWegRef.current && eingabe.neigtAktiv) {
+          neigenWegRef.current = false;
+          setNeigenWeg(false);
+          banner('📱 Neigen aktiv', 'klein');
+        }
         const k = eingabe.knauf;
         const knauf = k ? `${Math.round(k.x)},${Math.round(k.y)},${Math.round(k.dx)}` : '';
         if (knauf !== letzt.knauf && knaufRef.current) {
@@ -330,6 +361,7 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
     return () => {
       lebt = false;
       cancelAnimationFrame(raf);
+      window.clearTimeout(neigenTimerRef.current);
       ro?.disconnect();
       eingabe.trenne();
       sound.stop();
@@ -346,8 +378,15 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
   useEffect(() => {
     soundRef.current?.setzeTon(einstellungen.ton);
     soundRef.current?.setzeMusik(einstellungen.musik);
-    if (eingabeRef.current) eingabeRef.current.art = einstellungen.lenkArt;
-  }, [einstellungen.ton, einstellungen.musik, einstellungen.lenkArt]);
+  }, [einstellungen.ton, einstellungen.musik]);
+  useEffect(() => {
+    const e = eingabeRef.current;
+    if (!e || e.art === einstellungen.lenkArt) return;
+    e.art = einstellungen.lenkArt;
+    neigenPruefen();
+    // neigenPruefen nutzt nur Refs und stabile Setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [einstellungen.lenkArt]);
 
   function weiter() {
     const r = rennenRef.current;
@@ -450,7 +489,7 @@ export default function KartRennen({ auftrag, einstellungen, onEinstellungen, on
         </button>
       </div>
       <div className="pointer-events-none absolute bottom-0 left-0 p-4 text-[11px] font-semibold text-white/55" style={{ paddingBottom: 'max(18px, env(safe-area-inset-bottom))' }}>
-        {s.lenkArt === 'wischen' ? '👆 hier wischen = lenken' : s.lenkArt === 'neigen' ? '📱 Handy neigen = lenken' : '👆 links / rechts tippen'}
+        {s.lenkArt === 'wischen' || (s.lenkArt === 'neigen' && neigenWeg) ? '👆 hier wischen = lenken' : s.lenkArt === 'neigen' ? '📱 Handy neigen = lenken' : '👆 links / rechts tippen'}
       </div>
 
       {/* ── Ziel ── */}

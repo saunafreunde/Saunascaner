@@ -2,8 +2,16 @@
 //
 // Sendet Bewertungs-Fenster-Reminder für anwesende Mitglieder mit offenen Bewertungen.
 //
-// Idempotent durch tag-basiertes Dedupen im Browser (Notification-API merged
-// gleichen tag). Pro Member nur ein Rating-Reminder pro Run.
+// Seit 0195 (Audit-Runde 2, 25.09.2026):
+//  * rating_pending_reminders liefert nur Aufgüsse, bei denen die Person
+//    tatsächlich da war (_war_beim_aufguss), und die echte Frist (frist):
+//    Aufgießer 3 Stunden nach dem Ende, alle anderen bis 12:00 am Folgetag.
+//    Vorher stand bei allen „noch X Min" mit der 3-Stunden-Frist.
+//  * Je Person und Aufguss genau EINE Erinnerung: Die Aufgüsse werden VOR dem
+//    Senden in bewertung_push_erinnerungen eingetragen; was dort steht, liefert
+//    die Funktion nicht mehr. Vorher kam alle 30 Minuten dieselbe Erinnerung.
+// Pro Member höchstens ein Push je Lauf (der jüngste offene Aufguss, weitere
+// werden im Text mitgezählt und mit beansprucht).
 //
 // Hinweis: war zwischenzeitlich in api/cron.ts konsolidiert (Vercel-Hobby-
 // 12-Function-Limit). Seit Wechsel auf Pro wieder eigener File.
@@ -20,6 +28,30 @@ interface RatingReminder {
   infusion_title: string;
   end_time: string;
   meister_name: string;
+  // Ende des Bewertungsfensters (0195). Fehlt bei alter DB-Fassung → 3 h.
+  frist?: string | null;
+}
+
+const DREI_STUNDEN_MS = 3 * 60 * 60 * 1000;
+
+function fristMs(r: RatingReminder): number {
+  const f = r.frist ? Date.parse(r.frist) : NaN;
+  return Number.isFinite(f) ? f : new Date(r.end_time).getTime() + DREI_STUNDEN_MS;
+}
+
+function berlinTag(ms: number): string {
+  return new Date(ms).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
+}
+
+/** „noch 25 Min" bei kurzen Fristen, sonst „bis heute/morgen 12 Uhr" (Berliner Zeit). */
+function fristText(frist: number, jetzt: number): string {
+  const minuten = Math.round((frist - jetzt) / 60000);
+  if (minuten <= 180) return `noch ${minuten} Min bis das Bewertungsfenster zugeht.`;
+  const uhr = new Date(frist).toLocaleTimeString('de-DE', {
+    timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit',
+  }).replace(/:00$/, '');
+  const tag = berlinTag(frist) === berlinTag(jetzt) ? 'heute' : 'morgen';
+  return `du kannst noch bis ${tag} ${uhr} Uhr bewerten.`;
 }
 
 interface PushSub {
@@ -49,12 +81,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sb = createClient(supaUrl, serviceKey);
 
-  // Bewertungs-Reminder (laufende 3h-Fenster)
-  const { data: ratingList = [] } = await sb.rpc('rating_pending_reminders') as { data: RatingReminder[] | null };
-  const ratingByMember = new Map<string, RatingReminder>();
+  // Bewertungs-Reminder: Aufgüsse der letzten 3 Stunden, bei denen die Person
+  // da war und an die noch nicht per Push erinnert wurde (0195).
+  const { data: ratingList, error: ratingErr } = await sb.rpc('rating_pending_reminders') as {
+    data: RatingReminder[] | null; error: { message: string } | null;
+  };
+  if (ratingErr) return res.status(500).json({ error: 'rating_pending_reminders fehlgeschlagen' });
+  const jetzt = Date.now();
+  const ratingByMember = new Map<string, RatingReminder[]>();
   for (const r of (ratingList ?? [])) {
-    const existing = ratingByMember.get(r.member_id);
-    if (!existing || new Date(r.end_time) > new Date(existing.end_time)) ratingByMember.set(r.member_id, r);
+    // Fenster schließt in weniger als 5 Minuten → keine Erinnerung mehr.
+    if (fristMs(r) - jetzt < 5 * 60000) continue;
+    const arr = ratingByMember.get(r.member_id) ?? [];
+    arr.push(r);
+    ratingByMember.set(r.member_id, arr);
+  }
+  // Jüngster Aufguss zuerst.
+  for (const arr of ratingByMember.values()) {
+    arr.sort((a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime());
   }
 
   const allMemberIds = new Set<string>(ratingByMember.keys());
@@ -102,15 +146,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return sent;
   }
 
-  for (const [memberId, r] of ratingByMember.entries()) {
-    const endDate = new Date(r.end_time);
-    const minsLeft = Math.round((endDate.getTime() + 3 * 60 * 60 * 1000 - Date.now()) / 60000);
-    if (minsLeft < 5) continue;
+  let beansprucht = 0;
+  for (const [memberId, offen] of ratingByMember.entries()) {
+    if ((subsByMember.get(memberId) ?? []).length === 0) continue;
+    // Genau einmal: VOR dem Senden eintragen. Was schon drinsteht (paralleler
+    // Lauf), kommt nicht zurück — ist nichts neu, wird nichts gesendet.
+    const { data: neu, error: claimErr } = await sb
+      .from('bewertung_push_erinnerungen')
+      .upsert(
+        offen.map((r) => ({ member_id: memberId, infusion_id: r.infusion_id })),
+        { onConflict: 'member_id,infusion_id', ignoreDuplicates: true },
+      )
+      .select('infusion_id');
+    if (claimErr) {
+      console.error('[push-reminder-cron] Erinnerung nicht vermerkt, nichts gesendet:', claimErr.code ?? '', claimErr.message);
+      continue;
+    }
+    const neuIds = new Set((neu ?? []).map((x) => (x as { infusion_id: string }).infusion_id));
+    const zuSenden = offen.filter((r) => neuIds.has(r.infusion_id));
+    if (zuSenden.length === 0) continue;
+    beansprucht += zuSenden.length;
+    const r = zuSenden[0];
+    const weitere = zuSenden.length > 1 ? ` (+${zuSenden.length - 1} weitere)` : '';
     ratingSent += await sendTo(
       memberId,
       `⏱️ Aufguss von ${r.meister_name} bewerten`,
-      `„${r.infusion_title}" — noch ${minsLeft} Min bis das Bewertungsfenster zugeht.`,
-      '/planner',
+      `„${r.infusion_title}"${weitere} — ${fristText(fristMs(r), jetzt)}`,
+      '/bewerten',
       `rating-${r.infusion_id}`
     );
   }
@@ -120,6 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({
     ok: true,
     rating_pending: ratingByMember.size,
+    rating_vermerkt: beansprucht,
     rating_sent: ratingSent,
     stale_pruned: stale.length,
   });

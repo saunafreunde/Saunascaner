@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Infusion, Sauna } from '@/types/database';
 import { fmtClock, dayLabel } from '@/lib/time';
+import { absageHinweis } from '@/lib/absage';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import type { Template } from '@/lib/api';
 import { EditInfusionModal } from '@/components/EditInfusionModal';
@@ -54,7 +55,7 @@ export function AtelierTabs({
   const canJoinOrLeave = (i: Infusion) => i.team_infusion && !isOwn(i);
   const handleDelete = (i: Infusion) => {
     const ok = window.confirm(
-      `Aufguss "${i.title}" am ${dayLabel(i.start_time)} ${fmtClock(i.start_time)} wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`,
+      `Aufguss "${i.title}" am ${dayLabel(i.start_time)} ${fmtClock(i.start_time)} wirklich absagen?\n\n${absageHinweis(i)}\n\nDiese Aktion kann nicht rückgängig gemacht werden.`,
     );
     if (ok) onDeleteInfusion(i.id);
   };
@@ -171,7 +172,7 @@ export function AtelierTabs({
                         )}
                         {canDelete(i) && (
                           <button onClick={() => handleDelete(i)}
-                            title="Aufguss löschen"
+                            title="Aufguss absagen"
                             className="rounded-md px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 ring-1 ring-rose-500/20">🗑</button>
                         )}
                       </div>

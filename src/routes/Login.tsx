@@ -83,7 +83,14 @@ export default function Login() {
         setTimeout(() => nav(next, { replace: true }), 800);
       }
     } catch (err) {
-      setError((err as Error).message);
+      // Gesperrte Konten (0192) sperrt der Auth-Server mit „User is banned".
+      const code = (err as { code?: unknown } | null)?.code;
+      const msg = (err as Error).message ?? '';
+      if (code === 'user_banned' || /banned/i.test(msg)) {
+        setError('Dein Konto ist gesperrt. Bitte wende dich an den Vorstand.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }

@@ -2,6 +2,7 @@
 // Templates kommen aus _email_templates.ts (inline TS-Module).
 import nodemailer, { type Transporter } from 'nodemailer';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { ohneAdressen } from './_schutz.js';
 
 // ─── Brand-Settings server-side laden ───────────────────────────────────
 export type BrandData = {
@@ -252,7 +253,10 @@ export async function logEmailSend(
     p_subject: p.subject,
     p_template_name: p.templateName,
     p_status: p.status,
-    p_error: p.error ?? null,
+    // nodemailer nennt Adressen in der Server-Antwort („550 <x@y>: …"); der
+    // Empfänger steht ohnehin in recipient — im Fehlertext wird er nach einer
+    // Kontolöschung sonst nicht mehr gefunden (0195).
+    p_error: p.error ? ohneAdressen(p.error) : null,
     p_related_invitation_id: p.invitationId ?? null,
     p_related_member_id: p.memberId ?? null,
     p_sender_email: p.senderEmail ?? null,

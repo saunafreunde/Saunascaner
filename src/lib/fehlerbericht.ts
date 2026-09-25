@@ -10,10 +10,16 @@
 // Datensparsam: Pfad ohne Query/Hash, Login-Codes (/m/…), IDs und E-Mail-
 // Adressen maskiert, keine Mitglieds-ID, kein Name. Gedrosselt im Gerät
 // (höchstens 5 Meldungen je 10 min, derselbe Fehler höchstens alle 10 min) und
-// noch einmal auf dem Server (gleicher Fehler wird gezählt, max. 60 neue je
-// Stunde, 30 Tage Aufbewahrung). Das Melden selbst wirft nie.
+// noch einmal auf dem Server (gleicher Fehler wird gezählt, 30 Tage
+// Aufbewahrung). Seit 0195 zählt der Server neue Meldungen in getrennten
+// Töpfen: freigegebene Mitglieder 60/h, gekoppelte Kiosk-Geräte 60/h (Tafel,
+// Öl-Raum … — dafür geht das Geräte-Token mit), sonstige angemeldete Konten
+// (Gäste, noch nicht freigegebene) 30/h, alle anderen 30/h. So kann Fluten
+// ohne Freigabe die Berichte von Mitgliedern und Geräten nicht verdrängen.
+// Das Melden selbst wirft nie.
 
 import { supabase } from '@/lib/supabase';
+import { kioskGeraetToken } from '@/lib/kioskGeraet';
 
 const MAX_JE_FENSTER = 5;
 const FENSTER_MS = 10 * 60_000;
@@ -91,6 +97,8 @@ export function fehlerMelden(quelle: string, err: unknown): void {
       p_meldung: meldung,
       p_stack: roh.stack ? entschaerfen(roh.stack).slice(0, 2000) : null,
       p_geraet: geraet,
+      // Gekoppeltes Kiosk-Gerät → eigener Topf (sonst null → anonymer Topf).
+      p_geraet_token: kioskGeraetToken(),
     }).then(() => undefined, () => undefined);
   } catch {
     /* Melden darf nie selbst einen Fehler auslösen */

@@ -20,7 +20,7 @@ import {
   getBrandSettings,
 } from './_email_helpers.js';
 import { renderInviteEmail, renderWelcomeEmail, renderMagicLinkEmail, renderSetPasswordEmail } from './_email_templates.js';
-import { clientIp, drosselBuchen, emailSchluessel, ohneAdressen } from './_schutz.js';
+import { drosselBuchen, emailSchluessel, ipSchluessel, ohneAdressen } from './_schutz.js';
 import { queryParam } from './_query.js';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
@@ -217,29 +217,79 @@ function buildICS(events: Array<{
 // der Datenbank: je IP (jede Anfrage), je Adresse (nur als sha256) und für
 // alle zusammen. Ist die ADRESSE voll, kommt dieselbe Antwort wie beim
 // Versand — sonst ließe sich abfragen, wer ein Konto hat.
+//
+// Audit-Runde 2 (25.09.2026, 0194): Der gemeinsame Topf ('alle', 60/h) wurde
+// für JEDE Anfrage gebucht, auch für Fantasie-Adressen ohne Konto, an die gar
+// keine Mail ging. 60 Anfragen von zwei IPs sperrten damit „Passwort
+// vergessen“ und die QR-Gast-Anmeldung für alle eine Stunde lang. Jetzt:
+//  * Stufe 1 (jede Anfrage): nur der Topf je IP — IPv6 je /64-Präfix
+//    (ipSchluessel), sonst hätte ein einziger Anschluss beliebig viele Töpfe.
+//    Dabei merkt sich die Bremse, ob die IP in dieser Stunde noch unauffällig
+//    ist (höchstens 3 Anfragen).
+//  * Stufe 2 erst, wenn feststeht, dass wirklich eine Mail rausgeht: der
+//    gemeinsame Topf und der Topf je Adresse. Der gemeinsame Topf ist für
+//    unauffällige IPs nur noch eine Notbremse (300/h); nur IPs, die in dieser
+//    Stunde schon mehr als 3 Anfragen geschickt haben, stoßen bei 60/h an.
+//    Wer den Topf mit Zufallsadressen füllt, bremst damit andere Vielsender —
+//    eine normale Einzelperson erst bei 300 Mails in der Stunde.
+//  * „Passwort vergessen“ für eine unbekannte Adresse bucht nur Stufe 1 und
+//    ruft generateLink gar nicht erst auf. Die Antwort bleibt dieselbe wie
+//    bei einem echten Konto (auch „zu viele“ nur, wenn der gemeinsame Topf
+//    voll ist) — sonst ließe sich abfragen, wer ein Konto hat.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAIL_IP_STUNDE = 30;     // wie die Tablet-Anmeldung: Vereins-WLAN am Saunafest
+const MAIL_IP_UNAUFFAELLIG = 3; // die ersten 3 Anfragen einer IP je Stunde
 const MAIL_ADR_STUNDE = 3;
 const MAIL_ADR_TAG = 8;
-const MAIL_ALLE_STUNDE = 60;   // echte Nutzung: etwa eine Mail am Tag
+const MAIL_ALLE_VIELSENDER_STUNDE = 60; // gemeinsamer Topf für auffällige IPs
+const MAIL_ALLE_NOTBREMSE_STUNDE = 300; // gemeinsamer Topf für alle anderen
 const ZU_VIELE_MAILS = 'Gerade kommen sehr viele Anfragen an – bitte in einer Stunde noch einmal versuchen.';
 
 type MailBremse = 'frei' | 'zu_viele' | 'adresse_voll';
+type MailIpStufe = { zuViele: boolean; unauffaellig: boolean };
 
-async function mailBremse(svc: SupabaseClient, req: VercelRequest, email: string): Promise<MailBremse> {
+function mailAlleMax(ipStufe: MailIpStufe): number {
+  return ipStufe.unauffaellig ? MAIL_ALLE_NOTBREMSE_STUNDE : MAIL_ALLE_VIELSENDER_STUNDE;
+}
+
+/** Stufe 1: Topf je IP (jede Anfrage). Merkt sich zusätzlich, ob die IP in
+ *  dieser Stunde noch unauffällig ist (höchstens 3 Anfragen). */
+async function mailBremseIp(svc: SupabaseClient, req: VercelRequest): Promise<MailIpStufe> {
+  const ip = ipSchluessel(req);
+  const r = await drosselBuchen(svc, 'mail', [{ schluessel: 'ip:' + ip, max: MAIL_IP_STUNDE, fensterS: 3600 }]);
   // Datenbankfehler (oder 0189 noch nicht eingespielt): durchlassen wie bisher —
   // Login- und Passwort-Links sind wichtiger als die Bremse.
-  const ip = await drosselBuchen(svc, 'mail', [{ schluessel: 'ip:' + clientIp(req), max: MAIL_IP_STUNDE, fensterS: 3600 }]);
-  if (ip === null) return 'frei';
-  if (ip !== 0) return 'zu_viele';
+  if (r === null) return { zuViele: false, unauffaellig: true };
+  if (r !== 0) return { zuViele: true, unauffaellig: false };
+  const f = await drosselBuchen(svc, 'mail', [{ schluessel: 'ipf:' + ip, max: MAIL_IP_UNAUFFAELLIG, fensterS: 3600 }]);
+  return { zuViele: false, unauffaellig: f === null || f === 0 };
+}
+
+/** Stufe 2: gemeinsamer Topf + Topf je Adresse — erst, wenn wirklich eine Mail
+ *  rausgeht. Der gemeinsame Topf steht vorn: ist er voll, lautet die Antwort
+ *  „zu viele“, egal ob die Adresse ein Konto hat (kein Konten-Orakel). */
+async function mailBremseAdresse(svc: SupabaseClient, email: string, ipStufe: MailIpStufe): Promise<MailBremse> {
   const adr = 'adr:' + emailSchluessel(email);
   const r = await drosselBuchen(svc, 'mail', [
+    { schluessel: 'alle', max: mailAlleMax(ipStufe), fensterS: 3600 },
     { schluessel: adr, max: MAIL_ADR_STUNDE, fensterS: 3600 },
     { schluessel: adr, max: MAIL_ADR_TAG, fensterS: 86400 },
-    { schluessel: 'alle', max: MAIL_ALLE_STUNDE, fensterS: 3600 },
   ]);
   if (r === null || r === 0) return 'frei';
-  return r === 3 ? 'zu_viele' : 'adresse_voll';
+  return r === 1 ? 'zu_viele' : 'adresse_voll';
+}
+
+/** Ist der gemeinsame Topf für diese IP gerade voll? Nur prüfen, nichts buchen
+ *  (für Anfragen, bei denen keine Mail rausgeht). Datenbankfehler: nein. */
+async function mailAlleVoll(svc: SupabaseClient, ipStufe: MailIpStufe): Promise<boolean> {
+  const { data, error } = await svc.rpc('kiosk_gesperrt', {
+    p_art: 'mail', p_schluessel: 'alle', p_max: mailAlleMax(ipStufe), p_fenster_sekunden: 3600,
+  });
+  if (error) {
+    console.error('[email] kiosk_gesperrt fehlgeschlagen', error.code ?? '');
+    return false;
+  }
+  return data === true;
 }
 
 /** E-Mail aus dem Body: getrimmt, klein, plausibel — sonst null. */
@@ -275,7 +325,7 @@ function sicherRedirect(raw: unknown, pfade: string[], standardPfad: string): st
 // Generiert via Supabase Admin-API einen Magic-Link UND versendet ihn
 // selbst über info@sauna-fds.de mit eigenem Schwarzwald-Template.
 // Einziger Aufrufer: GastSignup (QR-Plakate). Seit 25.09.2026:
-//  * gebremst (siehe mailBremse), Antwort immer { ok: true } — ob die Adresse
+//  * gebremst (mailBremseIp/mailBremseAdresse), Antwort immer { ok: true } — ob die Adresse
 //    schon ein Konto hat, verrät sie nicht mehr (vorher is_signup);
 //  * bei einer neuen Adresse entsteht nur der Anmelde-Datensatz; das
 //    Mitglieds-Konto (PIN, Freigabe, Einwilligung) legt handle_new_user erst
@@ -289,12 +339,12 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
   if (!email) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse eingeben.' });
 
   const svc = makeServiceClient();
-  const bremse = await mailBremse(svc, req, email);
-  if (bremse === 'zu_viele') return res.status(429).json({ error: ZU_VIELE_MAILS });
-  if (bremse === 'adresse_voll') return res.status(200).json({ ok: true });
+  const ipStufe = await mailBremseIp(svc, req);
+  if (ipStufe.zuViele) return res.status(429).json({ error: ZU_VIELE_MAILS });
 
   // Gibt es die Adresse schon? listUsers ist paginiert (Default 50!) — ohne
   // Loop würde ab User 51 jeder Bestands-User fälschlich als neu gelten.
+  // (Nur lesen — deshalb vor der Adress-Bremse, die davon abhängt.)
   let vorhanden: User | undefined;
   for (let page = 1; page <= 40; page++) {
     const { data: userPage, error: listErr } = await svc.auth.admin.listUsers({ page, perPage: 500 });
@@ -306,6 +356,11 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
     vorhanden = users.find((u) => u.email?.toLowerCase() === email);
     if (vorhanden || users.length < 500) break;
   }
+
+  // Hier geht in jedem Fall eine Mail raus (Anmelde- bzw. Login-Link).
+  const bremse = await mailBremseAdresse(svc, email, ipStufe);
+  if (bremse === 'zu_viele') return res.status(429).json({ error: ZU_VIELE_MAILS });
+  if (bremse === 'adresse_voll') return res.status(200).json({ ok: true });
 
   const redirectTo = sicherRedirect(b.redirect_to, ['/gast', '/planner'], '/planner');
 
@@ -388,7 +443,7 @@ function cryptoRandomPassword(): string {
 // Generiert einen Recovery-Link via Admin-API und verschickt ihn über den
 // EIGENEN Mailer (info@sauna-fds.de) — gleiche zuverlässige Zustellung wie
 // beim Magic-Link. Antwortet IMMER generisch (kein User-Enumeration-Leak).
-// Seit 25.09.2026 gebremst wie magic-link (mailBremse) und ohne E-Mail-Adresse
+// Seit 25.09.2026 gebremst wie magic-link (mailBremseIp/mailBremseAdresse) und ohne E-Mail-Adresse
 // im Server-Log (vorher landete jede Tippfehler-Adresse im Klartext bei Vercel).
 async function handleResetLink(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -397,7 +452,23 @@ async function handleResetLink(req: VercelRequest, res: VercelResponse) {
   if (!email) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse eingeben.' });
 
   const svc = makeServiceClient();
-  const bremse = await mailBremse(svc, req, email);
+  const ipStufe = await mailBremseIp(svc, req);
+  if (ipStufe.zuViele) return res.status(429).json({ error: ZU_VIELE_MAILS });
+
+  // Gibt es ein Konto? Nur lesen (0194) — generateLink legt bei JEDEM Aufruf
+  // ein neues Token an und entwertet damit den zuletzt verschickten Link; es
+  // darf deshalb erst nach der Adress-Bremse laufen. Unbekannte Adresse:
+  // keine Mail, kein Eintrag in Adress- oder Gesamt-Topf — und dieselbe
+  // Antwort wie bei einem Konto (429 nur, wenn der gemeinsame Topf voll ist).
+  // Schlägt die Abfrage fehl (z. B. 0194 fehlt), wie bisher weiter.
+  const { data: kontoStatus, error: kontoErr } = await svc.rpc('api_mail_konto_status', { p_email: email });
+  if (kontoErr) console.error('[reset-link] api_mail_konto_status fehlgeschlagen', kontoErr.code ?? '');
+  if (!kontoErr && kontoStatus === 'unbekannt') {
+    if (await mailAlleVoll(svc, ipStufe)) return res.status(429).json({ error: ZU_VIELE_MAILS });
+    return res.status(200).json({ ok: true });
+  }
+
+  const bremse = await mailBremseAdresse(svc, email, ipStufe);
   if (bremse === 'zu_viele') return res.status(429).json({ error: ZU_VIELE_MAILS });
   if (bremse === 'adresse_voll') return res.status(200).json({ ok: true });
 

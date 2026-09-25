@@ -421,6 +421,7 @@ function AutoCheckinToggleCard({ enabled }: { enabled: boolean }) {
             {' '}Sicher: erkennt das Sauna-Netz am Subnet, dein Standort wird nicht abgefragt.
             {' '}Nach dem Auschecken macht die Automatik 3 Stunden Pause, damit du beim Rausgehen nicht gleich wieder eingecheckt wirst.
             {' '}Auschecken musst du selbst (Knopf in der App oder PIN am Tablet).
+            {' '}Bei Mitgliedern ist die Automatik voreingestellt — willst du sie nicht, schalte sie hier ab.
           </p>
         </div>
         <button

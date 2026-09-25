@@ -1,17 +1,33 @@
-// Admin → Kiosk-Geräte (Migration 0177, 25.09.2026).
+// Admin → Kiosk-Geräte (Migration 0177, 25.09.2026; Einmal-Link seit 0191).
 //
 // Öl-Raum-Tablet, Anwesenheits-Panel & Co. laufen ohne Login. Ihre
 // Sonderrechte (Aufgüsse am Tablet anlegen, Anwesenheit setzen, Alarm ohne
 // Login) gibt es nur noch für GEKOPPELTE Geräte. Hier legt ein Admin ein Gerät
-// an, bekommt einmalig einen Link + QR-Code und öffnet ihn auf dem Gerät.
-// Das Token wird danach nie wieder angezeigt; verloren → neu koppeln.
+// an, bekommt einen Link + QR-Code und öffnet ihn auf dem Gerät. Der Link
+// enthält einen EINMAL-Code (24 h gültig): Das erste Gerät, das ihn öffnet,
+// tauscht ihn gegen sein eigenes Token — danach ist er verbraucht. Das Token
+// selbst wird nie angezeigt; Gerät verloren → entkoppeln und neu koppeln.
 
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import {
   useAdminKioskGeraete, useAdminKioskGeraetKoppeln, useAdminKioskGeraetWiderrufen,
+  type KioskGeraetZeile,
 } from '@/lib/api';
 import { KIOSK_GERAET_ARTEN, type KioskGeraetArt } from '@/lib/kioskGeraet';
+
+type GeraetStatus = NonNullable<KioskGeraetZeile['status']>;
+
+/** Ohne `status` (Server vor 0191) gilt jede nicht widerrufene Zeile als gekoppelt. */
+function statusVon(g: KioskGeraetZeile): GeraetStatus {
+  return g.status ?? (g.widerrufen_at ? 'widerrufen' : 'gekoppelt');
+}
+
+/** War das Gerät je eingelöst (auch wenn inzwischen widerrufen)? */
+function jeGekoppelt(g: KioskGeraetZeile): boolean {
+  const st = statusVon(g);
+  return st === 'gekoppelt' || (st === 'widerrufen' && (g.status === undefined || !!g.eingeloest_at));
+}
 
 function zeitText(iso: string | null): string {
   if (!iso) return 'noch nie';
@@ -35,8 +51,11 @@ export function KioskGeraeteCard() {
     QRCode.toDataURL(link, { margin: 1, width: 360 }).then(setQr).catch(() => setQr(null));
   }, [link]);
 
-  const aktiv = (liste.data ?? []).filter((g) => !g.widerrufen_at);
+  const aktiv = (liste.data ?? []).filter((g) => statusVon(g) === 'gekoppelt');
   const fehlendeArten = (['oelraum', 'panel'] as KioskGeraetArt[]).filter((a) => !aktiv.some((g) => g.art === a));
+  // Solange nie ein Öl-Raum-Tablet gekoppelt war (auch ein später widerrufenes
+  // zählt), darf ein ungekoppeltes Tablet übergangsweise Alarm auslösen (0191).
+  const oelraumJeGekoppelt = (liste.data ?? []).some((g) => g.art === 'oelraum' && jeGekoppelt(g));
 
   async function anlegen(e: React.FormEvent) {
     e.preventDefault();
@@ -44,8 +63,8 @@ export function KioskGeraeteCard() {
     setKopiert(false);
     const label = KIOSK_GERAET_ARTEN.find((a) => a.art === art)?.label ?? art;
     try {
-      const token = await koppeln.mutateAsync({ name: name.trim() || label, art });
-      setLink(`${window.location.origin}/koppeln#${token}`);
+      const code = await koppeln.mutateAsync({ name: name.trim() || label, art });
+      setLink(`${window.location.origin}/koppeln#${code}`);
       setName('');
     } catch (err) {
       setFehler((err as Error).message);
@@ -78,9 +97,18 @@ export function KioskGeraeteCard() {
           <p className="text-xs leading-relaxed text-forest-300/90">
             Öl-Raum-Tablet und Anwesenheits-Panel arbeiten ohne Login. Damit niemand von außen ihre Rechte nutzt,
             funktionieren sie nur auf gekoppelten Geräten. So geht’s: Gerät hier anlegen, dann den Link bzw. QR-Code
-            <strong className="text-amber-200"> auf dem Gerät selbst</strong> öffnen. Der Link gilt nur einmal zum Einrichten
-            und wird danach nicht wieder angezeigt.
+            <strong className="text-amber-200"> auf dem Gerät selbst</strong> öffnen. Der Link koppelt genau
+            <strong className="text-amber-200"> ein</strong> Gerät und gilt 24 Stunden — danach ist er verbraucht bzw.
+            abgelaufen und wird nicht wieder angezeigt.
           </p>
+          {!oelraumJeGekoppelt && (
+            <p className="rounded-xl bg-amber-500/15 px-3 py-2 text-xs leading-relaxed text-amber-100 ring-1 ring-amber-400/40">
+              ⚠️ <strong>Zuerst das Öl-Raum-Tablet koppeln.</strong> Bis dahin darf ein ungekoppeltes Tablet übergangsweise
+              den Evakuierungsalarm auslösen (ohne Foto, höchstens 2 je 30 Minuten) — längstens bis einschließlich
+              08.10.2026. Danach geht der Alarm nur noch von gekoppelten Geräten und angemeldeten Mitgliedern. Eintragen
+              am Öl-Raum-Tablet und das Anwesenheits-Panel gehen schon jetzt nur gekoppelt.
+            </p>
+          )}
 
           <form onSubmit={anlegen} className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs text-forest-300">
@@ -115,7 +143,9 @@ export function KioskGeraeteCard() {
 
           {link && (
             <div className="rounded-xl bg-forest-900/70 p-4 ring-1 ring-amber-500/40">
-              <p className="text-xs font-semibold text-amber-200">Diesen Link auf dem Gerät öffnen (oder QR-Code dort scannen):</p>
+              <p className="text-xs font-semibold text-amber-200">
+                Diesen Link auf dem Gerät öffnen (oder QR-Code dort scannen). Er koppelt nur EIN Gerät und gilt 24 Stunden:
+              </p>
               <div className="mt-3 flex flex-wrap items-start gap-4">
                 {qr && <img src={qr} alt="QR-Code zum Koppeln" className="h-40 w-40 rounded-lg bg-white p-1" />}
                 <div className="min-w-0 flex-1 space-y-2">
@@ -145,27 +175,39 @@ export function KioskGeraeteCard() {
             {(liste.data ?? []).length === 0 && (
               <li className="p-3 text-xs text-forest-400">Noch keine Geräte gekoppelt.</li>
             )}
-            {(liste.data ?? []).map((g) => (
-              <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-                <div className="min-w-0">
-                  <div className={`font-medium ${g.widerrufen_at ? 'text-forest-500 line-through' : 'text-forest-100'}`}>{g.name}</div>
-                  <div className="text-[11px] text-forest-400">
-                    {KIOSK_GERAET_ARTEN.find((a) => a.art === g.art)?.label ?? g.art}
-                    {' · zuletzt gesehen '}{zeitText(g.zuletzt_gesehen_at)}
-                    {g.widerrufen_at && ` · widerrufen ${zeitText(g.widerrufen_at)}`}
+            {(liste.data ?? []).map((g) => {
+              const st = statusVon(g);
+              return (
+                <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+                  <div className="min-w-0">
+                    <div className={`font-medium ${st === 'widerrufen' || st === 'abgelaufen' ? 'text-forest-500 line-through' : 'text-forest-100'}`}>{g.name}</div>
+                    <div className="text-[11px] text-forest-400">
+                      {KIOSK_GERAET_ARTEN.find((a) => a.art === g.art)?.label ?? g.art}
+                      {st === 'ausstehend' && (
+                        <span className="text-amber-300">{` · Link noch nicht geöffnet (gültig bis ${zeitText(g.kopplung_bis ?? null)})`}</span>
+                      )}
+                      {st === 'abgelaufen' && ' · Link abgelaufen, nie gekoppelt'}
+                      {(st === 'gekoppelt' || st === 'widerrufen') && <>{' · zuletzt gesehen '}{zeitText(g.zuletzt_gesehen_at)}</>}
+                      {g.widerrufen_at && ` · widerrufen ${zeitText(g.widerrufen_at)}`}
+                    </div>
                   </div>
-                </div>
-                {!g.widerrufen_at && (
-                  <button
-                    type="button"
-                    onClick={() => { if (window.confirm(`„${g.name}" wirklich entkoppeln? Das Gerät verliert sofort seine Kiosk-Rechte.`)) widerrufen.mutate(g.id); }}
-                    className="rounded-lg bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/25"
-                  >
-                    Entkoppeln
-                  </button>
-                )}
-              </li>
-            ))}
+                  {(st === 'gekoppelt' || st === 'ausstehend') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const frage = st === 'ausstehend'
+                          ? `Kopplungs-Link für „${g.name}" verwerfen? Er lässt sich danach nicht mehr einlösen.`
+                          : `„${g.name}" wirklich entkoppeln? Das Gerät verliert sofort seine Kiosk-Rechte.`;
+                        if (window.confirm(frage)) widerrufen.mutate(g.id);
+                      }}
+                      className="rounded-lg bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/25"
+                    >
+                      {st === 'ausstehend' ? 'Link verwerfen' : 'Entkoppeln'}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

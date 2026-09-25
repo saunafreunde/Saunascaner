@@ -3,10 +3,11 @@
 // Öl-Raum-Tablet, Anwesenheits-Panel & Co. laufen ohne Login. Damit nicht
 // jeder im Internet ihre Sonderrechte nutzen kann (Aufgüsse anlegen/löschen,
 // Anwesenheit setzen, Alarm auslösen), koppelt ein Admin jedes Gerät einmal:
-// Admin → Displays → „Kiosk-Geräte" erzeugt einen Link /koppeln#<token>. Der
-// Link wird auf dem Gerät geöffnet, das Token landet hier im localStorage und
-// geht bei jeder Kiosk-Aktion als p_geraet (bzw. Header x-kiosk-geraet) mit.
-// In der Datenbank liegt nur der sha256-Wert.
+// Admin → Displays → „Kiosk-Geräte" erzeugt einen Link /koppeln#<code> mit
+// einem Einmal-Code (24 h, seit 0191). Das Gerät tauscht ihn gegen sein Token;
+// das Token landet hier im localStorage und geht bei jeder Kiosk-Aktion als
+// p_geraet (bzw. Header x-kiosk-geraet) mit. In der Datenbank liegt nur der
+// sha256-Wert.
 
 const SCHLUESSEL = 'sauna-kiosk-geraet-v1';
 

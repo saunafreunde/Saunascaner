@@ -26,12 +26,12 @@ Du kannst **nur Aufgüsse bewerten, bei denen du tatsächlich da warst**. Beim e
 
 ### Push-Reminder
 
-Sobald dein Bewertungs-Fenster öffnet, schiebt ein **pg_cron** alle 5 Minuten (`notify_rating_window`) einen `rating_reminder` in deine `notification_queue`. Du bekommst:
+Kurz nach dem Ende eines Aufgusses schiebt ein **pg_cron** (alle 5 Minuten, `notify_rating_window`) einen `rating_reminder` in deine `notification_queue` — aber nur, wenn du **bei diesem Aufguss da warst**: vor dem Ende eingecheckt und nicht schon vor dem Beginn wieder ausgecheckt. Wer mittags geht, bekommt für die Abend-Aufgüsse keine Erinnerung mehr. Du bekommst:
 - 🔔 Notification-Inbox-Eintrag (mit ⭐ → Direktsprung zu `/bewerten`)
-- Push (wenn aktiviert)
+- Push (wenn aktiviert und du noch eingecheckt bist) — **einmal je Aufguss**, mit deinem echten Fenster: „noch X Min" für Aufgießer, sonst „bis morgen 12 Uhr"
 - Smart-Slot in der Bottom-Nav wechselt auf **„⭐ Bewerten (n)"** wenn keine wichtigeren Themen offen sind (DMs gehen vor)
 
-Dedup-Key `rating:<infusion>:<member>` verhindert Spam.
+Dedup-Key `rating:<infusion>:<member>` (Glocke) und `bewertung_push_erinnerungen` (Push) verhindern Spam.
 
 ### Bewertungs-Maske
 

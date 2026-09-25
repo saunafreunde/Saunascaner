@@ -22,11 +22,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
+  // Audit-Runde 2 (25.09.2026): Telegram und Web-Push laufen unabhängig
+  // voneinander. Vorher brach der Lauf ohne TELEGRAM_BOT_TOKEN (500) bzw. bei
+  // leerem Verteiler („ok … no chats“) ab, BEVOR ein einziger Push rausging —
+  // still, der Cron sah Erfolg. Jetzt ist nur die Datenbank Pflicht; Token und
+  // Chats gelten nur für den Telegram-Teil, und die Antwort nennt den Zustand.
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const sb = serviceClient();
-  if (!token || !sb) {
-    return res.status(500).json({ error: 'env missing (TELEGRAM_BOT_TOKEN or SUPABASE_SERVICE_ROLE_KEY)' });
+  if (!sb) {
+    return res.status(500).json({ error: 'env missing (SUPABASE_SERVICE_ROLE_KEY)' });
   }
+  if (!token) console.error('[birthday-cron] TELEGRAM_BOT_TOKEN fehlt – nur Web-Push');
 
   // Geburtstagskinder heute
   const { data: birthdays, error } = await sb.rpc('get_birthdays_today');
@@ -36,21 +42,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (list.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no birthdays today' });
 
   // Freigegebener Telegram-Verteiler (0187: neue Chats erst nach Admin-Freigabe)
-  const chats = await vereinsChats(sb);
-  if (chats.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no chats' });
+  const chats = token ? await vereinsChats(sb) : [];
+  const telegramZustand = !token ? 'token_fehlt' : chats.length === 0 ? 'keine_chats' : 'ok';
 
   let telegramSent = 0;
-  for (const person of list) {
-    // Namen sind frei eingebbar → für parse_mode HTML entschärfen.
-    const display = person.sauna_name ? `${escHtml(person.name)} („${escHtml(person.sauna_name)}")` : escHtml(person.name);
-    const text = `🎂 Heute hat <b>${display}</b> Geburtstag!\nWir wünschen einen wunderbaren Tag — auf viele weitere Aufgüsse! 🥂`;
-    const results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({
-      chat_id, text, parse_mode: 'HTML',
-    }));
-    telegramSent += results.filter((r) => r.ok).length;
+  if (token && chats.length > 0) {
+    for (const person of list) {
+      // Namen sind frei eingebbar → für parse_mode HTML entschärfen.
+      const display = person.sauna_name ? `${escHtml(person.name)} („${escHtml(person.sauna_name)}")` : escHtml(person.name);
+      const text = `🎂 Heute hat <b>${display}</b> Geburtstag!\nWir wünschen einen wunderbaren Tag — auf viele weitere Aufgüsse! 🥂`;
+      const results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({
+        chat_id, text, parse_mode: 'HTML',
+      }));
+      telegramSent += results.filter((r) => r.ok).length;
+    }
   }
 
-  // Web-Push an alle außer Geburtstagskindern
+  // Web-Push an alle außer Geburtstagskindern — immer, unabhängig von Telegram.
+  // (Eigene Logik statt pushAnAlle: die Geburtstagskinder bekommen ihren
+  // eigenen Glückwunsch nicht.)
   const vapidPub = process.env.VAPID_PUBLIC_KEY;
   const vapidPriv = process.env.VAPID_PRIVATE_KEY;
   const vapidSub = process.env.VAPID_SUBJECT ?? 'mailto:admin@saunascaner.local';
@@ -103,10 +113,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  if (!vapidPub || !vapidPriv) console.error('[birthday-cron] VAPID-Schlüssel fehlen – kein Web-Push');
   return res.status(200).json({
     ok: true,
     birthdays: list.length,
+    telegram: telegramZustand,
+    telegram_chats: chats.length,
     telegram_sent: telegramSent,
+    push: vapidPub && vapidPriv ? 'ok' : 'vapid_fehlt',
     push_sent: pushSent,
     push_stale_pruned: pushStale.length,
   });

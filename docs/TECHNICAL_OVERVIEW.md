@@ -95,7 +95,7 @@ members ────────────────────────
     ├─< aufgieser_photos (0046)
     ├─< aufgieser_comments + likes (0046)
     ├─< aufguss_wishes (0047)
-    ├─< recurring_slots (0027)
+    ├─< recurring_slots (0027) ─< recurring_slot_ausnahmen (0193)
     ├─< aufgieser_absences (0028)
     │                                │
     ▼                                │
@@ -181,6 +181,12 @@ Profil-Felder (Aufgießer-Stars, Migrationen 0041 + 0046):
 Anwesenheits-Felder:
 - `is_present`, `last_scan_at`, `present_with_partner` (0076), `present_children_count` (0076)
 - Konfig: `family_has_partner`, `family_children_count` (0-8)
+- Lesen (seit 0192): `is_present`/`last_scan_at` sind für `authenticated` NICHT direkt lesbar. Anwesende liefert `list_present_members()` (usePresentMembers) nur an admin/staff/member/guest_aufgieser; Gäste, Fans und anon bekommen eine leere Liste. `list_members_directory()` liefert `is_present` nur freigegebenen Vereinsmitgliedern (dieselbe Bedingung wie `list_present_members`); Gäste, Fans und unbestätigte Registrierungen (role member, approved=false) sehen `false`. Die eigene Anwesenheit kommt aus `current_member()`.
+
+Gesperrte Konten (`revoked_at`, Admin → „Sperren", seit 0192):
+- Trigger `trg_schreibsperre` (BEFORE INSERT, Helfer `_konto_gesperrt()`) auf feed_posts, feed_post_comments, feed_post_reactions, dm_conversations, dm_messages, member_photos, aufgieser_comments(+_likes), aufguss_wishes(+_likes), aufguss_wuensche, infusion_reactions, member_follows, infusion_announcements, poll_responses, games_match, games_score, support_task_helpers → `konto_gesperrt` (42501), gilt auch in den DEFINER-RPCs. RESTRICTIVE-Policies `schreibsperre_update` für direkte UPDATEs (aufgieser_comments(+_likes), aufguss_wish_likes, feed_post_reactions, infusion_reactions, infusion_announcements, member_follows, support_task_helpers).
+- Trigger `trg_mitglied_sperre_auth`: Sperren setzt `auth.users.banned_until` (+100 Jahre), Entsperren löscht es — keine Token-Erneuerung, keine neue Anmeldung.
+- Frontend: `RequireAuth`/`RequireAdmin`/`RootEntry` zeigen `KontoGesperrt` mit Abmelden.
 
 Identifikations-Felder:
 - `member_number` (laufende Vereinsnummer, auto via `next_available_member_number`)
@@ -454,16 +460,16 @@ Insgesamt 17 Functions — komprimiert wegen Hobby-Plan-12-Limit:
 | `_schutz.ts` | Private (Audit 25.09.2026, 0189): `clientIp`, `drosselBuchen` (RPC `api_drossel_buchen` auf `kiosk_versuche`, prüft und bucht mehrere Töpfe in einem Schritt), `kioskGeraet` (Header `x-kiosk-geraet` → `kiosk_geraet_art`), `ohneAdressen` (E-Mails aus Log-Texten) |
 | `ai.ts` | KI-Titel über OpenRouter. Seit 0189 nur mit Anmeldung (Rollen admin/staff/member/guest_aufgieser) oder als gekoppeltes Öl-Raum-Tablet; Eingaben gekürzt; Drossel je Mitglied 30/h + 100/Tag, je Gerät 60/h + 200/Tag, alle 300/Tag (fail closed → Regel-Titel) |
 | `birthday-cron.ts` | Push an Geburtstagskinder + Aufgießer-Benachrichtigung |
-| `email.ts` | Multi-Action (send/draft/...) für persönliches Postfach. Öffentlich: `magic-link` (GastSignup) und `reset-link` — seit 0189 gebremst (je IP 30/h, je Adresse-Hash 3/h + 8/Tag, alle 60/h), Antwort immer `{ok:true}` (keine Konten-Abfrage), `redirect_to` nur auf die eigene App. Das Mitglieds-Konto (PIN, Freigabe, Einwilligung, Einladung) legt `handle_new_user` erst bei bestätigter E-Mail an (Trigger `on_auth_user_confirmed`) |
+| `email.ts` | Multi-Action (send/draft/...) für persönliches Postfach. Öffentlich: `magic-link` (GastSignup) und `reset-link` — seit 0189 gebremst (je IP 30/h — IPv6 je /64 —, je Adresse-Hash 3/h + 8/Tag). Seit 0194 bucht nur eine Anfrage, bei der wirklich eine Mail rausgeht, Gesamt- und Adress-Topf; der Gesamt-Topf `alle` greift bei 60/h nur für IPs mit mehr als 3 Anfragen in der Stunde, sonst erst als Notbremse bei 300/h — ein Angreifer mit Zufallsadressen sperrt so nicht mehr alle. Die Antwort hängt nie davon ab, ob die Adresse ein Konto hat. `reset-link` prüft per `api_mail_konto_status` (nur service_role, ohne Nebenwirkung), ob es ein Konto gibt; unbekannte Adressen bekommen keine Mail und kein `generateLink`. Antwort immer `{ok:true}` (keine Konten-Abfrage), `redirect_to` nur auf die eigene App. Das Mitglieds-Konto (PIN, Freigabe, Einwilligung, Einladung) legt `handle_new_user` erst bei bestätigter E-Mail an (Trigger `on_auth_user_confirmed`) |
 | `postfach.ts` | Multi-Action (folders/messages/send/mark/move/delete/attachment/poll-shared-tickets) für persönlich + shared |
-| `push-reminder-cron.ts` | Aufgießer-Reminder vor Slot-Start |
+| `push-reminder-cron.ts` | Bewertungs-Erinnerung per Push (pg_cron alle 30 min): `rating_pending_reminders` liefert nur Aufgüsse, bei denen die Person da war (`_war_beim_aufguss`), samt Frist (Aufgießer Ende + 3 h, sonst Folgetag 12:00); je Person und Aufguss genau einmal (vorher Eintrag in `bewertung_push_erinnerungen`, 0195) |
 | `push-send.ts` | Cron-Endpoint: konsumiert `notification_queue` → web-push |
 | `push-subscribe.ts` | Browser-Subscribe-Endpoint |
 | `push-vapid-public.ts` | Public-Key-Endpoint |
-| `qr-signin.ts` | QR-basierter Sign-in für Gäste, PIN-Check-in/-Bewerten/-Scanner, Tablet-Anmeldung. PIN-Fehlversuche: 8/15 min je IP (0173) + seit 0189 ein gemeinsamer Topf „ungekoppelt" (20/h) für Aufrufe ohne gekoppeltes Eingangs-Tablet/Scanner; `tablet-signup` nur vom gekoppelten Eingangs-Tablet (beides erst aktiv, sobald ein solches Gerät gekoppelt ist). Eine offene, nie bestätigte Gast-Anmeldung (QR-Link nicht angeklickt) übernimmt `tablet-signup` mit neuem Zufallspasswort und bestätigt sie; offene Registrierungen über /login (evtl. mit Einladung) bleiben unangetastet. Ebenso würfelt `magic-link` bei jeder offenen Anmeldung das Passwort neu (sonst bekäme, wer sie mit fremder Adresse angelegt hat, nach dem Klick ein bestätigtes Konto mit seinem Passwort) |
-| `send-evacuation.ts` | Telegram-Push bei Evakuierungs-Alarm |
-| `send-notification.ts` | Manueller Push-Trigger |
-| `send-poll-results.ts` | Poll-Ergebnis-Email an Admin |
+| `qr-signin.ts` | QR-basierter Sign-in für Gäste, PIN-Check-in/-Bewerten/-Scanner, Tablet-Anmeldung. PIN-Fehlversuche: 8/15 min je IP (0173) + seit 0189 ein gemeinsamer Topf „ungekoppelt" (20/h) für Aufrufe ohne gekoppeltes Eingangs-Tablet/Scanner; gekoppelte Eingangsgeräte zählen seit Audit-Runde 2 nur in ihren eigenen Topf (`g:<Token-Hash>`, 30/15 min + 200/Tag), nicht in den der Vereins-IP; CheckinPin pausiert nach 3 unbekannten PINs in Folge selbst (30 s, steigend bis 2 min); `tablet-signup` nur vom gekoppelten Eingangs-Tablet (beides erst aktiv, sobald ein solches Gerät gekoppelt ist). Eine offene, nie bestätigte Gast-Anmeldung (QR-Link nicht angeklickt) übernimmt `tablet-signup` mit neuem Zufallspasswort und bestätigt sie; offene Registrierungen über /login (evtl. mit Einladung) bleiben unangetastet. Ebenso würfelt `magic-link` bei jeder offenen Anmeldung das Passwort neu (sonst bekäme, wer sie mit fremder Adresse angelegt hat, nach dem Klick ein bestätigtes Konto mit seinem Passwort) |
+| `send-evacuation.ts` | Evakuierungs-Alarm: Web-Push + Telegram genau einmal, Öl-Raum-Foto getrennt; Aufruf zuerst per pg_net aus der DB (`x-cron-secret`, 0191), Browser nur Rückfall/Foto |
+| `send-notification.ts` | Vereins-Meldung an alle Telegram-Chats: neues Abzeichen (Text aus `api/_badges.ts`, Kopie von `src/lib/badges.ts`) oder neuer Aufguss-Name. Seit 0194 je Mitglied+Abzeichen bzw. je Namensänderung genau einmal (`push_vorlagen_versand`, Schlüssel `tg_badge:`/`tg_saunaname:`) und gedrosselt (`tg_meldung`: 10/h je Mitglied, Namens-Meldungen 2 je 6 h). `set_sauna_name` nimmt höchstens 40 Zeichen, keine Steuerzeichen und keine Internet-Adressen |
+| `send-poll-results.ts` | Umfrage-Ergebnis an alle Telegram-Chats (nur Admin). MarkdownV2 wird nie mitten im Text gekürzt: Antworten einzeln gekürzt, ganze Zeilen bis ~3900 Zeichen, Rest als „… und N weitere“. Antwort `{ok, sent, failed, total, fehler_status}`; Admin → Abfragen zeigt die echte Ursache |
 | `telegram-webhook.ts` | Telegram-Bot-Updates (Quick-Rate, Announce-Reactions, Link-Token-Claim) |
 
 ---
@@ -511,6 +517,12 @@ Insgesamt 17 Functions — komprimiert wegen Hobby-Plan-12-Limit:
 - `revoke_my_recurring_slot`/`add_absence` setzen nur **eigene** Stamm-Aufgüsse des Besitzers zurück (`_aufguss_ans_personal`: Personal-Stand, 15 Min, Team-Plätze weg); Übernahmen durch Kollegen bleiben. `revoke_my_recurring_slot`/`delete_absence` NULL-sicher (`not_authenticated`). `delete_absence` gibt die Stamm-Aufgüsse im Zeitraum zurück.
 - `takeover_personal_fallback(…, p_duration_minutes, p_saunameister_id)` (alte 6-Parameter-Fassung gelöscht, nicht überladen) und `takeover_personal_fallback_kiosk_intern(…, p_duration_minutes)`; Tablet ruft `takeover_personal_fallback_kiosk_mit_dauer` (der 0177-Wrapper ohne Dauer bleibt für alte Tablet-Stände).
 - Mitglied löschen: Trigger `trg_mitglied_loeschen_aufguesse_freigeben` (BEFORE DELETE auf `members`) — künftige Garantie-Aufgüsse zur vollen Stunde werden Personal-Slots, andere künftige Aufgüsse werden entfernt, Co-Plätze frei. Laufende/vergangene bleiben (FK SET NULL).
+
+**Stand 0193 (Audit-Runde 2, 25.09.2026) — Absage in einer Garantie-Stunde:**
+- `cancel_my_infusion` (Planer) und `cancel_infusion_kiosk_intern` (Öl-Raum-Tablet) prüfen Rechte + 60-Min-Sperre wie bisher (Zeile `FOR UPDATE`; `cancel_my_infusion` weist gesperrte Mitglieder ab) und rufen dann `_aufguss_absagen(p_id, p_akteur)`: künftiger Aufguss zur vollen Stunde in der Garantie-Sauna (`_ist_garantie_stunde`: nicht Montag, nicht Saunafest) → `_aufguss_ans_personal` (übernehmbar, Telegram-Ansage neu; „Ich komme“-Ansagen, Reaktionen, alle Duft-Wünsche weg — `create_wunsch` erlaubt an Personal-Slots keine). Das gilt nur bis `current_date + 55` (Nachtlauf-Horizont 8 Wochen): weiter draußen löschen, sonst nähme der Platzhalter dem Stamm-Slot den Tag weg (materialize überspringt belegte Stunden). Alles andere, vergangene Aufgüsse und Personal-Platzhalter, die ein Admin löscht → DELETE wie bisher.
+- `recurring_slot_ausnahmen (slot_id, datum)`: sagt jemand einen Aufguss in der Stunde seines eigenen Stamm-Slots ab, fällt der Slot an diesem Tag aus — `materialize_infusion_horizon` legt dort Personal statt Stamm an, `_stamm_fallbacks_uebernehmen` (Freigabe, Urlaub löschen) spart den Tag aus. Nur Server-Funktionen (RLS an, keine Rechte für anon/authenticated); materialize räumt Vermerke älter als 30 Tage ab.
+- `_garantie_luecken_fuellen`: deckte der abgesagte Aufguss weitere Garantie-Stunden von heute ab (lange Aufgüsse, Banja), bekommen die noch nicht begonnenen sofort einen Personal-Platzhalter. Künftige Tage füllt der Nachtlauf. Kein stündlicher materialize-Lauf (würde den gerade abgesagten Stamm-Aufgießer sofort wieder eintragen).
+- Frontend: Bestätigungstexte über `absageHinweis()` in `lib/absage.ts` (Planer-Nachpflege, Atelier), Öl-Raum-Knopf heißt „Absagen“.
 
 ### 9.2 Banja-Ritual (Spezial-Aufguss)
 
@@ -773,7 +785,9 @@ SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
 - `check_pioneer_gast` (erste 10 Gast-Signups)
 - Game-Badges automatisch in `award_badge` gerufen
 
-**Stats-RPC** `get_member_stats_full` mit 8 Metriken + attendance_by_month (für Profil-Page)
+**Stats-RPC** `get_member_stats_full` mit 8 Metriken + attendance_by_month (für Profil-Page). Seit 0192 wie `count_member_ratings` und `get_ratable_infusions` nur für die eigene Mitglieds-ID oder Admins (Wächter `_darf_mitgliedsdaten_sehen`; fremde IDs: 42501 bzw. leere Liste). Öffentlich für fremde Profile bleiben `get_member_stats`, `get_star_stats`, `get_attendance_streak_weeks` & Co.
+
+**Galerie** (`member_photos`, seit 0192): Trigger `trg_member_photos_vor_insert` setzt `created_at = now()` und verlangt `photo_path` = `member-photos/<uuid>.<endung>` als eigene Datei im Bucket `assets`; INSERT nur (uploader_id, photo_path, caption), UPDATE nur (approved). `aufgieser_comments.created_at` ist fest (Trigger `trg_aufgieser_comments_zeit`).
 
 **Telegram-Announce**: bei Badge-Unlock wird via `sendBadgeAnnouncement` in den Verein-Telegram-Chat geposted
 
@@ -784,10 +798,10 @@ SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
 **Funktionen**:
 - **Link-Token-Claim**: User generiert Link-Token in App → schickt `/start <token>` an Bot → `claim_telegram_link`
 - **Quick-Rate**: Bot-Reply auf Rating-Push → `telegram_quick_rate`
-- **Aufguss-Announce**: Cron triggert `telegram_announce_attendance` für anwesende Mitglieder
+- **Aufguss-Announce**: Knopf „🙋 Ich komme“ unter /heute und /morgen → `telegram_announce_attendance` (nur verknüpfte, freigegebene, nicht gesperrte Konten; scheiterte bis 0194 bei jedem Aufruf an 42702 „start_time is ambiguous“)
 - **Rating-Reminder**: 3h nach Aufguss-Ende push an Aufgießer
 - **Personal-Fallback-Take**: `takeover_personal_fallback_by_telegram` (Aufgießer kann via Bot Slot übernehmen)
-- **Geburtstags-Push**: `birthday-cron.ts` postet im Verein-Chat
+- **Geburtstags-Push**: `birthday-cron.ts` postet im Verein-Chat und schickt Web-Push an alle außer den Geburtstagskindern — seit Audit-Runde 2 unabhängig voneinander (leerer Verteiler oder fehlendes Bot-Token stoppt den Push nicht mehr; die Antwort nennt `telegram`/`push`-Zustand)
 
 **Tabellen**:
 - `members.telegram_chat_id` (nach Link)
@@ -845,6 +859,13 @@ SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
 - Zweispaltig: links 👨‍🍳 Mitarbeiter (sortiert zuerst), rechts 🤝 Mitglieder
 - `FamilyStars`-Komponente: ⭐ pro Partner + Kind
 - Daten via `list_present_full()` mit 10s-Poll
+- Versandzeile (nur für Berechtigte): Stand von Push + Telegram aus `evacuation_events.telegram_status`, Warnung nach 30 s ohne Versand
+
+**Evakuierung auslösen und verschicken** (Migration 0191, Audit-Runde 2):
+- `evakuierung_ausloesen(p_geraet, p_von)`: angemeldete Mitglieder (nicht Gast/Fan) → `quelle='mitglied'`, gekoppeltes Gerät → `'geraet'`, sonst nur im Übergang `evakuierung_uebergang_offen()` (noch nie ein Öl-Raum-Tablet gekoppelt UND vor 09.10.2026 00:00 Berlin) → `'uebergang'`: dann ohne `p_von`, ohne Namensliste in der Rückgabe, Bremse 2 je 30 min. Mitglieder und Geräte werden nie gebremst (alter Trigger `evacuation_rate_limit` entfernt). Beenden nie im Übergang.
+- Trigger `trg_evakuierung_versand` (AFTER INSERT) ruft per pg_net `https://app.sauna-fds.de/api/send-evacuation` mit `x-cron-secret` (Vault `cron_secret`) auf; Fehler dort brechen den Alarm nie ab. `send-evacuation.ts` sendet Push (Ziel `/`) + Telegram-Text genau einmal (`telegram_status`), ein Foto vom gekoppelten Öl-Raum-Tablet bzw. von Mitgliedern als eigene Nachricht genau einmal (`foto_status`), im Übergang kein Foto.
+- Öl-Raum-Tablet: erst RPC, dann Foto (3-s-Frist), dann `send-evacuation`; scheitert das Auslösen, großes Fenster „Alarm NICHT ausgelöst".
+- Kopplung: `admin_kiosk_geraet_koppeln` liefert einen Einmal-Code (nur sha256 in `kopplung_hash`, 24 h), `/koppeln` tauscht ihn per `kiosk_geraet_einloesen` (anon) gegen das Geräte-Token. Als „gekoppelt" zählt nur `token_hash IS NOT NULL`.
 
 ### 9.14 CP-Bereich (`/cp`, Migration 0066)
 
@@ -943,7 +964,7 @@ In `RootEntry` + `RequireAuth` + `Login.defaultNext`:
 - **`framer-motion`** nur für punktuelle Transitions (Layout, FadeIn) — NIEMALS für Endlos-Loops
 - **`@property --imminent-angle`** für CSS-Custom-Property-Animationen (z.B. Lauflicht-Border)
 - **`backdrop-blur`** sparsam: erzeugt neuen Containing Block für `position: fixed`-Children → Portal-Pattern nötig (siehe `feedback_saunascaner_react_portal.md`)
-- **Fehlerberichte** (seit 0188, Audit 25.09.2026): `src/lib/fehlerbericht.ts` meldet window-`error`, `unhandledrejection` und jede von einer `ErrorBoundary` gefangene Ausnahme (Quelle `grenze:<label>`) per RPC `client_fehler_melden` in `client_fehler` — auch anon (Tafel, Kiosk). Im Gerät gedrosselt (5 je 10 min, gleicher Fehler alle 10 min), auf dem Server gedeckelt (gleicher Fehler binnen 1 h wird gezählt, max. 60 neue je Stunde, max. 5000 Zeilen, 30 Tage via pg_cron `client-fehler-aufraeumen`). Pfad ohne Query/Hash, `/m/<code>`, UUIDs und E-Mails maskiert. Admins: Auswertung → Aktivitäts-Log → „Technische Fehler (Geräte)" (`client_fehler_liste`). Kiosk-Routen (/scanner, /oil-room, /panel, /willkommen, /checkin) haben eine eigene Grenze mit 60-s-Selbstreset.
+- **Fehlerberichte** (seit 0188, Audit 25.09.2026): `src/lib/fehlerbericht.ts` meldet window-`error`, `unhandledrejection` und jede von einer `ErrorBoundary` gefangene Ausnahme (Quelle `grenze:<label>`) per RPC `client_fehler_melden` in `client_fehler` — auch anon (Tafel, Kiosk). Im Gerät gedrosselt (5 je 10 min, gleicher Fehler alle 10 min), auf dem Server gedeckelt (gleicher Fehler binnen 1 h wird gezählt; neue Meldungen seit 0195 in getrennten Töpfen `client_fehler.topf`: freigegebenes Mitglied ohne Gast-Rolle 60/h, gekoppeltes Kiosk-Gerät 60/h über `p_geraet_token`, sonstiges angemeldetes Konto (`konto`: Gäste und noch nicht freigegebene Konten — die legt jeder selbst an) 30/h, anonym 30/h — ein bekannter Fehler wird dabei zum vertrauenswürdigeren Topf hochgestuft; max. 5000 Zeilen, anonyme weichen zuerst, dann `konto`; `client_fehler_liste` zeigt bis 200 Mitglieder-/Geräte-, bis 100 `konto`- und bis 100 anonyme Einträge; 30 Tage via pg_cron `client-fehler-aufraeumen`). Pfad ohne Query/Hash, `/m/<code>`, UUIDs und E-Mails maskiert. Admins: Auswertung → Aktivitäts-Log → „Technische Fehler (Geräte)" (`client_fehler_liste`). Kiosk-Routen (/scanner, /oil-room, /panel, /willkommen, /checkin) haben eine eigene Grenze mit 60-s-Selbstreset.
 - **`useCurrentMember`**: ohne Sitzung `null` (fragt `current_member()` gar nicht erst; die Funktion liefert für anon ein NULL-Objekt). Direkt nach dem Login steht `null` noch im Cache → `wartetAufMitglied(q)` in Login/RootEntry/RequireAuth/RequireAdmin. Bottom-Nav-Hooks laufen nur mit Mitglied (`enabled`).
 
 ### 11.2 Backend
@@ -1001,7 +1022,15 @@ Avatar-Resolution: `resolveAvatarUrl(path)` mit Fallback auf `dicebearUrl(name)`
   (`meta.aufgiesser`/`meta.spiele`, Anzeigename) → „gelöschtes Mitglied", fremde
   `game_win`-Beiträge → „ein gelöschtes Konto" (Namen nur, wenn kein anderes Mitglied
   gleich heißt); `presence_audit`-ID weg;
-  E-Mail in `email_log`/`invitations` weg. Der Löscheintrag `member.delete` hat keinen
+  E-Mail in `email_log`/`invitations` weg (seit 0195 auch Adressen im
+  `email_log.error`; die API filtert sie schon beim Schreiben). Seit 0195 zusätzlich
+  vor den Kaskaden: Vereinspostfächer (`email_accounts.is_shared`) gehen an einen
+  verbleibenden Admin (bevorzugt aus `shared_email_admins`; ohne Nachfolger wird das
+  Postfach mitgelöscht, das Löschen nie blockiert), Wochenrückblicke an den nächsten
+  Admin (sonst ein Vereinsmitglied). Trigger `trg_email_konto_geheimnis_loeschen`
+  löscht bei jedem Löschweg das Vault-Geheimnis des Postfachs.
+  `get_email_credentials`/`my_email_account`/`grant_email_account` betreffen nur das
+  persönliche Postfach (`not is_shared`). Der Löscheintrag `member.delete` hat keinen
   Namen mehr. FKs `feed_posts.deleted_by`, `shared_email_admins.granted_by`,
   `personal_shifts.created_by` und `system_config.updated_by` (→ `auth.users`,
   gesetzt von `kiosk_sperre_aktiv_setzen`) sind `ON DELETE SET NULL`. Neue Spalten
@@ -1020,9 +1049,22 @@ Avatar-Resolution: `resolveAvatarUrl(path)` mit Fallback auf `dicebearUrl(name)`
   `notification_queue` 90 Tage, `activity_log` 24 Monate, `attendance_events`
   24 Monate (außer `role='staff'`), Namen beendeter Evakuierungsalarme und
   `presence_audit.member_ids` nach 90 Tagen geleert (Anzahl bleibt), unbenutzte
-  persönliche Dateien > 7 Tage → Löschliste. `email_log` 12 Monate (0187),
-  `client_fehler` 30 Tage (0188). Konten werden **nie** automatisch gelöscht; der
-  Reiter „Gäste" schlägt Gäste ohne Lebenszeichen seit 12 Monaten vor.
+  persönliche Dateien > 7 Tage → Löschliste. Seit 0195 außerdem:
+  `infusion_attendances` 24 Monate (kein Personal-Sonderfall — der Arbeitszeitnachweis
+  liest `attendance_events`), `telegram_rating_pushes` und `bewertung_push_erinnerungen`
+  7 Tage, nie bestätigte Registrierungen (`auth.users` ohne `members`-Zeile, nicht
+  anonym) 7 Tage nach der letzten Anfrage. `kiosk_versuche` (IP-Bremse) 1 Tag über
+  pg_cron `kiosk-versuche-aufraeumen` alle 10 min. `email_log` 12 Monate (0187),
+  `client_fehler` 30 Tage (0188). Mitglieds-Konten werden **nie** automatisch
+  gelöscht; der Reiter „Gäste" schlägt Gäste ohne Lebenszeichen seit 12 Monaten vor.
+- **Bewertungs-Erinnerungen** (0195): Glocke (`cron_notify_rating_window_open`) und
+  Push (`rating_pending_reminders`) nur, wenn `_war_beim_aufguss(member, start, ende)`:
+  erster Check-in des Tages vor dem Ende UND (jetzt anwesend mit `last_scan_at` ≤ Ende
+  ODER ausgecheckt mit `last_scan_at` ≥ Beginn). Das Bewertungsrecht selbst
+  (`submit_rating`, `get_ratable_infusions`) hängt weiter nur am Besuchstag.
+- **WLAN-Auto-Check-in** stützt sich auf Art. 6 Abs. 1 lit. f (voreingestellt außer
+  bei Gästen, Widerspruch per Schalter im Profil) — so steht es seit 0195 auch in den
+  Datenschutzhinweisen; das Verhalten (0139) ist unverändert.
 - **Einwilligungsnachweis**: `members.datenschutz_fassung` (Trigger
   `trg_members_datenschutz_fassung` übernimmt `raw_user_meta_data->>'datenschutz_fassung'`
   beim Anlegen; aus der App nicht änderbar). Fassung = `DATENSCHUTZ_FASSUNG` in

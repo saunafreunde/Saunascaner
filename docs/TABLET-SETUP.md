@@ -54,6 +54,8 @@ Danach:
 
 **Einrichtung:** wie Station 1 (Vollbild, Timeout aus, Strom). Die Seite sperrt sich nach 3 Minuten Inaktivität von selbst wieder.
 
+**Koppeln (Pflicht, seit 25.09.2026):** Admin → Displays → 🔐 Kiosk-Geräte → „Öl-Raum-Tablet" → Link bzw. QR-Code **auf diesem Tablet** im Kiosk-Browser öffnen (der Link gilt einmal, 24 Stunden). Ohne Kopplung gehen Eintragen/Übernehmen/Absagen nicht, und der Evakuierungs-Knopf nur noch übergangsweise bis 08.10.2026. **Kamera-Recht** für die Seite im Browser dauerhaft erlauben — sonst fragt der Browser beim ersten echten Alarm nach (der Alarm läuft trotzdem sofort, nur das Foto fehlt dann).
+
 **Wichtig zu wissen:** Die Aufgießer-Auswahl zeigt **nur anwesende** Aufgießer — wer nicht am Eingangs-Tablet eingecheckt ist, taucht hier nicht auf. („Ich fehle in der Liste" → erst einchecken.)
 
 **Funktionstest:** Long-Press entsperren → als eingecheckter Aufgießer einen Test-Aufguss anlegen → er erscheint sofort auf der TV-Tafel → Test-Aufguss wieder abbrechen.

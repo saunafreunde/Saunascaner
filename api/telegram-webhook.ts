@@ -235,20 +235,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // POST ?action=broadcast_handbook → Handbuch-Link an alle Chats
   if (req.method === 'POST' && queryParam(req, 'action') === 'broadcast_handbook') {
-    // Auth via Bearer-Token: nur Admin darf broadcasten
-    const authHeader = req.headers.authorization ?? '';
-    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    if (!bearerToken) return res.status(401).json({ error: 'missing bearer' });
-    const supaUrl2 = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-    const anonKey = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
-    if (!supaUrl2 || !anonKey) return res.status(500).json({ error: 'env missing' });
-    const userClient = createClient(supaUrl2, anonKey, {
-      global: { headers: { Authorization: `Bearer ${bearerToken}` } },
-    });
-    const { data: userData } = await userClient.auth.getUser(bearerToken);
-    if (!userData?.user) return res.status(401).json({ error: 'invalid token' });
-    const { data: m } = await sb.from('members').select('role').eq('auth_user_id', userData.user.id).maybeSingle();
-    if (m?.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+    // Nur Admins, über die zentrale Prüfung authenticate() (Audit-Runde 2,
+    // 25.09.2026): vorher eigene Prüfung ohne Sperre/Freigabe — ein
+    // gesperrter Admin konnte den Rundruf weiter beliebig oft auslösen.
+    const auth = await authenticate(req);
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    if (auth.member.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+
+    // Höchstens ein Handbuch-Rundruf je Tag (Europe/Berlin) — schützt die
+    // Vereins-Chats vor Doppelklicks und Schleifen (Telegram-Flood-Grenze).
+    const heute = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date());
+    const einmal = `tg_handbuch:${heute}`;
+    const { error: claimErr } = await sb.from('push_vorlagen_versand').insert({ schluessel: einmal, member_id: auth.member.id });
+    if (claimErr) {
+      if ((claimErr as { code?: string }).code === '23505') {
+        return res.status(409).json({ error: 'Das Handbuch ging heute schon an alle Telegram-Chats. Morgen ist ein neuer Rundruf möglich.' });
+      }
+      console.error('[telegram-webhook] broadcast_handbook: Einmal-Schutz fehlgeschlagen', claimErr.code ?? '');
+      return res.status(500).json({ error: 'Rundruf gerade nicht möglich. Bitte später noch einmal versuchen.' });
+    }
 
     const brand = await getBrandSettings(sb);
     const origin = process.env.PUBLIC_APP_URL ?? 'https://saunascaner.vercel.app';
@@ -259,13 +264,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `— ${h(brand.org.name)}`;
 
     const chatIds = await vereinsChats(sb);
-    if (chatIds.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no chats registered' });
+    if (chatIds.length === 0) {
+      // Nichts verschickt → der Tag bleibt frei.
+      await sb.from('push_vorlagen_versand').delete().eq('schluessel', einmal);
+      return res.status(200).json({ ok: true, sent: 0, note: 'no chats registered' });
+    }
 
     // Nacheinander (Telegram-Grenze) und nur echte Zustellungen zählen.
     let sent = 0;
     for (const id of chatIds) {
       if (await tgSend(token, id, text)) sent++;
     }
+    // Ging gar nichts raus, darf der Admin es heute noch einmal versuchen.
+    if (sent === 0) await sb.from('push_vorlagen_versand').delete().eq('schluessel', einmal);
     return res.status(200).json({ ok: true, sent, failed: chatIds.length - sent });
   }
 
@@ -428,13 +439,36 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
   // /unlink — Telegram-Account-Verknüpfung lösen. Im privaten Chat endet
   // damit auch der Empfang der Vereins-Meldungen (vorher blieb der Chat im
   // Verteiler, auch nach einer Sperre); neu beantragen geht mit /start.
-  if (text === '/unlink') {
-    await sb.from('members').update({ telegram_user_id: null, telegram_link_token: null }).eq('telegram_user_id', fromId);
-    if (msg.chat?.type === 'private' && chatId === fromId) {
+  // Audit-Runde 2: Auch in einer Gruppe nimmt das Lösen den PRIVATEN Chat aus
+  // dem Verteiler (Trigger trg_telegram_chat_entknuepft, 0187 — gewollt, auch
+  // für App und Löschen). Die Antwort sagt das jetzt überall, und „gelöst“
+  // nur, wenn wirklich ein Konto verknüpft war. /unlink@Bot (Befehlsmenü in
+  // Gruppen) zählt wie /unlink.
+  if (text === '/unlink' || /^\/unlink@\w+$/i.test(text)) {
+    const { data: geloest, error: unlinkErr } = await sb
+      .from('members')
+      .update({ telegram_user_id: null, telegram_link_token: null })
+      .eq('telegram_user_id', fromId)
+      .select('id');
+    if (unlinkErr) {
+      console.error('[telegram-webhook] /unlink:', unlinkErr.message);
+      await tgSend(token, chatId, FEHLER_TEXT);
+      return;
+    }
+    const warVerknuepft = (geloest ?? []).length > 0;
+    const privat = msg.chat?.type === 'private' && chatId === fromId;
+    if (!warVerknuepft) {
+      await tgSend(token, chatId, privat
+        ? 'ℹ️ Kein verknüpftes Konto gefunden. Vereins-Meldungen abbestellen: /stop'
+        : 'ℹ️ Kein verknüpftes Konto gefunden.');
+      return;
+    }
+    if (privat) {
       await sb.rpc('unregister_telegram_chat', { p_chat_id: chatId });
       await tgSend(token, chatId, '🔓 Konto-Verknüpfung gelöst. Vereins-Meldungen bekommst du hier nicht mehr — mit /start kannst du sie neu beantragen.');
     } else {
-      await tgSend(token, chatId, '🔓 Konto-Verknüpfung gelöst.');
+      await tgSend(token, chatId,
+        '🔓 Konto-Verknüpfung gelöst. Vereins-Meldungen in deinem privaten Chat mit dem Bot sind damit ebenfalls beendet — mit /start dort kannst du sie neu beantragen.');
     }
     return;
   }
@@ -618,6 +652,8 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
           '⚠️ Verknüpfe erst dein Konto: saunascaner.vercel.app/planner#telegram', true);
       } else if (msg.includes('infusion_already_started')) {
         await tgAnswerCallback(token, cb.id, 'Aufguss hat schon begonnen.', true);
+      } else if (msg.includes('infusion_not_found')) {
+        await tgAnswerCallback(token, cb.id, 'Diesen Aufguss gibt es nicht mehr.', true);
       } else {
         console.error('[telegram-webhook] Knopf fehlgeschlagen:', msg);
         await tgAnswerCallback(token, cb.id, FEHLER_TEXT, true);

@@ -50,6 +50,8 @@ Du hast Vollzugriff auf alle Bereiche und kannst über [/admin](/admin) die App 
 
 **🎭 Rolle ▾ klicken** öffnet ein Panel mit 6 Basis-Rollen-Presets + Zusatz-Rechte-Checkboxen (🏆 WM-Admin, 🛠️ CP-V).
 
+**Sperren** wirkt sofort: Das Konto kann nichts mehr posten, kommentieren, hochladen, reagieren oder Nachrichten schicken, und die App zeigt nur noch „Konto gesperrt". Eine neue Anmeldung ist ebenfalls gesperrt; eine schon laufende Sitzung endet, sobald ihr Anmelde-Token abläuft (üblicherweise binnen einer Stunde). **Entsperren** hebt alles wieder auf (die Person meldet sich dann neu an).
+
 ### News-Editor [→ direkt hin](/admin#news)
 
 ```

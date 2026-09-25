@@ -4,6 +4,7 @@ import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentMember, wartetAufMitglied, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, useKioskGeraetStatus, type KioskDisplay } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { kioskGeraetToken } from '@/lib/kioskGeraet';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
@@ -107,6 +108,7 @@ function KioskSperreGate() {
 // Die Datei bleibt vorerst stehen, falls die öffentliche Ansicht zurück soll.
 import Login from '@/routes/Login';
 import PendingApproval from '@/routes/PendingApproval';
+import KontoGesperrt from '@/routes/KontoGesperrt';
 
 // Lazy-loaded routes (nach Bedarf)
 const Dashboard       = lazy(() => import('@/routes/Dashboard'));
@@ -210,7 +212,7 @@ export default function App() {
         <Route path="/dm/:conversationId"    element={<RequireAuth><DmConversation /></RequireAuth>} />
         {/* /panel — anonymer Desktop-Hub für Anwesenheit, nur auf einem gekoppelten Gerät (0177) */}
         <Route path="/panel"                 element={<ErrorBoundary label="Panel" autoResetMs={60_000}><AnwesenheitsPanel /></ErrorBoundary>} />
-        {/* /koppeln#<token> — Kiosk-Gerät koppeln (Link aus Admin → Displays → Kiosk-Geräte) */}
+        {/* /koppeln#<code> — Kiosk-Gerät koppeln (Einmal-Link aus Admin → Displays → Kiosk-Geräte, 0191) */}
         <Route path="/koppeln"               element={<Koppeln />} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
@@ -268,6 +270,8 @@ function RootEntry() {
   if (user && !ready) return <Splash />;
   // Auch direkt nach dem Login warten, bis die Mitgliederzeile da ist (Audit 25.09.2026).
   if (user && wartetAufMitglied(member)) return <Splash />;
+  // Gesperrte Konten (Admin → „Sperren") sehen nur den Sperrhinweis (0192).
+  if (user && member.data?.revoked_at) return <KontoGesperrt />;
 
   // Eingeloggte Gäste → eigener Bereich /gast.
   // Die Rolle 'fan' wird seit 0132 nicht mehr vergeben; sollte doch noch ein
@@ -313,6 +317,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   // Seit 25.09.2026 ist „kein Mitglied" null statt eines NULL-Objekts: eine
   // Anmeldung ohne Mitgliederzeile landet wie bisher bei „wartet auf Freigabe".
   // Bei einem Netzfehler ohne Daten die Seite dagegen normal zeigen.
+  // Gesperrte Konten zuerst: Der Server lehnt für sie jedes Schreiben ab (0192).
+  if (member.data?.revoked_at) return <KontoGesperrt />;
   if ((member.data && !member.data.approved) || (member.isSuccess && !member.data)) return <PendingApproval />;
   // Gäste haben keinen Zugriff auf interne Mitglieder-Routen — Redirect zum Gäste-Bereich.
   // 'fan' wird seit 0132 nicht mehr vergeben, wird hier aber wie 'gast' behandelt,
@@ -379,15 +385,21 @@ function GlobalEvacuationOverlay() {
   // Alle Vereinsmitglieder dürfen beenden: Admin, Personal, ALLE Mitglieder
   // (Helfer + Aufgießer), Gast-Aufgießer, gekoppelte Geräte.
   // Ausgeschlossen: anon ohne Kopplung, gast, fan.
+  // Scheiterte die Geräteprüfung (Netz kurz weg), aber ein Token liegt vor:
+  // Knopf trotzdem zeigen — evakuierung_beenden prüft das Token ohnehin, und
+  // ein gekoppeltes Tablet darf nicht eine Stunde lang ohne Beenden dastehen.
   const canEnd = role === 'admin' || role === 'staff'
     || role === 'member' || role === 'guest_aufgieser'
-    || geraet.data?.status === 'ok';
+    || geraet.data?.status === 'ok'
+    || (!geraet.data && geraet.isError && !!kioskGeraetToken());
 
   return (
     <EvacuationOverlay
       triggeredBy={null}
       withSiren
       onEnd={canEnd ? async () => { await end.mutateAsync(evac.data!.id); } : undefined}
+      // Versandstand (Push + Telegram) nur für die, die handeln können.
+      versand={canEnd ? { status: evac.data.telegram_status, seit: evac.data.triggered_at } : undefined}
     />
   );
 }
@@ -399,6 +411,7 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
   if (!isSupabaseConfigured) return <NotConfigured />;
   if (!ready || (user && wartetAufMitglied(member))) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname.startsWith('/') ? loc.pathname : '/')}`} replace />;
+  if (member.data?.revoked_at) return <KontoGesperrt />;
   if (!member.data?.approved) return <PendingApproval />;
   if (member.data?.role !== 'admin') return <NoAccess />;
   return <>{children}</>;

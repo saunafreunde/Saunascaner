@@ -4,7 +4,7 @@ import {
   usePresentMembers,
 } from '@/lib/api';
 import { broadcastEvac } from '@/lib/evacuation';
-import { sendEvacuationList } from '@/lib/telegram';
+import { sendEvacuationList, versandMeldung } from '@/lib/telegram';
 
 // Großer Evakuierungs-Alarm-Button — NUR für Admin sichtbar (Betriebsentscheidung:
 // Personal löst nicht selbst aus). Bei aktiver Evakuierung: Status + Abbrechen.
@@ -27,15 +27,24 @@ export function EvacuationAlarmButton() {
     if (!confirm('Evakuierungsalarm WIRKLICH auslösen?\n\nDies sendet sofort Push-Benachrichtigungen an alle Mitglieder und eine Liste der Anwesenden an Telegram.')) return;
     setBusy(true);
     setToast(null);
+    const presentNames = (present.data ?? []).map((p) => p.name);
+    let ev;
     try {
-      const presentNames = (present.data ?? []).map((p) => p.name);
-      const ev = await trig.mutateAsync({ triggered_by: me.data.id, present_names: presentNames });
-      broadcastEvac({ type: 'start', triggeredBy: me.data.name, triggeredAt: Date.parse(ev.triggered_at) });
-      // Telegram und Web-Push an alle schickt der Server genau einmal.
-      sendEvacuationList({ triggeredBy: me.data.name, triggeredAt: new Date(ev.triggered_at), presentNames }).catch(() => {});
-      setToast(`Alarm ausgelöst (${presentNames.length} Personen).`);
+      ev = await trig.mutateAsync({ triggered_by: me.data.id, present_names: presentNames });
     } catch (e) {
-      setToast(`Fehler: ${(e as Error).message}`);
+      // Kein Alarm entstanden — das muss man sehen, nicht nur im Kleingedruckten.
+      setToast(`ALARM NICHT AUSGELÖST: ${(e as Error).message}`);
+      setBusy(false);
+      return;
+    }
+    try {
+      broadcastEvac({ type: 'start', triggeredBy: me.data.name, triggeredAt: Date.parse(ev.triggered_at) });
+      // Telegram und Web-Push an alle schickt der Server genau einmal (seit
+      // 0191 stößt ihn die Datenbank selbst an); dieser Aufruf ist Rückfall.
+      const r = await sendEvacuationList({ triggeredBy: me.data.name, triggeredAt: new Date(ev.triggered_at), presentNames });
+      setToast(`${ev.schon_aktiv ? 'Alarm lief bereits.' : 'Alarm ausgelöst.'} ${versandMeldung(r)}`);
+    } catch (e) {
+      setToast(`Alarm läuft, aber: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -100,7 +109,9 @@ export function EvacuationAlarmButton() {
         )}
       </div>
       {toast && (
-        <p className="mt-3 text-xs text-red-200">{toast}</p>
+        <p className={toast.startsWith('ALARM NICHT')
+          ? 'mt-3 rounded-xl bg-red-600/90 px-3 py-2 text-sm font-bold text-white'
+          : 'mt-3 text-xs text-red-200'}>{toast}</p>
       )}
     </section>
   );

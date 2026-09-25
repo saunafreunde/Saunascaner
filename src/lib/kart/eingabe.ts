@@ -5,7 +5,9 @@
 //     ziehen = stufenlos lenken. Der Ankerpunkt wandert mit, wenn man weiter
 //     als die volle Auslenkung zieht — Richtungswechsel greifen sofort.
 //   * neigen: das Handy wie ein Lenkrad kippen (Lagesensor). Nullpunkt wird
-//     beim Start genommen; iOS fragt dafür einmal um Erlaubnis.
+//     beim Start genommen; iOS fragt dafür einmal um Erlaubnis. Solange kein
+//     Sensorwert kam (iOS ohne Erlaubnis, Gerät ohne Lagesensor), wirkt der
+//     Daumen wie beim Wischen — sonst führe der Schlitten ungelenkt geradeaus.
 //   * tippen: linke Hälfte = links, rechte Hälfte = rechts (die alte Art).
 // Drift- und Item-Knopf liegen unten rechts; Gas gibt es automatisch.
 
@@ -49,7 +51,7 @@ export class KartEingabe {
         const r = flaeche.getBoundingClientRect();
         this.tippZeiger.set(e.pointerId, e.clientX - r.left < r.width / 2 ? -1 : 1);
         this.tippNeu();
-      } else if (this.art === 'wischen' && this.lenkZeiger === null) {
+      } else if (this.wischAktiv() && this.lenkZeiger === null) {
         this.lenkZeiger = e.pointerId;
         this.anker = e.clientX;
         this.lenk = 0;
@@ -60,7 +62,7 @@ export class KartEingabe {
       flaeche.setPointerCapture?.(e.pointerId);
     }, { passive: false });
     an(flaeche, 'pointermove', (e: PointerEvent) => {
-      if (this.art !== 'wischen' || e.pointerId !== this.lenkZeiger) return;
+      if (!this.wischAktiv() || e.pointerId !== this.lenkZeiger) return;
       let dx = e.clientX - this.anker;
       if (dx > VOLL_PX) { this.anker = e.clientX - VOLL_PX; dx = VOLL_PX; }
       if (dx < -VOLL_PX) { this.anker = e.clientX + VOLL_PX; dx = -VOLL_PX; }
@@ -131,6 +133,14 @@ export class KartEingabe {
 
   /** Nullpunkt für die Neige-Steuerung neu setzen (beim Rennstart). */
   kalibriere() { this.neigeNull = this.neigung; }
+
+  /** Kam schon mindestens ein Wert vom Lagesensor? */
+  get neigtAktiv(): boolean { return this.neigung !== null; }
+
+  /** Wischen wirkt — gewählt, oder als Ersatz, solange „Neigen" keine Sensorwerte bekommt. */
+  private wischAktiv(): boolean {
+    return this.art === 'wischen' || (this.art === 'neigen' && this.neigung === null);
+  }
 
   /** iOS verlangt eine Erlaubnis für den Lagesensor — nur aus einer Geste heraus. */
   static async neigenErlauben(): Promise<boolean> {

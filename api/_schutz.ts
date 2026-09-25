@@ -2,6 +2,7 @@
 // Nur serverseitig — nicht aus dem Frontend importieren.
 //
 //  * clientIp: die IP, die Vercel selbst setzt (lässt sich nicht vorgeben)
+//  * ipSchluessel: dieselbe IP als Drossel-Schlüssel (IPv6 je /64-Präfix)
 //  * drosselBuchen: Bremse in der Datenbank (gilt für alle Instanzen)
 //  * kioskGeraet: gekoppeltes Kiosk-Gerät aus dem Header x-kiosk-geraet (0177)
 //  * ohneAdressen: E-Mail-Adressen aus Log-Texten entfernen
@@ -17,6 +18,33 @@ export function clientIp(req: VercelRequest): string {
   const fwd = req.headers['x-forwarded-for'];
   const f = Array.isArray(fwd) ? fwd[0] : fwd;
   return f?.split(',')[0]?.trim() || 'unknown';
+}
+
+/**
+ * Drossel-Schlüssel für die Client-IP (Audit-Runde 2, 25.09.2026): IPv4 wie
+ * sie ist, IPv6 zusammengefasst auf das /64-Präfix. Ein einzelner
+ * IPv6-Anschluss hat Milliarden Adressen im selben /64 — je volle Adresse
+ * gezählt, bekäme ein Angreifer mit EINEM Anschluss beliebig viele Töpfe.
+ */
+export function ipSchluessel(req: VercelRequest): string {
+  const ip = clientIp(req);
+  if (!ip.includes(':')) return ip;
+  const roh = ip.split('%')[0].toLowerCase();
+  const v4 = roh.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (v4) return v4[1];
+  const doppelt = roh.indexOf('::');
+  let teile: string[];
+  if (doppelt >= 0) {
+    const links = roh.slice(0, doppelt).split(':').filter(Boolean);
+    const rechts = roh.slice(doppelt + 2).split(':').filter(Boolean);
+    const fehlend = Math.max(0, 8 - links.length - rechts.length);
+    teile = [...links, ...Array<string>(fehlend).fill('0'), ...rechts];
+  } else {
+    teile = roh.split(':');
+  }
+  const praefix = teile.slice(0, 4);
+  if (praefix.length < 4 || praefix.some((t) => !/^[0-9a-f]{1,4}$/.test(t))) return ip;
+  return `${praefix.map((t) => t.replace(/^0+(?=.)/, '')).join(':')}::/64`;
 }
 
 /** sha256 der (kleingeschriebenen) E-Mail — Drossel-Schlüssel, nie die Adresse selbst. */
@@ -44,7 +72,8 @@ export type Topf = { schluessel: string; max: number; fensterS: number };
  */
 export async function drosselBuchen(
   sb: SupabaseClient,
-  art: 'ki_titel' | 'mail' | 'pin_fehl' | 'signup' | 'signup_mail',
+  // 'tg_meldung' seit 0194 (Vereins-Meldungen über /api/send-notification).
+  art: 'ki_titel' | 'mail' | 'pin_fehl' | 'signup' | 'signup_mail' | 'tg_meldung',
   toepfe: Topf[],
 ): Promise<number | null> {
   const { data, error } = await sb.rpc('api_drossel_buchen', {
@@ -79,6 +108,8 @@ export async function kioskGeraet(
 const gekoppeltCache = new Map<string, { wert: boolean; bis: number }>();
 
 /** Ist mindestens ein (nicht widerrufenes) Gerät dieser Art gekoppelt?
+ *  Seit 0191 zählt nur ein EINGELÖSTER Kopplungscode (token_hash gesetzt) —
+ *  ein nur angelegter oder abgelaufener Code ist noch kein Gerät.
  *  Bei einem Datenbankfehler: false (die Übergangsregel bleibt dann offen). */
 export async function geraeteartGekoppelt(sb: SupabaseClient, art: string): Promise<boolean> {
   const c = gekoppeltCache.get(art);
@@ -87,6 +118,7 @@ export async function geraeteartGekoppelt(sb: SupabaseClient, art: string): Prom
     .from('kiosk_geraete')
     .select('id', { count: 'exact', head: true })
     .eq('art', art)
+    .not('token_hash', 'is', null)
     .is('widerrufen_at', null);
   if (error) {
     console.error('[schutz] kiosk_geraete zählen fehlgeschlagen', error.code ?? '');

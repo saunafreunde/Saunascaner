@@ -32,6 +32,29 @@ export default function AnwesenheitsPanel() {
   if (status.data?.status === 'ok' && status.data.art === 'panel' && token) {
     return <PanelGrid password={token} />;
   }
+  // Prüfung gescheitert (Netz/Server kurz weg): das ist KEIN „nicht gekoppelt" —
+  // sonst hielte das Personal die Kopplung für verloren. Neuer Versuch alle
+  // 30 s (useKioskGeraetStatus), dazu ein Knopf (Audit-Runde 2, 25.09.2026).
+  if (!status.data && status.isError) {
+    return (
+      <div className="min-h-screen bg-forest-950 grid place-items-center p-6 text-center">
+        <div className="max-w-md space-y-3">
+          <p className="text-lg font-semibold text-forest-100">Prüfe Gerät …</p>
+          <p className="text-sm text-forest-300/90">
+            Der Server ist gerade nicht erreichbar. Ein neuer Versuch läuft automatisch alle 30 Sekunden.
+          </p>
+          <button
+            type="button"
+            onClick={() => void status.refetch()}
+            disabled={status.isFetching}
+            className="rounded-xl bg-forest-800 px-4 py-2 text-sm font-semibold text-forest-100 ring-1 ring-forest-600/60 hover:bg-forest-700 disabled:opacity-50"
+          >
+            {status.isFetching ? 'Prüfe …' : 'Jetzt erneut prüfen'}
+          </button>
+        </div>
+      </div>
+    );
+  }
   return <NichtGekoppelt falscheArt={status.data?.status === 'ok' ? status.data.art : null} />;
 }
 
@@ -41,12 +64,15 @@ function NichtGekoppelt({ falscheArt }: { falscheArt: string | null }) {
       <div className="w-full max-w-md rounded-3xl bg-forest-900/80 ring-1 ring-forest-700/40 p-8 text-center backdrop-blur-xl">
         <div className="text-5xl">🚪</div>
         <h1 className="mt-3 text-2xl font-bold text-forest-100">Anwesenheits-Panel</h1>
+        <p className="mt-3 rounded-xl bg-amber-500/15 px-3 py-2 text-base font-bold text-amber-200 ring-1 ring-amber-400/40">
+          🔐 Ein Admin muss dieses Gerät koppeln.
+        </p>
         <p className="mt-3 text-sm leading-relaxed text-forest-300/90">
           {falscheArt
             ? `Dieses Gerät ist als „${falscheArt}" gekoppelt, nicht als Panel.`
             : 'Dieses Gerät ist noch nicht freigeschaltet.'}
-          {' '}Ein Admin öffnet dafür einmal <strong className="text-amber-300">Admin → Displays → Kiosk-Geräte</strong>,
-          wählt „Anwesenheits-Panel" und öffnet den angezeigten Link auf diesem PC.
+          {' '}Dafür öffnet ein Admin <strong className="text-amber-300">Admin → Displays → Kiosk-Geräte</strong>,
+          wählt „Anwesenheits-Panel" und öffnet den angezeigten Link (gilt einmal, 24 Stunden) auf diesem PC.
         </p>
       </div>
     </div>

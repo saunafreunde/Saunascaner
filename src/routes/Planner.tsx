@@ -13,13 +13,13 @@ import { meldeBanjaVersuch } from '@/lib/api';
 import { banjaDauerFuer, banjaEndetRechtzeitig, BANJA_RUHE_STUNDEN, BANJA_SCHLUSS_HINWEIS } from '@/lib/banja';
 import { ATTR_BY_ID, type InfusionAttribute } from '@/lib/attributes';
 import { broadcastEvac } from '@/lib/evacuation';
-import { sendEvacuationList, sendBadgeAnnouncement } from '@/lib/telegram';
+import { sendEvacuationList, sendBadgeAnnouncement, versandMeldung } from '@/lib/telegram';
 import { checkAndAwardBadges } from '@/lib/checkBadges';
 import type { BadgeDefinition } from '@/lib/badges';
 import { PageBackground } from '@/components/PageBackground';
 import CustomAttrCreator from '@/components/CustomAttrCreator';
 import OilPicker from '@/components/OilPicker';
-import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS } from '@/lib/oils';
+import { OIL_BY_ID, normalizeOilSlots, MAX_OIL_SLOTS, parseCustomOilId } from '@/lib/oils';
 import { SCHNAPS, SCHNAPS_BY_ID, parseSchnapsAttr } from '@/lib/schnaps';
 import { RAEUCHER_ATTR, RAEUCHER_THEME, KRAEUTER_ATTR } from '@/lib/aufgussTheme';
 import { KraeuterSchalter } from '@/components/KraeuterSchalter';
@@ -74,6 +74,7 @@ import {
   useSaunafestTage, saunafestAm, type SaunafestTag,
 } from '@/lib/api';
 import { garantieTemperatureFor, garantieTemperatureForWeekdayHour, slotHoursForWeekday, WEEKDAY_LABEL_DE, WEEKDAY_LABEL_DE_SHORT } from '@/lib/garantie';
+import { absageHinweis } from '@/lib/absage';
 import { festSlots, festSlotOffen, festSaunenUm, festAblaufText, type FestSlot } from '@/lib/saunafestPlan';
 import { isStaff as isStaffHelper, isAufgieser as isAufgieserHelper, isAdmin as isAdminHelper, isGuestAufgieser as isGuestAufgieserHelper } from '@/lib/roles';
 import { usePreviewMode } from '@/hooks/usePreviewMode';
@@ -1048,14 +1049,23 @@ export default function Planner() {
     if (!confirm('Evakuierungsalarm WIRKLICH auslösen?')) return;
     setEvacToast(null);
     const presentNames = (presentQ.data ?? []).map((p) => p.name);
+    let ev;
     try {
-      const ev = await trigEvac.mutateAsync({ triggered_by: m.id, present_names: presentNames });
+      ev = await trigEvac.mutateAsync({ triggered_by: m.id, present_names: presentNames });
+    } catch (e) {
+      // Kein Alarm entstanden: laut melden (Fenster), nicht nur als Zeile.
+      const text = `ALARM NICHT AUSGELÖST: ${(e as Error).message}`;
+      setEvacToast(text);
+      window.alert(`${text}\n\nBitte sofort Personal/Admin anrufen, bei Feuer 112.`);
+      return;
+    }
+    try {
       broadcastEvac({ type: 'start', triggeredBy: m.name, triggeredAt: Date.parse(ev.triggered_at) });
-      // Telegram UND Web-Push an alle schickt der Server genau einmal
-      // (api/send-evacuation.ts, seit 25.09.2026).
+      // Telegram UND Web-Push an alle schickt der Server genau einmal — seit
+      // 0191 stößt ihn die Datenbank selbst an; dieser Aufruf ist Rückfall.
       const r = await sendEvacuationList({ triggeredBy: m.name, triggeredAt: new Date(ev.triggered_at), presentNames });
-      setEvacToast(r.ok ? `Liste an Telegram gesendet (${presentNames.length} Personen).` : `Telegram fehlgeschlagen: ${r.detail ?? 'unbekannt'}`);
-    } catch (e) { setEvacToast(`Fehler: ${(e as Error).message}`); }
+      setEvacToast(`${ev.schon_aktiv ? 'Alarm lief bereits.' : 'Alarm ausgelöst.'} ${versandMeldung(r)}`);
+    } catch (e) { setEvacToast(`Alarm läuft, aber: ${(e as Error).message}`); }
   }
 
   async function cancelEvacuation() {
@@ -1453,8 +1463,8 @@ export default function Planner() {
           onLoeschen={(inf) => {
             const wann = format(new Date(inf.start_time), 'EEEE, d. MMMM HH:mm', { locale: de });
             if (!window.confirm(
-              `Aufguss am ${wann} Uhr wirklich absagen und entfernen?\n\n`
-              + 'Der Slot wird wieder frei. Rückgängig machen geht nicht.',
+              `Aufguss am ${wann} Uhr wirklich absagen?\n\n`
+              + `${absageHinweis(inf)} Rückgängig machen geht nicht.`,
             )) return;
             delInf.mutate(inf.id, { onError: (e) => window.alert((e as Error).message) });
           }}
@@ -2095,16 +2105,27 @@ export default function Planner() {
                       {!kraeuterOn && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         {oils.map((id, i) => {
-                          const o = id ? OIL_BY_ID[id] : null;
+                          // Eigene Öle stehen als custom:<uuid> im Platz (OilPicker
+                          // „Meine Öle"). Sie zählen aufs Kontingent und müssen auch
+                          // als belegt erscheinen — vorher zeigte der Chip „+ Öl
+                          // wählen" und war bei vollem Kontingent sogar gesperrt
+                          // (Audit-Runde 2, 25.09.2026). Gesperrt wird nur ein
+                          // wirklich LEERER Platz.
+                          const eigenesUuid = id ? parseCustomOilId(id) : null;
+                          const o = id && !eigenesUuid ? OIL_BY_ID[id] : null;
+                          const eigenes = eigenesUuid
+                            ? (myOilsQ.data ?? []).find((x) => x.id === eigenesUuid) ?? null
+                            : null;
+                          const gesperrt = !id && auswahlVoll;
                           return (
                             <button
                               key={i}
                               type="button"
                               onClick={() => setShowOilPicker(true)}
-                              disabled={!o && auswahlVoll}
-                              title={!o && auswahlVoll ? VOLL_HINWEIS : undefined}
-                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${!o && auswahlVoll ? 'opacity-30 cursor-not-allowed ' : ''}${
-                                o
+                              disabled={gesperrt}
+                              title={gesperrt ? VOLL_HINWEIS : undefined}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs ring-1 transition ${gesperrt ? 'opacity-30 cursor-not-allowed ' : ''}${
+                                id
                                   ? 'bg-amber-900/40 ring-amber-400/40 text-amber-100 hover:bg-amber-900/60'
                                   : 'bg-forest-900/60 ring-forest-800/50 text-forest-300 hover:bg-forest-900 border border-dashed border-forest-700/60'
                               }`}
@@ -2116,6 +2137,16 @@ export default function Planner() {
                                   <span aria-hidden>{o.emoji}</span>
                                   <span>{o.name}</span>
                                 </>
+                              ) : eigenes ? (
+                                <>
+                                  <span aria-hidden>🌿 {eigenes.emoji}</span>
+                                  <span>{eigenes.name}</span>
+                                  <span className="text-[10px] opacity-70">(meins)</span>
+                                </>
+                              ) : id ? (
+                                // Eigenes Öl noch nicht geladen oder inzwischen
+                                // gelöscht (Vorlage nennt es noch): trotzdem belegt.
+                                <span>🌿 {eigenesUuid ? 'eigenes Öl' : 'unbekanntes Öl'}</span>
                               ) : (
                                 <span>+ Öl wählen</span>
                               )}

@@ -622,7 +622,12 @@ function MembersTab() {
       });
   }, [allMembers, filter, search]);
 
-  const emailAccountFor = (memberId: string) => accountsQ.data?.find((a) => a.member_id === memberId);
+  // Nur das persönliche Postfach (wie get_email_credentials/grant_email_account
+  // seit 0195). Ein Vereinspostfach gehört technisch einem Admin — ohne den
+  // Filter zeigte dessen „📧 Postfach"-Dialog das Vereinspostfach, und
+  // „Entfernen" hätte es für alle Postfach-Admins gelöscht.
+  const emailAccountFor = (memberId: string) =>
+    accountsQ.data?.find((a) => a.member_id === memberId && !a.is_shared);
 
   // Rollen-Wechsel mit Self-Demotion-Schutz + Confirm für Admin-Übergänge.
   // Reset is_personal_planer wenn die neue Rolle nicht 'staff' ist (CP-V braucht staff).
@@ -1337,10 +1342,22 @@ function PollsTab() {
           totalMembers: allMembers.data?.length ?? 0,
         }),
       });
-      const data = await r.json();
-      setTelegramMsg(data.sent > 0
-        ? `✅ An ${data.sent} Telegram-Chat(s) gesendet.`
-        : `ℹ️ ${data.note ?? 'Keine Chats konfiguriert.'}`);
+      const data = await r.json().catch(() => ({}));
+      // Echte Ursache zeigen (Audit-Runde 2): vorher las jeder Fehler — auch
+      // eine abgelaufene Anmeldung oder eine von Telegram abgelehnte
+      // Nachricht — als „Keine Chats konfiguriert“.
+      if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
+      const total = Number(data.total ?? 0);
+      const sent = Number(data.sent ?? 0);
+      if (data.note || total === 0) {
+        setTelegramMsg('ℹ️ Keine Telegram-Chats freigegeben – im Verteiler steht noch niemand.');
+      } else if (sent === 0) {
+        setTelegramMsg(`⚠️ Telegram hat die Nachricht abgelehnt (0 von ${total} Chats${Array.isArray(data.fehler_status) && data.fehler_status.length ? `, Status ${data.fehler_status.join(', ')}` : ''}).`);
+      } else if (sent < total) {
+        setTelegramMsg(`✅ An ${sent} von ${total} Telegram-Chats gesendet.`);
+      } else {
+        setTelegramMsg(`✅ An ${sent} Telegram-Chat(s) gesendet.`);
+      }
     } catch (e) { setTelegramMsg(`Fehler: ${(e as Error).message}`); }
     finally { setSendingTelegram(false); }
   }

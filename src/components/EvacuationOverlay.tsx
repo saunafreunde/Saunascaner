@@ -3,19 +3,29 @@ import { motion } from 'framer-motion';
 import { startSiren, stopSiren } from '@/lib/evacuation';
 import { usePresentFull, type PresentFullEntry } from '@/lib/api';
 import { FamilyStars } from '@/components/FamilyStars';
+import { useTonEntsperren } from '@/hooks/useTonEntsperren';
+import { useNow } from '@/hooks/useNow';
 
 export function EvacuationOverlay({
   triggeredBy,
   withSiren = true,
+  tonHinweis = '🔈 Ton aus — einmal auf den Bildschirm tippen',
   onEnd,
+  versand,
 }: {
   triggeredBy: string | null;
   withSiren?: boolean;
+  /** Hinweis, solange der Browser den Ton der Sirene noch sperrt. */
+  tonHinweis?: string;
   // Optional: wenn gesetzt, zeigt das Overlay einen "Alarm beenden"-Button.
   // Nur übergeben wenn der aktuelle User berechtigt ist (authentifizierte
   // Vereinsmitglieder). TV-Tafel/Dashboard übergibt NICHT — dort soll nicht
   // beendet werden können.
   onEnd?: () => Promise<void> | void;
+  /** Versandstand von Push + Telegram (evacuation_events.telegram_status) —
+   *  nur für Berechtigte übergeben. Zeigt, ob die Benachrichtigung wirklich
+   *  raus ist; der Toast des auslösenden Knopfs liegt UNTER diesem Overlay. */
+  versand?: { status: string | null; seit: string };
 }) {
   const [ending, setEnding] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
@@ -40,6 +50,9 @@ export function EvacuationOverlay({
     startSiren();
     return () => stopSiren();
   }, [withSiren]);
+  // Gesperrter Ton: die Sirene läuft stumm an und wird mit der nächsten
+  // Bedienung hörbar — bis dahin sagt der Hinweis, was zu tun ist.
+  const tonGesperrt = useTonEntsperren(withSiren);
 
   async function handleEnd() {
     if (!onEnd || ending) return;
@@ -93,6 +106,11 @@ export function EvacuationOverlay({
         <p className="text-base md:text-2xl font-semibold leading-snug text-white max-w-3xl drop-shadow-lg">
           Bitte gehen Sie zu den Notausgängen und folgen Sie dem Personal.
         </p>
+        {tonGesperrt && (
+          <p className="rounded-xl bg-black/60 px-4 py-2 text-sm md:text-xl font-bold text-white ring-1 ring-white/40">
+            {tonHinweis}
+          </p>
+        )}
 
         {/* STATISTIK */}
         <div className="mt-2 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-5 gap-2">
@@ -128,6 +146,8 @@ export function EvacuationOverlay({
           </p>
         )}
 
+        {versand && <VersandZeile status={versand.status} seit={versand.seit} />}
+
         {/* Alarm-Beenden-Button — nur wenn onEnd übergeben wurde */}
         {onEnd && (
           <button
@@ -145,6 +165,42 @@ export function EvacuationOverlay({
         )}
       </div>
     </motion.div>
+  );
+}
+
+/** Stand von Push + Telegram (Migration 0191: die Datenbank stößt den Versand
+ *  selbst an). Eigene Komponente mit eigenem Takt, damit der Timer nur läuft,
+ *  solange das Overlay wirklich zu sehen ist. */
+function VersandZeile({ status, seit }: { status: string | null; seit: string }) {
+  const now = useNow(5_000);
+  const alterS = Math.max(0, (now.getTime() - Date.parse(seit)) / 1000);
+  let text: string;
+  let warnung = false;
+  if (!status || status === 'sende') {
+    if (alterS < (status ? 60 : 30)) {
+      text = 'Push + Telegram werden verschickt …';
+    } else {
+      warnung = true;
+      text = status
+        ? '⚠️ Versand von Push + Telegram hängt — bitte im Telegram-Chat prüfen und telefonisch alarmieren.'
+        : '⚠️ Push + Telegram wurden noch NICHT verschickt — bitte telefonisch alarmieren.';
+    }
+  } else if (status.startsWith('gesendet')) {
+    text = `✓ Push + Telegram verschickt (${status.replace('gesendet ', '')} Chats).`;
+  } else if (status === 'keine_chats') {
+    text = '✓ Push verschickt · keine Telegram-Chats eingerichtet.';
+  } else if (status === 'kein_token') {
+    warnung = true;
+    text = '✓ Push verschickt · Telegram ist nicht eingerichtet.';
+  } else {
+    text = `Versand: ${status}`;
+  }
+  return (
+    <p className={`max-w-xl rounded-xl px-4 py-2 text-sm font-semibold ring-1 ${
+      warnung ? 'bg-black/70 text-yellow-200 ring-yellow-300/60' : 'bg-black/40 text-white/90 ring-white/30'
+    }`}>
+      {text}
+    </p>
   );
 }
 

@@ -13,6 +13,8 @@
 // Tablet und Scanner schicken ihr Geräte-Token (Header x-kiosk-geraet) mit.
 //  * Die Speicher-Bremse bremst sie nicht (Tablet und Scanner teilen sich am
 //    Eingang eine IP).
+//  * Ihre PIN-Fehlversuche zählen in einen eigenen Topf je Gerät (30 je
+//    15 min, 200 je Tag) statt in den Topf der Vereins-IP (Audit-Runde 2).
 //  * PIN-Fehlversuche OHNE gekoppeltes Gerät zählen zusätzlich in einen
 //    gemeinsamen Topf („ungekoppelt", 20 je Stunde) — wer IPs wechselt, kommt
 //    so nicht mehr auf Tausende Versuche. Gilt erst, sobald ein Eingangs-Tablet
@@ -82,12 +84,34 @@ const UNGEKOPPELT = 'ungekoppelt';
 const PIN_FEHL_UNGEKOPPELT_MAX = 20;
 const PIN_FEHL_UNGEKOPPELT_FENSTER_S = 60 * 60;
 
-/** Anfrage-Kontext der PIN-Aktionen: IP und ob ein gekoppeltes Gerät fragt. */
-type PinKontext = { ip: string; gekoppelt: boolean };
+// Gekoppelte Eingangsgeräte (Audit-Runde 2, 25.09.2026): eigener Topf je
+// Gerät statt des Topfs je IP. Vorher zählten ihre Fehlversuche in den Topf
+// der Vereins-IP — 8 Tippfehler (oder jemand, der am öffentlichen Tablet
+// herumtippt, oder ein Gast im Vereins-WLAN) sperrten Eingangs-Tablet UND
+// Scanner bis zu 15 min, auch für richtige PINs. Die Grenze je Gerät ist
+// großzügiger (Saunafest), ein Tagesdeckel bremst ein ausgelesenes Token.
+const PIN_FEHL_GERAET_MAX = 30;
+const PIN_FEHL_GERAET_FENSTER_S = 15 * 60;
+const PIN_FEHL_GERAET_TAG_MAX = 200;
+const PIN_FEHL_GERAET_TAG_S = 24 * 60 * 60;
+
+/** Anfrage-Kontext der PIN-Aktionen: IP, ob ein gekoppeltes Gerät fragt und
+ *  dessen Drossel-Schlüssel (sha256-Auszug des Tokens, nie das Token). */
+type PinKontext = { ip: string; gekoppelt: boolean; geraetSchluessel?: string };
+
+/** Topf-Schlüssel eines gekoppelten Geräts — kann mit keiner IP zusammenfallen. */
+function geraeteTopf(k: PinKontext): string | null {
+  return k.gekoppelt && k.geraetSchluessel ? `g:${k.geraetSchluessel}` : null;
+}
 
 async function pinGebremst(admin: SupabaseClient, k: PinKontext): Promise<boolean> {
+  const g = geraeteTopf(k);
+  if (g) {
+    // Gekoppeltes Eingangsgerät: nur sein eigener Topf, nicht der der IP.
+    if (await gebremst(admin, 'pin_fehl', g, PIN_FEHL_GERAET_MAX, PIN_FEHL_GERAET_FENSTER_S)) return true;
+    return gebremst(admin, 'pin_fehl', g, PIN_FEHL_GERAET_TAG_MAX, PIN_FEHL_GERAET_TAG_S);
+  }
   if (await gebremst(admin, 'pin_fehl', k.ip, PIN_FEHL_MAX, PIN_FEHL_FENSTER_S)) return true;
-  if (k.gekoppelt) return false;
   // Übergang: solange weder Eingangs-Tablet noch Scanner gekoppelt ist, laufen
   // die echten Geräte selbst ungekoppelt — dann nur die Bremse je IP.
   const aktiv = (await geraeteartGekoppelt(admin, 'eingang')) || (await geraeteartGekoppelt(admin, 'scanner'));
@@ -96,8 +120,14 @@ async function pinGebremst(admin: SupabaseClient, k: PinKontext): Promise<boolea
 }
 
 async function pinFehlMerken(admin: SupabaseClient, k: PinKontext): Promise<void> {
+  const g = geraeteTopf(k);
+  if (g) {
+    // Spiegelbildlich zu pinGebremst: nur der Gerätetopf, nicht die Vereins-IP.
+    await versuchMerken(admin, 'pin_fehl', g);
+    return;
+  }
   await versuchMerken(admin, 'pin_fehl', k.ip);
-  if (!k.gekoppelt) await versuchMerken(admin, 'pin_fehl', UNGEKOPPELT);
+  await versuchMerken(admin, 'pin_fehl', UNGEKOPPELT);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -120,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Grobe Speicher-Stufe — gekoppelte Vereinsgeräte bremst sie nicht.
   if (speicherVoll && !gekoppelt) return res.status(429).json({ error: 'too_many_requests' });
 
-  const k: PinKontext = { ip, gekoppelt };
+  const k: PinKontext = { ip, gekoppelt, geraetSchluessel: gekoppelt ? geraet?.schluessel : undefined };
   if (action === 'pin-checkin') return handlePinCheckin(req, res, admin, k);
   if (action === 'pin-toggle') return handlePinToggle(req, res, admin, k);
   if (action === 'kiosk-rate') return handleKioskRate(req, res, admin, k);

@@ -28,9 +28,10 @@ import { Stage } from '@/components/stage/Stage';
 // ALL_BADGES / BadgeDefinition entfernt — Tafel rendert keine
 // Saunameister-Auszeichnungen mehr (User-Wunsch).
 import { lookupMemberName } from '@/lib/memberDisplay';
-import { unlockAudio } from '@/lib/evacuation';
-// Browser blockiert Audio bis zum ersten Klick — wir versuchen es deshalb
-// stillschweigend bei jeder Interaktion zu entsperren, ohne sichtbaren Button.
+// Browser blockiert Audio bis zur ersten Bedienung — wir versuchen es deshalb
+// bei jeder Interaktion zu entsperren; solange es gesperrt ist, steht unten
+// links ein kleiner Hinweis.
+import { useTonEntsperren } from '@/hooks/useTonEntsperren';
 import { ParticleCanvas } from '@/components/ParticleCanvas';
 import {
   SaunaTileColumn, festAbschluss, festZeitpunkt, type FestKartenVideo,
@@ -114,6 +115,8 @@ function FestVideoDaten({
   return <>{children({ videos, abspielen })}</>;
 }
 
+const TON_HINWEIS = '🔈 Ton: OK auf der Fernbedienung drücken';
+
 /** Hatte dieser Festtag echte Aufgüsse? (Voraussetzung für den Abschluss.) */
 function festHatteAufguesse(fest: SaunafestTag, infusions: Infusion[]): boolean {
   const beginn = festZeitpunkt(fest, '00:00');
@@ -149,8 +152,6 @@ export default function Dashboard() {
   const holidaySet = useHolidaySet();
   const tilesPerColumn = scheduleQ.data?.tiles_per_column ?? 3;
   const mondayOpen = !!scheduleQ.data?.monday_open;
-
-  const [audioReady, setAudioReady] = useState(false);
 
   const teamInfusionIds = useMemo(
     () => (infusions.data ?? []).filter((i) => i.team_infusion).map((i) => i.id),
@@ -224,29 +225,15 @@ export default function Dashboard() {
     return { isGuest: m.role === 'guest_aufgieser', homeGroup: m.home_group };
   };
 
-  // Audio (Evakuierungs-Sirene) still bei der ersten echten Bedienung
-  // entsperren — ohne den nervenden 'Ton aktivieren'-Button. Zählt auch ein
-  // Tastendruck: Der Joker-Hinweis sagt „einmal OK auf der Fernbedienung
-  // drücken", und viele Fernbedienungen senden nur Tasten (keydown), keinen
-  // Zeiger. Vorher hing die Sirene allein an pointerdown — der Joker lachte
-  // dann hörbar, der Alarm blieb stumm (Audit 25.09.2026).
-  // Capture-Phase: auch wenn #root unter dem Joker inert ist.
-  useEffect(() => {
-    const EVENTE = ['pointerdown', 'pointerup', 'keydown', 'click'] as const;
-    const aufraeumen = () => { for (const e of EVENTE) document.removeEventListener(e, tryUnlock, true); };
-    function tryUnlock() {
-      // Nur, wenn der Browser das gerade als Bedienung wertet (Esc oder ein
-      // Touch-pointerdown zählen nicht — dann klappt es beim nächsten Ereignis).
-      // Ältere TV-Browser ohne userActivation: wie bisher einfach versuchen.
-      const ua = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
-      if (ua && !ua.isActive) return;
-      if (!unlockAudio()) return;
-      setAudioReady(true);
-      aufraeumen();
-    }
-    for (const e of EVENTE) document.addEventListener(e, tryUnlock, true);
-    return aufraeumen;
-  }, []);
+  // Audio (Evakuierungs-Sirene) bei der ersten echten Bedienung entsperren —
+  // ohne 'Ton aktivieren'-Button. Zählt auch ein Tastendruck: viele
+  // Fernbedienungen senden nur Tasten (keydown), keinen Zeiger (Audit 25.09.2026).
+  // Die Sirene hängt NICHT mehr an diesem Zustand: Bis zur Audit-Runde 2 blieb
+  // ein Alarm nach jedem Neuladen (Deploy-Signal!) stumm, bis jemand drückte —
+  // ohne jeden Hinweis. Jetzt läuft sie immer an (notfalls stumm, hörbar ab
+  // der nächsten Taste), und solange der Ton gesperrt ist, zeigt die Tafel
+  // unten links „🔈 Ton: OK auf der Fernbedienung drücken".
+  const tonGesperrt = useTonEntsperren();
 
   // TV-Vollbild: beim ersten User-Klick bzw. Tastendruck (OK-Taste der
   // TV-Fernbedienung) Fullscreen-API triggern. Browser-Sicherheits-Constraint:
@@ -452,7 +439,7 @@ export default function Dashboard() {
         {evac.data && (
           <EvacuationOverlay
             triggeredBy={members.data?.find((m) => m.id === evac.data!.triggered_by)?.name ?? null}
-            withSiren={audioReady}
+            tonHinweis={TON_HINWEIS}
           />
         )}
       </AnimatePresence>
@@ -467,6 +454,15 @@ export default function Dashboard() {
           mit Video: die Aufguss-Karten spielen dann schon je Spalte eines
           (wie im Karussell und beim ausgeschalteten ParticleCanvas). */}
       <InfoEinblendung now={now} ohneVideo={!!festHeute} />
+
+      {/* Ton gesperrt (nach jedem Neuladen, bis jemand drückt): kleiner Hinweis,
+          damit ein Alarm nicht stumm bleibt. Nicht unter dem Joker — dort
+          meldet jeder Tastendruck die Neugier an alle Admins. */}
+      {tonGesperrt && !gesperrt && (
+        <div className="fixed bottom-2 left-3 z-40 pointer-events-none rounded-full bg-slate-900/55 px-3 py-1 text-sm font-medium text-white/85">
+          {TON_HINWEIS}
+        </div>
+      )}
 
       {/* Connection-Indicator als Floating-Pixel rechts unten */}
       <div className="fixed bottom-2 right-3 z-40 pointer-events-none">

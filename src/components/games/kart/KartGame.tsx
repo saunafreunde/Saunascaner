@@ -20,8 +20,8 @@ import {
   type FahrerSetup, type GeistDaten, type ItemTyp, type Klasse, type RennErgebnis,
 } from '@/lib/kart/engine/typen';
 import {
-  ladeEinstellungen, speichereEinstellungen, useGeistSpeichern, useGpBestenliste, useGpMelden,
-  useMeinePokale, useTopGeister, type KartEinstellungen,
+  istAbgelehnt, istVoruebergehend, ladeEinstellungen, speichereEinstellungen, useGeistSpeichern, useGpBestenliste,
+  useGpMelden, useMeinePokale, useTopGeister, type KartEinstellungen,
 } from '@/lib/kart/daten';
 import KartRennen, { fmtZeit, type RennAuftrag } from './KartRennen';
 
@@ -49,6 +49,7 @@ interface GpStand {
   rennen: number;
   letzte: { platz: number[]; punkte: number[] } | null;
   saat: number;
+  cupId: string;              // macht die Pokal-Meldung wiederholbar (0196)
 }
 
 type Ansicht =
@@ -66,12 +67,26 @@ let saatZaehler = Math.floor(Math.random() * 100000);
 export default function KartGame() {
   const me = useCurrentMember();
   const [einst, setEinst] = useState<KartEinstellungen>(() => ladeEinstellungen());
+  const einstRef = useRef(einst);
+  einstRef.current = einst;
   const [ansicht, setAnsicht] = useState<Ansicht>({ art: 'menue' });
   const meinName = (me.data?.sauna_name || me.data?.name || 'Du').split(' ')[0];
 
   function einstellungen(e: KartEinstellungen) {
     setEinst(e);
     speichereEinstellungen(e);
+  }
+
+  /** iOS liefert Lagesensor-Werte erst nach einer Erlaubnis, und die gilt nur
+   *  für die laufende Sitzung — nach einem Neustart der App fuhr „Neigen"
+   *  ungelenkt geradeaus. Deshalb bei JEDEM Rennstart nachfragen: Aufruf
+   *  synchron aus dem Klick (Nutzergeste), ist die Erlaubnis schon da, kommt
+   *  kein Dialog. Wird sie verweigert, zurück auf Wischen. */
+  function neigenVorbereiten() {
+    if (einstRef.current.lenkArt !== 'neigen') return;
+    void KartEingabe.neigenErlauben().then((ok) => {
+      if (!ok && einstRef.current.lenkArt === 'neigen') einstellungen({ ...einstRef.current, lenkArt: 'wischen' });
+    });
   }
 
   // Beim Wechsel der Ansicht nach oben scrollen (Handy).
@@ -127,6 +142,7 @@ export default function KartGame() {
       strecken: cup ? CUP : [streckeId ?? 'kelo'],
       teilnehmer, punkte: teilnehmer.map(() => 0), rennen: 0, letzte: null,
       saat: ++saatZaehler * 131,
+      cupId: crypto.randomUUID(),
     });
   }
 
@@ -139,7 +155,7 @@ export default function KartGame() {
         einstellungen={einst}
         onEinstellungen={einstellungen}
         onFertig={(e) => gpRennenFertig(gp, ids, e)}
-        onNeustart={() => setAnsicht({ ...ansicht, auftrag: { ...auftrag, schluessel: ++saatZaehler } })}
+        onNeustart={() => { neigenVorbereiten(); setAnsicht({ ...ansicht, auftrag: { ...auftrag, schluessel: ++saatZaehler } }); }}
         onAbbruch={() => { if (window.confirm(gp.cup ? 'Grand Prix wirklich beenden? Der Cup wird nicht gewertet.' : 'Rennen beenden?')) setAnsicht({ art: 'menue' }); }}
       />
     );
@@ -151,7 +167,7 @@ export default function KartGame() {
         einstellungen={einst}
         onEinstellungen={einstellungen}
         onFertig={(e) => setAnsicht({ art: 'zf_ergebnis', strecke: ansicht.strecke, ergebnis: e, vorher: null })}
-        onNeustart={() => setAnsicht({ ...ansicht, auftrag: { ...ansicht.auftrag, schluessel: ++saatZaehler } })}
+        onNeustart={() => { neigenVorbereiten(); setAnsicht({ ...ansicht, auftrag: { ...ansicht.auftrag, schluessel: ++saatZaehler } }); }}
         onAbbruch={() => setAnsicht({ art: 'zf_wahl' })}
       />
     );
@@ -174,16 +190,16 @@ export default function KartGame() {
           einst={einst}
           onEinstellungen={einstellungen}
           onZurueck={() => setAnsicht({ art: 'menue' })}
-          onStart={(klasse, streckeId) => gpStart(klasse, ansicht.cup, streckeId)}
+          onStart={(klasse, streckeId) => { neigenVorbereiten(); gpStart(klasse, ansicht.cup, streckeId); }}
         />
       )}
       {ansicht.art === 'gp_zwischen' && (
-        <GpZwischenstand gp={ansicht.gp} onWeiter={() => gpRennenStarten({ ...ansicht.gp, rennen: ansicht.gp.rennen + 1 })} />
+        <GpZwischenstand gp={ansicht.gp} onWeiter={() => { neigenVorbereiten(); gpRennenStarten({ ...ansicht.gp, rennen: ansicht.gp.rennen + 1 }); }} />
       )}
       {ansicht.art === 'gp_ende' && (
         <GpEnde
           gp={ansicht.gp}
-          onNochmal={() => gpStart(ansicht.gp.klasse, ansicht.gp.cup, ansicht.gp.strecken[0])}
+          onNochmal={() => { neigenVorbereiten(); gpStart(ansicht.gp.klasse, ansicht.gp.cup, ansicht.gp.strecken[0]); }}
           onMenue={() => setAnsicht({ art: 'menue' })}
         />
       )}
@@ -191,14 +207,17 @@ export default function KartGame() {
         <ZeitfahrenWahl
           meineId={me.data?.id ?? null}
           onZurueck={() => setAnsicht({ art: 'menue' })}
-          onStart={(strecke, geister) => setAnsicht({
-            art: 'zf_rennen', strecke,
-            auftrag: {
-              schluessel: ++saatZaehler, strecke, modus: 'zeitfahren', klasse: 80,
-              fahrer: [{ name: meinName, skin: einst.skin, istSpieler: true }],
-              geister, titel: `Zeitfahren · ${strecke.name}`, saat: 1,
-            },
-          })}
+          onStart={(strecke, geister) => {
+            neigenVorbereiten();
+            setAnsicht({
+              art: 'zf_rennen', strecke,
+              auftrag: {
+                schluessel: ++saatZaehler, strecke, modus: 'zeitfahren', klasse: 80,
+                fahrer: [{ name: meinName, skin: einst.skin, istSpieler: true }],
+                geister, titel: `Zeitfahren · ${strecke.name}`, saat: 1,
+              },
+            });
+          }}
         />
       )}
       {ansicht.art === 'zf_ergebnis' && (
@@ -525,11 +544,12 @@ function GpEnde({ gp, onNochmal, onMenue }: { gp: GpStand; onNochmal: () => void
   const melden = useGpMelden();
   const liste = useGpBestenliste(gp.klasse);
   const gemeldet = useRef(false);
+  const meldung = { klasse: gp.klasse, platz: meinPlatz, punkte: Math.max(4, gp.punkte[0]), cupId: gp.cupId };
   useEffect(() => {
     if (!gp.cup || gemeldet.current) return;
     gemeldet.current = true;
-    melden.mutate({ klasse: gp.klasse, platz: meinPlatz, punkte: Math.max(4, gp.punkte[0]) });
-    // einmalig beim Öffnen
+    melden.mutate(meldung);
+    // einmalig beim Öffnen (Wiederholen: Knopf unten, gleiche Cup-ID)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const podest = [stand[1], stand[0], stand[2]];
@@ -558,11 +578,23 @@ function GpEnde({ gp, onNochmal, onMenue }: { gp: GpStand; onNochmal: () => void
       </div>
       <Tabelle gp={gp} stand={stand} />
       {gp.cup && (
-        <p className="text-center text-xs text-forest-300">
-          {melden.isPending ? 'Pokal wird eingetragen …'
-            : melden.isError ? `Konnte nicht gespeichert werden: ${(melden.error as Error).message === 'zu_schnell' ? 'nur ein Cup alle drei Minuten' : (melden.error as Error).message}`
-              : melden.data ? (melden.data.erster_gold ? '🏆 Dein erster Goldpokal in dieser Klasse — steht in der Vitrine!' : 'In deiner Pokalvitrine eingetragen.') : ''}
-        </p>
+        <div className="space-y-2 text-center">
+          <p className="text-xs text-forest-300" role="status">
+            {melden.isPending ? (melden.isPaused ? 'Keine Verbindung — der Pokal wird eingetragen, sobald du wieder online bist.'
+              : melden.failureCount > 0 ? 'Pokal wird eingetragen … (neuer Versuch)' : 'Pokal wird eingetragen …')
+              : melden.isError ? `Konnte nicht gespeichert werden: ${eintragFehler(melden.error)}`
+                : melden.data ? (melden.data.erster_gold ? '🏆 Dein erster Goldpokal in dieser Klasse — steht in der Vitrine!' : 'In deiner Pokalvitrine eingetragen.') : ''}
+          </p>
+          {melden.isError && !istAbgelehnt(melden.error) && (
+            <button
+              type="button"
+              onClick={() => melden.mutate(meldung)}
+              className="rounded-xl bg-forest-800 px-4 py-2 text-sm font-bold text-amber-100 ring-1 ring-amber-400/40 active:scale-95"
+            >
+              ↻ Erneut senden
+            </button>
+          )}
+        </div>
       )}
       {gp.cup && (liste.data?.length ?? 0) > 0 && (
         <section className="rounded-2xl bg-forest-900/60 p-4 ring-1 ring-forest-800/50">
@@ -655,10 +687,15 @@ function ZeitfahrenErgebnis({ strecke, ergebnis, meineId, onNochmal, onMenue }: 
   if (vorher.current === undefined && top.data) vorher.current = top.data.find((g) => g.member_id === meineId)?.zeit_ms ?? null;
   const zeit = ergebnis.spielerZeitMs;
   const gesendet = useRef(false);
-  useEffect(() => {
-    if (gesendet.current || zeit === null || !ergebnis.geist || zeit < 20000) return;
-    gesendet.current = true;
+  function senden() {
+    if (zeit === null || !ergebnis.geist || zeit < 20000) return;
     speichern.mutate({ strecke: strecke.id, zeit_ms: zeit, samples: { v: 1, dt: ergebnis.geist.dt, pts: ergebnis.geist.pts } });
+  }
+  useEffect(() => {
+    if (gesendet.current) return;
+    gesendet.current = true;
+    senden();
+    // einmalig beim Öffnen (Wiederholen: Knopf unten, dieselbe Fahrt)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const neueBest = speichern.data === true;
@@ -668,9 +705,22 @@ function ZeitfahrenErgebnis({ strecke, ergebnis, meineId, onNochmal, onMenue }: 
         {neueBest && <Konfetti />}
         <p className="text-xs font-bold uppercase tracking-widest text-forest-300">Zeitfahren · {strecke.name}</p>
         <p className="mt-1 font-mono text-4xl font-black tabular-nums text-white">{zeit !== null ? fmtZeit(zeit) : '—'}</p>
-        <p className="mt-1 text-sm text-amber-200">
-          {speichern.isPending ? 'Wird eingetragen …' : neueBest ? '✨ Neue persönliche Bestzeit!' : speichern.isError ? (speichern.error as Error).message : speichern.data === false ? 'Nicht schneller als dein Geist.' : ''}
+        <p className="mt-1 text-sm text-amber-200" role="status">
+          {speichern.isPending ? (speichern.isPaused ? 'Keine Verbindung — wird eingetragen, sobald du wieder online bist.'
+            : speichern.failureCount > 0 ? 'Wird eingetragen … (neuer Versuch)' : 'Wird eingetragen …')
+            : neueBest ? '✨ Neue persönliche Bestzeit!'
+              : speichern.isError ? `Nicht gespeichert: ${eintragFehler(speichern.error)}`
+                : speichern.data === false ? 'Nicht schneller als dein Geist.' : ''}
         </p>
+        {speichern.isError && !istAbgelehnt(speichern.error) && (
+          <button
+            type="button"
+            onClick={senden}
+            className="mt-2 rounded-xl bg-forest-800 px-4 py-2 text-sm font-bold text-amber-100 ring-1 ring-amber-400/40 active:scale-95"
+          >
+            ↻ Erneut senden
+          </button>
+        )}
         <div className="mt-3 flex justify-center gap-2 text-xs tabular-nums text-forest-100">
           {ergebnis.rundenZeiten.slice(0, 3).map((t, i) => <span key={i} className="rounded-lg bg-forest-950/60 px-2 py-1">R{i + 1}: {fmtZeit(t)}</span>)}
         </div>
@@ -697,6 +747,21 @@ function ZeitfahrenErgebnis({ strecke, ergebnis, meineId, onNochmal, onMenue }: 
 }
 
 // ─── Bausteine ───────────────────────────────────────────────────────────────
+
+/** Fehler beim Eintragen in Klartext — statt roher Codes wie „samples_too_large". */
+function eintragFehler(err: unknown): string {
+  const m = (err as { message?: unknown } | null)?.message;
+  switch (typeof m === 'string' ? m : '') {
+    case 'zu_schnell': return 'nur ein Cup alle drei Minuten.';
+    case 'samples_too_large': return 'die Aufzeichnung ist zu groß.';
+    case 'invalid_samples': return 'die Aufzeichnung ist unvollständig.';
+    case 'invalid_track': return 'diese Strecke wird nicht gewertet.';
+    case 'invalid_time': return 'die Zeit liegt außerhalb der Wertung.';
+    case 'invalid_class': case 'invalid_place': case 'invalid_points': return 'das Ergebnis ist ungültig.';
+    case 'not_authenticated': return 'bitte melde dich neu an.';
+  }
+  return istVoruebergehend(err) ? 'keine Verbindung zum Server.' : 'Fehler beim Server.';
+}
 
 function ZurueckZeile({ onZurueck, titel }: { onZurueck: () => void; titel: string }) {
   return (

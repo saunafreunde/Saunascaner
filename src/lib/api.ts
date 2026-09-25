@@ -7,6 +7,7 @@ import { type BrandSettings, mergeBrandDefaults, defaultBrandSettings } from '@/
 import type { TvStageState } from './season';
 import { kioskGeraetHeader, kioskGeraetToken } from './kioskGeraet';
 import { pollTakt } from './realtimeStatus';
+import { istDauerFehler } from './queryClient';
 
 function need() {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -554,7 +555,12 @@ export function useDeleteOilWeighing() {
 /** Übersetzt die Kopplungs-Ablehnung der Kiosk-RPCs in einen verständlichen Text. */
 function kioskFehler(error: { message?: string; code?: string }): Error {
   if (error.message?.includes('geraet_nicht_gekoppelt')) {
-    return new Error('Dieses Tablet ist nicht gekoppelt. Ein Admin koppelt es unter Admin → Displays → Kiosk-Geräte.');
+    // code mitgeben: queryClient erkennt Dauerfehler am Code (42501) und fragt
+    // dann nicht sinnlos nach (Audit-Runde 2, 25.09.2026).
+    return Object.assign(
+      new Error('Dieses Tablet ist nicht gekoppelt. Ein Admin koppelt es unter Admin → Displays → Kiosk-Geräte.'),
+      { code: error.code },
+    );
   }
   return error as Error;
 }
@@ -692,7 +698,11 @@ export type KioskGeraetStatus =
   | { status: 'ungueltig' }
   | { status: 'ok'; art: import('./kioskGeraet').KioskGeraetArt; name: string };
 
-/** Ist dieses Gerät gekoppelt? Fragt den Server einmal je Seitenstart (plus stündlich). */
+/** Ist dieses Gerät gekoppelt? Fragt den Server einmal je Seitenstart (plus stündlich).
+ *  Scheitert die Prüfung (Netz/Server weg), wird alle 30 s neu gefragt statt erst
+ *  nach einer Stunde — der Fehlerzustand heißt „Prüfe Gerät …", NICHT „nicht
+ *  gekoppelt" (Audit-Runde 2, 25.09.2026). Deshalb: `data` fehlt + `isError`
+ *  bedeutet „unbekannt", nur `data.status !== 'ok'` bedeutet „nicht gekoppelt". */
 export function useKioskGeraetStatus() {
   const token = kioskGeraetToken();
   return useQuery<KioskGeraetStatus>({
@@ -707,14 +717,36 @@ export function useKioskGeraetStatus() {
         : { status: 'ungueltig' };
     },
     staleTime: 60 * 60_000,
-    refetchInterval: 60 * 60_000,
+    // Gleicher Takt mit und ohne Realtime; im Fehlerzustand höchstens 30 s.
+    refetchInterval: pollTakt(60 * 60_000, 60 * 60_000),
     retry: 2,
+  });
+}
+
+/** Darf ein UNGEKOPPELTES Gerät gerade noch Alarm auslösen? (0191: nur bis zur
+ *  ersten Öl-Raum-Kopplung, längstens bis 08.10.2026.) Nur für den Hinweis am
+ *  Öl-Raum-Tablet — entscheiden tut der Server. */
+export function useEvakuierungUebergang(enabled: boolean) {
+  return useQuery({
+    queryKey: ['evakuierung-uebergang'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('evakuierung_uebergang_offen');
+      if (error) throw error;
+      return data === true;
+    },
+    staleTime: 10 * 60_000,
+    refetchInterval: pollTakt(30 * 60_000, 30 * 60_000),
   });
 }
 
 export type KioskGeraetZeile = {
   id: string; name: string; art: string; erstellt_at: string;
   zuletzt_gesehen_at: string | null; widerrufen_at: string | null;
+  /** Seit 0191: Einmal-Kopplungscode. Fehlt bei einem älteren Server → wie 'gekoppelt'. */
+  eingeloest_at?: string | null;
+  kopplung_bis?: string | null;
+  status?: 'gekoppelt' | 'ausstehend' | 'abgelaufen' | 'widerrufen';
 };
 
 export function useAdminKioskGeraete() {
@@ -728,7 +760,8 @@ export function useAdminKioskGeraete() {
   });
 }
 
-/** Legt ein Gerät an und liefert das Token EINMAL (für den Kopplungs-Link). */
+/** Legt ein Gerät an und liefert den EINMAL-Kopplungscode (für den Kopplungs-Link,
+ *  24 h gültig, 0191). /koppeln tauscht ihn gegen das eigentliche Geräte-Token. */
 export function useAdminKioskGeraetKoppeln() {
   const qc = useQueryClient();
   return useMutation({
@@ -967,8 +1000,9 @@ export function useSaunafestTage() {
     staleTime: 10 * 60_000, // sechs Termine pro Saison
     // Änderungen kommen per Realtime (Kanal „kalender", Migration 0182). Die
     // stündliche Abfrage ist nur das Netz darunter — die 24/7-Tafel sah einen
-    // neu angelegten Festtag sonst erst nach dem nächsten Neuladen.
-    refetchInterval: 60 * 60_000,
+    // neu angelegten Festtag sonst erst nach dem nächsten Neuladen. Nach einem
+    // Ladefehler höchstens 30 s bis zum nächsten Versuch, nicht eine Stunde.
+    refetchInterval: pollTakt(60 * 60_000, 60 * 60_000),
   });
 }
 
@@ -1424,7 +1458,8 @@ export function useHolidays() {
     staleTime: 10 * 60_000, // Feiertage ändern sich selten
     // Realtime (Kanal „kalender", Migration 0182) + stündliches Netz, damit die
     // 24/7-Tafel einen neuen Feiertag (11-Uhr-Slots) ohne Neuladen kennt.
-    refetchInterval: 60 * 60_000,
+    // Nach einem Ladefehler höchstens 30 s bis zum nächsten Versuch.
+    refetchInterval: pollTakt(60 * 60_000, 60 * 60_000),
   });
 }
 
@@ -1502,7 +1537,10 @@ export function usePanelMembers(password: string | null) {
   return useQuery({
     queryKey: ['panel-members', password ?? 'none'],
     enabled: !!password,
-    refetchInterval: 10_000,
+    // Widerrufenes Gerät (P0001 invalid_password): nicht weiter alle 10 s
+    // anklopfen — ein neues Koppeln bringt ein neues Passwort, also eine neue
+    // Abfrage. Netzfehler bleiben im 10-s-Takt (Audit-Runde 2, 25.09.2026).
+    refetchInterval: (q) => (q.state.status === 'error' && istDauerFehler(q.state.error) ? false : 10_000),
     refetchIntervalInBackground: true,
     queryFn: async () => {
       if (!password) return [] as PanelMember[];
@@ -2075,7 +2113,12 @@ export function useDeleteMemberPhoto() {
     mutationFn: async (photo: { id: string; photo_path: string }) => {
       const { error } = await need().from('member_photos').delete().eq('id', photo.id);
       if (error) throw error;
-      try { await deleteAsset(photo.photo_path); } catch { /* ignore */ }
+      // Nur Dateien aus dem Galerie-Ordner löschen: Ältere Zeilen konnten auf
+      // fremde Dateien zeigen (Profilbild, Logo …) — ein Admin hätte die sonst
+      // mit seinen Rechten gleich mit entfernt. Seit 0192 prüft die DB den Pfad.
+      if (photo.photo_path.startsWith('member-photos/')) {
+        try { await deleteAsset(photo.photo_path); } catch { /* ignore */ }
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['member-photos'] }),
   });
@@ -2120,7 +2163,7 @@ export function useSignatureInfusion(memberId: string | null | undefined) {
 export function useBirthdaysToday() {
   return useQuery({
     queryKey: ['birthdays-today'],
-    refetchInterval: 60 * 60_000, // 1h
+    refetchInterval: pollTakt(60 * 60_000, 60 * 60_000), // 1h, nach Fehler ≤ 30 s
     queryFn: async () => {
       const { data, error } = await need().rpc('get_birthdays_today');
       if (error) throw error;
@@ -2343,7 +2386,8 @@ export function useMeisterDirectory(opts?: { poll?: boolean }) {
       if (error) throw error;
       return (data ?? []) as MeisterDirectoryEntry[];
     },
-    ...(opts?.poll ? { refetchInterval: 10 * 60_000, refetchIntervalInBackground: true } : {}),
+    // Nach einem Ladefehler höchstens 30 s bis zum nächsten Versuch.
+    ...(opts?.poll ? { refetchInterval: pollTakt(10 * 60_000, 10 * 60_000), refetchIntervalInBackground: true } : {}),
   });
 }
 
@@ -3507,14 +3551,13 @@ export function usePresentMembers() {
   return useQuery({
     queryKey: ['present'],
     queryFn: async () => {
-      const { data, error } = await need()
-        .from('members')
-        .select('id,name,last_scan_at,is_aufgieser,avatar_path')
-        .eq('is_present', true)
-        .is('revoked_at', null)
-        .order('name');
+      // Seit 0192 über die RPC: members.is_present/last_scan_at sind für
+      // Clients nicht mehr direkt lesbar. Die RPC liefert nur Vereinsmitgliedern
+      // (admin/staff/member/guest_aufgieser) etwas — Gäste und der Scanner ohne
+      // Anmeldung bekommen wie bisher eine leere Liste.
+      const { data, error } = await need().rpc('list_present_members');
       if (error) throw error;
-      return data as { id: string; name: string; last_scan_at: string | null; is_aufgieser: boolean; avatar_path: string | null }[];
+      return (data ?? []) as { id: string; name: string; last_scan_at: string | null; is_aufgieser: boolean; avatar_path: string | null }[];
     },
     // Background-Polling als Fallback, falls Realtime-Sub am Tablet nicht ankommt
     // (Background-Tab, Wifi-Wechsel, anonymous-User-Subscription-Issue):
@@ -3760,6 +3803,9 @@ export type EvacuationEvent = {
   present_count: number;
   present_names: string[];
   telegram_status: string | null;
+  /** 0191: mitglied | geraet | uebergang (ältere Alarme: null). */
+  quelle?: string | null;
+  foto_status?: string | null;
 };
 
 export function useActiveEvacuation() {
@@ -3807,8 +3853,13 @@ export function useTriggerEvacuation() {
         if (error.message?.includes('nicht_berechtigt')) {
           throw new Error('Dieses Gerät darf keinen Alarm auslösen (nicht gekoppelt bzw. nicht angemeldet).');
         }
+        if (error.message?.includes('evakuierung_gebremst')) {
+          // 0191: Bremse NUR für ungekoppelte Geräte im Übergang (2 je 30 min).
+          throw new Error('Von ungekoppelten Geräten wurden gerade schon 2 Alarme ausgelöst — weitere nur angemeldet am Handy oder an einem gekoppelten Tablet.');
+        }
         throw error;
       }
+      // Im Übergang (ungekoppelt) liefert der Server keine Namensliste mit.
       return data as EvacuationEvent & { schon_aktiv?: boolean };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['evacuation'] }),
@@ -3993,7 +4044,8 @@ export function useScheduleSettings(opts?: { poll?: boolean }) {
       };
     },
     staleTime: 60_000,
-    ...(opts?.poll ? { refetchInterval: 5 * 60_000, refetchIntervalInBackground: true } : {}),
+    // Nach einem Ladefehler höchstens 30 s bis zum nächsten Versuch.
+    ...(opts?.poll ? { refetchInterval: pollTakt(5 * 60_000, 5 * 60_000), refetchIntervalInBackground: true } : {}),
   });
 }
 
@@ -4741,6 +4793,9 @@ export function publicAssetUrl(path: string | null | undefined): string | null {
   // src/lib/oelraumVorlagen.ts und das Saunafest-Video unter /tafel/.
   // Storage-Pfade sehen dagegen immer aus wie „info-karten/xyz.mp4" — ohne
   // führenden Slash, deshalb kollidiert das nicht.
+  // „//host/…" ist dagegen eine protokoll-relative FREMDE Adresse (Tracking-
+  // Pixel über einen frei gesetzten Pfad) — die wird nie ausgeliefert.
+  if (path.startsWith('//')) return null;
   if (path.startsWith('/')) return path;
   const c = supabase;
   if (!c) return null;

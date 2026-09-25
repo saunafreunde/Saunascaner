@@ -184,7 +184,11 @@ Hat schon jemand anderes einen Stamm-Slot zur selben Stunde, lehnt die App den A
 
 → Deine Stamm-Slot-Aufgüsse im Zeitraum werden automatisch freigegeben + Push „🏖️ Urlaubsslots frei" an alle Aufgießer. Hat ein Kollege einen davon übernommen, bleibt er seiner — auch wenn du den Urlaub verlängerst oder den Stamm-Slot kündigst.
 
-→ **Urlaub gelöscht** (z. B. doch nicht verreist): Deine Stamm-Aufgüsse im Zeitraum kommen automatisch zurück, soweit sie noch niemand übernommen hat.
+→ **Urlaub gelöscht** (z. B. doch nicht verreist): Deine Stamm-Aufgüsse im Zeitraum kommen automatisch zurück, soweit sie noch niemand übernommen hat und du sie nicht einzeln abgesagt hast.
+
+### Einzelnen Stamm-Termin absagen
+
+Kannst du nur an einem Tag nicht, sag den Termin im Atelier (🗑) oder am Öl-Raum-Tablet ab — bis 60 Minuten vor Start. Die Stunde geht ans Personal zurück, der Telegram-Bot bietet sie zur Übernahme an. Die App trägt dich für diesen Tag nicht wieder ein; dein Stamm-Slot bleibt bestehen. Willst du doch selbst gießen, übernimmst du den Personal-Aufguss einfach wieder.
 
 ### Personal-Aufguss übernehmen: Dauer
 

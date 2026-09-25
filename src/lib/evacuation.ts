@@ -28,20 +28,50 @@ let ctx: AudioContext | null = null;
 let osc: OscillatorNode | null = null;
 let gain: GainNode | null = null;
 let toggleTimer: number | null = null;
+const zustandsHoerer = new Set<() => void>();
 
+function audioKlasse(): typeof AudioContext | undefined {
+  return window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+}
+
+/**
+ * AudioContext anlegen bzw. fortsetzen. Ohne Bedienung (Tipp, Taste) lässt der
+ * Browser ihn meist „suspended" — dann einfach bei der nächsten Bedienung noch
+ * einmal aufrufen. Mit Autoplay-Freigabe (Kiosk-Browser) läuft er sofort.
+ */
 export function unlockAudio(): boolean {
-  // Must be called from a user gesture once per tab.
   try {
-    const Ctx = (window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+    const Ctx = audioKlasse();
     if (!Ctx) return false;
-    if (!ctx) ctx = new Ctx();
-    if (ctx.state === 'suspended') void ctx.resume();
+    if (!ctx) {
+      ctx = new Ctx();
+      ctx.addEventListener('statechange', () => { for (const h of zustandsHoerer) h(); });
+    }
+    if (ctx.state !== 'running') void ctx.resume().catch(() => undefined);
     return true;
   } catch { return false; }
 }
 
+/**
+ * Kann die Sirene gerade tönen? 'gesperrt' = der Browser wartet noch auf eine
+ * Bedienung (nach jedem Neuladen der Tafel so, Audit-Runde 2, 25.09.2026).
+ * 'unmoeglich' = kein Web Audio (sehr alter TV-Browser) — dann hilft auch kein Tastendruck.
+ */
+export function audioZustand(): 'laeuft' | 'gesperrt' | 'unmoeglich' {
+  if (!audioKlasse()) return 'unmoeglich';
+  return ctx?.state === 'running' ? 'laeuft' : 'gesperrt';
+}
+
+/** Meldet jeden Zustandswechsel des AudioContext (Ereignis, kein Timer). */
+export function beiAudioZustand(cb: () => void): () => void {
+  zustandsHoerer.add(cb);
+  return () => { zustandsHoerer.delete(cb); };
+}
+
+/** Startet die Sirene. Ist der Ton noch gesperrt, läuft sie stumm an und wird
+ *  hörbar, sobald eine Bedienung den AudioContext fortsetzt (unlockAudio). */
 export function startSiren() {
-  if (!ctx) unlockAudio();
+  unlockAudio();
   if (!ctx) return;
   if (osc) return;
   osc = ctx.createOscillator();

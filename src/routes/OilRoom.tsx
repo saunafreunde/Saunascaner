@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { broadcastEvac } from '@/lib/evacuation';
-import { sendEvacuationWithPhoto } from '@/lib/telegram';
+import { sendEvacuationWithPhoto, versandMeldung } from '@/lib/telegram';
 import {
   useSaunas, useInfusions, OELRAUM_FALLBACK_TAGE, useScheduleSettings, useMeisterDirectory,
   usePresentAufgieserPublic, useActiveEvacuation, useTriggerEvacuation, useEndEvacuation,
   useAllCustomOils, useAllCustomAttrs, useSudKraeuter, useSudMixe,
   useBrandSync, brandAssetUrl,
   useHolidaySet, isHolidayDate,
-  useKioskGeraetStatus,
+  useKioskGeraetStatus, useEvakuierungUebergang,
 } from '@/lib/api';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 import { useNow } from '@/hooks/useNow';
@@ -35,6 +35,45 @@ const SW_PRUEF_MS = 30 * 60 * 1000;
  *  Gerät läuft rund um die Uhr. Die Aufguss-Daten selbst kommen per Realtime
  *  bzw. über den Poll von useInfusions herein, nicht über diesen Takt. */
 const TAKT_MS = 10_000;
+
+/** Harte Frist fürs Evakuierungsfoto — der Alarm läuft zu diesem Zeitpunkt
+ *  schon; ein offener Kamera-Dialog darf nur noch das Foto kosten. */
+const FOTO_FRIST_MS = 3_000;
+
+/** Ein Foto mit der Rückkamera, höchstens `fristMs` lang. Kommt die Kamera erst
+ *  danach (Berechtigungsdialog später bestätigt), wird sie sofort wieder
+ *  ausgeschaltet und kein Foto geliefert. */
+async function fotoMitFrist(fristMs: number): Promise<Blob | null> {
+  let abgelaufen = false;
+  const aufnahme = (async (): Promise<Blob | null> => {
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      if (abgelaufen) return null;
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
+      await video.play();
+      await new Promise((r) => setTimeout(r, 600));
+      if (abgelaufen) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.getContext('2d')!.drawImage(video, 0, 0);
+      return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+    } catch {
+      return null;
+    } finally {
+      // Immer ausschalten — auch wenn die Frist schon vorbei ist.
+      stream?.getTracks().forEach((t) => t.stop());
+    }
+  })();
+  const frist = new Promise<null>((resolve) => setTimeout(() => { abgelaufen = true; resolve(null); }, fristMs));
+  return Promise.race([aufnahme, frist]);
+}
 
 export default function OilRoom() {
   // Bleibt in der ÄUSSERSTEN Komponente: der Hook verlässt beim Unmount das
@@ -80,6 +119,11 @@ export default function OilRoom() {
   // Öl-Raum-Gerät gekoppelt ist. Ohne Kopplung zeigt die Anzeige einen Hinweis.
   const geraet = useKioskGeraetStatus();
   const gekoppelt = geraet.data?.status === 'ok' && geraet.data.art === 'oelraum';
+  // Nur eine ECHTE Antwort „nicht gekoppelt" zählt — ein Ladefehler ist kein
+  // Kopplungsverlust (dann „Prüfe Gerät …", neuer Versuch alle 30 s).
+  const sicherUngekoppelt = !!geraet.data && !gekoppelt;
+  // Ungekoppelt geht der Alarm nur noch im Übergang (0191) — für den Hinweis.
+  const uebergangQ = useEvakuierungUebergang(sicherUngekoppelt);
   const endEvac = useEndEvacuation();
 
   const saunas = useMemo(() => saunasQ.data ?? [], [saunasQ.data]);
@@ -141,95 +185,124 @@ export default function OilRoom() {
   }, [infusions]);
 
   // ─── Evakuierung ──────────────────────────────────────────────────────────
-  // Reihenfolge NICHT ändern: Foto → DB-Eintrag im eigenen try/catch →
-  // Broadcast → Telegram. Der innere catch ist der Grund, warum der Alarm auch
-  // bei kaputter Datenbank noch bei Telegram ankommt.
+  // Reihenfolge (Audit-Runde 2, 25.09.2026): ZUERST der Alarm (DB-Eintrag →
+  // Overlay und Sirene auf allen Geräten; Push + Telegram-Text stößt die
+  // Datenbank selbst an, 0191), DANN das Foto mit harter Frist, DANN
+  // /api/send-evacuation — das schickt nur noch das Foto nach (bzw. Text und
+  // Push, falls der Server-Anstoß scheiterte). Vorher kam das Foto zuerst: Ein
+  // offener Kamera-Dialog hielt den Alarm unbegrenzt auf, und ein Fehler beim
+  // Auslösen wurde verschluckt (ohne DB-Eintrag gibt es aber keinen Alarm).
   const [evacBusy, setEvacBusy] = useState(false);
   const [evacToast, setEvacToast] = useState<string | null>(null);
+  // Auslösen gescheitert → großes Fenster mit dem, was jetzt zu tun ist.
+  const [evacFehler, setEvacFehler] = useState<string | null>(null);
   // Wer gerade am Gerät steht. Liegt hier oben, weil der Evakuierungs-Eintrag
   // festhalten soll, WER ausgelöst hat — die Eingabe meldet ihren gewählten
   // Aufgießer herauf. Wird beim Zurückspringen zur Anzeige geleert: das Tablet
   // ist ein gemeinsames Gerät, der Nächste darf nicht als der Vorige gelten.
   const [amGeraet, setAmGeraet] = useState<{ id: string; name: string } | null>(null);
 
-  async function capturePhoto(): Promise<Blob | null> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.muted = true;
-      video.playsInline = true;
-      await video.play();
-      await new Promise((r) => setTimeout(r, 600));
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      canvas.getContext('2d')!.drawImage(video, 0, 0);
-      stream.getTracks().forEach((t) => t.stop());
-      return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
-    } catch {
-      return null;
-    }
-  }
-
-  async function evakuierungAusloesen() {
-    if (!confirm(amGeraet
+  async function evakuierungAusloesen(schonBestaetigt = false) {
+    if (!schonBestaetigt && !confirm(amGeraet
       ? 'Evakuierungsalarm WIRKLICH auslösen?'
       : 'Evakuierungsalarm auslösen? (Kein Aufgießer ausgewählt)')) return;
     setEvacBusy(true);
     setEvacToast(null);
+    setEvacFehler(null);
 
     const auslöser = amGeraet?.name ?? 'Öl-Raum-Tablet';
-    // Vorläufig die hier bekannte Liste — der Server setzt beim Auslösen die
-    // maßgebliche Anwesenheitsliste selbst (0177) und schickt sie mit zurück.
-    let namen = (presentQ.data ?? []).map((p) => p.name);
-    const foto = await capturePhoto();
+    let ev: Awaited<ReturnType<typeof trigEvac.mutateAsync>>;
+    try {
+      // triggered_by darf leer bleiben — die Spalte nimmt NULL, und ein
+      // Alarm ohne Namen ist tausendmal besser als kein Alarm.
+      ev = await trigEvac.mutateAsync({ triggered_by: amGeraet?.id ?? null });
+    } catch (e) {
+      // KEIN Alarm entstanden (nicht gekoppelt, gebremst, Netz weg …). Ohne
+      // DB-Eintrag gibt es weder Overlay noch Push noch Telegram — also laut
+      // sagen, statt es in einer Zeile Kleingedrucktem zu verstecken.
+      setEvacFehler((e as Error).message || 'unbekannter Fehler');
+      setEvacBusy(false);
+      return;
+    }
 
     try {
-      let ausgeloestAm = new Date().toISOString();
-      try {
-        // triggered_by darf leer bleiben — die Spalte nimmt NULL, und ein
-        // Alarm ohne Namen ist tausendmal besser als kein Alarm.
-        const ev = await trigEvac.mutateAsync({ triggered_by: amGeraet?.id ?? null });
-        ausgeloestAm = ev.triggered_at;
-        if (Array.isArray(ev.present_names)) namen = ev.present_names;
-      } catch { /* weiter auch ohne DB-Eintrag */ }
-
-      broadcastEvac({ type: 'start', triggeredBy: auslöser, triggeredAt: Date.parse(ausgeloestAm) });
-
+      broadcastEvac({ type: 'start', triggeredBy: auslöser, triggeredAt: Date.parse(ev.triggered_at) });
+      // Foto nur vom gekoppelten Tablet: im Übergang nimmt der Server keins an,
+      // dann soll auch kein Kamera-Dialog aufgehen.
+      const foto = gekoppelt ? await fotoMitFrist(FOTO_FRIST_MS) : null;
       const r = await sendEvacuationWithPhoto({
         triggeredBy: auslöser,
-        triggeredAt: new Date(ausgeloestAm),
-        presentNames: namen,
+        triggeredAt: new Date(ev.triggered_at),
+        presentNames: Array.isArray(ev.present_names) ? ev.present_names : [],
         photoBlob: foto ?? undefined,
       });
-      setEvacToast(r.ok
-        ? `Alarm + ${foto ? 'Foto ' : ''}an Telegram gesendet.`
-        : `Telegram fehlgeschlagen: ${r.detail ?? 'unbekannt'}`);
+      setEvacToast(`${ev.schon_aktiv ? 'Alarm lief bereits.' : 'Alarm ausgelöst.'} ${versandMeldung(r)}`);
     } catch (e) {
-      setEvacToast(`Fehler: ${(e as Error).message}`);
+      setEvacToast(`Alarm läuft, aber: ${(e as Error).message}`);
     } finally {
       setEvacBusy(false);
     }
   }
+
+  // Hinweis am Notfall-Knopf, wenn das Tablet (sicher) nicht gekoppelt ist.
+  const alarmHinweis = !sicherUngekoppelt ? null
+    : uebergangQ.data === false
+      ? '⛔ Tablet nicht gekoppelt — Alarm von hier NICHT möglich. Im Notfall: Admin/Personal per Handy anrufen, bei Feuer 112. Ein Admin muss das Tablet koppeln.'
+      : uebergangQ.data === true
+        ? '⚠️ Tablet nicht gekoppelt — Alarm geht hier nur noch übergangsweise (ohne Foto, längstens bis 08.10.). Ein Admin muss das Tablet koppeln.'
+        : null;
 
   const evakuierung = (
     <div className="rounded-2xl border-2 border-rose-600/60 bg-rose-950/40 p-4 ring-1 ring-rose-500/30">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold uppercase tracking-wider text-rose-200">🚨 Notfall</h2>
-          <p className="mt-0.5 text-xs text-rose-200/70">Alarm auslösen + Foto an Telegram</p>
+          <p className="mt-0.5 text-xs text-rose-200/70">
+            {gekoppelt ? 'Alarm auslösen + Foto an Telegram' : 'Alarm auslösen (Push + Telegram)'}
+          </p>
         </div>
-        <button type="button" disabled={evacBusy} onClick={evakuierungAusloesen}
+        <button type="button" disabled={evacBusy} onClick={() => void evakuierungAusloesen()}
           className="whitespace-nowrap rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold uppercase text-white transition hover:bg-rose-500 disabled:opacity-60">
           {evacBusy ? 'Sendet …' : 'Evakuierung'}
         </button>
       </div>
+      {alarmHinweis && (
+        <p className="mt-2 rounded-lg bg-amber-500/90 px-2.5 py-1.5 text-xs font-semibold leading-snug text-amber-950">{alarmHinweis}</p>
+      )}
       {evacToast && <p className="mt-2 text-xs text-rose-200/80">{evacToast}</p>}
     </div>
   );
+
+  // Auslösen gescheitert: großes Fenster über allem (auch über der Eingabe).
+  const evacFehlerFenster = evacFehler ? (
+    <div role="alertdialog" aria-modal="true" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-6">
+      <div className="w-full max-w-lg rounded-3xl bg-rose-700 p-6 text-center text-white shadow-2xl ring-4 ring-white/70">
+        <div className="text-6xl" aria-hidden>⛔</div>
+        <h2 className="mt-2 text-3xl font-black uppercase tracking-wide">Alarm NICHT ausgelöst</h2>
+        <p className="mt-3 rounded-xl bg-black/30 px-3 py-2 text-sm">{evacFehler}</p>
+        <ol className="mt-4 space-y-2 text-left text-lg font-semibold leading-snug">
+          <li>1. Laut rufen und alle warnen.</li>
+          <li>2. Handy: Admin oder Personal anrufen — oder angemeldet in der App den Alarm auslösen.</li>
+          <li>3. Bei Feuer oder Verletzten: <strong>112</strong>.</li>
+        </ol>
+        {sicherUngekoppelt && (
+          <p className="mt-3 text-sm text-rose-100">
+            Dieses Tablet ist nicht gekoppelt. Ein Admin muss es unter Admin → Displays → Kiosk-Geräte koppeln.
+          </p>
+        )}
+        <div className="mt-5 flex gap-3">
+          <button type="button" disabled={evacBusy} onClick={() => void evakuierungAusloesen(true)}
+            className="flex-1 rounded-2xl bg-white px-4 py-4 text-lg font-bold text-rose-700 disabled:opacity-60">
+            {evacBusy ? 'Versuche …' : 'Nochmal versuchen'}
+          </button>
+          <button type="button" onClick={() => setEvacFehler(null)}
+            className="rounded-2xl bg-rose-900/60 px-4 py-4 text-base font-semibold ring-1 ring-white/40">
+            Schließen
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   // ─── Evakuierungs-Overlay ─────────────────────────────────────────────────
   const evacuation = evacQ.data;
@@ -293,10 +366,20 @@ export default function OilRoom() {
     </div>
   );
 
-  const kopplungsHinweis = !geraet.isLoading && !gekoppelt ? (
-    <div className="fixed left-3 top-3 z-50 max-w-sm rounded-xl bg-amber-500/95 px-3 py-2 text-xs font-semibold leading-snug text-amber-950 shadow-lg">
-      🔐 Dieses Tablet ist nicht gekoppelt — Eintragen und Ändern gehen erst nach der Kopplung
-      (Admin → Displays → Kiosk-Geräte → „Öl-Raum-Tablet“).
+  // Eintragen/Planen bleibt ohne Kopplung gesperrt (Sicherheitsentscheidung
+  // 0177) — der Hinweis muss deshalb unübersehbar sagen, dass ein Admin koppeln
+  // muss. Ein Ladefehler ist KEIN „nicht gekoppelt" (sonst hielte man die
+  // Kopplung nach einem kurzen Netzausfall für verloren).
+  const kopplungsHinweis = sicherUngekoppelt ? (
+    <div className="fixed left-3 top-3 z-50 max-w-md rounded-xl bg-amber-500/95 px-4 py-3 text-sm font-semibold leading-snug text-amber-950 shadow-lg ring-2 ring-amber-200">
+      <div className="text-base font-black">🔐 Admin muss dieses Tablet koppeln</div>
+      Ohne Kopplung gehen hier kein Eintragen, Ändern, Übernehmen oder Absagen
+      {uebergangQ.data === false ? ' — und auch kein Evakuierungsalarm' : ''}.
+      Ein Admin öffnet Admin → Displays → Kiosk-Geräte → „Öl-Raum-Tablet“ und öffnet den Link auf diesem Tablet.
+    </div>
+  ) : !geraet.data && geraet.isError ? (
+    <div className="fixed left-3 top-3 z-50 max-w-sm rounded-xl bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-100 shadow-lg">
+      Prüfe Gerät … (Server gerade nicht erreichbar, neuer Versuch läuft)
     </div>
   ) : null;
 
@@ -305,6 +388,7 @@ export default function OilRoom() {
       <>
         {vollbildKnopf}
         {kopplungsHinweis}
+        {evacFehlerFenster}
         <OelraumEingabe
           auftrag={auftrag}
           saunas={saunas}
@@ -325,6 +409,7 @@ export default function OilRoom() {
     <>
       {vollbildKnopf}
       {kopplungsHinweis}
+      {evacFehlerFenster}
       <OelraumAnzeige
         now={now}
         infusions={infusions}

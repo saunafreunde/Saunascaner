@@ -87,9 +87,10 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         <li>
           <Stark>Check-in &amp; Anwesenheit:</Stark> deine Check-in-PIN, wann du ein- und
           auscheckst, an welchen Tagen du da warst und ob du mit Partner oder Kindern da
-          bist (für die Personenzahl im Notfall). Freiwillig: automatisches Einchecken im
-          Vereins-WLAN — die App vergleicht dazu die Netzwerkadresse deines Geräts mit
-          dem WLAN des Vereins.
+          bist (für die Personenzahl im Notfall). Automatisches Einchecken im
+          Vereins-WLAN: bei allen Konten außer Gästen voreingestellt, im Profil jederzeit
+          abschaltbar — die App vergleicht dazu die Netzwerkadresse deines Geräts im
+          WLAN mit dem Netz des Vereins; die Adresse selbst speichern wir nicht.
         </li>
         <li>
           <Stark>Evakuierungsalarm:</Stark> Wird Alarm ausgelöst, speichern wir, wer in
@@ -151,9 +152,16 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           Notfall zu wissen, wer sich in der Anlage befindet.
         </li>
         <li>
-          <Stark>Freiwillige Angaben</Stark> (Profilbild, Geburtstag, Motto usw.),
-          WLAN-Check-in, Push und Telegram: Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;a DSGVO
-          (Einwilligung) — du kannst sie jederzeit löschen bzw. abschalten.
+          <Stark>Automatisches Einchecken im Vereins-WLAN:</Stark> Art.&nbsp;6 Abs.&nbsp;1
+          lit.&nbsp;f DSGVO — unser berechtigtes Interesse an einer vollständigen
+          Anwesenheits- und Evakuierungsliste, auch wenn jemand das Einchecken vergisst.
+          Es ist voreingestellt (außer bei Gästen); du kannst jederzeit widersprechen
+          (Art.&nbsp;21 DSGVO), indem du es im Profil abschaltest.
+        </li>
+        <li>
+          <Stark>Freiwillige Angaben</Stark> (Profilbild, Geburtstag, Motto usw.), Push
+          und Telegram: Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;a DSGVO (Einwilligung) — du
+          kannst sie jederzeit löschen bzw. abschalten.
         </li>
         <li>
           <Stark>Technische Daten, Reichweitenmessung, Fehlerberichte,
@@ -168,22 +176,28 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           <Stark>Ohne Anmeldung</Stark> — auf der Aufguss-Tafel im Saunabereich und an den
           Tablets; die Tafel ist auch über das Internet abrufbar: der Aufgussplan mit
           Name, Saunaname, Profilbild und Motto der Aufgießerinnen und Aufgießer. Beim
-          Einchecken am Tablet erscheint dein Name kurz auf dem Bildschirm. Während eines
+          Einchecken am Tablet erscheint dein Name kurz auf dem Bildschirm. Das Tablet im
+          Öl-Raum zeigt, welche Aufgießerinnen und Aufgießer gerade eingecheckt sind. Während eines
           Evakuierungsalarms zeigen Tafel und Tablets die Namen der Anwesenden.
         </li>
         <li>
           <Stark>Angemeldete Nutzerinnen und Nutzer</Stark> (Gäste und Mitglieder):
-          Profile, Feed, Kommentare, Gästebuch und Galerie. Bewertungskommentare
-          erscheinen <Stark>ohne Namen und Foto</Stark>; deine einzelnen Bewertungen
-          sehen nur du und der Vorstand.
+          Profile (mit Aufguss-Zahlen und der „Streak“ — wie viele Wochen in Folge
+          jemand da war), Feed, Kommentare, Gästebuch und Galerie.
+          Bewertungskommentare erscheinen <Stark>ohne Namen und Foto</Stark>; deine
+          einzelnen Bewertungen, deine Besuchstage und deine Statistik sehen nur du
+          und der Vorstand.
+        </li>
+        <li>
+          <Stark>Vereinsmitglieder, Aufgießer und Personal</Stark> (nicht Gäste) sehen
+          in der App, wer gerade eingecheckt ist, und seit wann.
         </li>
         <li>
           <Stark>Direktnachrichten</Stark> lesen nur die beiden Beteiligten.
         </li>
         <li>
-          <Stark>Vorstand und Personal</Stark> sehen, wer gerade eingecheckt ist; der
-          Vorstand verwaltet die Konten und sieht dafür Kontaktdaten, Besuche,
-          Bewertungen und das Änderungsprotokoll.
+          <Stark>Der Vorstand</Stark> verwaltet die Konten und sieht dafür
+          Kontaktdaten, Besuche, Bewertungen und das Änderungsprotokoll.
         </li>
       </ul>
       <p className="mt-2">
@@ -241,13 +255,28 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           länger, soweit sie als Arbeitszeitnachweis dienen.
         </li>
         <li>
+          Teilnahme an einzelnen Aufgüssen (Check-in während eines Aufgusses, mit
+          Uhrzeit): 24 Monate.
+        </li>
+        <li>
+          Vermerke, an welchen Aufguss wir dich schon per Push oder Telegram zum Bewerten
+          erinnert haben: 7 Tage.
+        </li>
+        <li>
+          Nie bestätigte Registrierungen (Name und E-Mail-Adresse, wenn der
+          Bestätigungslink nicht angeklickt wurde): 7 Tage nach der letzten Anfrage.
+        </li>
+        <li>
           Namenslisten von Evakuierungsalarmen: 90 Tage nach dem Alarm, danach bleiben nur
           Zeitpunkt und Anzahl.
         </li>
         <li>Änderungsprotokoll des Vorstands: 24 Monate.</li>
         <li>Protokoll verschickter E-Mails: 12 Monate.</li>
         <li>Fehlerberichte der App: 30 Tage.</li>
-        <li>Missbrauchsschutz bei Anmelde-, PIN- und Mail-Versuchen: höchstens einen Tag.</li>
+        <li>
+          Missbrauchsschutz bei Anmelde-, PIN- und Mail-Versuchen: einen Tag; ältere
+          Einträge löscht die App automatisch (Prüfung alle 10 Minuten).
+        </li>
         <li>Server-Protokolle der Hosting-Anbieter: werden dort nach kurzer Zeit gelöscht.</li>
         <li>
           Gäste, die seit über 12 Monaten nicht mehr da waren, schlägt die App dem Vorstand
@@ -258,7 +287,8 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         Wird dein Konto gelöscht, entfernen wir Profil, Check-in-Daten, Besuchstage,
         Bewertungen, Beiträge, Kommentare, Nachrichten, Fotos und Benachrichtigungen. In
         Protokollen, Evakuierungslisten und Wochenrückblicken im Feed ersetzen wir deinen
-        Namen durch einen Platzhalter (z.&nbsp;B. „gelöschtes Konto“). Aufgüsse, die du gemacht hast, bleiben ohne deinen
+        Namen durch einen Platzhalter (z.&nbsp;B. „gelöschtes Konto“), im Protokoll
+        verschickter E-Mails auch deine Adresse. Aufgüsse, die du gemacht hast, bleiben ohne deinen
         Namen im Plan. Nachrichten, die schon über Telegram verschickt wurden (z.&nbsp;B.
         ein Geburtstagsgruß), können wir dort nicht mehr zurückholen.
       </p>

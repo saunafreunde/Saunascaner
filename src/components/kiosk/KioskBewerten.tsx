@@ -45,6 +45,8 @@ const FEHLER: Record<string, string> = {
   nicht_anwesend_gewesen: 'Für diesen Tag ist kein Check-in hinterlegt.',
   pin_unbekannt: 'Der PIN stimmt nicht mehr. Bitte neu eintippen.',
   bewertung_unvollstaendig: 'Bitte alle sechs Punkte vergeben.',
+  zu_viele_fehlversuche: 'Zu viele Fehlversuche – bitte kurz warten oder beim Personal melden.',
+  too_many_requests: 'Zu viele Fehlversuche – bitte kurz warten oder beim Personal melden.',
 };
 
 const FRIST_MS = 45_000;

@@ -9,6 +9,10 @@
 import { maskeBei, querPunkt, wrapIdx, M_SCHULTER, M_WAND } from '../strecken';
 import { KLASSEN, begrenze, wrapWinkel, type Eingabe, type Fahrer, type KiZustand, type RennKern } from './typen';
 
+/** Sekunden zwischen zwei Item-Einsätzen desselben Computerfahrers. Bei
+ *  „3× Minze" (Schub 1,2 s) reihen sich die Schübe so zu rund 2,8 s. */
+const KI_ITEM_ABSTAND_S = 0.8;
+
 export function neueKi(r: RennKern, persoenlichkeit: number, skill?: number): KiZustand {
   const [lo, hi] = KLASSEN[r.setup.klasse].kiSkill;
   return {
@@ -121,6 +125,10 @@ export function kiEingabe(r: RennKern, f: Fahrer, dt: number): Eingabe {
   if (f.item && f.taumelRest <= 0) {
     ki.itemTimer -= dt;
     if (ki.itemTimer <= 0) item = willItem(r, f, kNah);
+    // Mindestabstand nach jedem Einsatz: Ohne ihn feuerte „3× Minze" in drei
+    // aufeinanderfolgenden Physik-Schritten (25 ms) — schub() nimmt das
+    // Maximum, also blieb nur EIN Schub übrig (Audit-Runde 2).
+    if (item) ki.itemTimer = KI_ITEM_ABSTAND_S;
   }
 
   // ── Gas: vor engen Kurven lupfen, wer nicht driftet ──────────────────

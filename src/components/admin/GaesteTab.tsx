@@ -8,10 +8,10 @@
 // zählt: wer ist neu, wer kommt wieder, wer hat sich nie wieder gemeldet.
 //
 // Es gibt hier bewusst NICHTS zu genehmigen (der Trigger setzt approved=true
-// schon beim Anlegen) und bewusst KEIN „Sperren": das setzt nur revoked_at,
-// woraufhin allein der Tablet-PIN stirbt — App-Login, Feed und Nachrichten
-// laufen weiter. Ein Knopf, der sein Versprechen nicht hält, gehört nicht in
-// eine Übersicht, die Vertrauen schaffen soll.
+// schon beim Anlegen) und KEIN „Sperren". Früher setzte Sperren nur revoked_at
+// und App-Login, Feed und Nachrichten liefen weiter. Seit 0192 wirkt Sperren
+// (Schreibsperre + Anmeldesperre), der Knopf bleibt aber in der
+// Mitgliederverwaltung (Admin → Mitglieder), hier wäre er nur doppelt.
 
 import { useMemo, useState } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';

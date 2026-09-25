@@ -7,6 +7,10 @@ jeweiligen Stunde. Wird einmal vom Admin freigegeben — ab da stehst du sofort
 für die nächsten 8 Wochen im Plan, danach rollend jede Woche. Bei Urlaub trägst
 du eine Abwesenheit ein — dann können andere diese Slots übernehmen. Löschst du
 den Urlaub wieder, bekommst du die noch nicht übernommenen Aufgüsse zurück.
+Kannst du nur an **einem** Tag nicht, sag den Termin einfach ab (Atelier 🗑 oder
+Öl-Raum-Tablet): Die Stunde geht ans Personal zurück, andere können sie
+übernehmen, und die App trägt dich für diesen Tag nicht wieder ein — auch nicht
+nachts oder nach einem gelöschten Urlaub. Dein Stamm-Slot bleibt bestehen.
 
 ### Wie unterscheiden sich Aufgießer und Gast-Aufgießer?
 🧖 **Aufgießer** sind Vereinsmitglieder. 🌍 **Gast-Aufgießer** kommen aus anderen
@@ -27,8 +31,10 @@ Alternativ über den **Telegram-Bot** — er meldet offene Slots rechtzeitig.
 
 ### Kann ich aus Versehen Aufgüsse löschen?
 - Eigene Aufgüsse löschst du im Atelier — mit Doppelbestätigung.
-- Löschst du einen übernommenen Personal-Aufguss, wird der Slot wieder zum
-  Personal-Fallback, fällt also nicht aus.
+- Sagst du einen Aufguss zur vollen Stunde in der Garantie-Sauna ab (Stamm-Termin
+  oder übernommener Personal-Aufguss), wird der Slot wieder zum
+  Personal-Fallback, fällt also nicht aus — auch bei einer Absage am selben Tag.
+  Andere Aufgüsse (Zweit-Sauna, halbe Stunden) werden entfernt.
 - Ein Admin kann jederzeit wiederherstellen.
 
 ### Wie viele können bei einem Team-Aufguss mitmachen?

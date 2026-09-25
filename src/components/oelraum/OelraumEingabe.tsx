@@ -825,9 +825,11 @@ export function OelraumEingabe({
                       <button
                         onClick={() => delInf.mutate(i.id, { onError: (err) => window.alert((err as Error).message) })}
                         disabled={gesperrt}
-                        title={gesperrt ? `Steht bereits auf der Tafel — Absage ab ${INFUSION_CANCEL_LOCK_MINUTES} Min vor Start gesperrt` : undefined}
+                        title={gesperrt
+                          ? `Steht bereits auf der Tafel — Absage ab ${INFUSION_CANCEL_LOCK_MINUTES} Min vor Start gesperrt`
+                          : 'Absagen: Zur Garantie-Stunde übernimmt wieder das Personal, sonst wird der Slot frei.'}
                         className="rounded-md px-2 py-1 text-xs text-rose-300 disabled:cursor-not-allowed disabled:opacity-40">
-                        {gesperrt ? '🔒 gesperrt' : 'Löschen'}
+                        {gesperrt ? '🔒 gesperrt' : 'Absagen'}
                       </button>
                     </li>
                   );

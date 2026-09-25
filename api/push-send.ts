@@ -194,6 +194,28 @@ function berlinDatum(ymd: string): string {
   return y && m && d ? `${d}.${m}.` : ymd;
 }
 
+/** Abstand Berlin–UTC in ms zu einem Zeitpunkt (1 oder 2 Stunden). */
+function berlinVersatzMs(t: number): number {
+  const teile = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Berlin', hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(new Date(t)).map((p) => [p.type, p.value]),
+  );
+  return Date.UTC(+teile.year, +teile.month - 1, +teile.day, +teile.hour, +teile.minute, +teile.second) - t;
+}
+
+/** Mitternacht (Europe/Berlin) des Tages ymd + plusTage als ISO-Zeitpunkt —
+ *  derselbe Tagesbegriff wie add_absence ((start_time at time zone
+ *  'Europe/Berlin')::date). Zweimal gerechnet, damit Umstellungstage stimmen. */
+function berlinMitternacht(ymd: string, plusTage = 0): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const utc = Date.UTC(y, m - 1, d + plusTage);
+  let t = utc - berlinVersatzMs(utc);
+  t = utc - berlinVersatzMs(t);
+  return new Date(t).toISOString();
+}
+
 async function vorlageSenden(auth: AuthOk, b: Record<string, unknown>, res: VercelResponse) {
   const sb = auth.service;
   const me = auth.member;
@@ -285,8 +307,9 @@ async function vorlageSenden(auth: AuthOk, b: Record<string, unknown>, res: Verc
         .in('recurring_slot_id', slotIds)
         .eq('is_personal_fallback', true)
         .gte('end_time', new Date().toISOString())
-        .gte('start_time', `${abw.start_date}T00:00:00+00:00`)
-        .lte('start_time', `${abw.end_date}T23:59:59+00:00`)
+        // Tagesgrenzen in Europe/Berlin (vorher UTC) — Audit-Runde 2.
+        .gte('start_time', berlinMitternacht(String(abw.start_date)))
+        .lt('start_time', berlinMitternacht(String(abw.end_date), 1))
         .order('start_time')
         .limit(50);
       frei = (infs ?? []) as { start_time: string; saunas: unknown }[];
