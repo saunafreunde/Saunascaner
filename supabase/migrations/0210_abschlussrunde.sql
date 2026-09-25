@@ -16,6 +16,9 @@
 --     und machte Einladungen zu öffentlichen „X wartet"-Tischen. Der Aufräum-
 --     Teil aus 0209 steckt jetzt im Helfer _spiele_konto_raeumen(p_id); ihn
 --     rufen der Sperr-Trigger (0209) und ein neuer BEFORE-DELETE-Trigger.
+-- Nach Gegenprüfung: gemerkte Bezüge zählen nicht als „schon abgerufen"
+-- (v_schon_gesehen), und eine Mail, die erst nach einer Antwort auf sie
+-- eintrifft, wird von 'bezug' zur Eingangs-Zeile.
 -- Frontend-Teile derselben Runde: Alarm-Vollbild erkennt einen hängenden
 -- Telegram-Nachversand, Spiele zeigen „Partie abgebrochen", Datenschutz-
 -- hinweise nennen die Empfängeradressen von App-Antworten (Fassung .4).
@@ -178,7 +181,11 @@ BEGIN
            AND t.last_imap_uid >= p_imap_uid
            AND (t.thread_key = ANY (v_kand)
                 OR EXISTS (SELECT 1 FROM public.email_ticket_nachrichten n
-                            WHERE n.ticket_id = t.id AND n.message_id = ANY (v_kand))));
+                            WHERE n.ticket_id = t.id AND n.message_id = ANY (v_kand)
+                              -- 0210: ein gemerkter Bezug beweist nicht, dass die
+                              -- Mail schon abgerufen war (sonst ginge die Meldung
+                              -- einer zweiten Antwort auf dieselbe Rundmail verloren).
+                              AND n.richtung <> 'bezug')));
     END IF;
     INSERT INTO public.email_tickets(account_id, thread_key, subject, from_address, status,
       last_inbound_at, last_imap_uid, message_count)
@@ -204,7 +211,11 @@ BEGIN
       IF v_neu THEN
         INSERT INTO public.email_ticket_nachrichten (ticket_id, message_id, richtung, absender)
         VALUES (v_ticket_id, v_key, 'eingang', v_absender)
-        ON CONFLICT (ticket_id, message_id) DO NOTHING;
+        -- 0210: Kam diese Mail NACH einer Antwort, die sich auf sie bezog, steht
+        -- sie schon als 'bezug' im Ticket — dann wird sie zur Eingangs-Zeile.
+        ON CONFLICT (ticket_id, message_id) DO UPDATE
+          SET richtung = 'eingang', absender = EXCLUDED.absender
+        WHERE public.email_ticket_nachrichten.richtung = 'bezug';
       END IF;
       RETURN v_ticket_id;
     END IF;
@@ -226,7 +237,10 @@ BEGIN
   IF v_neu THEN
     INSERT INTO public.email_ticket_nachrichten (ticket_id, message_id, richtung, absender)
     VALUES (v_ticket_id, v_key, 'eingang', v_absender)
-    ON CONFLICT (ticket_id, message_id) DO NOTHING;
+    -- 0210: siehe oben — ein vorher gemerkter Bezug wird zur Eingangs-Zeile.
+    ON CONFLICT (ticket_id, message_id) DO UPDATE
+      SET richtung = 'eingang', absender = EXCLUDED.absender
+    WHERE public.email_ticket_nachrichten.richtung = 'bezug';
   END IF;
 
   -- Benachrichtigen nur bei neuer Mail oder Wieder-Öffnen — und nur für Mails
