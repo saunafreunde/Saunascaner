@@ -6,6 +6,7 @@
 // schickt nur noch die Art der Meldung (Alarm-Inhalt kommt aus der Datenbank).
 import { authHeaders } from './api';
 import { kioskGeraetHeader } from './kioskGeraet';
+import { versandStandLesen, versandStandText } from './evakuierungStatus';
 
 export type EvacuationPayload = {
   triggeredBy: string;
@@ -30,29 +31,51 @@ export type EvakuierungsVersand = {
   note?: string;
   push?: { gesendet: number; gesamt: number; fehlt?: string };
   foto?: string;
+  /** evacuation_events.telegram_status nach dem Aufruf (seit 0199) — auch
+   *  bei schon_gesendet, statt einer pauschalen Erfolgsmeldung. */
+  status?: string | null;
 };
 
 export async function sendEvacuationList(p: EvacuationPayload): Promise<EvakuierungsVersand> {
   return sendEvacuationWithPhoto(p);
 }
 
-/** Kurzmeldung für die Oberfläche — nur aufrufen, wenn der Alarm steht. */
+/**
+ * Kurzmeldung für die Oberfläche — nur aufrufen, wenn der Alarm steht.
+ * Audit-Runde 3 (0199): meldet ehrlich, was angekommen ist. 0 zugestellte
+ * Chats oder ein Teilausfall erscheinen als Warnung, nicht als „verschickt“;
+ * läuft der Versand noch (der Server war schneller), verweist die Meldung auf
+ * das Alarm-Vollbild, das den Endstand anzeigt.
+ */
 export function versandMeldung(r: EvakuierungsVersand): string {
   if (!r.ok) {
     return `Benachrichtigung von diesem Gerät fehlgeschlagen (${r.detail ?? 'unbekannt'}). `
       + 'Der Server verschickt Push und Telegram selbst — bitte im Telegram-Chat prüfen und im Zweifel telefonisch alarmieren.';
   }
   const teile: string[] = [];
-  const push = r.push?.gesendet ?? 0;
-  if (r.schon_gesendet) teile.push('Push + Telegram verschickt der Server');
-  else if (r.note === 'no chats subscribed') teile.push(`Push an ${push} Geräte, keine Telegram-Chats eingerichtet`);
-  else if (r.note === 'telegram_token_fehlt') teile.push(`Push an ${push} Geräte, Telegram nicht eingerichtet`);
-  else teile.push(`Push an ${push} Geräte, Telegram an ${r.sent ?? 0}/${r.total ?? 0} Chats`);
+  if (r.status && r.status !== 'sende') {
+    teile.push(versandStandText(versandStandLesen(r.status)).text);
+  } else if (r.schon_gesendet) {
+    teile.push('Push + Telegram laufen über den Server — Stand siehe Alarm-Anzeige');
+  } else {
+    // Antwort eines älteren Servers ohne status.
+    const push = r.push?.gesendet ?? 0;
+    const sent = r.sent ?? 0;
+    const total = r.total ?? 0;
+    if (r.note === 'no chats subscribed') teile.push(`Push an ${push} Geräte, keine Telegram-Chats eingerichtet`);
+    else if (r.note === 'telegram_token_fehlt') teile.push(`⚠️ Push an ${push} Geräte, Telegram nicht eingerichtet`);
+    else if (sent === 0) teile.push(`⚠️ Push an ${push} Geräte, Telegram an KEINEN Chat zugestellt (0/${total}) — bitte telefonisch alarmieren`);
+    else if (sent < total) teile.push(`⚠️ Push an ${push} Geräte, Telegram nur an ${sent}/${total} Chats — bitte telefonisch nachalarmieren`);
+    else teile.push(`Push an ${push} Geräte, Telegram an ${sent}/${total} Chats`);
+  }
   if (r.foto) {
-    teile.push(r.foto.startsWith('gesendet') ? 'Foto an Telegram gesendet'
+    const zahl = /^(?:gesendet|fehlgeschlagen) (\d+)\/(\d+)$/.exec(r.foto);
+    teile.push(zahl
+      ? (Number(zahl[1]) > 0 ? `Foto an ${zahl[1]}/${zahl[2]} Telegram-Chats gesendet` : '⚠️ Foto an keinen Chat zugestellt')
       : r.foto === 'schon_gesendet' ? 'Foto war schon gesendet'
         : r.foto === 'nicht_erlaubt' ? 'Foto nicht gesendet (Gerät nicht gekoppelt)'
-          : `Foto nicht gesendet (${r.foto})`);
+          : r.foto === 'keine_zeit' ? 'Foto nicht gesendet (Zeit reichte nicht)'
+            : `Foto nicht gesendet (${r.foto})`);
   }
   return teile.join(' · ');
 }
@@ -114,6 +137,7 @@ export async function sendEvacuationWithPhoto(p: EvacuationWithPhotoPayload): Pr
         return {
           ok: true, via: 'telegram', sent: data.sent, total: data.total,
           schon_gesendet: !!data.schon_gesendet, note: data.note, push: data.push, foto: data.foto,
+          status: typeof data.status === 'string' ? data.status : null,
         };
       }
       letzter = { ok: false, via: 'telegram', detail: data?.error ?? `HTTP ${r.status}` };

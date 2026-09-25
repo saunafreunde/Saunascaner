@@ -25,6 +25,10 @@ fehlerberichteEinschalten();
 // normal weiterlaufen (sonst bekäme React.lazy `undefined` statt des Moduls).
 window.addEventListener('vite:preloadError', () => {
   if (!navigator.onLine) return;
+  // Während eines Evakuierungsalarms nie neu laden: das Vollbild steht, und
+  // nach einem Neuladen bliebe die Sirene bis zum ersten Antippen stumm
+  // (Audit-Runde 3). Ein fehlender Programmteil (z. B. Bühnen-Effekt) wartet.
+  if (queryClient.getQueryData(['evacuation', 'active'])) return;
   const KEY = 'chunk-neuladen-um';
   try {
     const zuletzt = Number(sessionStorage.getItem(KEY) ?? '0');

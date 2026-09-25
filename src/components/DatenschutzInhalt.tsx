@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
+import { DATENSCHUTZ_FASSUNG, DATENSCHUTZ_STAND } from '@/lib/datenschutz';
 
 // Text der Datenschutzhinweise — gemeinsam für /datenschutz und das Overlay am
 // Eingangs-Tablet (CheckinSignup). Nur Tatsachen, die sich im Code bzw. in der
 // Datenbank belegen lassen. Bei jeder inhaltlichen Änderung die Fassung in
-// src/lib/datenschutz.ts hochsetzen (wird bei der Registrierung gespeichert).
+// src/lib/datenschutz.ts hochsetzen (wird bei der Registrierung gespeichert;
+// zweite Änderung am selben Tag: Zähler .2, .3 … — Regeln dort).
 //
 // kiosk: am Tablet keine Links (kein Mailprogramm, kein Wegnavigieren aus der
 // gesperrten Vollbildansicht) — Adressen stehen dann als Text da.
@@ -94,9 +96,9 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         </li>
         <li>
           <Stark>Evakuierungsalarm:</Stark> Wird Alarm ausgelöst, speichern wir, wer in
-          diesem Moment eingecheckt war. Diese Namensliste und ein Foto der Tablet-Kamera
-          gehen an die Vereins-Chats in Telegram (siehe 5.). Das Foto speichert die App
-          nicht.
+          diesem Moment eingecheckt war und wer den Alarm ausgelöst hat. Diese Namen und
+          ein Foto der Tablet-Kamera gehen an die Vereins-Chats in Telegram (siehe 5.).
+          Das Foto speichert die App nicht.
         </li>
         <li>
           <Stark>Bewertungen:</Stark> deine Noten zu Aufgüssen und dein freiwilliger
@@ -123,6 +125,15 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           Kalender-Abo ein persönlicher Zugangsschlüssel.
         </li>
         <li>
+          <Stark>Gekoppelte Geräte:</Stark> Für die Tafel, die Tablets, den
+          Eingangs-Scanner und den Anwesenheits-PC speichern wir Gerätename, Art, wer das
+          Gerät gekoppelt hat und die Zeitpunkte (gekoppelt, zuletzt aktiv, entkoppelt).
+          Bei der Kopplung per
+          QR-Code enthält die Anfrage des Geräts außerdem eine grobe Geräteangabe
+          (Betriebssystem, Browser, Bildschirmgröße) und einen gekürzten Hash-Wert der
+          IP-Adresse (Schutz vor massenhaften Anfragen).
+        </li>
+        <li>
           <Stark>Technische Daten:</Stark> Server-Protokolle der Hosting-Anbieter
           (u.&nbsp;a. IP-Adresse), Reichweiten- und Ladezeitmessung mit Vercel Web
           Analytics und Speed Insights (ohne Cookies; aufgerufene Seiten ohne Kennungen
@@ -147,9 +158,18 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           Personal: das Beschäftigungsverhältnis.
         </li>
         <li>
-          <Stark>Anwesenheits- und Evakuierungsliste, Alarm an die Vereins-Chats:</Stark>{' '}
+          <Stark>Anwesenheits- und Evakuierungsliste (auch am Anwesenheits-PC), Alarm an
+          die Vereins-Chats:</Stark>{' '}
           Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;f DSGVO — unser berechtigtes Interesse, im
           Notfall zu wissen, wer sich in der Anlage befindet.
+        </li>
+        <li>
+          <Stark>Vereinsmeldungen in den Telegram-Chats</Stark> (offene Aufgüsse und wer
+          sie übernimmt, Aufgussplan, neue Abzeichen, geänderte Saunanamen,
+          Umfrage-Ergebnisse — siehe 5.): Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;f DSGVO — unser
+          berechtigtes Interesse, die Aufgüsse zu organisieren und das Vereinsleben zu
+          pflegen. Du kannst dem widersprechen (Art.&nbsp;21 DSGVO), z.&nbsp;B. per E-Mail
+          an {mail}.
         </li>
         <li>
           <Stark>Automatisches Einchecken im Vereins-WLAN:</Stark> Art.&nbsp;6 Abs.&nbsp;1
@@ -159,14 +179,16 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           (Art.&nbsp;21 DSGVO), indem du es im Profil abschaltest.
         </li>
         <li>
-          <Stark>Freiwillige Angaben</Stark> (Profilbild, Geburtstag, Motto usw.), Push
-          und Telegram: Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;a DSGVO (Einwilligung) — du
-          kannst sie jederzeit löschen bzw. abschalten.
+          <Stark>Freiwillige Angaben</Stark> (Profilbild, Geburtstag — auch für die
+          Geburtstagsgrüße —, Motto usw.), Push und die Verknüpfung deines Kontos mit
+          Telegram: Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;a DSGVO (Einwilligung) — du kannst
+          sie jederzeit löschen bzw. abschalten.
         </li>
         <li>
           <Stark>Technische Daten, Reichweitenmessung, Fehlerberichte,
-          Änderungsprotokoll, Vereinspostfach:</Stark> Art.&nbsp;6 Abs.&nbsp;1
-          lit.&nbsp;f DSGVO — sicherer, stabiler Betrieb und Bearbeitung von Anfragen.
+          Änderungsprotokoll, gekoppelte Geräte, Vereinspostfach:</Stark> Art.&nbsp;6
+          Abs.&nbsp;1 lit.&nbsp;f DSGVO — sicherer, stabiler Betrieb und Bearbeitung von
+          Anfragen.
         </li>
       </ul>
 
@@ -176,9 +198,14 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           <Stark>Ohne Anmeldung</Stark> — auf der Aufguss-Tafel im Saunabereich und an den
           Tablets; die Tafel ist auch über das Internet abrufbar: der Aufgussplan mit
           Name, Saunaname, Profilbild und Motto der Aufgießerinnen und Aufgießer. Beim
-          Einchecken am Tablet erscheint dein Name kurz auf dem Bildschirm. Das Tablet im
-          Öl-Raum zeigt, welche Aufgießerinnen und Aufgießer gerade eingecheckt sind. Während eines
-          Evakuierungsalarms zeigen Tafel und Tablets die Namen der Anwesenden.
+          Einchecken am Tablet erscheint dein Name kurz auf dem Bildschirm. Das gekoppelte
+          Tablet im Öl-Raum zeigt, welche Aufgießerinnen und Aufgießer gerade eingecheckt
+          sind. Der gekoppelte Anwesenheits-PC im Innenbereich zeigt alle Konten außer
+          Gästen (Mitglieder, Fördermitglieder, Aufgießer, Personal und Vorstand) mit
+          Saunaname bzw. Name, Profilbild, Mitgliedsnummer und ob sie gerade da sind;
+          dort kann man sie ein- und auschecken. Während eines Evakuierungsalarms zeigen
+          Tafel und Tablets die Namen der Anwesenden, die Tafel außerdem, wer den Alarm
+          ausgelöst hat.
         </li>
         <li>
           <Stark>Angemeldete Nutzerinnen und Nutzer</Stark> (Gäste und Mitglieder):
@@ -190,14 +217,16 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         </li>
         <li>
           <Stark>Vereinsmitglieder, Aufgießer und Personal</Stark> (nicht Gäste) sehen
-          in der App, wer gerade eingecheckt ist, und seit wann.
+          nach der Anmeldung in der App, wer gerade eingecheckt ist, und seit wann —
+          sobald der Vorstand ihr Konto freigegeben hat (zum Anwesenheits-PC siehe oben).
         </li>
         <li>
           <Stark>Direktnachrichten</Stark> lesen nur die beiden Beteiligten.
         </li>
         <li>
           <Stark>Der Vorstand</Stark> verwaltet die Konten und sieht dafür
-          Kontaktdaten, Besuche, Bewertungen und das Änderungsprotokoll.
+          Kontaktdaten, Besuche, Bewertungen und das Änderungsprotokoll, außerdem die
+          gekoppelten Geräte und offene Kopplungsanfragen.
         </li>
       </ul>
       <p className="mt-2">
@@ -226,17 +255,22 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         </li>
         <li>
           <Stark>Telegram</Stark> (Anbieter außerhalb der EU): Die Vereins-Chats unseres
-          Bots erhalten Hinweise auf offene Aufgüsse, auf Nachfrage den Aufgussplan mit den
-          Namen der Aufgießer, Geburtstagsgrüße (Name und Saunaname), vom Vorstand
-          verschickte Umfrage-Ergebnisse (mit Namen und Antwort) und bei einem
-          Evakuierungsalarm die Namensliste und das Kamerafoto. Persönliche Nachrichten vom
-          Bot bekommst du nur, wenn du dein Konto mit Telegram verknüpfst.
+          Bots erhalten Hinweise auf offene Aufgüsse (wer einen davon übernimmt, steht
+          danach mit Namen darunter), auf Nachfrage den Aufgussplan mit den Namen der
+          Aufgießer, Geburtstagsgrüße (Name und Saunaname), automatische Meldungen, wenn
+          eine Aufgießerin oder ein Aufgießer ein neues Abzeichen erreicht (Name, Abzeichen
+          und seine Beschreibung, z.&nbsp;B. Zahl der Aufgüsse oder Wochen in Folge da) oder
+          den Saunanamen ändert (Name und neuer Saunaname), vom Vorstand verschickte
+          Umfrage-Ergebnisse (mit Namen, Mitgliedsnummer und Antwort) und bei einem
+          Evakuierungsalarm die Namensliste, den Namen der auslösenden Person und das
+          Kamerafoto. Persönliche Nachrichten vom Bot bekommst du nur, wenn du dein Konto
+          mit Telegram verknüpfst.
         </li>
         <li>
           <Stark>Push-Dienste der Browser-Hersteller</Stark> (z.&nbsp;B. Google, Apple,
           Mozilla) leiten verschlüsselte Push-Nachrichten an dein Gerät weiter, wenn du
-          Benachrichtigungen aktivierst. Geburtstagsgrüße gehen als Push an alle, die Push
-          aktiviert haben.
+          Benachrichtigungen aktivierst. Geburtstagsgrüße und der Evakuierungsalarm (mit dem
+          Namen der auslösenden Person) gehen als Push an alle, die Push aktiviert haben.
         </li>
         <li>
           <Stark>OpenRouter</Stark> (KI-Titelvorschläge im Aufguss-Planer) und{' '}
@@ -267,8 +301,17 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
           Bestätigungslink nicht angeklickt wurde): 7 Tage nach der letzten Anfrage.
         </li>
         <li>
-          Namenslisten von Evakuierungsalarmen: 90 Tage nach dem Alarm, danach bleiben nur
-          Zeitpunkt und Anzahl.
+          Namenslisten von Evakuierungsalarmen und wer den Alarm ausgelöst hat: 90 Tage
+          nach dem Alarm, danach bleiben nur Zeitpunkt und Anzahl.
+        </li>
+        <li>
+          Kopplungsanfragen per QR-Code (Geräteangabe, Hash-Wert der IP-Adresse): einen
+          Tag; ältere löscht die App automatisch (Prüfung stündlich).
+        </li>
+        <li>
+          Gekoppelte Geräte: Der Eintrag bleibt auch nach dem Entkoppeln in der
+          Geräteliste des Vorstands; der Bezug zur Person, die gekoppelt hat, entfällt,
+          wenn ihr Konto gelöscht wird.
         </li>
         <li>Änderungsprotokoll des Vorstands: 24 Monate.</li>
         <li>Protokoll verschickter E-Mails: 12 Monate.</li>
@@ -290,7 +333,8 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
         Namen durch einen Platzhalter (z.&nbsp;B. „gelöschtes Konto“), im Protokoll
         verschickter E-Mails auch deine Adresse. Aufgüsse, die du gemacht hast, bleiben ohne deinen
         Namen im Plan. Nachrichten, die schon über Telegram verschickt wurden (z.&nbsp;B.
-        ein Geburtstagsgruß), können wir dort nicht mehr zurückholen.
+        ein Geburtstagsgruß oder eine Abzeichen-Meldung), können wir dort nicht mehr
+        zurückholen.
       </p>
 
       <H2>7. Konto löschen</H2>
@@ -323,7 +367,8 @@ export function DatenschutzInhalt({ orgName, contactEmail, kiosk = false }: {
       <p className="mt-2">
         Wenn sich die App weiterentwickelt, passen wir diese Hinweise an. Es gilt jeweils
         die hier veröffentlichte Fassung. Welche Fassung du bei deiner Registrierung
-        bestätigt hast, speichern wir mit deinem Konto.
+        bestätigt hast, speichern wir mit deinem Konto. Diese Fassung: {DATENSCHUTZ_FASSUNG}{' '}
+        (Stand {DATENSCHUTZ_STAND}).
       </p>
     </>
   );

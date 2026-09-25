@@ -5,6 +5,7 @@ import { usePresentFull, type PresentFullEntry } from '@/lib/api';
 import { FamilyStars } from '@/components/FamilyStars';
 import { useTonEntsperren } from '@/hooks/useTonEntsperren';
 import { useNow } from '@/hooks/useNow';
+import { versandStandLesen, versandStandText } from '@/lib/evakuierungStatus';
 
 export function EvacuationOverlay({
   triggeredBy,
@@ -170,7 +171,11 @@ export function EvacuationOverlay({
 
 /** Stand von Push + Telegram (Migration 0191: die Datenbank stößt den Versand
  *  selbst an). Eigene Komponente mit eigenem Takt, damit der Timer nur läuft,
- *  solange das Overlay wirklich zu sehen ist. */
+ *  solange das Overlay wirklich zu sehen ist.
+ *  Audit-Runde 3 (0199): Endstatus über versandStandText — 0 zugestellte
+ *  Chats, Teilausfall oder fehlender Push erscheinen als Warnung statt „✓“.
+ *  Ein hängender Versand wird nach 90 s vom Server selbst noch einmal
+ *  angestoßen (pg_cron); die Warnung unten erscheint trotzdem schon nach 60 s. */
 function VersandZeile({ status, seit }: { status: string | null; seit: string }) {
   const now = useNow(5_000);
   const alterS = Math.max(0, (now.getTime() - Date.parse(seit)) / 1000);
@@ -185,15 +190,8 @@ function VersandZeile({ status, seit }: { status: string | null; seit: string })
         ? '⚠️ Versand von Push + Telegram hängt — bitte im Telegram-Chat prüfen und telefonisch alarmieren.'
         : '⚠️ Push + Telegram wurden noch NICHT verschickt — bitte telefonisch alarmieren.';
     }
-  } else if (status.startsWith('gesendet')) {
-    text = `✓ Push + Telegram verschickt (${status.replace('gesendet ', '')} Chats).`;
-  } else if (status === 'keine_chats') {
-    text = '✓ Push verschickt · keine Telegram-Chats eingerichtet.';
-  } else if (status === 'kein_token') {
-    warnung = true;
-    text = '✓ Push verschickt · Telegram ist nicht eingerichtet.';
   } else {
-    text = `Versand: ${status}`;
+    ({ text, warnung } = versandStandText(versandStandLesen(status)));
   }
   return (
     <p className={`max-w-xl rounded-xl px-4 py-2 text-sm font-semibold ring-1 ${

@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import { useNow } from '@/hooks/useNow';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 // PageBackground bewusst nicht mehr genutzt — Tafel hat eigenes Hell-Theme
 // statt der dunklen forest-Hintergründe.
-import { EvacuationOverlay } from '@/components/EvacuationOverlay';
+// Das Evakuierungs-Overlay der Tafel steht seit Audit-Runde 3 NICHT mehr hier,
+// sondern in App.tsx (GlobalEvacuationOverlay → TafelEvakuierung): außerhalb
+// der Tafel-Grenze und der Suspense, damit ein Alarm auch erscheint, solange
+// die Tafel lädt oder abgestürzt ist. Nicht wieder hier einbauen — zwei
+// Overlays teilten sich eine Sirene, und das Aushängen des einen schaltete
+// sie für das andere ab.
+import { TAFEL_TON_HINWEIS as TON_HINWEIS } from '@/components/ErrorBoundary';
 import { InfoEinblendung } from '@/components/infokarte/InfoEinblendung';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import {
@@ -114,8 +119,6 @@ function FestVideoDaten({
   const abspielen = einstellungen.data?.tafel_aktiv ?? false;
   return <>{children({ videos, abspielen })}</>;
 }
-
-const TON_HINWEIS = '🔈 Ton: OK auf der Fernbedienung drücken';
 
 /** Hatte dieser Festtag echte Aufgüsse? (Voraussetzung für den Abschluss.) */
 function festHatteAufguesse(fest: SaunafestTag, infusions: Infusion[]): boolean {
@@ -419,8 +422,8 @@ export default function Dashboard() {
   return (
     // HELL-THEME für Tafel mit optionalem Branding-Bild als Hintergrund.
     // Stage (dunkle atmosphärische Layer) bleibt entfernt — wirkt auf hellem
-    // Untergrund störend. ParticleCanvas + Connection-Indicator + Evak-Overlay
-    // bleiben drin, sind in beiden Themes stimmig.
+    // Untergrund störend. ParticleCanvas + Connection-Indicator bleiben drin,
+    // sind in beiden Themes stimmig. (Evakuierungs-Overlay: siehe App.tsx.)
     <div
       className="h-screen overflow-hidden flex flex-col cursor-none select-none"
       style={{
@@ -435,14 +438,6 @@ export default function Dashboard() {
           wäre das die Last, an der sich der TV-Stick verschluckt.
           Unter dem Joker (Sauna zu) pausiert er ganz. */}
       {!festHeute && <ParticleCanvas activeSaunaCount={activeSaunas.length} pausiert={gesperrt} />}
-      <AnimatePresence>
-        {evac.data && (
-          <EvacuationOverlay
-            triggeredBy={members.data?.find((m) => m.id === evac.data!.triggered_by)?.name ?? null}
-            tonHinweis={TON_HINWEIS}
-          />
-        )}
-      </AnimatePresence>
 
       <main className="flex-1 min-h-0 w-full px-4 py-4 flex gap-4">
         {renderMain()}

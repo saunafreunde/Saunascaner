@@ -199,6 +199,10 @@ export function IdentityCard({ member, customAttrs, onOpenAttrCreator }: Identit
               autoFocus
               className="w-full rounded-lg bg-forest-900/80 px-3 py-2 text-sm ring-1 ring-violet-700/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
             />
+            {/* Datenschutzhinweise Abschnitt 5: sendSaunaNameAnnouncement meldet den Wechsel mit Klarnamen. */}
+            <p className="text-[11px] text-forest-400">
+              Die Änderung wird mit deinem Namen in den Vereins-Chats (Telegram) angekündigt.
+            </p>
             {nameError && <p className="text-xs text-rose-300">{nameError}</p>}
             <div className="flex gap-2">
               <button onClick={saveName} disabled={setSaunaName.isPending}

@@ -1566,15 +1566,13 @@ export function useAdminDeleteHoliday() {
 // PW-geschützter Desktop-Hub um Mitglieder ohne Handy ein-/auszuchecken.
 // PW wird per Argument an die RPCs gegeben (anon-Pattern, analog Kiosk).
 
+// Nur, was die Kacheln zeigen (0205: Rolle, Check-in-Zeit und Familienangaben
+// liefert list_panel_members nicht mehr — der PC steht ohne Anmeldung da).
 export type PanelMember = {
   id: string;
   name: string;
   member_number: number | null;
-  role: string;
-  is_aufgieser: boolean;
-  is_cp_employee: boolean;
   is_present: boolean;
-  last_scan_at: string | null;
   avatar_path: string | null;
   sauna_name: string | null;
 };
@@ -2321,6 +2319,10 @@ export async function sendVorlagePush(p:
   if (!r.ok) throw new Error(`push-send failed: ${r.status}`);
 }
 
+/** Wochen-Serie. Seit 0200 antwortet der Server für FREMDE IDs nur
+ *  freigegebenen Vereinsmitgliedern (admin/staff/member/guest_aufgieser) —
+ *  Gäste und unbestätigte Konten bekommen dort NULL (Anzeige „—"), ihre
+ *  eigene Serie weiterhin als Zahl. */
 export function useAttendanceStreak(memberId: string | null | undefined) {
   return useQuery({
     queryKey: ['streak', memberId ?? 'none'],
@@ -2328,7 +2330,7 @@ export function useAttendanceStreak(memberId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await need().rpc('get_attendance_streak_weeks', { p_member_id: memberId! });
       if (error) throw error;
-      return (data ?? 0) as number;
+      return typeof data === 'number' ? data : null;
     },
   });
 }
@@ -2392,6 +2394,8 @@ export type MemberDirectoryEntry = {
   // Migration 0076: Mitarbeiter-Flag + Familien-Mitgliedschaft.
   // Seit 0179: family_has_partner = „hat Familie" (Gäste sehen immer false),
   // family_children_count immer 0 — genaue Werte nur admin_list_members().
+  // Seit 0200: unbestätigte und gesperrte Konten bekommen das Verzeichnis gar
+  // nicht (leere Liste), „hat Familie" nur freigegebene Vereinsmitglieder.
   is_cp_employee: boolean;
   family_has_partner: boolean;
   family_children_count: number;
@@ -3119,14 +3123,36 @@ export function useBroadcastHandbookTelegram() {
 // Admins geben frei oder lehnen ab (Admin → Handbuch → Telegram).
 export type TelegramChatEintrag = {
   chat_id: number;
-  status: 'aktiv' | 'wartet' | 'abgelehnt';
+  /** 'pausiert' (0199): im Verteiler, aber vom Server als nicht erreichbar erkannt. */
+  status: 'aktiv' | 'pausiert' | 'wartet' | 'abgelehnt';
   vorname: string | null;
   benutzername: string | null;
   chat_typ: string | null;
   angefragt_at: string | null;
   mitglied_name: string | null;
   mitglied_gesperrt: boolean | null;
+  /** Seit wann bzw. warum pausiert (0199; vor der Migration undefined). */
+  deaktiviert_at?: string | null;
+  deaktiviert_grund?: 'blockiert' | 'konto_geloescht' | 'entfernt' | 'nicht_gefunden' | 'nicht_gestartet' | null;
 };
+
+/** Pausierten (nicht erreichbaren) Chat wieder beliefern (0199). */
+export function useTelegramChatReaktivieren() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (chat_id: number) => {
+      const { error } = await need().rpc('telegram_chat_reaktivieren', { p_chat_id: chat_id });
+      if (error) {
+        const msg = (error as { message?: string }).message ?? '';
+        if (msg.includes('not_admin')) throw new Error('Nur Admins dürfen Telegram-Chats wieder aktivieren.');
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['telegram-chats-admin'] });
+    },
+  });
+}
 
 export function useTelegramChatsAdmin(enabled = true) {
   return useQuery({
@@ -3622,17 +3648,18 @@ export function usePresentMembers() {
   });
 }
 
-// Anwesende Aufgießer ohne Login-Requirement (für Öl-Raum-Tablet).
-// Nutzt RPC list_present_aufgieser (Migration 0068, SECURITY DEFINER) die auch
-// für anonyme Clients erreichbar ist — die normale .from('members')-Query
-// scheitert dort an der members_read_self-Policy (only authenticated).
+// Anwesende Aufgießer für das Öl-Raum-Tablet (läuft ohne Login).
+// RPC list_present_aufgieser (SECURITY DEFINER, seit 0200 mit Geräte-Token):
+// Zeilen gibt es nur für das gekoppelte Öl-Raum-Gerät (p_geraet) oder ein
+// angemeldetes, freigegebenes Vereinsmitglied — sonst eine leere Liste. Sie
+// liefert nur noch member_id; die Namen kommen aus useMeisterDirectory.
 export function usePresentAufgieserPublic() {
   return useQuery({
     queryKey: ['present-aufgieser-public'],
     queryFn: async () => {
-      const { data, error } = await need().rpc('list_present_aufgieser');
+      const { data, error } = await need().rpc('list_present_aufgieser', { p_geraet: kioskGeraetToken() });
       if (error) throw error;
-      return (data ?? []) as { member_id: string; name: string; last_scan_at: string | null }[];
+      return (data ?? []) as { member_id: string }[];
     },
     refetchInterval: 10_000,
     // Muss im Hintergrund weiterlaufen: der Kiosk-Browser meldet den Tab als

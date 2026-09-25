@@ -202,8 +202,10 @@ function WochenrueckblickCard({ post }: { post: FeedPost }) {
             Wer gewedelt hat
           </div>
           <ul className="space-y-1">
-            {aufgiesser.map((a) => (
-              <li key={a.name} className="flex items-center gap-2">
+            {/* Schlüssel je Zeile: Seit 0204 ein Eintrag je Person — zwei
+                Gleichnamige oder zwei Platzhalter nach Löschungen sind möglich. */}
+            {aufgiesser.map((a, i) => (
+              <li key={`${i}-${a.name}`} className="flex items-center gap-2">
                 <span className="w-28 shrink-0 truncate text-xs text-forest-100">{a.name}</span>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-forest-900/70">
                   <span

@@ -16,8 +16,23 @@
 //    Chats kommen erst nach Admin-Freigabe hinein (telegram_chat_anfragen);
 //    Chats gesperrter Mitglieder werden beim Versand übersprungen.
 //  - escHtml(): Text aus der Datenbank für parse_mode HTML entschärfen.
+//
+// Audit-Runde 3 (25.09.2026, Migration 0199):
+//  - Jeder fetch hat eine Zeitgrenze (AbortSignal.timeout, je Versuch neu).
+//    Vorher hing ein Aufruf ohne Antwort bis zum Abbruch der Function — beim
+//    Evakuierungsalarm blieb der Versand dann für immer auf „sende“.
+//  - 429-Wartezeit gedeckelt (Standard 10 s, einstellbar) und optional eine
+//    Frist (fristBis), nach der kein neuer Versuch mehr beginnt.
+//  - tgBroadcast kann parallel senden (Alarm: alle Chats gleichzeitig, in
+//    Paketen von 20 je Sekunde — unter Telegrams 30/s).
+//  - Tote Chats (Bot blockiert, Telegram-Konto gelöscht, Bot aus der Gruppe
+//    entfernt, Chat nicht gefunden) werden erkannt und in
+//    telegram_chat_deaktiviert pausiert — nicht gelöscht. vereinsChats()
+//    überspringt sie, der Admin sieht sie (Admin → Handbuch → Telegram) und
+//    kann sie wieder aktivieren; ein /start aus dem Chat hebt die Pause auf.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { serviceClient } from './_auth.js';
 
 type TgPayload = Record<string, unknown>;
 
@@ -32,9 +47,10 @@ export function escHtml(s: unknown): string {
 
 /**
  * Chat-IDs des Vereins-Verteilers (system_config.telegram_chats).
- * Übersprungen werden Chats, deren verknüpftes Konto gesperrt ist. Schlägt
- * diese Prüfung fehl, geht die Liste ungefiltert raus (ein Notfall-Alarm darf
- * nicht an einer Nebenabfrage scheitern).
+ * Übersprungen werden Chats, deren verknüpftes Konto gesperrt ist, und Chats,
+ * die als nicht erreichbar pausiert sind (0199). Schlägt eine dieser Prüfungen
+ * fehl, bleibt die Liste insoweit ungefiltert (ein Notfall-Alarm darf nicht an
+ * einer Nebenabfrage scheitern).
  */
 export async function vereinsChats(sb: SupabaseClient): Promise<number[]> {
   const { data: cfg } = await sb.from('system_config').select('value').eq('key', 'telegram_chats').maybeSingle();
@@ -43,14 +59,40 @@ export async function vereinsChats(sb: SupabaseClient): Promise<number[]> {
     ? Array.from(new Set(roh.map((c) => Number(c)).filter((c) => Number.isSafeInteger(c) && c !== 0)))
     : [];
   if (ids.length === 0) return [];
-  const { data: gesperrt, error } = await sb
-    .from('members')
-    .select('telegram_user_id')
-    .in('telegram_user_id', ids)
-    .not('revoked_at', 'is', null);
-  if (error) return ids;
-  const raus = new Set((gesperrt ?? []).map((m) => Number((m as { telegram_user_id: unknown }).telegram_user_id)));
+  const [gesperrt, pausiert] = await Promise.all([
+    sb.from('members').select('telegram_user_id').in('telegram_user_id', ids).not('revoked_at', 'is', null),
+    sb.from('telegram_chat_deaktiviert').select('chat_id').in('chat_id', ids),
+  ]);
+  const raus = new Set<number>();
+  if (!gesperrt.error) {
+    for (const m of gesperrt.data ?? []) raus.add(Number((m as { telegram_user_id: unknown }).telegram_user_id));
+  }
+  if (!pausiert.error) {
+    for (const c of pausiert.data ?? []) raus.add(Number((c as { chat_id: unknown }).chat_id));
+  }
   return ids.filter((c) => !raus.has(c));
+}
+
+/**
+ * Warum ein Chat dauerhaft nicht erreichbar ist (0199). 'nicht_gefunden' und
+ * 'nicht_gestartet' können auch ALLE Chats treffen (z. B. nach einem Wechsel
+ * auf einen anderen Bot) — die werden nur pausiert, wenn im selben Rundruf
+ * mindestens ein Chat die Nachricht angenommen hat (siehe toteChatsMerken).
+ */
+export type TotGrund = 'blockiert' | 'konto_geloescht' | 'entfernt' | 'nicht_gefunden' | 'nicht_gestartet';
+
+/** Telegram-Fehlerbeschreibung → Grund, wenn der Chat dauerhaft tot ist; sonst undefined. */
+export function totGrund(status: number, beschreibung: string | undefined): TotGrund | undefined {
+  const d = (beschreibung ?? '').toLowerCase();
+  if (status === 403) {
+    if (d.includes('bot was blocked')) return 'blockiert';
+    if (d.includes('user is deactivated')) return 'konto_geloescht';
+    if (d.includes('bot was kicked') || d.includes('bot is not a member')) return 'entfernt';
+    if (d.includes("can't initiate conversation")) return 'nicht_gestartet';
+    if (d.includes('chat not found')) return 'nicht_gefunden';
+  }
+  if (status === 400 && d.includes('chat not found')) return 'nicht_gefunden';
+  return undefined;
 }
 
 export type TgResult = {
@@ -59,77 +101,171 @@ export type TgResult = {
   status: number;
   attempt: number;
   error?: string;
+  /** Telegrams „description“ bei einem Fehler (ohne chat_id, ohne Text). */
+  beschreibung?: string;
+  /** Gesetzt, wenn der Chat dauerhaft nicht erreichbar ist (0199). */
+  tot?: TotGrund;
+};
+
+/** Grenzen für einen Versand (0199). */
+export type SendeOptionen = {
+  /** Zeitgrenze je fetch-Versuch. Standard: sendMessage 8 s, sendPhoto 20 s. */
+  timeoutMs?: number;
+  /** Längste Wartezeit bei 429 vor dem zweiten Versuch. Standard 10 s; länger → kein zweiter Versuch. */
+  max429WarteMs?: number;
+  /** Date.now()-Zeitpunkt, nach dem kein Versuch mehr beginnt (Gesamtfrist). */
+  fristBis?: number;
+};
+
+export type BroadcastOptionen = SendeOptionen & {
+  /** Alle Chats gleichzeitig (in Paketen von 20 je Sekunde) statt nacheinander. */
+  parallel?: boolean;
+  /**
+   * Tote Chats nach dem Rundruf selbst pausieren (Standard: ja, über einen
+   * eigenen Service-Client). false: der Aufrufer ruft toteChatsMerken selbst
+   * auf — der Evakuierungsalarm tut das erst, nachdem sein Status steht.
+   */
+  toteMerken?: boolean;
 };
 
 const MIN_DELAY_MS = 50; // 20/s — safe unter Telegram-Global-Limit 30/s
+const PAKET_GROESSE = 20;
+const STANDARD_429_WARTE_MS = 10_000;
+/** Unter dieser Restzeit beginnt kein Versuch mehr — er könnte nicht fertig werden. */
+const MIN_RESTZEIT_MS = 1_000;
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Sendet einen einzelnen Telegram-API-Call mit 1× Retry bei 429. */
+/** Fehlerantwort der Bot-API (nur die gelesenen Felder). */
+type TgFehlerAntwort = { description?: unknown; parameters?: { retry_after?: unknown } };
+
+/** Zeitgrenze für den nächsten Versuch — oder null, wenn die Frist schon (fast) um ist. */
+function versuchsGrenze(standardMs: number, fristBis?: number): number | null {
+  if (fristBis === undefined) return standardMs;
+  const rest = fristBis - Date.now();
+  if (rest < MIN_RESTZEIT_MS) return null;
+  return Math.min(standardMs, rest);
+}
+
+/** Sendet einen einzelnen Telegram-API-Call mit 1× Retry bei 429. Wirft nie. */
 export async function tgSendOnce(
   token: string,
   method: 'sendMessage' | 'sendPhoto',
   payload: TgPayload | FormData,
   chat_id: number,
+  opts: SendeOptionen = {},
 ): Promise<TgResult> {
   const url = `https://api.telegram.org/bot${token}/${method}`;
   const init: RequestInit = (payload instanceof FormData)
     ? { method: 'POST', body: payload }
     : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) };
+  const timeoutMs = opts.timeoutMs ?? (method === 'sendPhoto' ? 20_000 : 8_000);
+  const max429 = opts.max429WarteMs ?? STANDARD_429_WARTE_MS;
 
-  let attempt = 1;
-  let r: Response;
-  try {
-    r = await fetch(url, init);
-  } catch (e) {
-    return { chat_id, ok: false, status: 0, attempt, error: (e as Error).message };
-  }
-  if (r.ok) return { chat_id, ok: true, status: r.status, attempt };
-  // 429: respektiere retry_after und try noch einmal
-  if (r.status === 429) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const grenze = versuchsGrenze(timeoutMs, opts.fristBis);
+    if (grenze === null) return { chat_id, ok: false, status: 0, attempt, error: 'frist_abgelaufen' };
+    let r: Response;
     try {
-      const body = await r.json() as { parameters?: { retry_after?: number } };
-      const retryAfterS = body.parameters?.retry_after ?? 1;
-      // Telegram retry_after kann groß sein. Cap auf 30s — länger wäre für Vercel-
-      // Function-Timeout (60s default) ein Problem.
-      const waitMs = Math.min(30_000, retryAfterS * 1000);
-      await sleep(waitMs);
-      attempt = 2;
-      try {
-        r = await fetch(url, init);
-      } catch (e) {
-        return { chat_id, ok: false, status: 0, attempt, error: (e as Error).message };
-      }
-      return { chat_id, ok: r.ok, status: r.status, attempt };
-    } catch {
-      // 429 ohne parsebaren Body — kurz warten + retry
-      await sleep(1000);
-      attempt = 2;
-      try {
-        r = await fetch(url, init);
-      } catch (e) {
-        return { chat_id, ok: false, status: 0, attempt, error: (e as Error).message };
-      }
-      return { chat_id, ok: r.ok, status: r.status, attempt };
+      // Signal je Versuch neu — ein gemeinsames wäre nach einer 429-Pause schon abgelaufen.
+      r = await fetch(url, { ...init, signal: AbortSignal.timeout(grenze) });
+    } catch (e) {
+      const name = (e as Error)?.name;
+      return { chat_id, ok: false, status: 0, attempt, error: name === 'TimeoutError' || name === 'AbortError' ? 'zeitueberschreitung' : (e as Error).message };
     }
+    if (r.ok) {
+      // Antwort nicht lesen (spart Zeit), Verbindung aber freigeben.
+      await r.body?.cancel().catch(() => undefined);
+      return { chat_id, ok: true, status: r.status, attempt };
+    }
+    let antwort: TgFehlerAntwort | null = null;
+    try {
+      antwort = await r.json() as TgFehlerAntwort;
+    } catch { /* Antwort ohne JSON */ }
+    const beschreibung = typeof antwort?.description === 'string' ? antwort.description.slice(0, 200) : undefined;
+
+    // 429: retry_after respektieren und einmal neu versuchen — aber nur, wenn
+    // die Wartezeit in die Grenzen passt (sonst würde die Function mitten im
+    // Warten beendet).
+    if (r.status === 429 && attempt === 1) {
+      const retryAfterS = Number(antwort?.parameters?.retry_after) || 1;
+      const waitMs = retryAfterS * 1000;
+      const passtInFrist = opts.fristBis === undefined || Date.now() + waitMs + MIN_RESTZEIT_MS < opts.fristBis;
+      if (waitMs <= max429 && passtInFrist) {
+        await sleep(waitMs);
+        continue;
+      }
+    }
+    return { chat_id, ok: false, status: r.status, attempt, beschreibung, tot: totGrund(r.status, beschreibung) };
   }
-  return { chat_id, ok: false, status: r.status, attempt };
+  return { chat_id, ok: false, status: 429, attempt: 2 };
 }
 
-/** Sequenziell mehrere Chats benachrichtigen mit MIN_DELAY_MS Pause. */
+/**
+ * Mehrere Chats benachrichtigen — nacheinander mit MIN_DELAY_MS Pause oder
+ * (parallel) paketweise gleichzeitig. Nach Ablauf von opts.fristBis beginnt
+ * kein neuer Versuch mehr; nicht bediente Chats kommen als Fehlschlag zurück.
+ */
 export async function tgBroadcast(
   token: string,
   method: 'sendMessage' | 'sendPhoto',
   chats: number[],
   buildPayload: (chat_id: number) => TgPayload | FormData,
+  opts: BroadcastOptionen = {},
 ): Promise<TgResult[]> {
   const results: TgResult[] = [];
-  for (const chat_id of chats) {
-    const r = await tgSendOnce(token, method, buildPayload(chat_id), chat_id);
-    results.push(r);
-    if (results.length < chats.length) await sleep(MIN_DELAY_MS);
+  if (opts.parallel) {
+    for (let i = 0; i < chats.length; i += PAKET_GROESSE) {
+      if (i > 0) await sleep(1_000);
+      const paket = chats.slice(i, i + PAKET_GROESSE);
+      results.push(...await Promise.all(paket.map((chat_id) => tgSendOnce(token, method, buildPayload(chat_id), chat_id, opts))));
+    }
+  } else {
+    for (const chat_id of chats) {
+      const r = await tgSendOnce(token, method, buildPayload(chat_id), chat_id, opts);
+      results.push(r);
+      if (results.length < chats.length) await sleep(MIN_DELAY_MS);
+    }
   }
+  if (opts.toteMerken !== false) await toteChatsMerken(null, results);
   return results;
+}
+
+/**
+ * Tote Chats pausieren (0199, Tabelle telegram_chat_deaktiviert) — nicht aus
+ * dem Verteiler löschen. 'nicht_gefunden'/'nicht_gestartet' nur, wenn im
+ * selben Rundruf mindestens ein Chat angenommen hat (sonst ist eher der Bot
+ * selbst das Problem, und der ganze Verteiler würde stillgelegt).
+ * Wirft nie; ohne tote Chats keine Datenbankabfrage.
+ */
+export async function toteChatsMerken(sb: SupabaseClient | null, results: TgResult[]): Promise<number> {
+  const einerAngekommen = results.some((r) => r.ok);
+  const tote = results.filter((r) => r.tot
+    && (einerAngekommen || (r.tot !== 'nicht_gefunden' && r.tot !== 'nicht_gestartet')));
+  if (tote.length === 0) return 0;
+  try {
+    const client = sb ?? serviceClient();
+    if (!client) return 0;
+    const zeilen = Array.from(new Map(tote.map((r) => [r.chat_id, {
+      chat_id: r.chat_id,
+      grund: r.tot as string,
+      fehler_code: r.status,
+      beschreibung: r.beschreibung ?? null,
+    }])).values());
+    const { error } = await client
+      .from('telegram_chat_deaktiviert')
+      .upsert(zeilen, { onConflict: 'chat_id', ignoreDuplicates: true });
+    if (error) {
+      console.error('[telegram] Pausieren toter Chats fehlgeschlagen', error.code ?? '');
+      return 0;
+    }
+    // Einmal als Hinweis, ohne chat_id (vorher je Rundruf ein Fehler-Eintrag).
+    console.warn(`[telegram] ${zeilen.length} nicht erreichbare(r) Chat(s) pausiert: ${Array.from(new Set(zeilen.map((z) => z.grund))).join(', ')}`);
+    return zeilen.length;
+  } catch (e) {
+    console.error('[telegram] Pausieren toter Chats fehlgeschlagen', (e as Error).message);
+    return 0;
+  }
 }

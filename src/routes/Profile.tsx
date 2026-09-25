@@ -232,7 +232,9 @@ export default function Profile() {
             <StatTile label="Aufgüsse gesamt" value={statsQ.data.total_infusions} icon="🔥" />
             <StatTile label="Team-Aufgüsse" value={statsQ.data.team_infusions} icon="🤝" />
             <StatTile label="Diesen Monat" value={statsQ.data.monthly_infusions} icon="📅" />
-            <StatTile label="Streak (Wochen)" value={streakQ.data ?? 0} icon="🔥" highlight={(streakQ.data ?? 0) >= 4} />
+            {/* Fremde Serie sehen seit 0200 nur freigegebene Vereinsmitglieder —
+                sonst kommt NULL, dann „—" statt einer falschen 0. */}
+            <StatTile label="Streak (Wochen)" value={streakQ.data ?? '—'} icon="🔥" highlight={(streakQ.data ?? 0) >= 4} />
           </div>
         )}
 
@@ -487,7 +489,7 @@ function GastNachrichtenToggleCard({ enabled }: { enabled: boolean }) {
   );
 }
 
-function StatTile({ label, value, icon, highlight = false }: { label: string; value: number; icon: string; highlight?: boolean }) {
+function StatTile({ label, value, icon, highlight = false }: { label: string; value: number | string; icon: string; highlight?: boolean }) {
   return (
     <div className={`rounded-2xl ring-1 p-4 transition ${highlight ? 'bg-amber-950/40 ring-amber-500/40' : 'bg-forest-950/60 ring-forest-800/40'}`}>
       <div className="flex items-center gap-2 text-xs text-forest-400 uppercase tracking-wider">

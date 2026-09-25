@@ -7,8 +7,9 @@ import {
   useAllCustomOils, useAllCustomAttrs, useSudKraeuter, useSudMixe,
   useBrandSync, brandAssetUrl,
   useHolidaySet, isHolidayDate,
-  useKioskGeraetStatus, useEvakuierungUebergang,
+  useKioskGeraetStatus, useEvakuierungUebergang, useCurrentMember,
 } from '@/lib/api';
+import { kioskGeraetToken } from '@/lib/kioskGeraet';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 import { useNow } from '@/hooks/useNow';
 import type { RegalKatalog } from '@/lib/oelraumZutaten';
@@ -131,9 +132,20 @@ export default function OilRoom() {
   const infusions = useMemo(() => infusionsQ.data ?? [], [infusionsQ.data]);
   const meister = useMemo(() => meisterQ.data ?? [], [meisterQ.data]);
 
+  // Anwesenheit (0200): Der Server liefert sie nur dem gekoppelten Öl-Raum-
+  // Tablet und angemeldeten, freigegebenen Vereinsmitgliedern — allen anderen
+  // eine leere Liste. Dort zeigt die Seite dann GAR KEINE ●/○-Punkte, statt
+  // bei jedem Meister „noch nicht eingecheckt" zu behaupten. Solange der
+  // Gerätestatus noch lädt oder der Server kurz nicht antwortet, zählt ein
+  // vorhandenes Token — sonst verschwänden die Punkte bei jedem Aussetzer.
+  const me = useCurrentMember();
+  const mitgliedSiehtAnwesenheit = !!me.data && me.data.approved && !me.data.revoked_at
+    && ['admin', 'staff', 'member', 'guest_aufgieser'].includes(me.data.role);
+  const anwesenheitSichtbar = gekoppelt || mitgliedSiehtAnwesenheit
+    || (!geraet.data && !!kioskGeraetToken());
   const anwesend = useMemo(
-    () => new Set((presentQ.data ?? []).map((p) => p.member_id)),
-    [presentQ.data],
+    () => (anwesenheitSichtbar ? new Set((presentQ.data ?? []).map((p) => p.member_id)) : null),
+    [anwesenheitSichtbar, presentQ.data],
   );
 
   const katalog: RegalKatalog = useMemo(() => ({

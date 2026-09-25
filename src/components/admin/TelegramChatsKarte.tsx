@@ -7,9 +7,26 @@
 // benachrichtigt (Glocke/Push). Bestehende Chats blieben unverändert aktiv.
 // „Entfernen“ nimmt einen Chat aus dem Verteiler und merkt ihn als abgelehnt,
 // damit ein erneutes /start nicht wieder eine Anfrage auslöst.
+//
+// Audit-Runde 3 (0199): Chats, die Telegram dauerhaft ablehnt (Bot blockiert,
+// Telegram-Konto gelöscht, Bot aus der Gruppe entfernt, Chat nicht gefunden),
+// pausiert der Server automatisch — sie bleiben im Verteiler, bekommen aber
+// nichts, damit nicht jeder Rundruf und jeder Alarm einen Teilausfall meldet.
+// Hier sichtbar unter „Pausiert“; „Wieder aktivieren“ hebt die Pause auf, ein
+// /start aus dem Chat ebenfalls.
 
 import { useState } from 'react';
-import { useTelegramChatsAdmin, useTelegramChatEntscheiden, type TelegramChatEintrag } from '@/lib/api';
+import {
+  useTelegramChatsAdmin, useTelegramChatEntscheiden, useTelegramChatReaktivieren, type TelegramChatEintrag,
+} from '@/lib/api';
+
+const PAUSE_GRUND: Record<string, string> = {
+  blockiert: 'Bot wurde blockiert',
+  konto_geloescht: 'Telegram-Konto gelöscht',
+  entfernt: 'Bot aus der Gruppe entfernt',
+  nicht_gefunden: 'Chat nicht gefunden',
+  nicht_gestartet: 'Bot nie gestartet',
+};
 
 function zeitText(iso: string | null): string {
   if (!iso) return '';
@@ -25,11 +42,13 @@ function chatName(c: TelegramChatEintrag): string {
   return teile.join(' · ');
 }
 
-function Zeile({ c, onEntscheiden, busy }: {
+function Zeile({ c, onEntscheiden, onReaktivieren, busy }: {
   c: TelegramChatEintrag;
   onEntscheiden: (aktion: 'freigeben' | 'ablehnen') => void;
+  onReaktivieren?: () => void;
   busy: boolean;
 }) {
+  const pausiert = c.status === 'pausiert';
   const istGruppe = c.chat_id < 0 || (c.chat_typ !== null && c.chat_typ !== 'private');
   return (
     <li className="flex flex-wrap items-center gap-2 rounded-xl bg-forest-900/50 px-3 py-2 ring-1 ring-forest-800/40">
@@ -42,8 +61,24 @@ function Zeile({ c, onEntscheiden, busy }: {
           {c.mitglied_gesperrt ? ' · ⚠️ Konto gesperrt (bekommt nichts)' : ''}
           {c.angefragt_at ? ` · angefragt ${zeitText(c.angefragt_at)}` : ''}
         </p>
+        {pausiert && (
+          <p className="text-[11px] text-amber-300">
+            ⏸ nicht erreichbar{c.deaktiviert_grund ? ` (${PAUSE_GRUND[c.deaktiviert_grund] ?? c.deaktiviert_grund})` : ''}
+            {c.deaktiviert_at ? ` · seit ${zeitText(c.deaktiviert_at)}` : ''} — bekommt nichts
+          </p>
+        )}
       </div>
-      {c.status !== 'aktiv' && (
+      {pausiert && onReaktivieren && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onReaktivieren}
+          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-400 disabled:opacity-50"
+        >
+          ↻ Wieder aktivieren
+        </button>
+      )}
+      {c.status !== 'aktiv' && !pausiert && (
         <button
           type="button"
           disabled={busy}
@@ -60,7 +95,7 @@ function Zeile({ c, onEntscheiden, busy }: {
           onClick={() => onEntscheiden('ablehnen')}
           className="rounded-lg bg-rose-600/80 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50"
         >
-          {c.status === 'aktiv' ? 'Entfernen' : 'Ablehnen'}
+          {c.status === 'aktiv' || pausiert ? 'Entfernen' : 'Ablehnen'}
         </button>
       )}
     </li>
@@ -70,20 +105,32 @@ function Zeile({ c, onEntscheiden, busy }: {
 export function TelegramChatsKarte() {
   const liste = useTelegramChatsAdmin();
   const entscheiden = useTelegramChatEntscheiden();
+  const reaktivieren = useTelegramChatReaktivieren();
   const [fehler, setFehler] = useState<string | null>(null);
   const [abgelehnteOffen, setAbgelehnteOffen] = useState(false);
 
   const alle = liste.data ?? [];
   const wartend = alle.filter((c) => c.status === 'wartet');
   const aktiv = alle.filter((c) => c.status === 'aktiv');
+  const pausiert = alle.filter((c) => c.status === 'pausiert');
   const abgelehnt = alle.filter((c) => c.status === 'abgelehnt');
+  const busy = entscheiden.isPending || reaktivieren.isPending;
 
   async function los(c: TelegramChatEintrag, aktion: 'freigeben' | 'ablehnen') {
     setFehler(null);
-    if (aktion === 'ablehnen' && c.status === 'aktiv'
+    if (aktion === 'ablehnen' && (c.status === 'aktiv' || c.status === 'pausiert')
       && !confirm(`„${chatName(c)}" aus dem Telegram-Verteiler nehmen? Der Chat bekommt dann keine Vereins-Meldungen mehr.`)) return;
     try {
       await entscheiden.mutateAsync({ chat_id: c.chat_id, aktion });
+    } catch (e) {
+      setFehler((e as Error).message);
+    }
+  }
+
+  async function wiederAktivieren(c: TelegramChatEintrag) {
+    setFehler(null);
+    try {
+      await reaktivieren.mutateAsync(c.chat_id);
     } catch (e) {
       setFehler((e as Error).message);
     }
@@ -116,7 +163,7 @@ export function TelegramChatsKarte() {
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Warten auf Freigabe</p>
           <ul className="space-y-2">
             {wartend.map((c) => (
-              <Zeile key={c.chat_id} c={c} busy={entscheiden.isPending} onEntscheiden={(a) => los(c, a)} />
+              <Zeile key={c.chat_id} c={c} busy={busy} onEntscheiden={(a) => los(c, a)} />
             ))}
           </ul>
         </div>
@@ -132,10 +179,27 @@ export function TelegramChatsKarte() {
           ) : (
             <ul className="space-y-2">
               {aktiv.map((c) => (
-                <Zeile key={c.chat_id} c={c} busy={entscheiden.isPending} onEntscheiden={(a) => los(c, a)} />
+                <Zeile key={c.chat_id} c={c} busy={busy} onEntscheiden={(a) => los(c, a)} />
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {pausiert.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
+            Pausiert — nicht erreichbar ({pausiert.length})
+          </p>
+          <p className="text-[11px] text-forest-300/70">
+            Telegram hat die Zustellung an diese Chats dauerhaft abgelehnt. Sie bekommen nichts, bis du sie wieder
+            aktivierst oder der Chat beim Bot erneut <code className="text-amber-300">/start</code> sendet.
+          </p>
+          <ul className="space-y-2">
+            {pausiert.map((c) => (
+              <Zeile key={c.chat_id} c={c} busy={busy} onEntscheiden={(a) => los(c, a)} onReaktivieren={() => wiederAktivieren(c)} />
+            ))}
+          </ul>
         </div>
       )}
 
@@ -151,7 +215,7 @@ export function TelegramChatsKarte() {
           {abgelehnteOffen && (
             <ul className="space-y-2">
               {abgelehnt.map((c) => (
-                <Zeile key={c.chat_id} c={c} busy={entscheiden.isPending} onEntscheiden={(a) => los(c, a)} />
+                <Zeile key={c.chat_id} c={c} busy={busy} onEntscheiden={(a) => los(c, a)} />
               ))}
             </ul>
           )}

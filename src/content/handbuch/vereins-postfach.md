@@ -34,7 +34,7 @@ Beim Senden einer Antwort:
 ### Tickets verwalten
 
 - **Filter-Pills oben** (Offen / In Bearbeitung / Beantwortet / Geschlossen / Alle)
-- **„↻ Synchronisieren"** rechts oben → holt die letzten 50 Mails vom IMAP-Server (passiert auch automatisch alle 2 Min wenn der Cron läuft)
+- **„↻ Synchronisieren"** rechts oben → holt sofort die letzten 50 Mails vom IMAP-Server. Automatisch passiert das **tagsüber alle 5 Minuten** (etwa 7 bis 24 Uhr, im Winter 6 bis 23 Uhr) — auch wenn niemand die App offen hat. Nachts ruht der Abruf; Mails aus der Nacht kommen mit dem ersten Abruf am Morgen.
 - **„✓ Schließen"** im Detail-Banner → Status manuell auf „Geschlossen" (bei Spam o.ä.)
 - **„↺ Wieder öffnen"** wenn der Kunde erneut schreibt — passiert sonst automatisch
 
@@ -44,6 +44,8 @@ Bei neuer Mail bekommen **alle Bearbeiter** gleichzeitig:
 - 🔔 Notification in der Inbox („📧 Neue Vereins-Mail · Kunde: Betreff…")
 - Push (wenn aktiviert)
 - Zähler im Tab-Header (z.B. „🏢 Vereins-Postfach **3**")
+
+Gemeldet wird eine **neue Anfrage** und eine **neue Kundenmail zu einem beantworteten oder geschlossenen Ticket** — jeweils **genau einmal**, auch wenn der automatische Abruf und dein „↻ Synchronisieren" dieselbe Mail sehen. Schreibt der Kunde nach, während das Ticket noch „🔴 Offen" oder „🟡 In Bearbeitung" ist, kommt **keine** zweite Meldung; die Mail landet nur im Ticket. Gemeldet werden außerdem nur Mails, die beim Abruf **jünger als 3 Tage** sind: Ältere Mails (z. B. nach einer längeren Störung) erscheinen trotzdem als „🔴 Offen", aber ohne Glocke und Push — also ab und zu auch in die Liste schauen.
 
 ### Berechtigungen verwalten (nur Admin)
 

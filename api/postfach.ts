@@ -15,15 +15,18 @@
 // Body-Feld `account_id`. Backend prüft shared_email_admins-Membership.
 //
 // Ticket-Polling:
-//   GET /api/postfach?action=poll-shared-tickets  (JWT eines Shared-Inbox-Admins
-//   oder Header x-cron-secret; derzeit ruft kein Cron-Job diesen Weg auf)
+//   GET|POST /api/postfach?action=poll-shared-tickets
+//   - pg_cron-Job 'vereinspostfach-abruf' (Migration 0203): alle 5 Min von
+//     05:00 bis 21:55 UTC, nur Header x-cron-secret (Vault 'cron_secret')
+//   - Frontend (SharedTicketsView beim Öffnen und „↻ Synchronisieren“):
+//     JWT eines Shared-Inbox-Admins
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
 import { authenticate } from './_auth.js';
-import { cronHeaderOk } from './_cron.js';
+import { cronHeaderOk, cronSecretFehlt } from './_cron.js';
 import { makeServiceClient } from './_email_helpers.js';
 import { queryParam } from './_query.js';
 
@@ -112,18 +115,27 @@ async function withImap<T>(
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(queryParam(req, 'action') ?? '');
 
-  // poll-shared-tickets: optionaler Cron-Bypass via CRON_SECRET, sonst MUSS der
-  // Aufrufer ein eingeloggter Shared-Inbox-Admin sein. Aktuell ruft KEIN pg_cron
-  // diesen Endpoint auf — der einzige Trigger ist das Frontend (SharedTicketsView).
+  // poll-shared-tickets: entweder der pg_cron-Job 'vereinspostfach-abruf' (0203)
+  // mit Header x-cron-secret ODER ein eingeloggter Shared-Inbox-Admin (Frontend).
   // Vorher lief der Handler vor jeder Auth und war ohne gesetztes CRON_SECRET
   // komplett offen → anonymer, teurer IMAP-Poll-DoS gegen alle Shared-Accounts.
   if (action === 'poll-shared-tickets') {
-    // Nur noch der Header zählt (zeitkonstant, api/_cron.ts). Der frühere
-    // Query-Parameter ?cron_secret= ist weg: er hatte keinen Aufrufer und hätte
-    // das Geheimnis in URL-Logs getragen.
-    if (cronHeaderOk(req)) {
+    // Cron-Weg: Trägt der Aufruf den Header x-cron-secret, entscheidet NUR er
+    // (zeitkonstant, api/_cron.ts). Ein falsches oder leeres Geheimnis (z. B.
+    // Vault und Vercel nicht mehr gleich) endet mit 401 und einem Log-Eintrag —
+    // es fällt nie auf die Nutzer-Anmeldung zurück. Der frühere Query-Parameter
+    // ?cron_secret= ist weg: er hätte das Geheimnis in URL-Logs getragen.
+    if (req.headers['x-cron-secret'] !== undefined) {
+      if (!cronHeaderOk(req)) {
+        console.error(cronSecretFehlt()
+          ? '[postfach] Cron-Abruf abgelehnt: CRON_SECRET fehlt oder ist kürzer als 32 Zeichen'
+          : '[postfach] Cron-Abruf abgelehnt: x-cron-secret passt nicht zu CRON_SECRET');
+        return res.status(401).json({ error: 'unauthorized' });
+      }
       return await handlePollSharedTickets(req, res);
     }
+    // Nutzer-Weg: nur mit JWT eines freigeschalteten, nicht gesperrten
+    // Mitglieds, das Bearbeiter eines Vereins-Postfachs ist.
     const cronAuth = await authenticate(req);
     if (!cronAuth.ok) return res.status(cronAuth.status).json({ error: cronAuth.error });
     const { data: adminRows, error: adminErr } = await cronAuth.service
@@ -447,6 +459,17 @@ async function handleSend(
 // Holt für jeden shared Account die letzten 50 INBOX-Mails und ruft pro Mail
 // email_ticket_upsert_from_inbound auf (Server entscheidet INSERT vs UPDATE).
 // Auth (Cron-Secret ODER eingeloggter Shared-Admin) wird im Entry-Point geprüft.
+//
+// Wiederholte oder gleichzeitige Abrufe (Cron alle 5 Min + Tab öffnen) sind
+// gefahrlos: Die DB meldet keine Mail doppelt (Meldung nur bei neuem Ticket
+// oder Wiederöffnen eines beantworteten/geschlossenen) — bekannte UIDs kehren früh
+// zurück, ein paralleles Anlegen desselben Tickets scheitert am Unique-Index
+// (hier nur als upsert_fehler gezählt), dedup_key je Empfänger (0185).
+//
+// Scheitert ein Konto (z. B. IMAP-Passwort veraltet), antwortet der Endpunkt
+// mit 502 statt 200 — sonst sähe der Cron-Job in net._http_response gesund aus,
+// obwohl seit Tagen nichts abgerufen wird. Die Einzelheiten stehen im JSON und
+// im Vercel-Log.
 async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse) {
   const svc = makeServiceClient();
   const { data: accounts, error } = await svc
@@ -459,14 +482,25 @@ async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse)
     return res.status(200).json({ ok: true, polled: 0 });
   }
 
-  const summary: Array<{ account_id: string; tickets_touched: number; error?: string }> = [];
+  const summary: Array<{
+    account_id: string; tickets_touched: number; upsert_fehler?: number; error?: string;
+  }> = [];
 
   for (const acc of accounts) {
+    let upsertFehler = 0;
     try {
-      const { data: credData } = await svc.rpc('get_shared_email_credentials', {
+      const { data: credData, error: credErr } = await svc.rpc('get_shared_email_credentials', {
         p_account_id: acc.id,
       });
+      if (credErr) {
+        // RPC-Fehler (Rechte, Vault) nicht als „keine Zugangsdaten“ tarnen —
+        // sonst trägt jemand das Passwort neu ein, obwohl die DB-Seite klemmt.
+        console.error(`[postfach] Vereins-Postfach ${acc.id}: Zugangsdaten-RPC fehlgeschlagen:`, credErr.message);
+        summary.push({ account_id: acc.id, tickets_touched: 0, error: 'credentials_rpc_error' });
+        continue;
+      }
       if (!credData || credData.length === 0) {
+        console.error(`[postfach] Vereins-Postfach ${acc.id}: keine Zugangsdaten`);
         summary.push({ account_id: acc.id, tickets_touched: 0, error: 'no_credentials' });
         continue;
       }
@@ -507,6 +541,7 @@ async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse)
             });
             if (upErr) {
               console.error('[postfach] Ticket-Upsert fehlgeschlagen:', upErr.message);
+              upsertFehler++;
               continue;
             }
             count++;
@@ -519,13 +554,22 @@ async function handlePollSharedTickets(_req: VercelRequest, res: VercelResponse)
 
       await svc.from('email_accounts').update({ last_sync_at: new Date().toISOString() })
         .eq('id', acc.id);
-      summary.push({ account_id: acc.id, tickets_touched: touched });
+      // Einzelne Fehlschläge (paralleler Abruf legte dasselbe Ticket an) sind
+      // harmlos; scheitert JEDE Mail, ist die DB-Seite kaputt → als Fehler melden.
+      summary.push({
+        account_id: acc.id, tickets_touched: touched,
+        ...(upsertFehler > 0 ? { upsert_fehler: upsertFehler } : {}),
+        ...(upsertFehler > 0 && touched === 0 ? { error: 'alle Ticket-Upserts fehlgeschlagen' } : {}),
+      });
     } catch (e) {
+      console.error(`[postfach] Vereins-Postfach ${acc.id}: Abruf fehlgeschlagen:`, (e as Error).message);
       summary.push({ account_id: acc.id, tickets_touched: 0, error: (e as Error).message });
     }
   }
 
-  return res.status(200).json({ ok: true, polled: accounts.length, summary });
+  const kontoFehler = summary.some((s) => s.error);
+  return res.status(kontoFehler ? 502 : 200)
+    .json({ ok: !kontoFehler, polled: accounts.length, summary });
 }
 
 // ─── mark / move / delete ────────────────────────────────────────────────

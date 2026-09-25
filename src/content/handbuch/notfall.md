@@ -9,7 +9,7 @@ In absoluten Notfällen löst jeder vor Ort den **Evakuierungs-Alarm** am **geko
 3. **Web-Push-Benachrichtigung** mit Vibration an alle, die Push aktiviert haben — egal, an welchem Gerät der Alarm ausgelöst wurde. Antippen öffnet die App mit dem Alarm-Vollbild.
 4. **Liste aller aktuell Anwesenden** wird angezeigt — damit niemand übersehen wird
 
-Push und Telegram verschickt der Server selbst, sobald der Alarm gespeichert ist — auch wenn das auslösende Gerät gleich danach das Netz verliert. Im Alarm-Vollbild sehen Mitglieder, ob der Versand durch ist.
+Push und Telegram verschickt der Server selbst, sobald der Alarm gespeichert ist — auch wenn das auslösende Gerät gleich danach das Netz verliert. Hängt der Versand (z. B. bei einer Telegram-Störung), stößt der Server ihn nach etwa anderthalb Minuten noch einmal an. Im Alarm-Vollbild sehen Mitglieder, ob der Versand durch ist und wie viele Telegram-Chats die Nachricht angenommen haben. Steht dort eine gelbe Warnung (kein Chat erreicht, nur ein Teil, kein Push), bitte telefonisch alarmieren.
 
 Die Anwesenheitsliste stellt der Server im Moment des Auslösens zusammen. Sie ist nur sichtbar, solange der Alarm läuft; danach sehen sie nur noch Admins und Personal.
 

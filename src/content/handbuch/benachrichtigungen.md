@@ -18,4 +18,4 @@ Im Feed-Header oben rechts findest du das **🔔 Bell-Icon** mit einem orangenen
 - **Klick auf eine Notification** → markiert sie als gelesen + springt direkt zur entsprechenden Stelle (Profil/Match/Feed/DM)
 - **„Alle gelesen"** rechts oben → markiert alle als gelesen ohne zu navigieren
 
-Die Inbox merkt sich die letzten 30 Notifications und löscht ältere automatisch.
+Die Inbox zeigt die neuesten 30 Meldungen. Gespeichert werden Benachrichtigungen bis zu 90 Tage; ältere löscht die App automatisch (siehe Datenschutzhinweise).

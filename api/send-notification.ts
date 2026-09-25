@@ -80,8 +80,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else if (body.art === 'sauna_name') {
     const geaendert = ich?.sauna_name_changed_at ? Date.parse(ich.sauna_name_changed_at) : 0;
     if (!geaendert || Date.now() - geaendert > FRISCH_MS) return res.status(409).json({ error: 'name_nicht_frisch' });
+    // Audit-Runde 3 (0199): der frei gewählte Name steht in <code> — dort
+    // macht Telegram aus „etwas.de“ oder „@name“ keinen anklickbaren Link.
+    // set_sauna_name lehnt solche Namen zusätzlich schon beim Speichern ab.
     text = ich?.sauna_name
-      ? `🎭 <b>${name}</b> heißt beim Aufguss jetzt <b>${esc(ich.sauna_name, 40)}</b>.`
+      ? `🎭 <b>${name}</b> heißt beim Aufguss jetzt <code>${esc(ich.sauna_name, 40)}</code>.`
       : `🎭 <b>${name}</b> tritt beim Aufguss wieder unter eigenem Namen auf.`;
     // Je Namensänderung genau eine Meldung; die Drossel unten bremst, wer den
     // Namen immer wieder ändert (set_sauna_name hat bewusst keine Sperrfrist).
@@ -116,7 +119,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const chats = await vereinsChats(sb);
   if (chats.length === 0) return res.status(200).json({ ok: true, sent: 0, note: 'no chats subscribed' });
 
-  const results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({ chat_id, text, parse_mode: 'HTML' }));
+  const results = await tgBroadcast(token, 'sendMessage', chats, (chat_id) => ({
+    chat_id, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true },
+  }));
   const sent = results.filter((r) => r.ok).length;
   return res.status(200).json({ ok: true, sent, total: chats.length });
 }

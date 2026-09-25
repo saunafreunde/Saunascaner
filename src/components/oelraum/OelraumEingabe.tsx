@@ -95,7 +95,8 @@ export function OelraumEingabe({
   saunas: readonly Sauna[];
   infusions: readonly Infusion[];
   meister: readonly MeisterDirectoryEntry[];
-  anwesend: ReadonlySet<string>;
+  /** null = Anwesenheit hier nicht sichtbar (ungekoppeltes Gerät, 0200). */
+  anwesend: ReadonlySet<string> | null;
   mondayOpen: boolean;
   istFeiertag: (d: Date) => boolean;
   /** Meldet nach oben, wer gerade am Gerät steht — der Evakuierungs-Eintrag
@@ -329,7 +330,7 @@ export function OelraumEingabe({
       return setFehler('Der Bestand wird noch geladen — bitte einen Moment.');
     }
 
-    const warDa = anwesend.has(gewaehlt.id);
+    const warDa = anwesend?.has(gewaehlt.id) ?? false;
 
     try {
       if (!titel.trim()) return setFehler('Titel fehlt.');
@@ -405,7 +406,7 @@ export function OelraumEingabe({
           ) : (
             <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2.5 sm:grid-cols-3">
               {meister.map((m) => {
-                const da = anwesend.has(m.id);
+                const da = anwesend ? anwesend.has(m.id) : null;
                 return (
                   <button
                     key={m.id}
@@ -417,9 +418,11 @@ export function OelraumEingabe({
                     <span className="block truncate text-base font-bold text-forest-50">
                       {displayMemberName(m, 'Aufgießer:in')}
                     </span>
-                    <span className={`mt-0.5 block text-[11px] ${da ? 'text-emerald-400' : 'text-forest-400/70'}`}>
-                      {da ? '● ist eingecheckt' : '○ noch nicht eingecheckt'}
-                    </span>
+                    {da !== null && (
+                      <span className={`mt-0.5 block text-[11px] ${da ? 'text-emerald-400' : 'text-forest-400/70'}`}>
+                        {da ? '● ist eingecheckt' : '○ noch nicht eingecheckt'}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -793,7 +796,7 @@ export function OelraumEingabe({
                       : 'Aufguss eintragen'}
               </button>
 
-              {!anwesend.has(gewaehlt.id) && (
+              {!anwesend?.has(gewaehlt.id) && (
                 <p className="text-center text-xs text-forest-400/80">
                   Mit dem Speichern wirst du automatisch als anwesend eingetragen.
                 </p>

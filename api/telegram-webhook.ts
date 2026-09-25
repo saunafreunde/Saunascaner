@@ -16,7 +16,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getBrandSettings } from './_email_helpers.js';
 import { authenticate } from './_auth.js';
 import { cronHeaderOk, cronSecretFehlt, geheimnisGleich } from './_cron.js';
-import { escHtml as h, vereinsChats } from './_telegram.js';
+import { escHtml as h, tgSendOnce, toteChatsMerken, vereinsChats, type TgResult } from './_telegram.js';
 import { queryParam } from './_query.js';
 
 const TG_API = (token: string) => `https://api.telegram.org/bot${token}`;
@@ -29,38 +29,27 @@ const FEHLER_TEXT = '❌ Da ist etwas schiefgelaufen. Bitte später noch einmal 
  * Nachricht senden. Liefert true nur, wenn Telegram sie angenommen hat —
  * vorher galt jede Antwort als Erfolg (auch 400 „can't parse entities“ oder
  * 403 „bot was blocked“), und Slots galten trotzdem als angekündigt.
- * Bei 429 (zu schnell) einmal kurz warten und erneut senden.
+ * Bei 429 (zu schnell) einmal kurz warten (höchstens 5 s) und erneut senden.
  * Alle Texte aus der Datenbank gehen durch h() (parse_mode HTML).
+ *
+ * Audit-Runde 3 (0199): über tgSendOnce aus _telegram.ts — mit Zeitgrenze je
+ * Versuch (8 s) und Erkennung toter Chats. Ein toter Chat (Bot blockiert,
+ * Konto gelöscht …) wird nur als Hinweis geloggt; die Rundrufe unten
+ * pausieren ihn danach (toteChatsMerken), statt es bei jedem Lauf erneut zu
+ * versuchen und einen Fehler-Eintrag zu erzeugen.
  */
+async function tgSendErgebnis(token: string, chatId: number, text: string, opts: { parse_mode?: string; reply_markup?: unknown } = {}): Promise<TgResult> {
+  const r = await tgSendOnce(token, 'sendMessage',
+    { chat_id: chatId, text, parse_mode: opts.parse_mode ?? 'HTML', reply_markup: opts.reply_markup },
+    chatId, { timeoutMs: 8_000, max429WarteMs: 5_000 });
+  // Ohne chat_id und ohne Nachrichtentext loggen.
+  if (!r.ok && r.tot) console.warn(`[telegram-webhook] sendMessage ${r.status}: Chat nicht erreichbar (${r.tot})`);
+  else if (!r.ok) console.error(`[telegram-webhook] sendMessage ${r.status}: ${r.beschreibung ?? r.error ?? ''}`);
+  return r;
+}
+
 async function tgSend(token: string, chatId: number, text: string, opts: { parse_mode?: string; reply_markup?: unknown } = {}): Promise<boolean> {
-  const init: RequestInit = {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: opts.parse_mode ?? 'HTML', reply_markup: opts.reply_markup }),
-  };
-  for (let versuch = 1; versuch <= 2; versuch++) {
-    let r: Response;
-    try {
-      r = await fetch(`${TG_API(token)}/sendMessage`, init);
-    } catch (e) {
-      console.error('[telegram-webhook] sendMessage Netzfehler:', (e as Error).message);
-      return false;
-    }
-    if (r.ok) return true;
-    const antwort = await r.text().catch(() => '');
-    if (r.status === 429 && versuch === 1) {
-      let warteS = 1;
-      try { warteS = Number((JSON.parse(antwort) as { parameters?: { retry_after?: number } }).parameters?.retry_after) || 1; } catch { /* Standard */ }
-      if (warteS <= 5) {
-        await new Promise((res) => setTimeout(res, warteS * 1000));
-        continue;
-      }
-    }
-    // Ohne chat_id und ohne Nachrichtentext loggen.
-    console.error(`[telegram-webhook] sendMessage ${r.status}: ${antwort.slice(0, 200)}`);
-    return false;
-  }
-  return false;
+  return (await tgSendErgebnis(token, chatId, text, opts)).ok;
 }
 
 async function tgAnswerCallback(token: string, callbackQueryId: string, text: string, alert = false) {
@@ -68,7 +57,8 @@ async function tgAnswerCallback(token: string, callbackQueryId: string, text: st
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ callback_query_id: callbackQueryId, text, show_alert: alert }),
-  });
+    signal: AbortSignal.timeout(8_000),
+  }).catch(() => null);
 }
 
 async function tgEditMessage(token: string, chatId: number, messageId: number, text: string, reply_markup?: unknown) {
@@ -76,6 +66,7 @@ async function tgEditMessage(token: string, chatId: number, messageId: number, t
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML', reply_markup }),
+    signal: AbortSignal.timeout(8_000),
   }).catch(() => null);
   if (r && !r.ok) console.error(`[telegram-webhook] editMessageText ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`);
 }
@@ -271,10 +262,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Nacheinander (Telegram-Grenze) und nur echte Zustellungen zählen.
-    let sent = 0;
-    for (const id of chatIds) {
-      if (await tgSend(token, id, text)) sent++;
-    }
+    const ergebnisse: TgResult[] = [];
+    for (const id of chatIds) ergebnisse.push(await tgSendErgebnis(token, id, text));
+    const sent = ergebnisse.filter((r) => r.ok).length;
+    // Nicht erreichbare Chats pausieren (0199) — beim nächsten Rundruf fehlen sie.
+    await toteChatsMerken(sb, ergebnisse);
     // Ging gar nichts raus, darf der Admin es heute noch einmal versuchen.
     if (sent === 0) await sb.from('push_vorlagen_versand').delete().eq('schluessel', einmal);
     return res.status(200).json({ ok: true, sent, failed: chatIds.length - sent });
@@ -302,7 +294,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 // ─── Announce Personal-Fallbacks in Telegram-Channel ─────────────────────
 async function announceFallbacks(sb: SupabaseClient, token: string): Promise<number> {
   // Welche Chats bekommen Announcements? Der freigegebene Vereins-Verteiler.
-  const chatIds = await vereinsChats(sb);
+  let chatIds = await vereinsChats(sb);
   if (chatIds.length === 0) return 0;
 
   // Personal-Fallbacks in den nächsten 90 Minuten, die noch nicht angekündigt sind
@@ -317,6 +309,7 @@ async function announceFallbacks(sb: SupabaseClient, token: string): Promise<num
   if (list.length === 0) return 0;
 
   let announced = 0;
+  const ergebnisse: TgResult[] = [];
   for (const slot of list) {
     const startTime = fmtClock(slot.start_time);
     const text =
@@ -333,9 +326,15 @@ async function announceFallbacks(sb: SupabaseClient, token: string): Promise<num
     // angenommen hat — sonst versucht es der nächste 15-Minuten-Lauf erneut
     // (das 90-Minuten-Fenster begrenzt das auf wenige Versuche).
     let angekommen = false;
+    const tote = new Set<number>();
     for (const chatId of chatIds) {
-      if (await tgSend(token, chatId, text, { reply_markup })) angekommen = true;
+      const r = await tgSendErgebnis(token, chatId, text, { reply_markup });
+      ergebnisse.push(r);
+      if (r.ok) angekommen = true;
+      else if (r.tot) tote.add(chatId);
     }
+    // Tote Chats nicht für jeden weiteren Slot erneut versuchen.
+    if (tote.size) chatIds = chatIds.filter((c) => !tote.has(c));
     if (!angekommen) {
       console.error('[telegram-webhook] Personal-Slot-Ankündigung an keinen Chat zugestellt — nächster Lauf versucht es erneut');
       continue;
@@ -343,6 +342,8 @@ async function announceFallbacks(sb: SupabaseClient, token: string): Promise<num
     await sb.rpc('mark_telegram_announced', { p_infusion_id: slot.infusion_id });
     announced++;
   }
+  // Nicht erreichbare Chats pausieren (0199) — sonst meldet jeder Lauf dieselben Fehler.
+  await toteChatsMerken(sb, ergebnisse);
   return announced;
 }
 
@@ -351,6 +352,15 @@ async function announceFallbacks(sb: SupabaseClient, token: string): Promise<num
 // 'abgelehnt' | 'voll'. Bei einem Fehler 'fehler'. Eine Ablehnung wird dem
 // Chat nicht verraten (gleicher Text wie „wartet“).
 async function chatAnmelden(sb: SupabaseClient, msg: TelegramMessage): Promise<string> {
+  // Wer /start sendet, ist erreichbar: eine Pause als toter Chat (0199) endet
+  // hier — z. B. nachdem jemand den Bot wieder entsperrt hat. Fehler hier
+  // halten die Anmeldung nicht auf.
+  if (msg.chat?.id) {
+    const { error: pauseErr } = await sb.from('telegram_chat_deaktiviert').delete().eq('chat_id', msg.chat.id);
+    if (pauseErr && pauseErr.code !== 'PGRST205' && pauseErr.code !== '42P01') {
+      console.error('[telegram-webhook] Pause aufheben fehlgeschlagen', pauseErr.code ?? '');
+    }
+  }
   const { data, error } = await sb.rpc('telegram_chat_anmelden', {
     p_chat_id: msg.chat?.id,
     p_telegram_user_id: msg.from?.id ?? null,
@@ -387,7 +397,10 @@ async function handleMessage(sb: SupabaseClient, token: string, msg: TelegramMes
     const { data, error } = await sb.rpc('claim_telegram_link', { p_token: linkToken, p_telegram_user_id: fromId });
     const member = Array.isArray(data) ? data[0] : data;
     if (error || !member) {
-      if (!error || (error.message ?? '').includes('invalid_or_expired_token')) {
+      if (error && (error.message ?? '').includes('konto_gesperrt')) {
+        // 0199: gesperrte Konten verknüpfen nicht mehr.
+        await tgSend(token, chatId, '⛔ Dein Konto ist gesperrt — bitte wende dich an den Vorstand.');
+      } else if (!error || (error.message ?? '').includes('invalid_or_expired_token')) {
         await tgSend(token, chatId, '❌ Token ungültig oder schon eingelöst. Generiere einen neuen in der App: <i>Profil → Telegram verknüpfen</i>.');
       } else {
         console.error('[telegram-webhook] claim_telegram_link:', error.message);
@@ -613,6 +626,11 @@ async function handleCallback(sb: SupabaseClient, token: string, cb: TelegramCal
           '3. Klick „Verknüpfen" → Telegram öffnet sich → folge dem Link\n\n' +
           'Danach funktioniert der „Ich übernehme"-Button.',
           true);
+      } else if (msg.includes('konto_gesperrt')) {
+        // 0199: gesperrte bzw. nicht freigegebene Konten übernehmen nichts.
+        await tgAnswerCallback(token, cb.id, '⛔ Dein Konto ist gesperrt — bitte wende dich an den Vorstand.', true);
+      } else if (msg.includes('infusion_not_found')) {
+        await tgAnswerCallback(token, cb.id, 'Diesen Aufguss gibt es nicht mehr.', true);
       } else if (msg.includes('already_taken')) {
         await tgAnswerCallback(token, cb.id, 'Der Slot wurde schon übernommen.', true);
         // Aktualisierte Anzeige nachholen
@@ -930,8 +948,21 @@ async function sendRatingPushes(sb: SupabaseClient, token: string): Promise<numb
   }>;
   if (list.length === 0) return 0;
 
+  // Als nicht erreichbar pausierte Chats (0199) nicht erneut anschreiben —
+  // sonst alle 5 Minuten derselbe 403 im Bewertungsfenster.
+  const { data: pausiert } = await sb
+    .from('telegram_chat_deaktiviert')
+    .select('chat_id')
+    .in('chat_id', Array.from(new Set(list.map((r) => Number(r.telegram_user_id)))));
+  const pausierteChats = new Set((pausiert ?? []).map((p) => Number((p as { chat_id: unknown }).chat_id)));
+
   let sent = 0;
+  const ergebnisse: TgResult[] = [];
   for (const r of list) {
+    if (pausierteChats.has(Number(r.telegram_user_id))) {
+      await sb.rpc('mark_telegram_rating_pushed', { p_member_id: r.member_id, p_infusion_id: r.infusion_id });
+      continue;
+    }
     const text =
       `⭐ <b>Bewertung — wie war's?</b>\n\n` +
       `<b>${h(r.infusion_title)}</b>\n` +
@@ -952,12 +983,17 @@ async function sendRatingPushes(sb: SupabaseClient, token: string): Promise<numb
       ],
     };
     // Nur bei echter Zustellung als gesendet vermerken — sonst versucht es
-    // der nächste 5-Minuten-Lauf im Bewertungsfenster erneut.
-    if (await tgSend(token, r.telegram_user_id, text, { reply_markup })) {
+    // der nächste 5-Minuten-Lauf im Bewertungsfenster erneut. Ein toter Chat
+    // (Bot blockiert, Konto gelöscht) gilt ebenfalls als erledigt (0199) —
+    // „nicht gefunden“ nicht: das kann auch am Bot selbst liegen.
+    const e = await tgSendErgebnis(token, r.telegram_user_id, text, { reply_markup });
+    ergebnisse.push(e);
+    if (e.ok || e.tot === 'blockiert' || e.tot === 'konto_geloescht' || e.tot === 'entfernt') {
       await sb.rpc('mark_telegram_rating_pushed', { p_member_id: r.member_id, p_infusion_id: r.infusion_id });
-      sent++;
     }
+    if (e.ok) sent++;
   }
+  await toteChatsMerken(sb, ergebnisse);
   return sent;
 }
 

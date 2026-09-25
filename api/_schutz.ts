@@ -5,6 +5,8 @@
 //  * ipSchluessel: dieselbe IP als Drossel-Schlüssel (IPv6 je /64-Präfix)
 //  * drosselBuchen: Bremse in der Datenbank (gilt für alle Instanzen)
 //  * kioskGeraet: gekoppeltes Kiosk-Gerät aus dem Header x-kiosk-geraet (0177)
+//  * geraeteartGekoppelt / kioskUebergangOffen: Übergangsregeln für
+//    ungekoppelte Geräte (PIN-Töpfe bzw. Tablet-Anmeldung)
 //  * ohneAdressen: E-Mail-Adressen aus Log-Texten entfernen
 import type { VercelRequest } from '@vercel/node';
 import { createHash } from 'node:crypto';
@@ -127,4 +129,43 @@ export async function geraeteartGekoppelt(sb: SupabaseClient, art: string): Prom
   const wert = (count ?? 0) > 0;
   gekoppeltCache.set(art, { wert, bis: Date.now() + 60_000 });
   return wert;
+}
+
+// ─── Übergang für ungekoppelte Kiosk-Geräte (Audit-Runde 3, 25.09.2026) ──
+// Frist: 09.10.2026 00:00 Europe/Berlin (MESZ = UTC+2) — dieselbe wie
+// evakuierung_uebergang_offen (0191). Danach gilt die Sperre in jedem Fall.
+const KIOSK_UEBERGANG_FRIST_MS = Date.parse('2026-10-08T22:00:00Z');
+
+// „Je gekoppelt" ist eine Sperrklinke: ein eingelöster Code bleibt in
+// kiosk_geraete stehen (Widerruf setzt nur widerrufen_at, gelöscht wird nie).
+// Ein true gilt darum für immer, ein false eine Minute.
+const jeGekoppeltCache = new Map<string, { wert: boolean; bis: number }>();
+
+/** Wurde JE ein Gerät dieser Art eingelöst (token_hash gesetzt) — auch wenn es
+ *  inzwischen widerrufen ist? Anders als geraeteartGekoppelt (PIN-Töpfe) öffnet
+ *  ein Widerruf hier nichts wieder. Bei einem Datenbankfehler: true — lieber
+ *  sperren als einen Endpunkt, der Konten anlegt, offen lassen. */
+export async function geraeteartJeGekoppelt(sb: SupabaseClient, art: string): Promise<boolean> {
+  const c = jeGekoppeltCache.get(art);
+  if (c && c.bis > Date.now()) return c.wert;
+  const { count, error } = await sb
+    .from('kiosk_geraete')
+    .select('id', { count: 'exact', head: true })
+    .eq('art', art)
+    .not('token_hash', 'is', null);
+  if (error) {
+    console.error('[schutz] kiosk_geraete (je gekoppelt) zählen fehlgeschlagen', error.code ?? '');
+    return true;
+  }
+  const wert = (count ?? 0) > 0;
+  jeGekoppeltCache.set(art, { wert, bis: wert ? Number.POSITIVE_INFINITY : Date.now() + 60_000 });
+  return wert;
+}
+
+/** Ist der Übergang für ungekoppelte Geräte dieser Art noch offen? Nur vor der
+ *  Frist (09.10.2026) UND nur, solange noch nie ein Gerät dieser Art eingelöst
+ *  wurde. Wie evakuierung_uebergang_offen (0191), nur für eine beliebige Art. */
+export async function kioskUebergangOffen(sb: SupabaseClient, art: string): Promise<boolean> {
+  if (Date.now() >= KIOSK_UEBERGANG_FRIST_MS) return false;
+  return !(await geraeteartJeGekoppelt(sb, art));
 }

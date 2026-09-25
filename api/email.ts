@@ -374,7 +374,8 @@ async function handleMagicLink(req: VercelRequest, res: VercelResponse) {
     gast_origin: istGast ? (herkunft && /^[a-z0-9_]+$/.test(herkunft) && herkunft !== 'tablet_signup' ? herkunft : 'qr') : null,
     // Welche Fassung der Datenschutzhinweise GastSignup gezeigt hat (0186:
     // ein Trigger auf members übernimmt sie beim Anlegen des Kontos).
-    datenschutz_fassung: istGast && typeof b.datenschutz_fassung === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.datenschutz_fassung)
+    // JJJJ-MM-TT, bei weiteren Änderungen am selben Tag JJJJ-MM-TT.2 (0205).
+    datenschutz_fassung: istGast && typeof b.datenschutz_fassung === 'string' && /^\d{4}-\d{2}-\d{2}(\.[1-9]\d?)?$/.test(b.datenschutz_fassung)
       ? b.datenschutz_fassung : null,
   };
 

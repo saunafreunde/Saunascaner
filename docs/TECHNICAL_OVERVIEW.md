@@ -435,7 +435,7 @@ REPLICA IDENTITY FULL aktiv für:
 | Kategorie | Anzahl | Beispiele |
 |---|---|---|
 | Aufguss-Management | ~25 | `create_infusion`, `update_infusion`, `cancel_my_infusion`, `transfer_infusion`, `takeover_personal_fallback`, `book_banja_ritual`, `submit_rating`, `react_to_infusion`, `get_ratable_infusions` |
-| Anwesenheit | ~10 | `set_my_presence(p_present)` (Zielzustand statt Umschalten, 0188 — `toggle_my_presence` entfernt), `auto_checkin_via_wifi` (3 h Sperrfrist nach dem Auschecken, 0188), `toggle_presence_by_checkin_pin`, `toggle_presence_by_entry_code`, `list_present_aufgieser`, `list_present_full`, `set_my_present_family` |
+| Anwesenheit | ~10 | `set_my_presence(p_present)` (Zielzustand statt Umschalten, 0188 — `toggle_my_presence` entfernt), `auto_checkin_via_wifi` (3 h Sperrfrist nach dem Auschecken, 0188), `toggle_presence_by_checkin_pin`, `toggle_presence_by_entry_code`, `list_present_aufgieser(p_geraet)` (seit 0200 nur freigegebene Mitglieder ohne Gast/Fan und das gekoppelte Öl-Raum-Tablet; liefert nur `member_id`), `list_present_full`, `set_my_present_family` |
 | Member-Lifecycle | ~15 | `handle_new_user`, `approve_member`, `approve_gast`, `approve_fan`, `approve_helper`, `delete_member`, `delete_my_account`, `delete_my_gast_account`, `set_my_motto`, `set_my_avatar`, `set_my_default_mood`, `rotate_my_checkin_pin` |
 | Achievements | ~6 | `award_badge`, `check_attendance_achievements`, `check_rating_achievements`, `check_follow_achievements`, `check_support_achievements`, `check_pioneer_gast` |
 | Social | ~15 | `follow_member`, `unfollow_member`, `get_my_following`, `get_top_fans`, `create_feed_post`, `react_to_feed_post`, `create_post_comment`, `delete_my_comment`, `dm_get_or_create_conversation`, `dm_send_message`, `dm_mark_read`, `list_my_conversations`, `count_unread_dms`, `count_unread_notifications` |
@@ -466,7 +466,7 @@ Insgesamt 17 Functions — komprimiert wegen Hobby-Plan-12-Limit:
 | `push-send.ts` | Cron-Endpoint: konsumiert `notification_queue` → web-push |
 | `push-subscribe.ts` | Browser-Subscribe-Endpoint |
 | `push-vapid-public.ts` | Public-Key-Endpoint |
-| `qr-signin.ts` | QR-basierter Sign-in für Gäste, PIN-Check-in/-Bewerten/-Scanner, Tablet-Anmeldung. PIN-Fehlversuche: 8/15 min je IP (0173) + seit 0189 ein gemeinsamer Topf „ungekoppelt" (20/h) für Aufrufe ohne gekoppeltes Eingangs-Tablet/Scanner; gekoppelte Eingangsgeräte zählen seit Audit-Runde 2 nur in ihren eigenen Topf (`g:<Token-Hash>`, 30/15 min + 200/Tag), nicht in den der Vereins-IP; CheckinPin pausiert nach 3 unbekannten PINs in Folge selbst (30 s, steigend bis 2 min); `tablet-signup` nur vom gekoppelten Eingangs-Tablet (beides erst aktiv, sobald ein solches Gerät gekoppelt ist). Eine offene, nie bestätigte Gast-Anmeldung (QR-Link nicht angeklickt) übernimmt `tablet-signup` mit neuem Zufallspasswort und bestätigt sie; offene Registrierungen über /login (evtl. mit Einladung) bleiben unangetastet. Ebenso würfelt `magic-link` bei jeder offenen Anmeldung das Passwort neu (sonst bekäme, wer sie mit fremder Adresse angelegt hat, nach dem Klick ein bestätigtes Konto mit seinem Passwort) |
+| `qr-signin.ts` | QR-basierter Sign-in für Gäste, PIN-Check-in/-Bewerten/-Scanner, Tablet-Anmeldung. PIN-Fehlversuche: 8/15 min je IP (0173) + seit 0189 ein gemeinsamer Topf „ungekoppelt" (20/h) für Aufrufe ohne gekoppeltes Eingangs-Tablet/Scanner; gekoppelte Eingangsgeräte zählen seit Audit-Runde 2 nur in ihren eigenen Topf (`g:<Token-Hash>`, 30/15 min + 200/Tag), nicht in den der Vereins-IP; CheckinPin pausiert nach 3 unbekannten PINs in Folge selbst (30 s, steigend bis 2 min); `tablet-signup` nur vom gekoppelten Eingangs-Tablet — gesperrt für alle anderen, sobald JE ein Eingangs-Tablet eingelöst wurde (auch wenn es später widerrufen wird) oder ab 09.10.2026 (Audit-Runde 3); der PIN-Topf „ungekoppelt" gilt, sobald ein Eingangs-Tablet oder Scanner aktiv gekoppelt ist. Eine offene, nie bestätigte Gast-Anmeldung (QR-Link nicht angeklickt) übernimmt `tablet-signup` mit neuem Zufallspasswort und bestätigt sie; offene Registrierungen über /login (evtl. mit Einladung) bleiben unangetastet. Ebenso würfelt `magic-link` bei jeder offenen Anmeldung das Passwort neu (sonst bekäme, wer sie mit fremder Adresse angelegt hat, nach dem Klick ein bestätigtes Konto mit seinem Passwort) |
 | `send-evacuation.ts` | Evakuierungs-Alarm: Web-Push + Telegram genau einmal, Öl-Raum-Foto getrennt; Aufruf zuerst per pg_net aus der DB (`x-cron-secret`, 0191), Browser nur Rückfall/Foto |
 | `send-notification.ts` | Vereins-Meldung an alle Telegram-Chats: neues Abzeichen (Text aus `api/_badges.ts`, Kopie von `src/lib/badges.ts`) oder neuer Aufguss-Name. Seit 0194 je Mitglied+Abzeichen bzw. je Namensänderung genau einmal (`push_vorlagen_versand`, Schlüssel `tg_badge:`/`tg_saunaname:`) und gedrosselt (`tg_meldung`: 10/h je Mitglied, Namens-Meldungen 2 je 6 h). `set_sauna_name` nimmt höchstens 40 Zeichen, keine Steuerzeichen und keine Internet-Adressen |
 | `send-poll-results.ts` | Umfrage-Ergebnis an alle Telegram-Chats (nur Admin). MarkdownV2 wird nie mitten im Text gekürzt: Antworten einzeln gekürzt, ganze Zeilen bis ~3900 Zeichen, Rest als „… und N weitere“. Antwort `{ok, sent, failed, total, fehler_status}`; Admin → Abfragen zeigt die echte Ursache |
@@ -738,7 +738,7 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 - REPLICA IDENTITY FULL + Realtime
 
 **Workflow**:
-1. `email.ts`/`postfach.ts` Action `poll-shared-tickets` (JWT eines `shared_email_admins`-Mitglieds oder Header `x-cron-secret`, zeitkonstant über `api/_cron.ts`; derzeit ruft ihn nur das Frontend) macht IMAP-Pull → `email_ticket_upsert_from_inbound` (service_role-only RPC)
+1. `email.ts`/`postfach.ts` Action `poll-shared-tickets` (pg_cron-Job `vereinspostfach-abruf` mit Header `x-cron-secret`, zeitkonstant über `api/_cron.ts` — ein Aufruf mit diesem Header fällt nie auf die Nutzer-Anmeldung zurück; dazu das Frontend beim Öffnen des Tabs und über „↻ Synchronisieren“ mit dem JWT eines `shared_email_admins`-Mitglieds) macht IMAP-Pull → `email_ticket_upsert_from_inbound` (service_role-only RPC)
 2. Bei INSERT oder Re-Open: notification_queue 'shared_email_inbound' an alle `shared_email_admins` — `dedup_key` je Empfänger (`shared_email:<ticket>:<uid>:<member>`, seit 0185; vorher scheiterte jedes neue Ticket am Unique-Index, sobald es 2+ Admins gab). Nur für Mails der letzten 3 Tage (`p_received_at` = IMAP-Eingangszeit); schon bekannte Mails (UID ≤ `last_imap_uid`) zählen nicht erneut und öffnen beantwortete Tickets nicht wieder. `api/postfach.ts` protokolliert RPC-Fehler.
 3. Admin öffnet Ticket → `email_ticket_lock(p_force?)` mit 10-Min-Auto-Expire, Lock-Stealing möglich
 4. Antwort via SMTP → setzt automatisch Status='answered' + locked_by=NULL
@@ -752,15 +752,7 @@ Siehe `feedback_saunascaner_cpu_pure_css.md` und `feedback_saunascaner_scene_den
 - Lock-Anzeige: eigene Sperre (`locked_by = eigene member.id`) gilt nicht als fremd; das Detail zeigt den Live-Stand aus der Ticket-Liste
 - IMAP-Connect ~500ms, mit `refetchInterval` gecached
 
-**pg_cron** (NICHT aktiv — Vorlage, falls das Polling wieder per Cron laufen soll; ohne den Header antwortet der Endpunkt 401):
-```sql
-SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
-  SELECT net.http_post(
-    url := 'https://saunascaner.vercel.app/api/postfach?action=poll-shared-tickets',
-    headers := jsonb_build_object('Content-Type','application/json',
-      'x-cron-secret', coalesce((select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret' limit 1), '')),
-    body := '{}'::jsonb, timeout_milliseconds := 30000); $$);
-```
+**pg_cron** `vereinspostfach-abruf` (Migration 0203, aktiv): `*/5 5-21 * * *` UTC — tagsüber alle 5 Minuten (Sommer 07:00–23:55, Winter 06:00–22:55 Ortszeit), nachts Pause, damit keine Pushes um 3 Uhr kommen; Nachtmails holt der erste Lauf am Morgen und meldet sie noch (3-Tage-Grenze). `net.http_post` an `https://saunascaner.vercel.app/api/postfach?action=poll-shared-tickets`, Header `x-cron-secret` aus dem Vault (`cron_secret`), `timeout_milliseconds` 60000 = `maxDuration`. Antworten: 200 = alles abgerufen; 401 = Geheimnis falsch/fehlt (Vercel-Log „Cron-Abruf abgelehnt“); 502 = ein Konto scheiterte (IMAP-Anmeldung, Zugangsdaten oder jede Mail beim Upsert) — Einzelheiten im JSON (`summary[].error`) und im Vercel-Log. Kontrolle: `net._http_response` und `email_accounts.last_sync_at`. Gleichzeitige Abrufe (Cron + Tab) sind gefahrlos: keine Mail meldet sich doppelt; gemeldet wird nur bei neuem Ticket oder Wiederöffnen (s. Schritt 2), Folge-Mails in offenen Tickets zählen nur mit.
 
 ### 9.8 WM-Tipspiel 2026 (Migrationen 0009-0010)
 
@@ -785,7 +777,7 @@ SELECT cron.schedule('poll-shared-email', '*/2 * * * *', $$
 - `check_pioneer_gast` (erste 10 Gast-Signups)
 - Game-Badges automatisch in `award_badge` gerufen
 
-**Stats-RPC** `get_member_stats_full` mit 8 Metriken + attendance_by_month (für Profil-Page). Seit 0192 wie `count_member_ratings` und `get_ratable_infusions` nur für die eigene Mitglieds-ID oder Admins (Wächter `_darf_mitgliedsdaten_sehen`; fremde IDs: 42501 bzw. leere Liste). Öffentlich für fremde Profile bleiben `get_member_stats`, `get_star_stats`, `get_attendance_streak_weeks` & Co.
+**Stats-RPC** `get_member_stats_full` mit 8 Metriken + attendance_by_month (für Profil-Page). Seit 0192 wie `count_member_ratings` und `get_ratable_infusions` nur für die eigene Mitglieds-ID oder Admins (Wächter `_darf_mitgliedsdaten_sehen`; fremde IDs: 42501 bzw. leere Liste). Öffentlich für fremde Profile bleiben `get_member_stats`, `get_star_stats` & Co.; `get_attendance_streak_weeks` für fremde IDs seit 0200 nur für freigegebene Mitglieder ohne Gast/Fan sowie Admin/Personal (sonst 0), Woche nach Berliner Kalender.
 
 **Galerie** (`member_photos`, seit 0192): Trigger `trg_member_photos_vor_insert` setzt `created_at = now()` und verlangt `photo_path` = `member-photos/<uuid>.<endung>` als eigene Datei im Bucket `assets`; INSERT nur (uploader_id, photo_path, caption), UPDATE nur (approved). `aufgieser_comments.created_at` ist fest (Trigger `trg_aufgieser_comments_zeit`).
 

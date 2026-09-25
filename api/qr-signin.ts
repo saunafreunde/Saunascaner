@@ -21,14 +21,15 @@
 //    oder Scanner gekoppelt ist (vorher liefen die echten Geräte ja selbst
 //    ungekoppelt).
 //  * tablet-signup (legt Konten an und verschickt Mails) nimmt nur noch das
-//    gekoppelte Eingangs-Tablet an — ebenfalls erst, sobald eins gekoppelt ist.
+//    gekoppelte Eingangs-Tablet an — sobald JE eins eingelöst wurde (auch wenn
+//    es später widerrufen wird), spätestens ab 09.10.2026 (Audit-Runde 3).
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { authenticate } from './_auth.js';
 import { getBrandSettings, logEmailSend, sendSystemMail } from './_email_helpers.js';
 import { renderGastAccessEmail } from './_email_templates.js';
-import { clientIp, emailSchluessel, geraeteartGekoppelt, kioskGeraet, ohneAdressen } from './_schutz.js';
+import { clientIp, emailSchluessel, geraeteartGekoppelt, ipSchluessel, kioskGeraet, kioskUebergangOffen, ohneAdressen } from './_schutz.js';
 import { queryParam } from './_query.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -155,12 +156,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'pin-toggle') return handlePinToggle(req, res, admin, k);
   if (action === 'kiosk-rate') return handleKioskRate(req, res, admin, k);
   if (action === 'tablet-signup') {
-    // Legt Konten an und verschickt Mails: nur vom gekoppelten Eingangs-Tablet
-    // (Übergang: solange noch keins gekoppelt ist, wie bisher offen).
-    if (geraet?.art !== 'eingang' && (await geraeteartGekoppelt(admin, 'eingang'))) {
+    // Legt Konten an und verschickt Mails: nur vom gekoppelten Eingangs-Tablet.
+    // Übergang für ungekoppelte Aufrufer nur, solange noch NIE ein Eingangs-
+    // Tablet eingelöst wurde und längstens bis 09.10.2026 (Audit-Runde 3) —
+    // ein Widerruf des Tablets öffnet den Weg nicht wieder.
+    if (geraet?.art !== 'eingang' && !(await kioskUebergangOffen(admin, 'eingang'))) {
       return res.status(403).json({ error: 'Dieses Gerät ist nicht als Eingangs-Tablet freigeschaltet. Bitte beim Personal melden.' });
     }
-    return handleTabletSignup(req, res, admin, ip);
+    // Bremse je IP — IPv6 je /64-Präfix, sonst hätte ein Anschluss beliebig viele Töpfe.
+    return handleTabletSignup(req, res, admin, ipSchluessel(req));
   }
   if (action === 'resend-access') return handleResendAccess(req, res, admin);
 
@@ -344,16 +348,18 @@ async function handleTabletSignup(
   req: VercelRequest,
   res: VercelResponse,
   admin: SupabaseClient,
-  ip: string,
+  ipKey: string,
 ) {
   const { name, email, dsgvo, ref, fassung } = req.body as {
     name?: string; email?: string; dsgvo?: boolean; ref?: string; fassung?: unknown;
   };
-  // Fassung der Datenschutzhinweise, die das Tablet angezeigt hat (JJJJ-MM-TT).
-  // handle_new_user legt das Konto an, der Trigger aus 0186 übernimmt sie nach
+  // Fassung der Datenschutzhinweise, die das Tablet angezeigt hat (JJJJ-MM-TT,
+  // bei weiteren Änderungen am selben Tag mit Zähler: JJJJ-MM-TT.2 — dieselbe
+  // Regel wie der Trigger aus 0186/0205 und src/lib/datenschutz.ts).
+  // handle_new_user legt das Konto an, der Trigger übernimmt sie nach
   // members.datenschutz_fassung. Alte Tablet-Bundles schicken keine → leer.
   const datenschutzFassung =
-    typeof fassung === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fassung) ? fassung : undefined;
+    typeof fassung === 'string' && /^\d{4}-\d{2}-\d{2}(\.[1-9]\d?)?$/.test(fassung) ? fassung : undefined;
   const cleanName = (name ?? '').trim().slice(0, 80);
   const cleanEmail = (email ?? '').trim().toLowerCase();
   if (!cleanName || cleanName.length < 2) return res.status(400).json({ error: 'name_required' });
@@ -362,12 +368,13 @@ async function handleTabletSignup(
   }
   if (!dsgvo) return res.status(400).json({ error: 'dsgvo_required' });
 
-  // Bremse je IP: der Endpunkt legt Konten an und verschickt Mails — ohne
-  // Anmeldung. 30 je Stunde reichen auch für einen vollen Saunafest-Eingang.
-  if (await gebremst(admin, 'signup', ip, SIGNUP_MAX, SIGNUP_FENSTER_S)) {
+  // Bremse je IP (ipSchluessel: IPv6 je /64): der Endpunkt legt Konten an und
+  // verschickt Mails — ohne Anmeldung. 30 je Stunde reichen auch für einen
+  // vollen Saunafest-Eingang.
+  if (await gebremst(admin, 'signup', ipKey, SIGNUP_MAX, SIGNUP_FENSTER_S)) {
     return res.status(429).json({ error: 'zu_viele_anmeldungen' });
   }
-  await versuchMerken(admin, 'signup', ip);
+  await versuchMerken(admin, 'signup', ipKey);
 
   // Prüfen ob die E-Mail schon ein Konto hat. Dann gibt es die PIN NICHT am
   // Bildschirm (sonst bekäme jeder, der eine Mitglieds-E-Mail kennt, deren

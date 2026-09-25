@@ -15,6 +15,8 @@ Personal-Aufgüsse, Geburtstage, Umfrageergebnisse und im Notfall die Liste der 
 - **Admins** geben frei unter [Admin → Handbuch → Telegram](/admin#handbook) („🔐 Wer bekommt die Vereins-Meldungen?") und bekommen neue Anmeldungen in der 🔔-Glocke bzw. per Push.
 - `/stop` meldet dich ab. `/unlink` (oder in der App **Profil → Telegram-Bot → „Verknüpfung lösen"**) löst die Verknüpfung und beendet damit auch die Vereins-Meldungen in deinem privaten Chat mit dem Bot — ebenso, wenn dein App-Konto gelöscht wird.
 - Dein PIN (`/pin`) kommt nur im **privaten** Chat mit dem Bot — nie in einer Gruppe.
+- **Nicht erreichbare Chats** (Bot blockiert, Telegram-Konto gelöscht, Bot aus der Gruppe entfernt) pausiert der Server automatisch: Sie bleiben in der Liste, bekommen aber nichts mehr, bis ein Admin sie unter „Pausiert“ wieder aktiviert oder der Chat erneut `/start` sendet. So melden Rundrufe und Alarme keinen Dauer-Teilausfall.
+- Ein **gesperrtes** App-Konto kann per Telegram keine Personal-Aufgüsse mehr übernehmen und sich nicht neu verknüpfen.
 
 ### Befehle
 

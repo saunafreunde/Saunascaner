@@ -2,7 +2,7 @@ import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useMemo } from 'react';
 import { useRealtimeSync } from '@/hooks/useRealtime';
 import { useAuth } from '@/hooks/useAuth';
-import { useCurrentMember, wartetAufMitglied, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, useKioskGeraetStatus, type KioskDisplay } from '@/lib/api';
+import { useCurrentMember, wartetAufMitglied, useActiveEvacuation, useEndEvacuation, useKioskSperreStatus, useKioskGeraetStatus, useMeisterDirectory, type KioskDisplay, type EvacuationEvent } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { kioskGeraetToken } from '@/lib/kioskGeraet';
 import { useApplyStoredTheme } from '@/components/ThemeToggle';
@@ -10,7 +10,7 @@ import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { EvacuationOverlay } from '@/components/EvacuationOverlay';
 import { AreaHubGate } from '@/components/AreaHubGate';
 import { AppReloadWatcher } from '@/components/AppReloadWatcher';
-import { ErrorBoundary, TafelErrorFallback } from '@/components/ErrorBoundary';
+import { ErrorBoundary, TafelErrorFallback, TAFEL_TON_HINWEIS } from '@/components/ErrorBoundary';
 import { useAutoCheckin } from '@/hooks/useAutoCheckin';
 import { useFullscreenLock } from '@/hooks/useFullscreenLock';
 import { JokerSchoner, KioskBlende } from '@/components/kiosk/JokerSchoner';
@@ -363,8 +363,11 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Globaler Evakuierungs-Overlay: aktiv auf JEDER Route außer /dashboard
-// (Dashboard hat seinen eigenen Audio-aware Overlay).
+// Globaler Evakuierungs-Overlay: aktiv auf JEDER Route, seit Audit-Runde 3
+// auch auf der TV-Tafel (/dashboard, siehe TafelEvakuierung). Vorher hatte die
+// Tafel ein eigenes Overlay INNERHALB ihrer Fehlergrenze und ihres Lazy-Chunks:
+// lud die Tafel noch (Splash), war sie abgestürzt („Tafel lädt neu …") oder
+// fehlte nach einem Deploy ihr Programmteil, erschien dort kein Alarm.
 // Triggert sobald useActiveEvacuation einen Eintrag liefert (Realtime via
 // useRealtimeSync → evacuation_events-Subscription). Der Overlay legt sich
 // als Fullscreen z-9999 über ALLES — egal welcher User eingeloggt ist
@@ -383,8 +386,10 @@ function GlobalEvacuationOverlay() {
   const end = useEndEvacuation();
   const geraet = useKioskGeraetStatus();
 
-  if (loc.pathname.startsWith('/dashboard')) return null;
   if (!evac.data) return null;
+  // TV-Tafel: eigene Darstellung — ohne Beenden-Knopf und Versandstand, auch
+  // wenn die Tafel ein gekoppeltes Gerät ist (canEnd gilt dort bewusst nicht).
+  if (loc.pathname.startsWith('/dashboard')) return <TafelEvakuierung evac={evac.data} />;
 
   const role = me.data?.role;
   // Alle Vereinsmitglieder dürfen beenden: Admin, Personal, ALLE Mitglieder
@@ -406,6 +411,21 @@ function GlobalEvacuationOverlay() {
       // Versandstand (Push + Telegram) nur für die, die handeln können.
       versand={canEnd ? { status: evac.data.telegram_status, seit: evac.data.triggered_at } : undefined}
     />
+  );
+}
+
+// Evakuierungsalarm der TV-Tafel (Audit-Runde 3). Hängt nur während eines
+// Alarms auf /dashboard — erst dann läuft die Namensabfrage des Auslösers
+// (derselbe Cache ['meister-directory'] wie die Tafel, ohne eigenen Poll-Takt:
+// kein zusätzlicher Timer auf der Tafel). Nur dieses eine Overlay mit Sirene
+// auf der Tafel; kein Beenden-Knopf, kein Versandstand. cursor-none wie die Tafel.
+function TafelEvakuierung({ evac }: { evac: EvacuationEvent }) {
+  const dir = useMeisterDirectory();
+  const ausgeloestVon = dir.data?.find((m) => m.id === evac.triggered_by)?.name ?? null;
+  return (
+    <div className="cursor-none select-none">
+      <EvacuationOverlay triggeredBy={ausgeloestVon} withSiren tonHinweis={TAFEL_TON_HINWEIS} />
+    </div>
   );
 }
 

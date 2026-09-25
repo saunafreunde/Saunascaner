@@ -4,9 +4,18 @@
 // App-Root, die Tafel als Ganzes (/dashboard, TafelErrorFallback) und auf der
 // Bühne jede Szene und jeder Effekt einzeln (Stage.tsx) — eine kaputte Szene
 // reißt die Tafel nicht mehr mit. Die Sauna-Spalten haben KEINE eigene Grenze.
+// Der Evakuierungsalarm der Tafel liegt seit Audit-Runde 3 AUSSERHALB der
+// Tafel-Grenze (App.tsx, GlobalEvacuationOverlay) — er bleibt also auch im
+// TafelErrorFallback und während des Ladens sichtbar.
 
 import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { fehlerMelden } from '@/lib/fehlerbericht';
+
+/** Hinweis auf der TV-Tafel, solange der Browser den Ton noch sperrt — geteilt
+ *  von der Tafel selbst (Dashboard, unten links) und ihrem Evakuierungsalarm
+ *  (App.tsx). Liegt hier, weil beide diese Datei ohnehin laden. */
+export const TAFEL_TON_HINWEIS = '🔈 Ton: OK auf der Fernbedienung drücken';
 
 type Props = {
   children: React.ReactNode;
@@ -119,18 +128,24 @@ function tafelNeuLaden(): boolean {
  *     bloßes Zurücksetzen hing sonst endlos in „Tafel lädt neu …" (Audit
  *     25.09.2026). Schleifenschutz: höchstens ein Neuladen je 10 min.
  *   • sonst → zurücksetzen (Subtree neu aufbauen).
+ *   • läuft gerade ein Evakuierungsalarm → nie neu laden, nur zurücksetzen:
+ *     nach einem Neuladen wäre die Sirene bis zur nächsten Taste stumm
+ *     (Tonsperre des Browsers; wie im AppReloadWatcher). Der Alarm selbst
+ *     liegt außerhalb dieser Grenze und bleibt sichtbar (App.tsx).
  *  Die umgebende Grenze braucht autoResetMs={0} — ihr eigener 60-s-Timer käme
  *  diesem sonst zuvor und das Neuladen fände nie statt. */
 export function TafelErrorFallback({ error, reset }: { error: Error; reset: () => void }): React.ReactElement {
+  const qc = useQueryClient();
   React.useEffect(() => {
     const jetzt = Date.now();
     tafelAbstuerze = [...tafelAbstuerze.filter((t) => jetzt - t < TAFEL_NEULADEN_SPERRE_MS), jetzt];
     const t = setTimeout(() => {
-      if ((istChunkFehler(error) || tafelAbstuerze.length >= 3) && tafelNeuLaden()) return;
+      const alarm = !!qc.getQueryData(['evacuation', 'active']);
+      if (!alarm && (istChunkFehler(error) || tafelAbstuerze.length >= 3) && tafelNeuLaden()) return;
       reset();
     }, 60_000);
     return () => clearTimeout(t);
-  }, [error, reset]);
+  }, [error, reset, qc]);
   return (
     <div className="fixed inset-0 grid place-items-center bg-forest-950 text-forest-300/60">
       <div className="text-center">

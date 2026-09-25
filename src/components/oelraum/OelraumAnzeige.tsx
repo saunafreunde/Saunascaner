@@ -32,7 +32,9 @@ export interface AnzeigeAufguss {
   inf: Infusion;
   sauna: Sauna | undefined;
   meister: string;
-  meisterDa: boolean;
+  /** null = Anwesenheit hier nicht sichtbar (ungekoppeltes Gerät, 0200) —
+   *  dann kein ●/○-Punkt. */
+  meisterDa: boolean | null;
   zutaten: RegalEintrag[];
   besonderheiten: ReturnType<typeof besonderheitenFuer>;
   status: ZutatenStatus;
@@ -68,7 +70,9 @@ export function OelraumAnzeige({
   saunas: readonly Sauna[];
   katalog: RegalKatalog;
   nameFuer: (memberId: string | null) => string;
-  anwesend: ReadonlySet<string>;
+  /** Anwesende Aufgießer; null = hier nicht sichtbar (seit 0200 nur für das
+   *  gekoppelte Öl-Raum-Tablet und freigegebene Vereinsmitglieder). */
+  anwesend: ReadonlySet<string> | null;
   einstellungen: OelraumSettings;
   logoUrl: string | null;
   hintergrundUrl: string | null;
@@ -99,7 +103,7 @@ export function OelraumAnzeige({
         inf: i,
         sauna: saunas.find((s) => s.id === i.sauna_id),
         meister: nameFuer(i.saunameister_id),
-        meisterDa: !!i.saunameister_id && anwesend.has(i.saunameister_id),
+        meisterDa: anwesend ? !!i.saunameister_id && anwesend.has(i.saunameister_id) : null,
         zutaten: zutatenFuer(i, katalog),
         besonderheiten: besonderheitenFuer(i, katalog),
         status: zutatenStatus(i.attributes, i.oils),
@@ -410,14 +414,17 @@ function SaunaKarte({ a }: { a: AnzeigeAufguss }) {
 
       <p className="mt-0.5 flex items-center gap-1.5 text-[clamp(0.75rem,1.6vw,1.15rem)] font-semibold text-forest-100">
         {/* Anwesenheit sichtbar machen: wer hier einträgt, wird automatisch
-            eingecheckt — dann muss man auch sehen können, dass es passiert ist. */}
-        <span
-          aria-hidden
-          title={a.meisterDa ? 'ist eingecheckt' : 'noch nicht eingecheckt'}
-          className={a.meisterDa ? 'text-emerald-400' : 'text-forest-600'}
-        >
-          {a.meisterDa ? '●' : '○'}
-        </span>
+            eingecheckt — dann muss man auch sehen können, dass es passiert ist.
+            Ohne Freigabe (ungekoppelt, 0200) kein Punkt statt eines falschen ○. */}
+        {a.meisterDa !== null && (
+          <span
+            aria-hidden
+            title={a.meisterDa ? 'ist eingecheckt' : 'noch nicht eingecheckt'}
+            className={a.meisterDa ? 'text-emerald-400' : 'text-forest-600'}
+          >
+            {a.meisterDa ? '●' : '○'}
+          </span>
+        )}
         <span className="truncate">{a.meister}</span>
       </p>
 
