@@ -92,10 +92,13 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
     : null;
 
   // Saunafest-Schilder (25.09.2026): solange ein Fest ansteht (der Festtag
-  // zählt mit). Zwei Schilder, EIN Platz im Pool — bei jedem Auftritt
-  // wechselt das Schild (Termine ↔ Tagesablauf), Nachbarkacheln versetzt.
+  // zählt mit), gehören die freien Kacheln den Schildern — Christophs Wunsch:
+  // „immer die Saunafest-Karten, das Bild mit der Sauna ist nicht so wichtig".
+  // Alle 20 s wechselt das Schild (Termine ↔ Tagesablauf), Nachbarkacheln
+  // versetzt. Öl-Karte und Vereinsfotos kommen erst wieder, wenn kein Fest
+  // ansteht oder der Admin die Schilder unter Bühne ausschaltet. Selbst
+  // aktivierte Info-Karten laufen weiter mit (bewusste Ansagen).
   const fest = cards?.saunafest !== false ? naechsterFestTag(festTage.data, now) : null;
-  const festVariante: SchildVariante = (((tick + kachelNr) % 2) + 2) % 2 === 0 ? 'termine' : 'tag';
 
   // Nur Karten in den Pool, die auch wirklich etwas anzeigen können:
   // ohne Fotos keine Galerie, ohne freigeschaltete Öle keine Öl-Karte.
@@ -103,17 +106,25 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
   // sie passten nicht mehr zum Rest der Tafel. Im Admin unter „🎭 Bühne"
   // lassen sie sich jederzeit wieder dazuschalten.
   const pool: SlotCardId[] = [];
-  if (fest) pool.push('fest');
-  if (info) pool.push('info');
-  if (oil) pool.push('oil');
-  if (photo) pool.push('gallery');
-  if (cards?.reef) pool.push('reef');
-  if (cards?.forest) pool.push('forest');
+  if (fest) {
+    pool.push('fest');
+    if (info) pool.push('info');
+  } else {
+    if (info) pool.push('info');
+    if (oil) pool.push('oil');
+    if (photo) pool.push('gallery');
+    if (cards?.reef) pool.push('reef');
+    if (cards?.forest) pool.push('forest');
+  }
   // Sicherheitsnetz: wären alle Öle deaktiviert UND keine Fotos hinterlegt UND
   // beide Deko-Karten aus, bliebe die Kachel schwarz. Dann lieber das Riff.
   if (pool.length === 0) pool.push('reef');
 
   const card = pool[(((tick + kachelNr) % pool.length) + pool.length) % pool.length];
+  // Bei jedem Auftritt des Fest-Platzes das andere Schild — auch wenn eine
+  // Info-Karte mitläuft (sonst fiele der Fest-Platz immer auf dieselbe Parität).
+  const festVariante: SchildVariante =
+    Math.floor(Math.max(0, tick + kachelNr) / pool.length) % 2 === 0 ? 'termine' : 'tag';
 
   // Bewusst OHNE AnimatePresence. Der vorherige Stand nutzte mode="wait": die
   // alte Karte musste ihre Exit-Animation abschliessen, bevor die neue gemountet

@@ -348,7 +348,7 @@ function SlotCardsSection() {
 
   const ZEILEN = [
     { key: 'saunafest' as const, icon: '🎉', label: 'Saunafest-Schilder',
-      hint: 'Nächstes Fest mit Countdown + Tagesablauf (31 Aufgüsse, 10:30–23:30) — im Wechsel in freien Kacheln und alle 5 Minuten groß eingeblendet. Rechnet live aus den Saunafest-Terminen.' },
+      hint: 'Nächstes Fest mit Countdown + Tagesablauf (31 Aufgüsse, 10:30–23:30). Solange ein Fest ansteht, belegen sie alle freien Kacheln (im Wechsel) und kommen alle 5 Minuten groß — Öl-Karte und Fotos pausieren so lange. Rechnet live aus den Saunafest-Terminen.' },
     { key: 'reef' as const, icon: '🐠', label: 'Riff-Szene',
       hint: 'Fischschwarm, Quallen, Saunafass — die ursprüngliche Animation.' },
     { key: 'forest' as const, icon: '🌲', label: 'Schwarzwald-Fenster',
