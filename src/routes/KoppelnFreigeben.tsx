@@ -166,6 +166,13 @@ export default function KoppelnFreigeben() {
           </div>
         </div>
 
+        {d.ersetzt && (
+          <p className="mt-3 rounded-xl bg-sky-500/15 px-3 py-2 text-left text-xs leading-relaxed text-sky-100 ring-1 ring-sky-400/40">
+            Dieses Gerät ist bisher als „{d.ersetzt.name}" ({KIOSK_GERAET_ARTEN.find((a) => a.art === d.ersetzt?.art)?.label ?? d.ersetzt.art})
+            gekoppelt. Mit der Freigabe endet diese alte Kopplung.
+          </p>
+        )}
+
         <p className="mt-3 rounded-xl bg-amber-500/15 px-3 py-2 text-left text-xs leading-relaxed text-amber-100 ring-1 ring-amber-400/40">
           ⚠️ Nur freigeben, wenn du <strong>gerade vor diesem Gerät stehst</strong> und dort <strong>genau dieser Code</strong> steht.
           Ein gekoppeltes Gerät darf ohne Login z. B. Aufgüsse eintragen, Anwesenheit setzen oder Alarm auslösen.

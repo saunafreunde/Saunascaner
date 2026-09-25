@@ -5,7 +5,10 @@ import type { SudKraut, SudMix } from '@/lib/sud';
 import type { InfusionAttribute } from './attributes';
 import { type BrandSettings, mergeBrandDefaults, defaultBrandSettings } from '@/types/branding';
 import type { TvStageState } from './season';
-import { kioskGeraetHeader, kioskGeraetToken } from './kioskGeraet';
+import {
+  kioskGeraetHeader, kioskGeraetToken, kioskGeraetTokenBestaetigt, kopplungsTokenOffen, kopplungKannEintreffen,
+  kopplungAbschliessen,
+} from './kioskGeraet';
 import { pollTakt } from './realtimeStatus';
 import { istDauerFehler } from './queryClient';
 
@@ -698,6 +701,8 @@ export type KioskGeraetStatus =
   | { status: 'ungueltig' }
   | { status: 'ok'; art: import('./kioskGeraet').KioskGeraetArt; name: string };
 
+const stundenTakt = pollTakt(60 * 60_000, 60 * 60_000);
+
 /** Ist dieses Gerät gekoppelt? Fragt den Server einmal je Seitenstart (plus stündlich).
  *  Scheitert die Prüfung (Netz/Server weg), wird alle 30 s neu gefragt statt erst
  *  nach einer Stunde — der Fehlerzustand heißt „Prüfe Gerät …", NICHT „nicht
@@ -708,17 +713,29 @@ export function useKioskGeraetStatus() {
   return useQuery<KioskGeraetStatus>({
     queryKey: ['kiosk-geraet', token ? token.slice(0, 8) : 'keins'],
     queryFn: async () => {
-      if (!token) return { status: 'fehlt' };
-      const { data, error } = await need().rpc('kiosk_geraet_pruefen', { p_token: token });
-      if (error) throw error;
-      const d = (data ?? {}) as { ok?: boolean; art?: string; name?: string };
-      return d.ok
-        ? { status: 'ok', art: d.art as import('./kioskGeraet').KioskGeraetArt, name: d.name ?? '' }
-        : { status: 'ungueltig' };
+      // Erst das bestätigte Token, dann das einer laufenden QR-Kopplung (0198):
+      // Kennt der Server das wartende Token schon (Freigabe kam, nachdem das
+      // Gerät den QR-Dialog verlassen hat), wird es hier fest übernommen.
+      const offen = kopplungsTokenOffen();
+      const kandidaten = [kioskGeraetTokenBestaetigt(), offen].filter(
+        (t, i, alle): t is string => !!t && alle.indexOf(t) === i,
+      );
+      if (kandidaten.length === 0) return { status: 'fehlt' };
+      for (const t of kandidaten) {
+        const { data, error } = await need().rpc('kiosk_geraet_pruefen', { p_token: t });
+        if (error) throw error;
+        const d = (data ?? {}) as { ok?: boolean; art?: string; name?: string };
+        if (d.ok) {
+          if (t === offen) kopplungAbschliessen(t);
+          return { status: 'ok', art: d.art as import('./kioskGeraet').KioskGeraetArt, name: d.name ?? '' };
+        }
+      }
+      return { status: 'ungueltig' };
     },
     staleTime: 60 * 60_000,
     // Gleicher Takt mit und ohne Realtime; im Fehlerzustand höchstens 30 s.
-    refetchInterval: pollTakt(60 * 60_000, 60 * 60_000),
+    // Solange eine QR-Freigabe eintreffen kann: alle 20 s nachsehen.
+    refetchInterval: (q) => (kopplungKannEintreffen() ? 20_000 : stundenTakt(q)),
     retry: 2,
   });
 }
@@ -778,6 +795,8 @@ export function useAdminKioskGeraetKoppeln() {
 export type KioskKopplungAnfrage = {
   ok: boolean; grund?: string; code?: string; art_wunsch?: string | null; geraet_info?: string | null;
   erstellt_at?: string; gueltig_bis?: string; entscheidung?: 'freigegeben' | 'abgelehnt' | null; abgelaufen?: boolean;
+  /** Seit 0198: bisherige Kopplung dieses Browsers — endet mit der Freigabe. */
+  ersetzt?: { name: string; art: string } | null;
 };
 
 export function useAdminKioskKopplung(code: string | null) {

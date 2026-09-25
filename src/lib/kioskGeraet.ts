@@ -27,13 +27,26 @@ export const KIOSK_GERAET_ARTEN: { art: KioskGeraetArt; label: string; ziel: str
   { art: 'tafel', label: 'TV-Tafel', ziel: '/dashboard' },
 ];
 
-export function kioskGeraetToken(): string | null {
+/** Bestätigtes Geräte-Token (nach Link-Einlösung bzw. QR-Freigabe übernommen). */
+export function kioskGeraetTokenBestaetigt(): string | null {
   try {
     const t = localStorage.getItem(SCHLUESSEL);
     return t && /^[0-9a-f]{64}$/.test(t) ? t : null;
   } catch {
     return null;
   }
+}
+
+/** Token, das dieses Gerät bei Kiosk-Aktionen mitschickt: das bestätigte —
+ *  sonst das einer laufenden QR-Kopplung (0197/0198). Gibt ein Admin frei,
+ *  NACHDEM das Gerät den QR-Dialog verlassen hat (geschlossen, neu geladen,
+ *  Eingangs-Tablet schon zurück auf /willkommen), kennt der Server das Token
+ *  bereits als gekoppelt — das Gerät muss es dann auch benutzen, sonst lehnt
+ *  z. B. die Gäste-Anmeldung das echte Tablet ab. Ein noch nicht
+ *  freigegebenes Token behandelt jeder Server-Endpunkt wie „kein Token".
+ *  useKioskGeraetStatus übernimmt es fest, sobald der Server es bestätigt. */
+export function kioskGeraetToken(): string | null {
+  return kioskGeraetTokenBestaetigt() ?? kopplungsTokenOffen();
 }
 
 export function kioskGeraetSpeichern(token: string): void {
@@ -53,6 +66,9 @@ export function kioskGeraetHeader(): Record<string, string> {
 // ─── Kopplung per QR-Code (0197) ───────────────────────────────────────────
 
 const ANFRAGE_SCHLUESSEL = 'sauna-kiosk-kopplung-v1';
+// Bis wann die zuletzt angezeigte Anfrage gilt (ms) — so lange fragt
+// useKioskGeraetStatus alle 20 s nach, ob die Freigabe schon da ist.
+const ANFRAGE_BIS_SCHLUESSEL = 'sauna-kiosk-kopplung-bis-v1';
 
 /** 32 Zufallsbytes als Hex — das künftige Geräte-Token. */
 function neuesToken(): string {
@@ -75,10 +91,39 @@ export function kopplungsToken(neu = false): string {
   }
 }
 
+/** Token einer laufenden Kopplung, ohne eins anzulegen (sonst null). */
+export function kopplungsTokenOffen(): string | null {
+  try {
+    const t = localStorage.getItem(ANFRAGE_SCHLUESSEL);
+    return t && /^[0-9a-f]{64}$/.test(t) ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Anfrage angezeigt: merken, bis wann sie freigegeben werden kann. */
+export function kopplungAngefragt(gueltigBisMs: number): void {
+  try { localStorage.setItem(ANFRAGE_BIS_SCHLUESSEL, String(gueltigBisMs)); } catch { /* egal */ }
+}
+
+/** Kann gerade eine Freigabe eintreffen? (Anfrage offen oder erst kurz abgelaufen.) */
+export function kopplungKannEintreffen(): boolean {
+  if (!kopplungsTokenOffen()) return false;
+  try {
+    const bis = Number(localStorage.getItem(ANFRAGE_BIS_SCHLUESSEL));
+    return Number.isFinite(bis) && Date.now() < bis + 60_000;
+  } catch {
+    return false;
+  }
+}
+
 /** Freigabe angekommen: das Anfrage-Token wird zum Geräte-Token. */
 export function kopplungAbschliessen(token: string): void {
   kioskGeraetSpeichern(token);
-  try { localStorage.removeItem(ANFRAGE_SCHLUESSEL); } catch { /* egal */ }
+  try {
+    localStorage.removeItem(ANFRAGE_SCHLUESSEL);
+    localStorage.removeItem(ANFRAGE_BIS_SCHLUESSEL);
+  } catch { /* egal */ }
 }
 
 /** Kurzer Code für Menschen: „K7MQ2XPA" → „K7MQ-2XPA". */

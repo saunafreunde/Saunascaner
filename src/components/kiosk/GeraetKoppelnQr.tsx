@@ -11,8 +11,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { supabase } from '@/lib/supabase';
 import {
-  KIOSK_GERAET_ARTEN, geraetBeschreibung, kopplungAbschliessen, kopplungsCodeAnzeige, kopplungsToken,
-  type KioskGeraetArt,
+  KIOSK_GERAET_ARTEN, geraetBeschreibung, kioskGeraetTokenBestaetigt, kopplungAbschliessen, kopplungAngefragt,
+  kopplungsCodeAnzeige, kopplungsToken, type KioskGeraetArt,
 } from '@/lib/kioskGeraet';
 
 type Phase =
@@ -68,14 +68,19 @@ export function GeraetKoppelnQr({
       while (versuch < 2) {
         versuch += 1;
         tokenRef.current = token;
+        // p_alt: bisherige Kopplung dieses Browsers — die Freigabe beendet sie (0198).
         const { data, error } = await supabase.rpc('kiosk_kopplung_anfragen', {
-          p_token: token, p_art: art, p_info: geraetBeschreibung(),
+          p_token: token, p_art: art, p_info: geraetBeschreibung(), p_alt: kioskGeraetTokenBestaetigt(),
         });
         if (error) throw error;
         if (!aktivRef.current) return;
         const d = (data ?? {}) as { ok?: boolean; grund?: string; anfrage?: string; code?: string; gueltig_bis?: string };
         if (d.ok && d.anfrage && d.code) {
-          setPhase({ p: 'wartet', anfrage: d.anfrage, code: d.code, bis: Date.parse(d.gueltig_bis ?? '') || Date.now() + 15 * 60_000 });
+          const bis = Date.parse(d.gueltig_bis ?? '') || Date.now() + 15 * 60_000;
+          // Auch wenn dieser Dialog gleich zugeht: bis dahin fragt die
+          // Geräteprüfung selbst nach, ob die Freigabe da ist (0198).
+          kopplungAngefragt(bis);
+          setPhase({ p: 'wartet', anfrage: d.anfrage, code: d.code, bis });
           return;
         }
         if (d.grund === 'schon_gekoppelt') {
@@ -90,7 +95,10 @@ export function GeraetKoppelnQr({
           continue;
         }
         if (d.grund === 'zu_viele_anfragen') {
-          setPhase({ p: 'fehler', text: 'Gerade laufen zu viele Kopplungen gleichzeitig. Neuer Versuch in einer Minute.' });
+          setPhase({
+            p: 'fehler',
+            text: 'Gerade laufen zu viele Kopplungen gleichzeitig. Neuer Versuch in einer Minute. Ausweg: Ein Admin erzeugt unter Admin → 🔐 Kiosk-Geräte einen Kopplungs-Link und öffnet ihn auf diesem Gerät.',
+          });
           return;
         }
         throw new Error(d.grund ?? 'unbekannte Antwort');

@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useBrandSettings, brandAssetUrl } from '@/lib/api';
+import { useBrandSettings, brandAssetUrl, useKioskGeraetStatus } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { GeraetKoppelnQr } from '@/components/kiosk/GeraetKoppelnQr';
 
 // /willkommen — Landing-Page für das Gäste-Tablet am Eingang.
 // Anonym, zwei große Touch-Karten:
@@ -15,6 +17,11 @@ import { supabase } from '@/lib/supabase';
 //
 // Tablet bewertet NICHT mehr — Bewerten geht ausschließlich in der App
 // (siehe Migration 0082). /checkin/rate ist nur Bestätigungs-Page.
+//
+// Kopplung (0197): Solange das Tablet nicht gekoppelt ist, steht unten ein
+// kleiner Knopf „Tablet koppeln" — er zeigt den QR-Code, den ein Admin mit
+// dem Handy scannt. Im Kiosk-Browser kommt man oft nicht an die Adresszeile,
+// /koppeln wäre dann unerreichbar. Gekoppelt verschwindet der Knopf.
 
 const BENEFITS = [
   ['🌟', 'Aufgießern folgen'],
@@ -46,6 +53,10 @@ export default function Willkommen() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const brand = useBrandSettings();
+  const geraet = useKioskGeraetStatus();
+  // Nur eine echte Antwort „nicht gekoppelt" zählt (ein Ladefehler nicht).
+  const ungekoppelt = !!geraet.data && geraet.data.status !== 'ok';
+  const [koppeln, setKoppeln] = useState(false);
 
   const orgName = brand.data?.org?.name ?? 'Saunafreunde Schwarzwald e.V.';
   const logoUrl = brand.data?.logo?.icon ? brandAssetUrl(brand.data.logo.icon) : '/icons/icon-512.png';
@@ -211,7 +222,32 @@ export default function Willkommen() {
         <p className="text-[11px] text-forest-500">
           Tablet im Gäste-Bereich · Bitte freilassen wenn du fertig bist
         </p>
+        {ungekoppelt && (
+          <button
+            type="button"
+            onClick={() => setKoppeln(true)}
+            className="mt-3 rounded-full bg-forest-950/80 px-4 py-2 text-xs font-semibold text-forest-300 ring-1 ring-forest-700/60 hover:text-forest-100"
+          >
+            🔐 Tablet koppeln (für Admins)
+          </button>
+        )}
       </footer>
+
+      {koppeln && ungekoppelt && createPortal(
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[65] grid place-items-center overflow-y-auto bg-black/85 p-4">
+          <div className="w-full max-w-md space-y-3">
+            <GeraetKoppelnQr art="eingang" />
+            <button
+              type="button"
+              onClick={() => setKoppeln(false)}
+              className="w-full rounded-xl bg-forest-900/90 px-4 py-3 text-sm font-semibold text-forest-100 ring-1 ring-forest-700/60 hover:bg-forest-800"
+            >
+              Schließen
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
