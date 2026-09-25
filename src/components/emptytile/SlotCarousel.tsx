@@ -122,9 +122,14 @@ export function SlotCarousel({ now, slotIndex, tilesPerColumn, columnIndex, dire
 
   const card = pool[(((tick + kachelNr) % pool.length) + pool.length) % pool.length];
   // Bei jedem Auftritt des Fest-Platzes das andere Schild — auch wenn eine
-  // Info-Karte mitläuft (sonst fiele der Fest-Platz immer auf dieselbe Parität).
-  const festVariante: SchildVariante =
-    Math.floor(Math.max(0, tick + kachelNr) / pool.length) % 2 === 0 ? 'termine' : 'tag';
+  // Info-Karte mitläuft (sonst fiele der Fest-Platz immer auf dieselbe
+  // Parität). Versatz über die ZEILE (slotIndex): übereinanderliegende freie
+  // Kacheln zeigen verschiedene Schilder. Die Kachel-Nummer taugt dafür nicht —
+  // bei drei Kacheln je Spalte haben diagonal verteilte freie Kacheln (live:
+  // Kelo 2. Zeile, Blockhaus 1. + 3. Zeile) alle dieselbe Parität und zeigten
+  // gleichzeitig dasselbe Schild.
+  const festAuftritt = pool.length === 1 ? tick : Math.floor(Math.max(0, tick + kachelNr) / pool.length);
+  const festVariante: SchildVariante = (festAuftritt + slotIndex) % 2 === 0 ? 'termine' : 'tag';
 
   // Bewusst OHNE AnimatePresence. Der vorherige Stand nutzte mode="wait": die
   // alte Karte musste ihre Exit-Animation abschliessen, bevor die neue gemountet
