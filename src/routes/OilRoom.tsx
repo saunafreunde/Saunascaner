@@ -15,6 +15,7 @@ import type { RegalKatalog } from '@/lib/oelraumZutaten';
 import { oelraumHintergrundPfad } from '@/lib/oelraumTageszeit';
 import { OelraumAnzeige } from '@/components/oelraum/OelraumAnzeige';
 import { OelraumEingabe, type EingabeAuftrag } from '@/components/oelraum/OelraumEingabe';
+import { GeraetKoppelnQr } from '@/components/kiosk/GeraetKoppelnQr';
 
 // Aus vite.config.ts via `define`. Hilft beim Erkennen, ob das Tablet noch ein
 // veraltetes PWA-Bundle bedient (Hash in der Fußzeile mit dem aktuellen Deploy
@@ -201,6 +202,8 @@ export default function OilRoom() {
   // Aufgießer herauf. Wird beim Zurückspringen zur Anzeige geleert: das Tablet
   // ist ein gemeinsames Gerät, der Nächste darf nicht als der Vorige gelten.
   const [amGeraet, setAmGeraet] = useState<{ id: string; name: string } | null>(null);
+  // Kopplung per QR-Code (0197): Tablet zeigt den Code, Admin gibt per Handy frei.
+  const [koppelnOffen, setKoppelnOffen] = useState(false);
 
   async function evakuierungAusloesen(schonBestaetigt = false) {
     if (!schonBestaetigt && !confirm(amGeraet
@@ -287,7 +290,7 @@ export default function OilRoom() {
         </ol>
         {sicherUngekoppelt && (
           <p className="mt-3 text-sm text-rose-100">
-            Dieses Tablet ist nicht gekoppelt. Ein Admin muss es unter Admin → Displays → Kiosk-Geräte koppeln.
+            Dieses Tablet ist nicht gekoppelt. Ein Admin koppelt es über „📱 Jetzt koppeln" oben links (QR-Code mit dem Handy scannen).
           </p>
         )}
         <div className="mt-5 flex gap-3">
@@ -375,11 +378,29 @@ export default function OilRoom() {
       <div className="text-base font-black">🔐 Admin muss dieses Tablet koppeln</div>
       Ohne Kopplung gehen hier kein Eintragen, Ändern, Übernehmen oder Absagen
       {uebergangQ.data === false ? ' — und auch kein Evakuierungsalarm' : ''}.
-      Ein Admin öffnet Admin → Displays → Kiosk-Geräte → „Öl-Raum-Tablet“ und öffnet den Link auf diesem Tablet.
+      <button
+        type="button"
+        onClick={() => setKoppelnOffen(true)}
+        className="mt-2 block w-full rounded-lg bg-amber-950 px-3 py-2 text-sm font-bold text-amber-100 hover:bg-amber-900"
+      >
+        📱 Jetzt koppeln (QR-Code für das Admin-Handy)
+      </button>
     </div>
   ) : !geraet.data && geraet.isError ? (
     <div className="fixed left-3 top-3 z-50 max-w-sm rounded-xl bg-slate-800/90 px-3 py-2 text-xs font-semibold text-slate-100 shadow-lg">
       Prüfe Gerät … (Server gerade nicht erreichbar, neuer Versuch läuft)
+    </div>
+  ) : null;
+
+  const koppelnFenster = koppelnOffen && sicherUngekoppelt ? (
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[65] grid place-items-center overflow-y-auto bg-black/80 p-4">
+      <div className="w-full max-w-md space-y-3">
+        <GeraetKoppelnQr art="oelraum" />
+        <button type="button" onClick={() => setKoppelnOffen(false)}
+          className="w-full rounded-xl bg-forest-900/90 px-4 py-3 text-sm font-semibold text-forest-100 ring-1 ring-forest-700/60 hover:bg-forest-800">
+          Schließen
+        </button>
+      </div>
     </div>
   ) : null;
 
@@ -388,6 +409,7 @@ export default function OilRoom() {
       <>
         {vollbildKnopf}
         {kopplungsHinweis}
+        {koppelnFenster}
         {evacFehlerFenster}
         <OelraumEingabe
           auftrag={auftrag}
@@ -409,6 +431,7 @@ export default function OilRoom() {
     <>
       {vollbildKnopf}
       {kopplungsHinweis}
+      {koppelnFenster}
       {evacFehlerFenster}
       <OelraumAnzeige
         now={now}

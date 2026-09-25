@@ -6,8 +6,9 @@
 // Zugang seit 25.09.2026 (Migration 0177): NUR auf einem gekoppelten Gerät der
 // Art „panel". Das frühere Passwort stand im öffentlichen GitHub-Repo — damit
 // konnte jeder im Internet die Mitgliederliste lesen und Anwesenheiten setzen.
-// Ein Admin koppelt den PC einmal unter Admin → Displays → Kiosk-Geräte; das
-// Geräte-Token geht im bisherigen Parameter p_panel_password an den Server.
+// Ein Admin koppelt den PC einmal: der PC zeigt einen QR-Code, der Admin
+// scannt ihn mit dem Handy und gibt frei (0197). Das Geräte-Token geht im
+// bisherigen Parameter p_panel_password an den Server.
 //   - Realtime-Sync via useRealtime invalidiert members → live-update wenn
 //     jemand woanders ein-/austippt
 //   - Bottom-Nav ausgeblendet (siehe App.tsx NO_BOTTOM_NAV_PATHS)
@@ -21,6 +22,7 @@ import {
 } from '@/lib/api';
 import { kioskGeraetToken } from '@/lib/kioskGeraet';
 import { Avatar } from '@/components/Avatar';
+import { GeraetKoppelnQr } from '@/components/kiosk/GeraetKoppelnQr';
 
 export default function AnwesenheitsPanel() {
   const status = useKioskGeraetStatus();
@@ -59,21 +61,22 @@ export default function AnwesenheitsPanel() {
 }
 
 function NichtGekoppelt({ falscheArt }: { falscheArt: string | null }) {
+  // Seit 0197 zeigt das Panel selbst einen QR-Code: Admin scannt ihn mit dem
+  // Handy und tippt „Freigeben" — kein langer Link mehr zum Abtippen. Einmal
+  // gekoppelt, bleibt der PC gekoppelt (auch nach Neustart).
   return (
     <div className="min-h-screen bg-gradient-to-br from-forest-950 via-slate-950 to-forest-900 grid place-items-center p-6">
-      <div className="w-full max-w-md rounded-3xl bg-forest-900/80 ring-1 ring-forest-700/40 p-8 text-center backdrop-blur-xl">
-        <div className="text-5xl">🚪</div>
-        <h1 className="mt-3 text-2xl font-bold text-forest-100">Anwesenheits-Panel</h1>
-        <p className="mt-3 rounded-xl bg-amber-500/15 px-3 py-2 text-base font-bold text-amber-200 ring-1 ring-amber-400/40">
-          🔐 Ein Admin muss dieses Gerät koppeln.
-        </p>
-        <p className="mt-3 text-sm leading-relaxed text-forest-300/90">
-          {falscheArt
-            ? `Dieses Gerät ist als „${falscheArt}" gekoppelt, nicht als Panel.`
-            : 'Dieses Gerät ist noch nicht freigeschaltet.'}
-          {' '}Dafür öffnet ein Admin <strong className="text-amber-300">Admin → Displays → Kiosk-Geräte</strong>,
-          wählt „Anwesenheits-Panel" und öffnet den angezeigten Link (gilt einmal, 24 Stunden) auf diesem PC.
-        </p>
+      <div className="w-full max-w-md space-y-3">
+        <div className="text-center">
+          <div className="text-4xl">🚪</div>
+          <h1 className="mt-1 text-2xl font-bold text-forest-100">Anwesenheits-Panel</h1>
+          <p className="mt-1 text-sm text-forest-300/90">
+            {falscheArt
+              ? `Dieses Gerät ist als „${falscheArt}" gekoppelt, nicht als Panel.`
+              : 'Dieses Gerät ist noch nicht freigeschaltet — einmalig koppeln, danach bleibt es gekoppelt.'}
+          </p>
+        </div>
+        <GeraetKoppelnQr art="panel" />
       </div>
     </div>
   );

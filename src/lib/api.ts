@@ -774,6 +774,43 @@ export function useAdminKioskGeraetKoppeln() {
   });
 }
 
+/** Kopplung per QR-Code (0197): Anfrage eines Geräts ansehen (Admin). */
+export type KioskKopplungAnfrage = {
+  ok: boolean; grund?: string; code?: string; art_wunsch?: string | null; geraet_info?: string | null;
+  erstellt_at?: string; gueltig_bis?: string; entscheidung?: 'freigegeben' | 'abgelehnt' | null; abgelaufen?: boolean;
+};
+
+export function useAdminKioskKopplung(code: string | null) {
+  return useQuery({
+    queryKey: ['admin-kiosk-kopplung', code],
+    enabled: !!code,
+    queryFn: async () => {
+      const { data, error } = await need().rpc('admin_kiosk_kopplung_anzeigen', { p_code: code });
+      if (error) throw error;
+      return (data ?? { ok: false }) as KioskKopplungAnfrage;
+    },
+    staleTime: 0,
+  });
+}
+
+/** Anfrage freigeben (legt das Gerät an) oder ablehnen. */
+export function useAdminKioskKopplungEntscheiden() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { code: string; freigeben: boolean; art?: string; name?: string }) => {
+      const { data, error } = await need().rpc('admin_kiosk_kopplung_entscheiden', {
+        p_code: p.code, p_freigeben: p.freigeben, p_art: p.art ?? null, p_name: p.name ?? null,
+      });
+      if (error) throw error;
+      return (data ?? { ok: false }) as { ok: boolean; grund?: string; entscheidung?: string; art?: string; name?: string };
+    },
+    onSuccess: (_d, p) => {
+      void qc.invalidateQueries({ queryKey: ['admin-kiosk-geraete'] });
+      void qc.invalidateQueries({ queryKey: ['admin-kiosk-kopplung', p.code] });
+    },
+  });
+}
+
 export function useAdminKioskGeraetWiderrufen() {
   const qc = useQueryClient();
   return useMutation({

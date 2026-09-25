@@ -144,6 +144,7 @@ const Dm              = lazy(() => import('@/routes/Dm'));
 const DmConversation  = lazy(() => import('@/routes/DmConversation'));
 const AnwesenheitsPanel = lazy(() => import('@/routes/AnwesenheitsPanel'));
 const Koppeln         = lazy(() => import('@/routes/Koppeln'));
+const KoppelnFreigeben = lazy(() => import('@/routes/KoppelnFreigeben'));
 
 export default function App() {
   useRealtimeSync();
@@ -213,7 +214,11 @@ export default function App() {
         {/* /panel — anonymer Desktop-Hub für Anwesenheit, nur auf einem gekoppelten Gerät (0177) */}
         <Route path="/panel"                 element={<ErrorBoundary label="Panel" autoResetMs={60_000}><AnwesenheitsPanel /></ErrorBoundary>} />
         {/* /koppeln#<code> — Kiosk-Gerät koppeln (Einmal-Link aus Admin → Displays → Kiosk-Geräte, 0191) */}
+        {/* /koppeln ohne # — das Gerät zeigt einen QR-Code, ein Admin gibt per Handy frei (0197) */}
         <Route path="/koppeln"               element={<Koppeln />} />
+        {/* /k/<CODE> — Ziel dieses QR-Codes: Freigabe auf dem Admin-Handy (0197) */}
+        <Route path="/k"                     element={<RequireAdmin><KoppelnFreigeben /></RequireAdmin>} />
+        <Route path="/k/:code"               element={<RequireAdmin><KoppelnFreigeben /></RequireAdmin>} />
         <Route path="/login"          element={<Login />} />
         <Route path="/forgot"         element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

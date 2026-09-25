@@ -29,10 +29,16 @@ Jedes eingeloggte Vereinsmitglied (nicht Gäste/Fans) und jedes gekoppelte Table
 
 Öl-Raum-Tablet und Anwesenheits-Panel arbeiten ohne Login. Ihre Sonderrechte (Aufgüsse am Tablet anlegen, Anwesenheit setzen, Alarm auslösen und beenden) gelten nur für **gekoppelte Geräte**:
 
-1. **Admin → Displays → 🔐 Kiosk-Geräte** öffnen.
-2. Geräteart wählen (z. B. „Öl-Raum-Tablet") und **„Gerät koppeln"** tippen.
-3. Den angezeigten Link bzw. QR-Code **auf dem Gerät selbst** öffnen. Fertig — das Gerät springt auf seine Seite.
+Jedes Gerät muss nur **einmal** gekoppelt werden — danach bleibt es gekoppelt, auch nach Neustart oder Stromausfall.
 
-Der Link koppelt genau **ein** Gerät und gilt 24 Stunden; danach ist er verbraucht und wird nicht mehr angezeigt. Wer ihn später noch einmal öffnet (weitergeleitet, aus dem Verlauf), bekommt nichts. Geht ein Gerät verloren: in derselben Liste **„Entkoppeln"** — es verliert sofort alle Rechte.
+1. Das Gerät zeigt selbst einen **QR-Code**: das Anwesenheits-Panel sofort, das Öl-Raum-Tablet nach Tippen auf **„📱 Jetzt koppeln"** (gelber Hinweis oben links). Andere Geräte: dort `app.sauna-fds.de/koppeln` öffnen.
+2. Mit dem **Admin-Handy** den QR-Code scannen (Handy-Kamera oder in der App **Admin → 🔐 Kiosk-Geräte → „📷 QR-Code scannen"**). Ohne Kamera: den kurzen Code (z. B. `K7MQ-2XPA`) dort unter **„Code eingeben"** eintippen.
+3. Geräteart prüfen und **„Freigeben"** tippen. Das Gerät schaltet sich nach wenigen Sekunden selbst frei.
+
+Nur freigeben, wenn du **vor dem Gerät stehst** und dort genau dieser Code steht. Der Code gilt 15 Minuten, danach zeigt das Gerät von selbst einen neuen.
+
+Alter Weg (geht weiterhin): **Admin → Displays → 🔐 Kiosk-Geräte**, Geräteart wählen, **„Gerät koppeln"** und den angezeigten Link **auf dem Gerät selbst** öffnen (gilt einmal, 24 Stunden).
+
+Geht ein Gerät verloren: in derselben Liste **„Entkoppeln"** — es verliert sofort alle Rechte.
 
 **Zuerst das Öl-Raum-Tablet koppeln** — erst damit endet die Übergangsregel für den Alarm von ungekoppelten Geräten.

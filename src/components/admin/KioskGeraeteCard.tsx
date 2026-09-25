@@ -7,14 +7,20 @@
 // enthält einen EINMAL-Code (24 h gültig): Das erste Gerät, das ihn öffnet,
 // tauscht ihn gegen sein eigenes Token — danach ist er verbraucht. Das Token
 // selbst wird nie angezeigt; Gerät verloren → entkoppeln und neu koppeln.
+//
+// Seit 0197 der bequemere Weg andersherum: Das Gerät zeigt selbst einen
+// QR-Code (Panel/Öl-Raum ungekoppelt, oder /koppeln). Hier scannt der Admin ihn
+// mit der Handy-Kamera oder tippt den kurzen Code ein → Freigabe-Seite /k/<CODE>.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import {
   useAdminKioskGeraete, useAdminKioskGeraetKoppeln, useAdminKioskGeraetWiderrufen,
   type KioskGeraetZeile,
 } from '@/lib/api';
-import { KIOSK_GERAET_ARTEN, type KioskGeraetArt } from '@/lib/kioskGeraet';
+import { KIOSK_GERAET_ARTEN, kopplungsCodeAus, type KioskGeraetArt } from '@/lib/kioskGeraet';
 
 type GeraetStatus = NonNullable<KioskGeraetZeile['status']>;
 
@@ -34,7 +40,61 @@ function zeitText(iso: string | null): string {
   return new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
 }
 
+/** Kamera-Scan des QR-Codes, den ein ungekoppeltes Gerät zeigt (0197). Die
+ *  Scanner-Bibliothek wird erst beim Öffnen geladen. */
+function QrScanDialog({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const onCodeRef = useRef(onCode);
+  onCodeRef.current = onCode;
+
+  useEffect(() => {
+    let aus = false;
+    let scanner: { stop: () => void; destroy: () => void } | null = null;
+    (async () => {
+      try {
+        const { default: QrScanner } = await import('qr-scanner');
+        if (aus || !videoRef.current) return;
+        const s = new QrScanner(
+          videoRef.current,
+          (r) => {
+            const code = kopplungsCodeAus(r.data);
+            if (code) { aus = true; s.stop(); onCodeRef.current(code); }
+            else setFehler('Das ist kein Kopplungs-QR-Code der Saunafreunde-App.');
+          },
+          { preferredCamera: 'environment', highlightScanRegion: true, returnDetailedScanResult: true },
+        );
+        scanner = s;
+        await s.start();
+      } catch (e) {
+        setFehler(`Kamera nicht verfügbar: ${(e as Error).message}. Bitte den Code darunter eintippen.`);
+      }
+    })();
+    return () => { aus = true; scanner?.stop(); scanner?.destroy(); };
+  }, []);
+
+  // Portal: ein Vorfahr mit backdrop-filter/transform würde „fixed" sonst einsperren.
+  return createPortal(
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[80] grid place-items-center bg-black/85 p-4">
+      <div className="w-full max-w-sm space-y-3 rounded-2xl bg-forest-950 p-4 ring-1 ring-forest-700/60">
+        <p className="text-sm font-semibold text-forest-100">QR-Code am Gerät scannen</p>
+        <video ref={videoRef} className="aspect-square w-full rounded-xl bg-black object-cover" muted playsInline />
+        {fehler && <p className="text-xs text-rose-300">{fehler}</p>}
+        <button type="button" onClick={onClose}
+          className="w-full rounded-lg bg-forest-800 px-4 py-2 text-sm font-semibold text-forest-100 hover:bg-forest-700">
+          Abbrechen
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function KioskGeraeteCard() {
+  const nav = useNavigate();
+  const [scanOffen, setScanOffen] = useState(false);
+  const [codeEingabe, setCodeEingabe] = useState('');
+  const [codeFehler, setCodeFehler] = useState<string | null>(null);
   const liste = useAdminKioskGeraete();
   const koppeln = useAdminKioskGeraetKoppeln();
   const widerrufen = useAdminKioskGeraetWiderrufen();
@@ -96,10 +156,52 @@ export function KioskGeraeteCard() {
         <div className="mt-4 space-y-4">
           <p className="text-xs leading-relaxed text-forest-300/90">
             Öl-Raum-Tablet und Anwesenheits-Panel arbeiten ohne Login. Damit niemand von außen ihre Rechte nutzt,
-            funktionieren sie nur auf gekoppelten Geräten. So geht’s: Gerät hier anlegen, dann den Link bzw. QR-Code
-            <strong className="text-amber-200"> auf dem Gerät selbst</strong> öffnen. Der Link koppelt genau
-            <strong className="text-amber-200"> ein</strong> Gerät und gilt 24 Stunden — danach ist er verbraucht bzw.
-            abgelaufen und wird nicht wieder angezeigt.
+            funktionieren sie nur auf gekoppelten Geräten. Koppeln muss man jedes Gerät <strong className="text-amber-200">nur einmal</strong> —
+            danach bleibt es gekoppelt, auch nach einem Neustart.
+          </p>
+
+          <div className="rounded-xl bg-amber-500/10 p-3 ring-1 ring-amber-400/40">
+            <p className="text-xs font-semibold text-amber-100">
+              Am einfachsten: Das Gerät zeigt einen QR-Code (Panel bzw. „📱 Jetzt koppeln" am Öl-Raum-Tablet,
+              sonst auf dem Gerät <span className="font-mono">{window.location.host}/koppeln</span> öffnen). Den hier scannen oder den Code eintippen:
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" onClick={() => { setCodeFehler(null); setScanOffen(true); }}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-400">
+                📷 QR-Code scannen
+              </button>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const c = kopplungsCodeAus(codeEingabe);
+                  if (!c) { setCodeFehler('Der Code hat 8 Zeichen, z. B. K7MQ-2XPA.'); return; }
+                  nav(`/k/${c}`);
+                }}
+                className="flex min-w-0 flex-1 gap-2"
+              >
+                <input
+                  value={codeEingabe}
+                  onChange={(e) => setCodeEingabe(e.target.value)}
+                  placeholder="Code eingeben"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="min-w-0 flex-1 rounded-lg bg-forest-900/80 px-3 py-2 font-mono text-base uppercase tracking-widest text-forest-100 ring-1 ring-forest-700/50 placeholder:normal-case placeholder:tracking-normal placeholder:text-forest-500"
+                />
+                <button type="submit" className="rounded-lg bg-forest-700 px-3 py-2 text-sm font-semibold text-forest-50 hover:bg-forest-600">
+                  Weiter
+                </button>
+              </form>
+            </div>
+            {codeFehler && <p className="mt-1 text-xs text-rose-300">{codeFehler}</p>}
+          </div>
+          {scanOffen && (
+            <QrScanDialog onCode={(c) => { setScanOffen(false); nav(`/k/${c}`); }} onClose={() => setScanOffen(false)} />
+          )}
+
+          <p className="text-xs leading-relaxed text-forest-400">
+            Alternativ (alter Weg): Gerät hier anlegen und den Link bzw. QR-Code <strong>auf dem Gerät selbst</strong> öffnen.
+            Der Link koppelt genau ein Gerät und gilt 24 Stunden.
           </p>
           {!oelraumJeGekoppelt && (
             <p className="rounded-xl bg-amber-500/15 px-3 py-2 text-xs leading-relaxed text-amber-100 ring-1 ring-amber-400/40">

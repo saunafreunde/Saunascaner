@@ -8,11 +8,17 @@
 // Sprung auf die passende Kiosk-Seite an. Danach ist der Link verbraucht: wer
 // ihn später noch einmal öffnet (weitergeleitet, aus dem Verlauf), bekommt
 // nichts. Vorher (0177) WAR der Link das Geräte-Token und galt beliebig oft.
+//
+// /koppeln OHNE # (seit 0197): Das Gerät zeigt einen QR-Code und einen kurzen
+// Code; ein Admin scannt ihn mit dem Handy und gibt frei (/k/<CODE>). Kein
+// Abtippen langer Links mehr. /koppeln?art=panel schlägt die Art gleich vor.
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useKioskGeraetStatus } from '@/lib/api';
 import { KIOSK_GERAET_ARTEN, kioskGeraetSpeichern, type KioskGeraetArt } from '@/lib/kioskGeraet';
+import { GeraetKoppelnQr } from '@/components/kiosk/GeraetKoppelnQr';
 
 type Zustand =
   | { phase: 'pruefe' }
@@ -20,6 +26,85 @@ type Zustand =
   | { phase: 'fehler'; text: string };
 
 export default function Koppeln() {
+  const [mitLink] = useState(() => window.location.hash.replace(/^#/, '').trim() !== '');
+  return mitLink ? <KoppelnPerLink /> : <KoppelnPerQr />;
+}
+
+/** Gerät zeigt QR-Code + Kurzcode, Admin gibt per Handy frei (0197). */
+function KoppelnPerQr() {
+  const status = useKioskGeraetStatus();
+  const [art, setArt] = useState<KioskGeraetArt | null>(() => {
+    const a = new URLSearchParams(window.location.search).get('art');
+    return KIOSK_GERAET_ARTEN.some((x) => x.art === a) ? (a as KioskGeraetArt) : null;
+  });
+  const [artGewaehlt, setArtGewaehlt] = useState(art !== null);
+  const [neuKoppeln, setNeuKoppeln] = useState(false);
+
+  const gekoppelt = status.data?.status === 'ok' ? status.data : null;
+  const zielVon = (a: string) => KIOSK_GERAET_ARTEN.find((x) => x.art === a);
+
+  let inhalt: React.ReactNode;
+  if (status.isLoading) {
+    inhalt = <p className="text-center text-forest-300">Gerät wird geprüft …</p>;
+  } else if (gekoppelt && !neuKoppeln) {
+    const ziel = zielVon(gekoppelt.art);
+    inhalt = (
+      <div className="rounded-3xl bg-forest-950/85 p-7 text-center ring-1 ring-forest-700/50 backdrop-blur">
+        <div className="text-5xl">✅</div>
+        <h1 className="mt-3 text-xl font-semibold text-forest-100">Schon gekoppelt</h1>
+        <p className="mt-2 text-sm text-forest-300">
+          Dieses Gerät ist als <strong className="text-amber-300">{ziel?.label ?? gekoppelt.art}</strong> gekoppelt
+          {gekoppelt.name ? ` („${gekoppelt.name}")` : ''}.
+        </p>
+        {ziel && (
+          <button type="button" onClick={() => window.location.replace(ziel.ziel)}
+            className="mt-6 w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-3 font-semibold text-amber-950 hover:from-amber-400 hover:to-amber-500">
+            Weiter zu {ziel.label}
+          </button>
+        )}
+        <button type="button" onClick={() => setNeuKoppeln(true)}
+          className="mt-3 text-sm text-forest-400 underline hover:text-forest-200">
+          Als anderes Gerät neu koppeln
+        </button>
+      </div>
+    );
+  } else if (!artGewaehlt) {
+    inhalt = (
+      <div className="rounded-3xl bg-forest-950/85 p-7 text-center ring-1 ring-forest-700/50 backdrop-blur">
+        <h1 className="text-xl font-semibold text-forest-100">Was ist dieses Gerät?</h1>
+        <p className="mt-2 text-sm text-forest-300">Danach erscheint ein QR-Code, den ein Admin mit dem Handy scannt.</p>
+        <div className="mt-5 grid gap-2">
+          {KIOSK_GERAET_ARTEN.map((a) => (
+            <button key={a.art} type="button" onClick={() => { setArt(a.art); setArtGewaehlt(true); }}
+              className="rounded-xl bg-forest-900/70 px-4 py-3 text-left text-base font-semibold text-forest-100 ring-1 ring-forest-700/50 hover:bg-forest-800">
+              {a.label}
+            </button>
+          ))}
+          <button type="button" onClick={() => { setArt(null); setArtGewaehlt(true); }}
+            className="mt-1 text-sm text-forest-400 underline hover:text-forest-200">
+            Weiß nicht — der Admin wählt beim Freigeben
+          </button>
+        </div>
+      </div>
+    );
+  } else {
+    inhalt = (
+      <GeraetKoppelnQr
+        art={art}
+        onGekoppelt={(a) => window.location.replace(zielVon(a)?.ziel ?? '/')}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-schwarzwald-soft grid place-items-center p-6">
+      <div className="w-full max-w-md">{inhalt}</div>
+    </div>
+  );
+}
+
+/** Alter Weg: Einmal-Link /koppeln#<code> aus dem Admin-Bereich (0191). */
+function KoppelnPerLink() {
   const nav = useNavigate();
   const [zustand, setZustand] = useState<Zustand>({ phase: 'pruefe' });
 

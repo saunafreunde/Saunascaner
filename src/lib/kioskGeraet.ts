@@ -8,6 +8,12 @@
 // das Token landet hier im localStorage und geht bei jeder Kiosk-Aktion als
 // p_geraet (bzw. Header x-kiosk-geraet) mit. In der Datenbank liegt nur der
 // sha256-Wert.
+//
+// Seit 0197 geht es auch andersherum (der lange Link musste abgetippt werden):
+// Das Gerät würfelt sein Token selbst, meldet eine Kopplungsanfrage an und
+// zeigt einen QR-Code + kurzen Code; ein Admin scannt ihn mit dem Handy und
+// gibt frei (components/kiosk/GeraetKoppelnQr.tsx, routes/KoppelnFreigeben.tsx).
+// Bis zur Freigabe liegt das Token unter einem eigenen Schlüssel.
 
 const SCHLUESSEL = 'sauna-kiosk-geraet-v1';
 
@@ -42,4 +48,74 @@ export function kioskGeraetVergessen(): void {
 export function kioskGeraetHeader(): Record<string, string> {
   const t = kioskGeraetToken();
   return t ? { 'x-kiosk-geraet': t } : {};
+}
+
+// ─── Kopplung per QR-Code (0197) ───────────────────────────────────────────
+
+const ANFRAGE_SCHLUESSEL = 'sauna-kiosk-kopplung-v1';
+
+/** 32 Zufallsbytes als Hex — das künftige Geräte-Token. */
+function neuesToken(): string {
+  const b = new Uint8Array(32);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+/** Token der laufenden Kopplungsanfrage (überlebt ein Neuladen der Seite, damit
+ *  der angezeigte Code gleich bleibt). Legt bei Bedarf ein neues an. */
+export function kopplungsToken(neu = false): string {
+  try {
+    const t = localStorage.getItem(ANFRAGE_SCHLUESSEL);
+    if (!neu && t && /^[0-9a-f]{64}$/.test(t)) return t;
+    const n = neuesToken();
+    localStorage.setItem(ANFRAGE_SCHLUESSEL, n);
+    return n;
+  } catch {
+    return neuesToken();
+  }
+}
+
+/** Freigabe angekommen: das Anfrage-Token wird zum Geräte-Token. */
+export function kopplungAbschliessen(token: string): void {
+  kioskGeraetSpeichern(token);
+  try { localStorage.removeItem(ANFRAGE_SCHLUESSEL); } catch { /* egal */ }
+}
+
+/** Kurzer Code für Menschen: „K7MQ2XPA" → „K7MQ-2XPA". */
+export function kopplungsCodeAnzeige(code: string): string {
+  return code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+}
+
+/** Eingabe/Scan → Code (8 Zeichen, ohne 0/O/1/I) oder null. Nimmt auch den
+ *  ganzen QR-Link …/k/K7MQ2XPA. */
+export function kopplungsCodeAus(eingabe: string): string | null {
+  const s = eingabe.trim();
+  const ausLink = /\/k\/([A-Za-z0-9-]{8,9})(?:[/?#]|$)/.exec(s);
+  const roh = (ausLink ? ausLink[1] : s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return /^[A-HJ-NP-Z2-9]{8}$/.test(roh) ? roh : null;
+}
+
+/** Was für ein Gerät fragt an? Hilft dem Admin beim Freigeben („Windows · Edge ·
+ *  1920×1080"). Keine Kennung, nur grobe Merkmale. */
+export function geraetBeschreibung(): string {
+  try {
+    const ua = navigator.userAgent;
+    const touch = navigator.maxTouchPoints > 1;
+    const os = /Windows/.test(ua) ? 'Windows'
+      : /Android/.test(ua) ? 'Android'
+      : /iPhone/.test(ua) ? 'iPhone'
+      : /iPad/.test(ua) || (/Macintosh/.test(ua) && touch) ? 'iPad'
+      : /Mac OS X/.test(ua) ? 'Mac'
+      : /CrOS/.test(ua) ? 'ChromeOS'
+      : /Linux/.test(ua) ? 'Linux' : 'Gerät';
+    const browser = /Edg\//.test(ua) ? 'Edge'
+      : /SamsungBrowser/.test(ua) ? 'Samsung Internet'
+      : /Fully/.test(ua) ? 'Fully Kiosk'
+      : /Firefox\//.test(ua) ? 'Firefox'
+      : /Chrome\//.test(ua) ? 'Chrome'
+      : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+    return `${os} · ${browser} · ${screen.width}×${screen.height}`;
+  } catch {
+    return '';
+  }
 }
